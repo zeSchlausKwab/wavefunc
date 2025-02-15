@@ -1,0 +1,23 @@
+{
+  "name": "@wavefunc/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsx build",
+    "start": "node dist/index.js",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@wavefunc/common": "workspace:*",
+    "@wavefunc/db": "workspace:*",
+    "hono": "^4.0.9",
+    "@hono/node-server": "^1.8.2",
+    "@nostr-dev-kit/ndk": "^2.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.25",
+    "eslint-config-custom": "workspace:*",
+    "tsx": "^4.7.1"
+  }
+}

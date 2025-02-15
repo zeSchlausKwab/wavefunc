@@ -1,0 +1,19 @@
+{
+  "name": "@wavefunc/common",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.25",
+    "eslint-config-custom": "workspace:*",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "@nostr-dev-kit/ndk": "^2.11.0",
+    "zod": "^3.24.1"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@wavefunc/common/*": ["packages/common/src/*"],
+      "@wavefunc/common": ["packages/common/src"],
+      "@wavefunc/db/*": ["packages/db/src/*"],
+      "@wavefunc/db": ["packages/db/src"]
+    }
+  }
+}

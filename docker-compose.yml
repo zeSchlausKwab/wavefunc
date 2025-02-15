@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  relay:
+    image: ghcr.io/nbd-wtf/khatru:latest
+    ports:
+      - "${RELAY_PORT:-3002}:3002"
+    volumes:
+      - ./apps/relay/data:/data
+    environment:
+      - KHATRU_DB_PATH=/data/nostr.db
+      - KHATRU_PUBKEY=${RELAY_PUBKEY}
+      - KHATRU_CONTACT=${RELAY_CONTACT}
+      - KHATRU_NAME=Wavefunc Relay
+      - KHATRU_DESCRIPTION=A Nostr relay running on Khatru
