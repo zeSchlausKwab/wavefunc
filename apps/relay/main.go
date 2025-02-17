@@ -24,6 +24,12 @@ func main() {
 		dbPath = "./nostr.db" // Default to root directory
 	}
 
+	// Ensure the database directory exists
+	dbDir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		panic(fmt.Errorf("failed to create database directory: %v", err))
+	}
+
 	db := sqlite3.SQLite3Backend{DatabaseURL: dbPath}
 	if err := db.Init(); err != nil {
 		panic(err)

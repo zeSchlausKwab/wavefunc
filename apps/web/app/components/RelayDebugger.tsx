@@ -21,7 +21,7 @@ export function RelayDebugger() {
 
   useEffect(() => {
     const filter: NDKFilter = {
-      kinds: [0, 1, 3, 5000, 6000], // Add more kinds as needed
+      kinds: [5000, 6000], // Add more kinds as needed
       limit: 100,
     }
 
