@@ -5,6 +5,9 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_LOCAL_MACHINE_IP: process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP,
   },
-}
+  images: {
+    domains: ["picsum.photos"],
+  },
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
