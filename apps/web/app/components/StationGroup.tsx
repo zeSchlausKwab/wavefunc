@@ -1,38 +1,37 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExpandableStationCard } from "./ExpandableStationCard"
-
-interface Comment {
-  id: number
-  user: string
-  text: string
-  date: string
-}
-
-interface Station {
-  id: number
-  name: string
-  genre: string
-  url: string
-  imageUrl: string
-  isUserOwned: boolean
-  description: string
-  comments: Comment[]
-}
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ExpandableStationCard } from "./ExpandableStationCard";
+import { Station } from "@wavefunc/common";
 
 interface StationGroupProps {
-  name: string
-  description: string
-  stations: Station[]
-  onUpdateStation: (updatedStation: Station) => void
-  onPlayStation: (station: Station) => void
+  name: string;
+  description: string;
+  stations: Station[];
+  onUpdateStation: (updatedStation: Station) => void;
+  onPlayStation: (station: Station) => void;
 }
 
-export function StationGroup({ name, description, stations, onUpdateStation, onPlayStation }: StationGroupProps) {
+export function StationGroup({
+  name,
+  description,
+  stations,
+  onUpdateStation,
+  onPlayStation,
+}: StationGroupProps) {
   return (
     <Card className="w-full bg-white bg-opacity-90 shadow-lg mb-6">
       <CardHeader>
-        <CardTitle className="text-primary text-lg font-press-start-2p">{name}</CardTitle>
-        <CardDescription className="text-sm font-press-start-2p mt-1">{description}</CardDescription>
+        <CardTitle className="text-primary text-lg font-press-start-2p">
+          {name}
+        </CardTitle>
+        <CardDescription className="text-sm font-press-start-2p mt-1">
+          {description}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -47,6 +46,5 @@ export function StationGroup({ name, description, stations, onUpdateStation, onP
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
-

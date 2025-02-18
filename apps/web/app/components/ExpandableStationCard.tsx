@@ -1,45 +1,67 @@
-"use client"
+"use client";
 
-import React from "react"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Play, Pencil, ChevronDown, ChevronUp, Globe, Zap, Share2, Music, Users, Calendar, Star } from "lucide-react"
-import { EditStationDrawer } from "./EditStationDrawer"
-
-interface Stream {
-  url: string
-  bitrate: number
-}
-
-interface Station {
-  id: number
-  name: string
-  genre: string
-  streams: Stream[]
-  imageUrl: string
-  isUserOwned: boolean
-  description: string
-  comments: { id: number; user: string; text: string; date: string }[]
-}
+import React from "react";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Play,
+  Pencil,
+  ChevronDown,
+  ChevronUp,
+  Globe,
+  Zap,
+  Share2,
+  Music,
+  Users,
+  Calendar,
+  Star,
+} from "lucide-react";
+import { EditStationDrawer } from "./EditStationDrawer";
+import { Station, Stream } from "@wavefunc/common";
+import { streams } from "../data/streams";
+import { comments } from "../data/comments";
 
 interface ExpandableStationCardProps {
-  station: Station
-  onUpdate: (updatedStation: Station) => void
-  onPlay: (station: Station) => void
+  station: Station;
+  onUpdate: (updatedStation: Station) => void;
+  onPlay: (station: Station) => void;
 }
 
-export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableStationCardProps) {
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = React.useState(false)
-  const [isExpanded, setIsExpanded] = React.useState(false)
+export function ExpandableStationCard({
+  station,
+  onUpdate,
+  onPlay,
+}: ExpandableStationCardProps) {
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = React.useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const stationStreams = React.useMemo(
+    () => streams.filter((stream) => stream.stationId === station.id),
+    [station.id]
+  );
+
+  const stationComments = React.useMemo(
+    () => comments.filter((comment) => comment.stationId === station.id),
+    [station.id]
+  );
+
   const [selectedStream, setSelectedStream] = React.useState<Stream | null>(
-    station.streams && station.streams.length > 0 ? station.streams[0] : null,
-  )
+    stationStreams.length > 0 ? stationStreams[0] : null
+  );
 
   const handleStreamChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStream = station.streams?.find((stream) => stream.url === event.target.value)
-    if (newStream) setSelectedStream(newStream)
-  }
+    const newStream = stationStreams.find(
+      (stream) => stream.url === event.target.value
+    );
+    if (newStream) setSelectedStream(newStream);
+  };
 
   return (
     <Card className="w-full bg-white bg-opacity-90 shadow-lg overflow-hidden">
@@ -60,28 +82,43 @@ export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableS
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-primary text-sm font-press-start-2p">{station.name}</CardTitle>
-                  <CardDescription className="text-xs font-press-start-2p mt-1">{station.genre}</CardDescription>
+                  <CardTitle className="text-primary text-sm font-press-start-2p">
+                    {station.name}
+                  </CardTitle>
+                  <CardDescription className="text-xs font-press-start-2p mt-1">
+                    {station.genre}
+                  </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="icon" onClick={() => onPlay(station)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onPlay(station)}
+                  >
                     <Play className="h-4 w-4 text-primary" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
-                    {isExpanded ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                  >
+                    {isExpanded ?
                       <ChevronUp className="h-4 w-4 text-primary" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-primary" />
-                    )}
+                    : <ChevronDown className="h-4 w-4 text-primary" />}
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-xs font-press-start-2p">{station.description}</p>
-              {station.streams && station.streams.length > 0 && (
+              <p className="text-xs font-press-start-2p">
+                {station.description}
+              </p>
+              {stationStreams && stationStreams.length > 0 && (
                 <div className="mt-2 p-2 bg-gray-100 rounded">
-                  <label htmlFor="bitrate-select" className="block text-xs font-press-start-2p mb-1">
+                  <label
+                    htmlFor="bitrate-select"
+                    className="block text-xs font-press-start-2p mb-1"
+                  >
                     Available Streams:
                   </label>
                   <select
@@ -90,14 +127,16 @@ export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableS
                     onChange={handleStreamChange}
                     className="w-full text-xs font-press-start-2p bg-white border border-gray-300 rounded px-2 py-1"
                   >
-                    {station.streams.map((stream, index) => (
+                    {stationStreams.map((stream, index) => (
                       <option key={index} value={stream.url}>
                         {stream.bitrate} kbps
                       </option>
                     ))}
                   </select>
                   {selectedStream && (
-                    <p className="text-xs font-press-start-2p mt-1">Current: {selectedStream.bitrate} kbps</p>
+                    <p className="text-xs font-press-start-2p mt-1">
+                      Current: {selectedStream.bitrate} kbps
+                    </p>
                   )}
                 </div>
               )}
@@ -139,18 +178,26 @@ export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableS
             <div className="flex items-center mb-4">
               <div className="w-10 h-10 rounded-full bg-primary mr-3"></div>
               <div>
-                <p className="text-sm font-semibold font-press-start-2p">John Doe</p>
-                <p className="text-xs text-gray-500 font-press-start-2p">Station Creator</p>
+                <p className="text-sm font-semibold font-press-start-2p">
+                  John Doe
+                </p>
+                <p className="text-xs text-gray-500 font-press-start-2p">
+                  Station Creator
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center">
                 <Music className="h-4 w-4 text-primary mr-2" />
-                <span className="text-xs font-press-start-2p">Tracks: 1000+</span>
+                <span className="text-xs font-press-start-2p">
+                  Tracks: 1000+
+                </span>
               </div>
               <div className="flex items-center">
                 <Users className="h-4 w-4 text-primary mr-2" />
-                <span className="text-xs font-press-start-2p">Listeners: 5k</span>
+                <span className="text-xs font-press-start-2p">
+                  Listeners: 5k
+                </span>
               </div>
               <div className="flex items-center">
                 <Calendar className="h-4 w-4 text-primary mr-2" />
@@ -162,8 +209,10 @@ export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableS
               </div>
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold font-press-start-2p">Comments</h4>
-              {station.comments.map((comment) => (
+              <h4 className="text-sm font-semibold font-press-start-2p">
+                Comments
+              </h4>
+              {stationComments.map((comment) => (
                 <div key={comment.id} className="bg-white p-2 rounded-md">
                   <p className="text-xs font-press-start-2p">{comment.text}</p>
                   <p className="text-xs text-gray-500 font-press-start-2p mt-1">
@@ -182,6 +231,5 @@ export function ExpandableStationCard({ station, onUpdate, onPlay }: ExpandableS
         onUpdate={onUpdate}
       />
     </Card>
-  )
+  );
 }
-

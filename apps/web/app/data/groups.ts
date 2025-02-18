@@ -1,4 +1,6 @@
-export const groups = [
+import { Group } from "@wavefunc/common";
+
+export const groups: Group[] = [
   {
     id: 1,
     name: "Work",
@@ -23,5 +25,4 @@ export const groups = [
     description: "Energetic stations to fuel your exercise",
     stationIds: [3, 4, 5, 9],
   },
-]
-
+];

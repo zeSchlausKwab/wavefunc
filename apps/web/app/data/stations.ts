@@ -1,4 +1,6 @@
-export const stations = [
+import { Station } from "@wavefunc/common";
+
+export const stations: Station[] = [
   {
     id: 1,
     name: "Jazz FM",
@@ -7,20 +9,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/jazzfm/400/400",
     isUserOwned: true,
     description: "Smooth jazz to keep you in the zone",
-    comments: [
-      {
-        id: 1,
-        user: "JazzLover",
-        text: "Great for coding sessions!",
-        date: "2023-05-15",
-      },
-      {
-        id: 2,
-        user: "WorkaholicDev",
-        text: "My go-to station for deep work",
-        date: "2023-05-16",
-      },
-    ],
+    streamIds: [1, 2],
+    commentIds: [1, 2],
   },
   {
     id: 2,
@@ -30,14 +20,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/classicalvibes/400/400",
     isUserOwned: true,
     description: "Timeless classical music for concentration",
-    comments: [
-      {
-        id: 3,
-        user: "MozartFan",
-        text: "Perfect background music for work",
-        date: "2023-05-17",
-      },
-    ],
+    streamIds: [],
+    commentIds: [3],
   },
   {
     id: 3,
@@ -47,20 +31,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/electrobeats/400/400",
     isUserOwned: false,
     description: "Non-stop electronic dance music",
-    comments: [
-      {
-        id: 4,
-        user: "RaveMaster",
-        text: "This station is lit!",
-        date: "2023-05-18",
-      },
-      {
-        id: 5,
-        user: "DanceAllNight",
-        text: "Best EDM selection ever",
-        date: "2023-05-19",
-      },
-    ],
+    streamIds: [],
+    commentIds: [4, 5],
   },
   {
     id: 4,
@@ -70,14 +42,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/hiphopnation/400/400",
     isUserOwned: false,
     description: "The hottest hip hop tracks",
-    comments: [
-      {
-        id: 6,
-        user: "RapEnthusiast",
-        text: "Always playing the latest hits",
-        date: "2023-05-20",
-      },
-    ],
+    streamIds: [],
+    commentIds: [6],
   },
   {
     id: 5,
@@ -87,14 +53,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/rockradio/400/400",
     isUserOwned: true,
     description: "Classic and modern rock hits",
-    comments: [
-      {
-        id: 7,
-        user: "GuitarHero",
-        text: "Great selection of rock classics!",
-        date: "2023-05-21",
-      },
-    ],
+    streamIds: [],
+    commentIds: [7],
   },
   {
     id: 6,
@@ -104,14 +64,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/chilllounge/400/400",
     isUserOwned: false,
     description: "Relaxing ambient sounds for ultimate chill",
-    comments: [
-      {
-        id: 8,
-        user: "ZenMaster",
-        text: "Perfect for meditation and relaxation",
-        date: "2023-05-22",
-      },
-    ],
+    streamIds: [],
+    commentIds: [8],
   },
   {
     id: 7,
@@ -121,14 +75,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/countryroads/400/400",
     isUserOwned: true,
     description: "The best in country music",
-    comments: [
-      {
-        id: 9,
-        user: "CowboyFan",
-        text: "Feels like home!",
-        date: "2023-05-23",
-      },
-    ],
+    streamIds: [],
+    commentIds: [9],
   },
   {
     id: 8,
@@ -138,14 +86,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/reggaewaves/400/400",
     isUserOwned: false,
     description: "Laid-back reggae vibes",
-    comments: [
-      {
-        id: 10,
-        user: "IslandLife",
-        text: "Transports me to the Caribbean!",
-        date: "2023-05-24",
-      },
-    ],
+    streamIds: [],
+    commentIds: [10],
   },
   {
     id: 9,
@@ -155,14 +97,8 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/synthwavedreams/400/400",
     isUserOwned: true,
     description: "Retro-futuristic electronic music",
-    comments: [
-      {
-        id: 11,
-        user: "RetroGamer",
-        text: "Feels like I'm in a 80s arcade!",
-        date: "2023-05-25",
-      },
-    ],
+    streamIds: [],
+    commentIds: [11],
   },
   {
     id: 10,
@@ -172,13 +108,7 @@ export const stations = [
     imageUrl: "https://picsum.photos/seed/smoothrnb/400/400",
     isUserOwned: false,
     description: "Soulful R&B hits",
-    comments: [
-      {
-        id: 12,
-        user: "SoulSinger",
-        text: "Great vocals and smooth beats",
-        date: "2023-05-26",
-      },
-    ],
+    streamIds: [],
+    commentIds: [12],
   },
 ];
