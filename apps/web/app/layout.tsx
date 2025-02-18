@@ -7,6 +7,9 @@ import { RadioPlayer } from "./components/RadioPlayer";
 import { Profile } from "./components/Profile";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
+import { DevelopmentControls } from "./components/DevelopmentControls";
 
 const pressStart2P = Press_Start_2P({
   weight: "400",
@@ -15,13 +18,6 @@ const pressStart2P = Press_Start_2P({
 });
 
 const inter = Inter({ subsets: ["latin"] });
-
-// Placeholder data for the profile
-const placeholderProfile = {
-  name: "John Doe",
-  email: "john@example.com",
-  avatarUrl: "https://picsum.photos/seed/john/400/400",
-};
 
 export default function RootLayout({
   children,
@@ -33,19 +29,7 @@ export default function RootLayout({
       <body className={`${pressStart2P.variable} ${inter.className}`}>
         <Provider>
           <div className="flex flex-col min-h-screen">
-            <header className="bg-white bg-opacity-80 shadow-md sticky top-0 z-10">
-              <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-primary font-press-start-2p">
-                  wavefunc
-                </h1>
-                <div className="flex items-center space-x-4">
-                  <Profile {...placeholderProfile} />
-                  <Button variant="ghost" size="icon" aria-label="Logout">
-                    <LogOut className="h-5 w-5 text-primary" />
-                  </Button>
-                </div>
-              </div>
-            </header>
+            <Header />
             <nav className="bg-white bg-opacity-80">
               <div className="container mx-auto px-4 py-2">
                 <ul className="flex space-x-4 text-xs font-press-start-2p">
@@ -79,11 +63,8 @@ export default function RootLayout({
             <main className="flex-grow container mx-auto px-4 py-8 mb-24">
               {children}
             </main>
-            <footer className="bg-white bg-opacity-80 shadow-md">
-              <div className="container mx-auto px-4 py-4 text-center text-muted-foreground text-xs font-press-start-2p">
-                © 2025 wavefunc
-              </div>
-            </footer>
+            <DevelopmentControls />
+            <Footer />
           </div>
           <div className="fixed bottom-0 left-0 right-0 z-50">
             <RadioPlayer />

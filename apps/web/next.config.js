@@ -1,9 +1,18 @@
 // @ts-check
 
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
-    NEXT_PUBLIC_LOCAL_MACHINE_IP: process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP,
+    // Load environment variables from root .env file, excluding protected ones
+    ...Object.fromEntries(
+      Object.entries(
+        require("dotenv").config({
+          path: path.join(__dirname, "../../.env"),
+        }).parsed || {}
+      ).filter(([key]) => !["NODE_ENV"].includes(key))
+    ),
   },
   images: {
     domains: ["picsum.photos"],

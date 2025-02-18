@@ -9,12 +9,36 @@ import {
   UserContactsSchema,
 } from "@wavefunc/common";
 import { z } from "zod";
+import { developmentService } from "./services/development";
+import { config } from "./config";
 
 const app = new Hono();
 
 // Middleware
 app.use("*", logger());
 app.use("*", cors());
+
+// Development routes - only available in development
+if (config.isDevelopment) {
+  app.post("/development/seed", async (c) => {
+    const result = await developmentService.seedData();
+    return c.json(result);
+  });
+
+  app.post("/development/nuke", async (c) => {
+    const result = await developmentService.nukeData();
+    return c.json(result);
+  });
+
+  app.post("/development/reset", async (c) => {
+    const result = await developmentService.resetData();
+    return c.json(result);
+  });
+} else {
+  const devRouteHandler = (c: any) =>
+    c.json({ error: "Development routes not available in production" }, 404);
+  app.post("/development/*", devRouteHandler);
+}
 
 // Routes
 app.get("/", (c) => {
