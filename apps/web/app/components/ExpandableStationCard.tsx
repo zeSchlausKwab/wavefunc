@@ -23,23 +23,27 @@ import {
   Users,
   Calendar,
   Star,
+  Heart,
+  MessageCircle,
 } from "lucide-react";
 import { EditStationDrawer } from "./EditStationDrawer";
 import { Station, Stream } from "@wavefunc/common";
 import { streams } from "../data/streams";
 import { comments } from "../data/comments";
+import { useAtom } from "jotai";
+import { currentStationAtom } from "../atoms/stations";
+import { StreamSelector } from "./StreamSelector";
 
 interface ExpandableStationCardProps {
   station: Station;
   onUpdate: (updatedStation: Station) => void;
-  onPlay: (station: Station) => void;
 }
 
 export function ExpandableStationCard({
   station,
   onUpdate,
-  onPlay,
 }: ExpandableStationCardProps) {
+  const [, setCurrentStation] = useAtom(currentStationAtom);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = React.useState(false);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const stationStreams = React.useMemo(
@@ -52,16 +56,15 @@ export function ExpandableStationCard({
     [station.id]
   );
 
-  const [selectedStream, setSelectedStream] = React.useState<Stream | null>(
-    stationStreams.length > 0 ? stationStreams[0] : null
-  );
+  const [selectedStreamId, setSelectedStreamId] = React.useState<
+    number | undefined
+  >(undefined);
 
-  const handleStreamChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStream = stationStreams.find(
-      (stream) => stream.url === event.target.value
-    );
-    if (newStream) setSelectedStream(newStream);
+  const handleStreamSelect = (stream: Stream) => {
+    setSelectedStreamId(stream.id);
   };
+
+  const handlePlay = () => setCurrentStation(station);
 
   return (
     <Card className="w-full bg-white bg-opacity-90 shadow-lg overflow-hidden">
@@ -90,11 +93,12 @@ export function ExpandableStationCard({
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onPlay(station)}
-                  >
+                  <StreamSelector
+                    stationId={station.id}
+                    onStreamSelect={handleStreamSelect}
+                    selectedStreamId={selectedStreamId}
+                  />
+                  <Button variant="ghost" size="icon" onClick={handlePlay}>
                     <Play className="h-4 w-4 text-primary" />
                   </Button>
                   <Button
@@ -113,39 +117,15 @@ export function ExpandableStationCard({
               <p className="text-xs font-press-start-2p">
                 {station.description}
               </p>
-              {stationStreams && stationStreams.length > 0 && (
-                <div className="mt-2 p-2 bg-gray-100 rounded">
-                  <label
-                    htmlFor="bitrate-select"
-                    className="block text-xs font-press-start-2p mb-1"
-                  >
-                    Available Streams:
-                  </label>
-                  <select
-                    id="bitrate-select"
-                    value={selectedStream?.url}
-                    onChange={handleStreamChange}
-                    className="w-full text-xs font-press-start-2p bg-white border border-gray-300 rounded px-2 py-1"
-                  >
-                    {stationStreams.map((stream, index) => (
-                      <option key={index} value={stream.url}>
-                        {stream.bitrate} kbps
-                      </option>
-                    ))}
-                  </select>
-                  {selectedStream && (
-                    <p className="text-xs font-press-start-2p mt-1">
-                      Current: {selectedStream.bitrate} kbps
-                    </p>
-                  )}
-                </div>
-              )}
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="flex space-x-2">
                 <Button variant="ghost" size="icon" asChild>
                   <a
-                    href={selectedStream?.url || "#"}
+                    href={
+                      stationStreams.find((s) => s.id === selectedStreamId)
+                        ?.url || "#"
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Visit Website"
@@ -155,6 +135,12 @@ export function ExpandableStationCard({
                 </Button>
                 <Button variant="ghost" size="icon" aria-label="Flash">
                   <Zap className="h-4 w-4 text-primary" />
+                </Button>
+                <Button variant="ghost" size="icon" aria-label="Flash">
+                  <Heart className="h-4 w-4 text-primary" />
+                </Button>
+                <Button variant="ghost" size="icon" aria-label="Comment">
+                  <MessageCircle className="h-4 w-4 text-primary" />
                 </Button>
                 <Button variant="ghost" size="icon" aria-label="Share">
                   <Share2 className="h-4 w-4 text-primary" />

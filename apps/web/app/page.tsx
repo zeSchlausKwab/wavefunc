@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { StationGroup } from "./components/StationGroup";
-import { stations as initialStations } from "./data/stations";
-import { groups as initialGroups } from "./data/groups";
+import { useAtom } from "jotai";
+import { stationsAtom, groupsAtom } from "./atoms/stations";
 import { Station } from "@wavefunc/common";
 
-export default function Home({ onPlayStation }) {
-  const [stations, setStations] = useState(initialStations);
-  const [groups, setGroups] = useState(initialGroups);
+export default function Home() {
+  const [stations, setStations] = useAtom(stationsAtom);
+  const [groups] = useAtom(groupsAtom);
 
-  const handleUpdateStation = (updatedStation) => {
+  const handleUpdateStation = (updatedStation: Station) => {
     setStations(
       stations.map((station) =>
         station.id === updatedStation.id ? updatedStation : station
@@ -37,7 +36,6 @@ export default function Home({ onPlayStation }) {
                 .filter(Boolean) as Station[]
             }
             onUpdateStation={handleUpdateStation}
-            onPlayStation={onPlayStation}
           />
         ))}
       </div>

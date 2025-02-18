@@ -13,7 +13,6 @@ interface StationGroupProps {
   description: string;
   stations: Station[];
   onUpdateStation: (updatedStation: Station) => void;
-  onPlayStation: (station: Station) => void;
 }
 
 export function StationGroup({
@@ -21,30 +20,26 @@ export function StationGroup({
   description,
   stations,
   onUpdateStation,
-  onPlayStation,
 }: StationGroupProps) {
   return (
-    <Card className="w-full bg-white bg-opacity-90 shadow-lg mb-6">
-      <CardHeader>
-        <CardTitle className="text-primary text-lg font-press-start-2p">
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-bold text-primary font-press-start-2p">
           {name}
-        </CardTitle>
-        <CardDescription className="text-sm font-press-start-2p mt-1">
+        </h3>
+        <p className="text-sm text-muted-foreground font-press-start-2p">
           {description}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {stations.map((station) => (
-            <ExpandableStationCard
-              key={station.id}
-              station={station}
-              onUpdate={onUpdateStation}
-              onPlay={onPlayStation}
-            />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+        </p>
+      </div>
+      <div className="flex flex-col gap-4">
+        {stations.map((station) => (
+          <ExpandableStationCard
+            key={station.id}
+            station={station}
+            onUpdate={onUpdateStation}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

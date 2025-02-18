@@ -1,34 +1,43 @@
+"use client";
+
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { useAtom } from "jotai";
+import {
+  currentStationAtom,
+  isPlayingAtom,
+  stationsAtom,
+} from "../atoms/stations";
+import { streams } from "../data/streams";
 
-interface Station {
-  id: number;
-  name: string;
-  genre: string;
-  url: string;
-  imageUrl: string;
-  currentSong?: string;
-  bitrate?: number;
-  website?: string;
-}
+export function RadioPlayer() {
+  const [stations] = useAtom(stationsAtom);
+  const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
+  const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
 
-interface RadioPlayerProps {
-  station: Station | null;
-  isPlaying: boolean;
-  onPlayPause: () => void;
-  onSkipForward: () => void;
-  onSkipBack: () => void;
-}
+  const currentIndex =
+    currentStation ? stations.findIndex((s) => s.id === currentStation.id) : -1;
 
-export function RadioPlayer({
-  station,
-  isPlaying,
-  onPlayPause,
-  onSkipForward,
-  onSkipBack,
-}: RadioPlayerProps) {
+  const stationStreams =
+    currentStation ?
+      streams.filter((stream) => stream.stationId === currentStation.id)
+    : [];
+  const currentStream = stationStreams[0];
+
+  const handlePlayPause = () => setIsPlaying(!isPlaying);
+  const handleSkipForward = () => {
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + 1) % stations.length;
+    setCurrentStation(stations[nextIndex]);
+  };
+  const handleSkipBack = () => {
+    if (currentIndex === -1) return;
+    const prevIndex = (currentIndex - 1 + stations.length) % stations.length;
+    setCurrentStation(stations[prevIndex]);
+  };
+
   return (
     <Card className="w-full bg-white shadow-lg border-t border-gray-200">
       <CardContent className="p-2 sm:p-4">
@@ -36,10 +45,10 @@ export function RadioPlayer({
           <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
             <Image
               src={
-                station?.imageUrl ||
+                currentStation?.imageUrl ||
                 "https://picsum.photos/seed/no-station/200/200"
               }
-              alt={station?.name || "No station selected"}
+              alt={currentStation?.name || "No station selected"}
               fill
               style={{ objectFit: "cover" }}
               className="rounded-md"
@@ -47,19 +56,20 @@ export function RadioPlayer({
           </div>
           <div className="flex-grow min-w-0">
             <h3 className="text-xs sm:text-sm font-semibold text-primary font-press-start-2p truncate">
-              {station?.name || "No station selected"}
+              {currentStation?.name || "No station selected"}
             </h3>
             <p className="text-xs text-muted-foreground font-press-start-2p mt-1 truncate">
-              {station?.currentSong || "Select a station to play"}
+              Select a station to play
             </p>
-            {station && (
+            {currentStation && (
               <div className="hidden sm:block mt-1">
                 <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                  <span className="font-semibold">Genre:</span> {station.genre}
+                  <span className="font-semibold">Genre:</span>{" "}
+                  {currentStation.genre}
                 </p>
                 <p className="text-xs text-muted-foreground font-press-start-2p truncate">
                   <span className="font-semibold">Bitrate:</span>{" "}
-                  {station.bitrate || "Unknown"} kbps
+                  {currentStream?.bitrate || "Unknown"} kbps
                 </p>
               </div>
             )}
@@ -69,16 +79,16 @@ export function RadioPlayer({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={onSkipBack}
-                disabled={!station}
+                onClick={handleSkipBack}
+                disabled={!currentStation}
               >
                 <SkipBack className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={onPlayPause}
-                disabled={!station}
+                onClick={handlePlayPause}
+                disabled={!currentStation}
               >
                 {isPlaying ?
                   <Pause className="h-4 w-4" />
@@ -87,15 +97,15 @@ export function RadioPlayer({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={onSkipForward}
-                disabled={!station}
+                onClick={handleSkipForward}
+                disabled={!currentStation}
               >
                 <SkipForward className="h-4 w-4" />
               </Button>
             </div>
-            {station && (
+            {currentStation && (
               <a
-                href={station.website}
+                href={currentStation.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline font-press-start-2p hidden sm:inline-block"
