@@ -1,16 +1,11 @@
 import { serve } from "@hono/node-server";
+import { formatPhoneNumber, isValidEmail } from "@wavefunc/common";
 import { Hono } from "hono";
-import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import {
-  isValidEmail,
-  formatPhoneNumber,
-  PublicKeySchema,
-  UserContactsSchema,
-} from "@wavefunc/common";
+import { logger } from "hono/logger";
 import { z } from "zod";
-import { developmentService } from "./services/development";
 import { config } from "./config";
+import { developmentService } from "./services/development";
 
 const app = new Hono();
 
@@ -77,7 +72,7 @@ app.post("/api/validate", async (c) => {
 });
 
 // Start the server
-const port = 3001;
+const port = config.port;
 console.log(`Server is running on port ${port}`);
 
 serve({

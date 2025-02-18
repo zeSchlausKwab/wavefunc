@@ -8,5 +8,8 @@ dotenv.config({
 
 export const config = {
   isDevelopment: process.env.NEXT_PUBLIC_APP_ENV !== "production",
-  port: process.env.PORT ? parseInt(process.env.PORT) : 3001,
+  port:
+    process.env.NEXT_PUBLIC_API_PORT ?
+      parseInt(process.env.NEXT_PUBLIC_API_PORT)
+    : 3001,
 };

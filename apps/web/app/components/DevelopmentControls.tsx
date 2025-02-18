@@ -1,19 +1,19 @@
 "use client";
 
 export function DevelopmentControls() {
-  console.log(
-    "Development controls environment:",
-    process.env.NEXT_PUBLIC_APP_ENV
-  );
   // Only render in development mode
   if (process.env.NEXT_PUBLIC_APP_ENV !== "development") {
     return null;
   }
 
   const callDevEndpoint = async (endpoint: string) => {
+    console.log(
+      "Calling development endpoint:",
+      `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`
+    );
     try {
       const response = await fetch(
-        `http://localhost:3001/development/${endpoint}`,
+        `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`,
         {
           method: "POST",
         }

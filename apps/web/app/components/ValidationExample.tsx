@@ -21,13 +21,16 @@ export function ValidationExample() {
       formattedPhone: formatPhoneNumber(phone),
     };
 
-    const response = await fetch("http://localhost:3001/api/validate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, phone }),
-    });
+    const response = await fetch(
+      `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:3001/api/validate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, phone }),
+      }
+    );
 
     const serverValidation = await response.json();
 
@@ -67,11 +70,9 @@ export function ValidationExample() {
         {validationResult && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center gap-2">
-              {validationResult.isValidEmail ? (
+              {validationResult.isValidEmail ?
                 <CheckCircle className="text-green-500" />
-              ) : (
-                <XCircle className="text-red-500" />
-              )}
+              : <XCircle className="text-red-500" />}
               <span>
                 Email is {validationResult.isValidEmail ? "valid" : "invalid"}
               </span>
