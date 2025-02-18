@@ -1,15 +1,13 @@
 "use client";
 
-import { Press_Start_2P, Inter } from "next/font/google";
-import "./globals.css";
 import { Provider } from "jotai";
-import { RadioPlayer } from "./components/RadioPlayer";
-import { Profile } from "./components/Profile";
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Header } from "./components/Header";
-import { Footer } from "./components/Footer";
+import { Inter, Press_Start_2P } from "next/font/google";
 import { DevelopmentControls } from "./components/DevelopmentControls";
+import { Footer } from "./components/Footer";
+import { Header } from "./components/Header";
+import { Nav } from "./components/Nav";
+import { RadioPlayer } from "./components/RadioPlayer";
+import "./globals.css";
 
 const pressStart2P = Press_Start_2P({
   weight: "400",
@@ -30,36 +28,7 @@ export default function RootLayout({
         <Provider>
           <div className="flex flex-col min-h-screen">
             <Header />
-            <nav className="bg-white bg-opacity-80">
-              <div className="container mx-auto px-4 py-2">
-                <ul className="flex space-x-4 text-xs font-press-start-2p">
-                  <li>
-                    <a
-                      href="/"
-                      className="text-primary hover:text-primary-foreground transition-colors"
-                    >
-                      Home
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/favorites"
-                      className="text-primary hover:text-primary-foreground transition-colors"
-                    >
-                      Favorites
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/add-station"
-                      className="text-primary hover:text-primary-foreground transition-colors"
-                    >
-                      Add Station
-                    </a>
-                  </li>
-                </ul>
-              </div>
-            </nav>
+            <Nav />
             <main className="flex-grow container mx-auto px-4 py-8 mb-24">
               {children}
             </main>
