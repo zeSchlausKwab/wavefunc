@@ -8,6 +8,7 @@ import { Header } from "./components/Header";
 import { Nav } from "./components/Nav";
 import { RadioPlayer } from "./components/RadioPlayer";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
 
 const pressStart2P = Press_Start_2P({
   weight: "400",
@@ -31,6 +32,7 @@ export default function RootLayout({
             <Nav />
             <main className="flex-grow container mx-auto px-4 py-8 mb-24">
               {children}
+              <Toaster />
             </main>
             <DevelopmentControls />
             <Footer />

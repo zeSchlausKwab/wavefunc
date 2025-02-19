@@ -1,16 +1,15 @@
 "use client";
 
+import { useToast } from "@/hooks/use-toast";
+
 export function DevelopmentControls() {
-  // Only render in development mode
+  const { toast } = useToast();
+
   if (process.env.NEXT_PUBLIC_APP_ENV !== "development") {
     return null;
   }
 
   const callDevEndpoint = async (endpoint: string) => {
-    console.log(
-      "Calling development endpoint:",
-      `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`
-    );
     try {
       const response = await fetch(
         `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`,
@@ -19,10 +18,16 @@ export function DevelopmentControls() {
         }
       );
       const data = await response.json();
-      alert(data.message);
+      toast({
+        title: "Success",
+        description: data.message,
+      });
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to call development endpoint");
+      toast({
+        title: "Error",
+        description: "Failed to call development endpoint",
+      });
     }
   };
 

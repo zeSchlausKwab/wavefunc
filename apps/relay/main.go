@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -39,6 +40,13 @@ func main() {
 	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+
+	// Add connection handler
+	relay.OnConnect = []func(ctx context.Context){
+		func(ctx context.Context) {
+			fmt.Println("New connection established")
+		},
+	}
 
 	port := os.Getenv("RELAY_PORT")
 	if port == "" {
