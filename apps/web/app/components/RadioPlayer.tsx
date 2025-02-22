@@ -10,33 +10,83 @@ import {
   isPlayingAtom,
   stationsAtom,
 } from "../atoms/stations";
-import { streams } from "../data/streams";
+import { useEffect, useRef } from "react";
 
 export function RadioPlayer() {
   const [stations] = useAtom(stationsAtom);
   const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
   const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentIndex =
     currentStation ? stations.findIndex((s) => s.id === currentStation.id) : -1;
 
-  const stationStreams =
-    currentStation ?
-      streams.filter((stream) => stream.stationId === currentStation.id)
-    : [];
-  const currentStream = stationStreams[0];
+  // Initialize audio element
+  useEffect(() => {
+    audioRef.current = new Audio();
+    audioRef.current.preload = "none";
 
-  const handlePlayPause = () => setIsPlaying(!isPlaying);
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentStation || !audioRef.current) return;
+
+    const primaryStream =
+      currentStation.streams.find((s: any) => s.primary) ||
+      currentStation.streams[0];
+
+    if (primaryStream) {
+      audioRef.current.src = primaryStream.url;
+      if (isPlaying) {
+        audioRef.current.play().catch((error) => {
+          console.error("Error playing stream:", error);
+          setIsPlaying(false);
+        });
+      }
+    }
+  }, [currentStation, isPlaying]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.play().catch((error) => {
+        console.error("Error playing stream:", error);
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  const handlePlayPause = () => {
+    if (currentStation) {
+      setIsPlaying(!isPlaying);
+    }
+  };
+
   const handleSkipForward = () => {
     if (currentIndex === -1) return;
     const nextIndex = (currentIndex + 1) % stations.length;
     setCurrentStation(stations[nextIndex]);
   };
+
   const handleSkipBack = () => {
     if (currentIndex === -1) return;
     const prevIndex = (currentIndex - 1 + stations.length) % stations.length;
     setCurrentStation(stations[prevIndex]);
   };
+
+  // Get current station data directly
+  const primaryStream =
+    currentStation?.streams.find((s: any) => s.primary) ||
+    currentStation?.streams[0];
 
   return (
     <Card className="w-full bg-white shadow-lg border-t border-gray-200">
@@ -45,7 +95,7 @@ export function RadioPlayer() {
           <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
             <Image
               src={
-                currentStation?.imageUrl ||
+                currentStation?.tags.find((t) => t[0] === "thumbnail")?.[1] ||
                 "https://picsum.photos/seed/no-station/200/200"
               }
               alt={currentStation?.name || "No station selected"}
@@ -59,17 +109,23 @@ export function RadioPlayer() {
               {currentStation?.name || "No station selected"}
             </h3>
             <p className="text-xs text-muted-foreground font-press-start-2p mt-1 truncate">
-              Select a station to play
+              {currentStation ?
+                currentStation.description
+              : "Select a station to play"}
             </p>
             {currentStation && (
               <div className="hidden sm:block mt-1">
                 <p className="text-xs text-muted-foreground font-press-start-2p truncate">
                   <span className="font-semibold">Genre:</span>{" "}
-                  {currentStation.genre}
+                  {currentStation.tags.find((t) => t[0] === "genre")?.[1] ||
+                    "Unknown"}
                 </p>
                 <p className="text-xs text-muted-foreground font-press-start-2p truncate">
                   <span className="font-semibold">Bitrate:</span>{" "}
-                  {currentStream?.bitrate || "Unknown"} kbps
+                  {primaryStream?.quality.bitrate ?
+                    `${Math.round(primaryStream.quality.bitrate / 1000)}`
+                  : "Unknown"}{" "}
+                  kbps
                 </p>
               </div>
             )}
@@ -105,7 +161,7 @@ export function RadioPlayer() {
             </div>
             {currentStation && (
               <a
-                href={currentStation.url}
+                href={currentStation.website}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline font-press-start-2p hidden sm:inline-block"

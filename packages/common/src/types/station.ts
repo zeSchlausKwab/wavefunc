@@ -8,13 +8,24 @@ export interface Comment {
 export interface Station {
   id: string;
   name: string;
+  description: string;
+  website: string;
   genre: string;
-  url: string;
   imageUrl: string;
   isUserOwned: boolean;
-  description: string;
-  streamIds: number[];
-  commentIds: number[];
+  pubkey: string;
+  tags: string[][];
+  streams: {
+    url: string;
+    format: string;
+    quality: {
+      bitrate: number;
+      codec: string;
+      sampleRate: number;
+    };
+    primary?: boolean;
+  }[];
+  created_at: number;
 }
 
 export interface Group {

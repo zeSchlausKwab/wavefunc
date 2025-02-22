@@ -59,24 +59,19 @@ export function createFavoritesEvent(
 /**
  * Validates and parses a radio station event
  */
-export function parseRadioEvent(event: NostrEvent) {
+export function parseRadioEvent(event: NDKEvent | NostrEvent) {
+  console.log("event", event);
   if (event.kind !== RADIO_EVENT_KINDS.STREAM) {
     throw new Error("Invalid event kind");
   }
 
   const content = JSON.parse(event.content);
-  const result = RadioEventContentSchema.safeParse(content);
-
-  if (!result.success) {
-    throw new Error("Invalid radio event content");
-  }
-
   return {
-    ...result.data,
-    id: event.id,
-    pubkey: event.pubkey,
-    created_at: event.created_at,
-    tags: event.tags,
+    name: content.name,
+    description: content.description,
+    website: content.website,
+    streams: content.streams,
+    tags: event.tags as string[][],
   };
 }
 
@@ -106,7 +101,6 @@ export function subscribeToRadioStations(
 
   if (onEvent) {
     subscription.on("event", (event: NDKEvent) => {
-      console.log("event", event);
       try {
         const parsed = parseRadioEvent(event);
         onEvent(event);
@@ -139,4 +133,19 @@ export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
       return false;
     }
   });
+}
+
+export function stationToNostrEvent(station: Station): NostrEvent {
+  return {
+    kind: RADIO_EVENT_KINDS.STREAM,
+    content: JSON.stringify({
+      name: station.name,
+      description: station.description,
+      website: station.website,
+      streams: station.streams,
+    }),
+    created_at: station.created_at,
+    pubkey: station.pubkey,
+    tags: station.tags,
+  };
 }

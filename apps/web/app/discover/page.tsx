@@ -12,20 +12,37 @@ import { ExpandableStationCard } from "../components/ExpandableStationCard";
 import { Station } from "@wavefunc/common";
 
 export default function DiscoverPage() {
-  const [stations, setStations] = useState<NDKEvent[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
 
   useEffect(() => {
-    const sub = subscribeToRadioStations(nostrService.getNDK(), (event) => {
-      setStations((prev) => {
-        const exists = prev.some((e) => e.id === event.id);
-        if (!exists) {
-          return [...prev, event].sort(
-            (a, b) => (b.created_at || 0) - (a.created_at || 0)
-          );
-        }
-        return prev;
-      });
-    });
+    const sub = subscribeToRadioStations(
+      nostrService.getNDK(),
+      (event: NDKEvent) => {
+        setStations((prev) => {
+          const exists = prev.some((e) => e.id === event.id);
+          if (!exists) {
+            const data = parseRadioEvent(event);
+            const station: Station = {
+              id: event.id,
+              name: data.name,
+              description: data.description,
+              website: data.website,
+              genre: event.tags.find((t) => t[0] === "genre")?.[1] || "",
+              imageUrl: event.tags.find((t) => t[0] === "thumbnail")?.[1] || "",
+              pubkey: event.pubkey,
+              tags: event.tags,
+              streams: data.streams,
+              created_at: event.created_at || Math.floor(Date.now() / 1000),
+              isUserOwned: false,
+            };
+            return [...prev, station].sort(
+              (a, b) => b.created_at - a.created_at
+            );
+          }
+          return prev;
+        });
+      }
+    );
 
     return () => {
       sub.stop();
@@ -41,26 +58,13 @@ export default function DiscoverPage() {
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold font-press-start-2p">Discover</h1>
       <div className="grid grid-cols-1 gap-6">
-        {stations.map((station) => {
-          const data = parseRadioEvent(station);
-          return (
-            <ExpandableStationCard
-              key={station.id}
-              station={{
-                id: station.id,
-                name: data.name,
-                description: data.description,
-                genre: data.tags.find((t) => t[0] === "genre")?.[1] || "",
-                imageUrl: data.tags.find((t) => t[0] === "thumbnail")?.[1],
-                website: data.website,
-                isUserOwned: false, // TODO: Implement ownership check
-                streamIds: [], // TODO: Implement stream IDs
-                commentIds: [], // TODO: Implement comment IDs
-              }}
-              onUpdate={handleStationUpdate}
-            />
-          );
-        })}
+        {stations.map((station) => (
+          <ExpandableStationCard
+            key={station.id}
+            station={station}
+            onUpdate={handleStationUpdate}
+          />
+        ))}
       </div>
       <RelayDebugger />
     </div>
