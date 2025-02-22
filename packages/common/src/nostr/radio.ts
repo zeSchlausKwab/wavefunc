@@ -4,7 +4,7 @@ import {
   FavoritesEventContentSchema,
 } from "../schemas/radio";
 import type { z } from "zod";
-import NDK from "@nostr-dev-kit/ndk";
+import NDK, { NDKSubscriptionCacheUsage } from "@nostr-dev-kit/ndk";
 import type { NDKEvent } from "@nostr-dev-kit/ndk";
 
 export const RADIO_EVENT_KINDS = {
@@ -52,7 +52,7 @@ export function createFavoritesEvent(
       ["client", "nostr_radio"],
     ],
     content: JSON.stringify(content),
-    pubkey: "", // Will be set by the signer
+    pubkey: "",
   };
 }
 
@@ -87,17 +87,13 @@ export function subscribeToRadioStations(
 ) {
   const filter = {
     kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-    pubkey: [
-      "617d5bc390ba5138b7ce83a5d374505a7be72c986b29880b2228e6d348b42570",
-    ],
     // since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 7,
   };
 
   const subscription = ndk.subscribe(filter, {
     closeOnEose: false,
+    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
   });
-
-  console.log("subscription", subscription);
 
   if (onEvent) {
     subscription.on("event", (event: NDKEvent) => {

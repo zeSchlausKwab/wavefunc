@@ -41,6 +41,8 @@ export function RadioPlayer() {
       currentStation.streams.find((s: any) => s.primary) ||
       currentStation.streams[0];
 
+    console.log("primaryStream", primaryStream);
+
     if (primaryStream) {
       audioRef.current.src = primaryStream.url;
       if (isPlaying) {

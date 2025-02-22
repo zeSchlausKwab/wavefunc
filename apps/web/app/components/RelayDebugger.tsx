@@ -7,6 +7,7 @@ import {
   NDKFilter,
   NDKKind,
   NDKSubscription,
+  NDKSubscriptionCacheUsage,
 } from "@nostr-dev-kit/ndk";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,7 +39,9 @@ export function RelayDebugger() {
 
       await nostrService.getNDK().connect();
 
-      const sub = nostrService.getNDK().subscribe(filter);
+      const sub = nostrService.getNDK().subscribe(filter, {
+        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+      });
       subscriptionRef.current = sub;
 
       sub.on("event", (event: NDKEvent) => {

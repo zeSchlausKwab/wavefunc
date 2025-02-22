@@ -30,7 +30,7 @@ export const seedStations: NostrEvent[] = [
       website: "https://www.radio.net/s/fip",
       streams: [
         {
-          url: "https://stream.fip.example.com/main",
+          url: "https://icecast.radiofrance.fr/fiprock-hifi.aac",
           format: "audio/aac",
           quality: {
             bitrate: 128000,
@@ -74,11 +74,11 @@ export const seedStations: NostrEvent[] = [
       website: "https://www.radio.net/s/fipautourdurock",
       streams: [
         {
-          url: "https://stream.fiprock.example.com/main",
-          format: "audio/mpeg",
+          url: "https://icecast.radiofrance.fr/fip-hifi.aac",
+          format: "audio/aac",
           quality: {
             bitrate: 128000,
-            codec: "mp3",
+            codec: "aac",
             sampleRate: 44100,
           },
           primary: true,
@@ -229,7 +229,7 @@ export const seedStations: NostrEvent[] = [
       website: "http://iwayhigh.net/radio.php",
       streams: [
         {
-          url: "http://radio.iwayhigh.net:8000/stream",
+          url: "http://172.105.24.4:8000/;",
           format: "audio/mpeg",
           quality: {
             bitrate: 128000,
