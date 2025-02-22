@@ -6,7 +6,7 @@ export interface Comment {
 }
 
 export interface Station {
-  id: number;
+  id: string;
   name: string;
   genre: string;
   url: string;

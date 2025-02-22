@@ -8,6 +8,9 @@ import {
   subscribeToRadioStations,
   parseRadioEvent,
 } from "@wavefunc/common/src/nostr/radio";
+import { ExpandableStationCard } from "../components/ExpandableStationCard";
+import { Station } from "@wavefunc/common";
+
 export default function DiscoverPage() {
   const [stations, setStations] = useState<NDKEvent[]>([]);
 
@@ -29,17 +32,33 @@ export default function DiscoverPage() {
     };
   }, []);
 
+  const handleStationUpdate = (updatedStation: Station) => {
+    // TODO: Implement station update logic
+    console.log("Station updated:", updatedStation);
+  };
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Discover</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="container mx-auto p-6 space-y-6">
+      <h1 className="text-3xl font-bold font-press-start-2p">Discover</h1>
+      <div className="grid grid-cols-1 gap-6">
         {stations.map((station) => {
           const data = parseRadioEvent(station);
           return (
-            <div key={station.id} className="p-4 border rounded-lg">
-              <h2 className="text-xl font-bold">{data.name}</h2>
-              <p className="text-gray-600">{data.description}</p>
-            </div>
+            <ExpandableStationCard
+              key={station.id}
+              station={{
+                id: station.id,
+                name: data.name,
+                description: data.description,
+                genre: data.tags.find((t) => t[0] === "genre")?.[1] || "",
+                imageUrl: data.tags.find((t) => t[0] === "thumbnail")?.[1],
+                website: data.website,
+                isUserOwned: false, // TODO: Implement ownership check
+                streamIds: [], // TODO: Implement stream IDs
+                commentIds: [], // TODO: Implement comment IDs
+              }}
+              onUpdate={handleStationUpdate}
+            />
           );
         })}
       </div>
