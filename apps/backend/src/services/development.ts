@@ -1,4 +1,4 @@
-import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
+import NDK, { NDKPrivateKeySigner, NostrEvent } from "@nostr-dev-kit/ndk";
 import { publishStation } from "@wavefunc/common/src/nostr/publish";
 import {
   seedStationKeys,
@@ -27,14 +27,35 @@ export class DevelopmentService {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     try {
-      const keys = Object.values(seedStationKeys);
-      const stationEvents = await Promise.all(
-        seedStations.map(async (station, index) => {
-          this.ndk.signer = new NDKPrivateKeySigner(keys[index].nsec);
-          return publishStation(this.ndk, station);
-        })
+      const stationsByBroadcaster = seedStations.reduce(
+        (acc, station) => {
+          if (station.content.includes('"name":"FIP')) {
+            acc.fip = [...(acc.fip || []), station];
+          } else if (station.content.includes('"name":"iWayHigh"')) {
+            acc.iwayhigh = [...(acc.iwayhigh || []), station];
+          } else {
+            acc.soma = [...(acc.soma || []), station];
+          }
+          return acc;
+        },
+        {} as Record<keyof typeof seedStationKeys, NostrEvent[]>
       );
-      console.log(`Published ${stationEvents.length} stations`);
+
+      const stationEvents = await Promise.all(
+        Object.entries(stationsByBroadcaster).flatMap(
+          async ([broadcaster, stations]) => {
+            const key =
+              seedStationKeys[broadcaster as keyof typeof seedStationKeys];
+            this.ndk.signer = new NDKPrivateKeySigner(key.nsec);
+
+            return Promise.all(
+              stations.map((station) => publishStation(this.ndk, station))
+            );
+          }
+        )
+      );
+
+      console.log(`Published ${stationEvents.flat().length} stations`);
       return { message: "Database seeded successfully" };
     } catch (error) {
       console.error("Error seeding data:", error);
