@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { nostrService } from "@/services/ndk";
 import {
   NDKEvent,
@@ -22,12 +22,15 @@ type DebugEvent = {
 
 export function RelayDebugger() {
   const [events, setEvents] = useState<DebugEvent[]>([]);
-  const [subscription, setSubscription] = useState<NDKSubscription | null>(
-    null
-  );
+  const subscriptionRef = useRef<NDKSubscription | null>(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
     const initRelay = async () => {
+      // Prevent double initialization
+      if (isInitializedRef.current) return;
+      isInitializedRef.current = true;
+
       const filter: NDKFilter = {
         // kinds: [5000, 6000 as NDKKind, 31337 as NDKKind],
         kinds: [31337 as NDKKind, 5000 as NDKKind],
@@ -36,27 +39,37 @@ export function RelayDebugger() {
       await nostrService.getNDK().connect();
 
       const sub = nostrService.getNDK().subscribe(filter);
-      setSubscription(sub);
+      subscriptionRef.current = sub;
 
       sub.on("event", (event: NDKEvent) => {
-        setEvents((prev) => [
-          {
+        setEvents((prev) => {
+          // Check if event already exists
+          if (prev.some((e) => e.id === event.id)) {
+            return prev;
+          }
+
+          const newEvent: DebugEvent = {
             id: event.id,
             timestamp: event.created_at || Date.now(),
             kind: event.kind || 0,
             content: event.content,
             pubkey: event.pubkey,
             tags: event.tags as string[][],
-          },
-          ...prev,
-        ]);
+          };
+
+          return [newEvent, ...prev];
+        });
       });
     };
 
     initRelay();
 
     return () => {
-      subscription?.stop();
+      if (subscriptionRef.current) {
+        subscriptionRef.current.stop();
+        subscriptionRef.current = null;
+      }
+      isInitializedRef.current = false;
     };
   }, []);
 
@@ -93,7 +106,10 @@ export function RelayDebugger() {
         <ScrollArea className="h-[400px] rounded-md border p-4">
           <div className="space-y-4">
             {events.map((event) => (
-              <div key={event.id} className="text-xs font-mono space-y-1">
+              <div
+                key={`${event.id}-${event.timestamp}`}
+                className="text-xs font-mono space-y-1"
+              >
                 <div className="flex justify-between text-muted-foreground">
                   <span>
                     {new Date(event.timestamp * 1000).toLocaleString()}
