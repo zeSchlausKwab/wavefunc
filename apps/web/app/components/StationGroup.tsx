@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ExpandableStationCard } from "./ExpandableStationCard";
+import { ExpandableStationCard } from "./station/ExpandableStationCard";
 import { Station } from "@wavefunc/common";
 
 interface StationGroupProps {

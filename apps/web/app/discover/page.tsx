@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { nostrService } from "@/services/ndk";
-import { RelayDebugger } from "../components/RelayDebugger";
+import { RelayDebugger } from "../components/debug/RelayDebugger";
 import {
   subscribeToRadioStations,
   parseRadioEvent,
 } from "@wavefunc/common/src/nostr/radio";
-import { ExpandableStationCard } from "../components/ExpandableStationCard";
+import { ExpandableStationCard } from "../components/station/ExpandableStationCard";
 import { Station } from "@wavefunc/common";
 
 export default function DiscoverPage() {

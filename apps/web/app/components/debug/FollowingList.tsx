@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { FollowingListRow } from "./FollowingListRow";
+import { FollowingListRow } from "../FollowingListRow";
 
 type ProfileWithStatus = {
   profile: NDKUser | null;
@@ -90,7 +90,7 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
         <CardTitle>Following List ({following.size})</CardTitle>
       </CardHeader>
       <CardContent>
-        {isLoading && following.size === 0 ? (
+        {isLoading && following.size === 0 ?
           <Table>
             <TableHeader>
               <TableRow>
@@ -105,8 +105,7 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
               ))}
             </TableBody>
           </Table>
-        ) : (
-          <Table>
+        : <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Profile</TableHead>
@@ -124,7 +123,7 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
               ))}
             </TableBody>
           </Table>
-        )}
+        }
       </CardContent>
     </Card>
   );

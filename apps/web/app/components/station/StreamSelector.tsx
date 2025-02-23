@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Stream } from "@wavefunc/common";
-import { streams } from "../data/streams";
+import { streams } from "../../data/streams";
 import { useMemo } from "react";
 
 interface StreamSelectorProps {

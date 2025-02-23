@@ -13,7 +13,7 @@ import { CopyIcon, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { useSetAtom } from "jotai";
-import { loginWithNip46 } from "../atoms/auth";
+import { loginWithNip46 } from "../../atoms/auth";
 
 interface NostrConnectQRProps {
   onError?: (error: string) => void;

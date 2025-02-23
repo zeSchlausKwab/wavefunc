@@ -6,7 +6,7 @@ import { Profile } from "./Profile";
 import { useSetAtom, useAtomValue } from "jotai";
 import { openCreateStationDrawer } from "../atoms/ui";
 import { authStateAtom, loginDialogAtom, logout } from "../atoms/auth";
-import { LoginDialog } from "./LoginDialog";
+import { LoginDialog } from "./auth/LoginDialog";
 
 // Placeholder data for the profile
 const placeholderProfile = {

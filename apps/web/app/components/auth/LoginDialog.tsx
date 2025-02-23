@@ -17,7 +17,7 @@ import {
   loginWithPrivateKey,
   loginWithExtension,
   loginWithNip46,
-} from "../atoms/auth";
+} from "../../atoms/auth";
 import { useState } from "react";
 import { NostrConnect } from "./NostrConnect";
 import { NostrConnectQR } from "./NostrConnectQR";

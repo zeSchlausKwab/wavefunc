@@ -2,7 +2,7 @@
 
 import { Provider } from "jotai";
 import { Inter, Press_Start_2P } from "next/font/google";
-import { DevelopmentControls } from "./components/DevelopmentControls";
+import { DevelopmentControls } from "./components/debug/DevelopmentControls";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
 import { Nav } from "./components/Nav";

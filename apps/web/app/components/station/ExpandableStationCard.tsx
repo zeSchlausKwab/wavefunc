@@ -26,14 +26,14 @@ import {
   Heart,
   MessageCircle,
 } from "lucide-react";
-import { EditStationDrawer } from "./EditStationDrawer";
+import { EditStationDrawer } from "../EditStationDrawer";
 import { Station, Stream } from "@wavefunc/common";
-import { streams } from "../data/streams";
-import { comments } from "../data/comments";
+import { streams } from "../../data/streams";
+import { comments } from "../../data/comments";
 import { useAtom, useSetAtom } from "jotai";
-import { currentStationAtom } from "../atoms/stations";
+import { currentStationAtom } from "../../atoms/stations";
 import { StreamSelector } from "./StreamSelector";
-import { openEditStationDrawer } from "../atoms/ui";
+import { openEditStationDrawer } from "../../atoms/ui";
 
 interface ExpandableStationCardProps {
   station: Station;

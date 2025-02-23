@@ -7,7 +7,7 @@ import { Scanner } from "@yudiel/react-qr-scanner";
 import { nostrService } from "@/services/ndk";
 import { NDKNip46Signer } from "@nostr-dev-kit/ndk";
 import { useSetAtom } from "jotai";
-import { loginWithNip46 } from "../atoms/auth";
+import { loginWithNip46 } from "../../atoms/auth";
 import { Loader2 } from "lucide-react";
 
 interface BunkerConnectProps {
