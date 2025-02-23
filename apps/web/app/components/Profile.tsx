@@ -1,9 +1,9 @@
-import Image from "next/image"
+import Image from "next/image";
 
 interface ProfileProps {
-  name: string
-  email: string
-  avatarUrl: string
+  name: string;
+  email: string;
+  avatarUrl: string;
 }
 
 export function Profile({ name, email, avatarUrl }: ProfileProps) {
@@ -19,10 +19,13 @@ export function Profile({ name, email, avatarUrl }: ProfileProps) {
         />
       </div>
       <div className="hidden md:block">
-        <p className="text-sm font-semibold text-primary font-press-start-2p">{name}</p>
-        <p className="text-xs text-muted-foreground font-press-start-2p">{email}</p>
+        <p className="text-sm font-semibold text-primary font-press-start-2p">
+          {name}
+        </p>
+        <p className="text-xs text-muted-foreground font-press-start-2p">
+          {email}
+        </p>
       </div>
     </div>
-  )
+  );
 }
-
