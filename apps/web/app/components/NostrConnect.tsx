@@ -9,7 +9,7 @@ import {
   NDKPrivateKeySigner,
 } from "@nostr-dev-kit/ndk";
 import { useEffect, useState } from "react";
-import { BunkerConnectDialog } from "./BunkerConnectDialog";
+import { BunkerConnectDialog } from "./BunkerConnect";
 import { NostrConnectQRDialog } from "./NostrConnectQR";
 
 export const NOSTR_CONNECT_KEY = "nostr_connect_url";

@@ -21,7 +21,7 @@ import {
 import { useState } from "react";
 import { NostrConnect } from "./NostrConnect";
 import { NostrConnectQR } from "./NostrConnectQR";
-import { BunkerConnectDialog } from "./BunkerConnectDialog";
+import { BunkerConnect } from "./BunkerConnect";
 import { NDKNip46Signer } from "@nostr-dev-kit/ndk";
 import { nostrService } from "@/services/ndk";
 
@@ -33,8 +33,6 @@ export function LoginDialog() {
   const [privateKey, setPrivateKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showQRDialog, setShowQRDialog] = useState(false);
-  const [showBunkerDialog, setShowBunkerDialog] = useState(false);
 
   const handlePrivateKeyLogin = async () => {
     try {
@@ -120,17 +118,7 @@ export function LoginDialog() {
               </TabsContent>
 
               <TabsContent value="bunker">
-                <div className="space-y-4 py-4">
-                  <p className="text-sm text-muted-foreground">
-                    Scan a Bunker QR code to connect.
-                  </p>
-                  <Button
-                    onClick={() => setShowBunkerDialog(true)}
-                    className="w-full"
-                  >
-                    Scan Bunker QR
-                  </Button>
-                </div>
+                <BunkerConnect onError={setError} />
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -153,12 +141,6 @@ export function LoginDialog() {
           <div className="text-sm text-red-500 mt-2 text-center">{error}</div>
         )}
       </DialogContent>
-
-      <BunkerConnectDialog
-        open={showBunkerDialog}
-        onOpenChange={setShowBunkerDialog}
-        onConnect={handleNostrConnectSuccess}
-      />
     </Dialog>
   );
 }
