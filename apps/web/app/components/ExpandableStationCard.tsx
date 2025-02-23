@@ -30,9 +30,10 @@ import { EditStationDrawer } from "./EditStationDrawer";
 import { Station, Stream } from "@wavefunc/common";
 import { streams } from "../data/streams";
 import { comments } from "../data/comments";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { currentStationAtom } from "../atoms/stations";
 import { StreamSelector } from "./StreamSelector";
+import { openEditStationDrawer } from "../atoms/ui";
 
 interface ExpandableStationCardProps {
   station: Station;
@@ -43,8 +44,8 @@ export function ExpandableStationCard({
   station,
   onUpdate,
 }: ExpandableStationCardProps) {
-  const [, setCurrentStation] = useAtom(currentStationAtom);
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = React.useState(false);
+  const setCurrentStation = useSetAtom(currentStationAtom);
+  const openEditDrawer = useSetAtom(openEditStationDrawer);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const stationStreams = React.useMemo(
     () => streams.filter((stream) => stream.stationId === station.id),
@@ -148,7 +149,7 @@ export function ExpandableStationCard({
               </div>
               {station.isUserOwned && (
                 <Button
-                  onClick={() => setIsEditDrawerOpen(true)}
+                  onClick={() => openEditDrawer(station)}
                   className="bg-secondary hover:bg-secondary-foreground text-primary hover:text-white font-press-start-2p text-xs"
                   size="sm"
                 >
@@ -210,12 +211,6 @@ export function ExpandableStationCard({
           </div>
         )}
       </div>
-      <EditStationDrawer
-        station={station}
-        isOpen={isEditDrawerOpen}
-        onClose={() => setIsEditDrawerOpen(false)}
-        onUpdate={onUpdate}
-      />
     </Card>
   );
 }
