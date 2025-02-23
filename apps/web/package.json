@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hookform/resolvers": "^4.1.1",
     "@nostr-dev-kit/ndk": "^2.11.0",
     "@nostr-dev-kit/ndk-cache-dexie": "^2.5.9",
     "@radix-ui/react-avatar": "^1.1.2",
@@ -35,6 +36,7 @@
     "qrcode.react": "^3.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hook-form": "^7.54.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.3.0",
     "tailwindcss-animate": "^1.0.7"

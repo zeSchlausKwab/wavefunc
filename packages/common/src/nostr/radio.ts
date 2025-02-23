@@ -6,6 +6,7 @@ import {
 import type { z } from "zod";
 import NDK, { NDKSubscriptionCacheUsage } from "@nostr-dev-kit/ndk";
 import type { NDKEvent } from "@nostr-dev-kit/ndk";
+import { Station } from "../types/station";
 
 export const RADIO_EVENT_KINDS = {
   STREAM: 31337,
@@ -21,7 +22,21 @@ type FavoritesEventContent = z.infer<typeof FavoritesEventContentSchema>;
  * Creates an unsigned radio station event
  */
 export function createRadioEvent(
-  content: RadioEventContent,
+  content: {
+    name: string;
+    description: string;
+    website: string;
+    streams: {
+      url: string;
+      format: string;
+      quality: {
+        bitrate: number;
+        codec: string;
+        sampleRate: number;
+      };
+      primary?: boolean;
+    }[];
+  },
   tags: string[][]
 ): NostrEvent {
   return {

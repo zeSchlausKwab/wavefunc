@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +16,12 @@ import {
 import { Plus, Trash, X } from "lucide-react";
 import { Station } from "@wavefunc/common";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  StationSchema,
+  StationFormData,
+} from "@wavefunc/common/src/schemas/station";
+import { createRadioEvent } from "@wavefunc/common/src/nostr/radio";
+import { nostrService } from "@/services/ndk";
 
 interface EditStationDrawerProps {
   station?: Station;
@@ -33,69 +41,83 @@ const emptyStream = {
   primary: true,
 };
 
-const emptyStation: Partial<Station> = {
-  name: "",
-  description: "",
-  website: "",
-  genre: "",
-  imageUrl: "",
-  streams: [emptyStream],
-  tags: [],
-};
-
 export function EditStationDrawer({
   station,
   isOpen,
   onClose,
   onSave,
 }: EditStationDrawerProps) {
-  const [editedStation, setEditedStation] = React.useState<Partial<Station>>(
-    station || emptyStation
-  );
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<StationFormData>({
+    resolver: zodResolver(StationSchema),
+    defaultValues: station || {
+      name: "",
+      description: "",
+      website: "",
+      genre: "",
+      imageUrl: "",
+      streams: [emptyStream],
+      tags: [],
+    },
+  });
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (station) {
-      setEditedStation(station);
-    } else {
-      setEditedStation(emptyStation);
+      reset(station);
     }
-  }, [station]);
+  }, [station, reset]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setEditedStation(station || emptyStation);
+  const streams = watch("streams");
+
+  const onSubmit = async (data: StationFormData) => {
+    try {
+      // Create tags array
+      const tags = [
+        ["genre", data.genre],
+        ["thumbnail", data.imageUrl],
+        ["client", "nostr_radio"],
+      ];
+
+      // Create the event
+      const event = createRadioEvent(
+        {
+          name: data.name,
+          description: data.description,
+          website: data.website,
+          streams: data.streams,
+        },
+        tags
+      );
+
+      // Sign and publish the event
+      const ndk = nostrService.getNDK();
+      const signedEvent = await ndk.signer?.signEvent(event);
+
+      if (signedEvent) {
+        await ndk.publish(signedEvent);
+        onSave(data);
+        onClose();
+      }
+    } catch (error) {
+      console.error("Error creating station:", error);
     }
-  }, [isOpen, station]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(editedStation);
   };
 
   const handleAddStream = () => {
-    setEditedStation({
-      ...editedStation,
-      streams: [
-        ...(editedStation.streams || []),
-        { ...emptyStream, primary: false },
-      ],
-    });
+    setValue("streams", [...streams, { ...emptyStream, primary: false }]);
   };
 
   const handleRemoveStream = (index: number) => {
-    setEditedStation({
-      ...editedStation,
-      streams: editedStation.streams?.filter((_, i) => i !== index),
-    });
-  };
-
-  const handleStreamChange = (index: number, field: string, value: any) => {
-    setEditedStation({
-      ...editedStation,
-      streams: editedStation.streams?.map((stream, i) =>
-        i === index ? { ...stream, [field]: value } : stream
-      ),
-    });
+    setValue(
+      "streams",
+      streams.filter((_, i) => i !== index)
+    );
   };
 
   return (
@@ -111,29 +133,24 @@ export function EditStationDrawer({
             : "Create a new radio station."}
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-6">
           <div className="space-y-2">
             <Label htmlFor="name">Station Name</Label>
-            <Input
-              id="name"
-              value={editedStation.name || ""}
-              onChange={(e) =>
-                setEditedStation({ ...editedStation, name: e.target.value })
-              }
-              required
+            <Controller
+              name="name"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} error={errors.name?.message} />
+              )}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={editedStation.description || ""}
-              onChange={(e) =>
-                setEditedStation({
-                  ...editedStation,
-                  description: e.target.value,
-                })
-              }
+              value={watch("description") || ""}
+              onChange={(e) => setValue("description", e.target.value)}
+              error={errors.description?.message}
               required
             />
           </div>
@@ -142,10 +159,9 @@ export function EditStationDrawer({
             <Input
               id="website"
               type="url"
-              value={editedStation.website || ""}
-              onChange={(e) =>
-                setEditedStation({ ...editedStation, website: e.target.value })
-              }
+              value={watch("website") || ""}
+              onChange={(e) => setValue("website", e.target.value)}
+              error={errors.website?.message}
               required
             />
           </div>
@@ -153,10 +169,9 @@ export function EditStationDrawer({
             <Label htmlFor="genre">Genre</Label>
             <Input
               id="genre"
-              value={editedStation.genre || ""}
-              onChange={(e) =>
-                setEditedStation({ ...editedStation, genre: e.target.value })
-              }
+              value={watch("genre") || ""}
+              onChange={(e) => setValue("genre", e.target.value)}
+              error={errors.genre?.message}
               required
             />
           </div>
@@ -165,10 +180,9 @@ export function EditStationDrawer({
             <Input
               id="imageUrl"
               type="url"
-              value={editedStation.imageUrl || ""}
-              onChange={(e) =>
-                setEditedStation({ ...editedStation, imageUrl: e.target.value })
-              }
+              value={watch("imageUrl") || ""}
+              onChange={(e) => setValue("imageUrl", e.target.value)}
+              error={errors.imageUrl?.message}
               required
             />
           </div>
@@ -186,7 +200,7 @@ export function EditStationDrawer({
                 Add Stream
               </Button>
             </div>
-            {editedStation.streams?.map((stream, index) => (
+            {streams.map((stream, index) => (
               <div key={index} className="space-y-2 p-4 border rounded-lg">
                 <div className="flex justify-between">
                   <Label>Stream {index + 1}</Label>
@@ -195,18 +209,21 @@ export function EditStationDrawer({
                     variant="ghost"
                     size="sm"
                     onClick={() => handleRemoveStream(index)}
-                    disabled={editedStation.streams?.length === 1}
+                    disabled={streams.length === 1}
                   >
                     <Trash className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                <Input
-                  placeholder="Stream URL"
-                  value={stream.url || ""}
-                  onChange={(e) =>
-                    handleStreamChange(index, "url", e.target.value)
-                  }
-                  required
+                <Controller
+                  name={`streams.${index}.url`}
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      placeholder="Stream URL"
+                      error={errors.streams?.[index]?.url?.message}
+                    />
+                  )}
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -214,9 +231,9 @@ export function EditStationDrawer({
                     <Input
                       value={stream.format || ""}
                       onChange={(e) =>
-                        handleStreamChange(index, "format", e.target.value)
+                        setValue(`streams.${index}.format`, e.target.value)
                       }
-                      required
+                      error={errors.streams?.[index]?.format?.message}
                     />
                   </div>
                   <div>
@@ -225,7 +242,7 @@ export function EditStationDrawer({
                       type="checkbox"
                       checked={stream.primary}
                       onChange={(e) =>
-                        handleStreamChange(index, "primary", e.target.checked)
+                        setValue(`streams.${index}.primary`, e.target.checked)
                       }
                       className="mt-2"
                     />

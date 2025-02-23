@@ -40,10 +40,7 @@ interface ExpandableStationCardProps {
   onUpdate: (updatedStation: Station) => void;
 }
 
-export function ExpandableStationCard({
-  station,
-  onUpdate,
-}: ExpandableStationCardProps) {
+export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
   const openEditDrawer = useSetAtom(openEditStationDrawer);
   const [isExpanded, setIsExpanded] = React.useState(false);
