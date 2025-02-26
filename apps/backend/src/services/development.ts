@@ -5,9 +5,9 @@ import {
   seedStationKeys,
   seedStations,
 } from "@wavefunc/common/src/seed/stations";
+import { Client } from "pg";
+import dotenv from "dotenv";
 import path from "path";
-import { open } from "sqlite";
-import sqlite3 from "sqlite3";
 
 import WebSocket from "ws";
 (global as any).WebSocket = WebSocket;
@@ -20,6 +20,9 @@ export class DevelopmentService {
       explicitRelayUrls: defaultRelays,
       enableOutboxModel: false,
     });
+
+    // Load environment variables
+    dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
   }
 
   async seedData() {
@@ -67,18 +70,36 @@ export class DevelopmentService {
     console.log("Nuking data");
 
     try {
-      const dbPath = path.resolve(__dirname, "../../../relay/nostr.db");
-      console.log("Using database at:", dbPath);
+      let connectionString = process.env.POSTGRES_CONNECTION_STRING;
+      if (!connectionString) {
+        throw new Error(
+          "PostgreSQL connection string not found in environment variables"
+        );
+      }
 
-      const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-      });
+      // When running locally, replace 'postgres' hostname with 'localhost'
+      connectionString = connectionString.replace("@postgres:", "@localhost:");
 
-      await db.run("DELETE FROM event");
+      // Add sslmode=disable if not already present
+      if (!connectionString.includes("sslmode=")) {
+        connectionString +=
+          connectionString.includes("?") ? "&sslmode=disable" : (
+            "?sslmode=disable"
+          );
+      }
+
+      console.log("Using database connection:", connectionString);
+
+      const client = new Client({ connectionString });
+      await client.connect();
+
+      // Delete all data from the events table
+      // Note: The table name might be different depending on the PostgreSQL schema
+      // Adjust the table name if necessary
+      await client.query("DELETE FROM event");
       console.log("All data deleted from event table");
 
-      await db.close();
+      await client.end();
       return { message: "Database nuked successfully" };
     } catch (error) {
       console.error("Error nuking data:", error);

@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/fiatjaf/eventstore/sqlite3"
+	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/khatru"
 	"github.com/joho/godotenv"
 )
@@ -19,19 +20,34 @@ func main() {
 	}
 
 	relay := khatru.NewRelay()
-	// Get DB path from env or use default
-	dbPath := os.Getenv("SQLITE_DB_PATH")
-	if dbPath == "" {
-		dbPath = "./nostr.db" // Default to root directory
+	
+	// Get PostgreSQL connection string from env
+	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
+	if connString == "" {
+		// Default connection string if env var not set
+		connString = "postgres://postgres:postgres@localhost:5432/nostr?sslmode=disable"
+		fmt.Println("Warning: Using default PostgreSQL connection string")
+	} else {
+		// When running locally, replace 'postgres' hostname with 'localhost'
+		// This allows connecting to the dockerized postgres from the local machine
+		connString = strings.Replace(connString, "@postgres:", "@localhost:", 1)
+		
+		// Add sslmode=disable if not already present
+		if !strings.Contains(connString, "sslmode=") {
+			if strings.Contains(connString, "?") {
+				connString += "&sslmode=disable"
+			} else {
+				connString += "?sslmode=disable"
+			}
+		}
+		
+		fmt.Printf("Using modified connection string for local development\n")
 	}
+	
+	fmt.Printf("Connecting to PostgreSQL with: %s\n", connString)
 
-	// Ensure the database directory exists
-	dbDir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		panic(fmt.Errorf("failed to create database directory: %v", err))
-	}
-
-	db := sqlite3.SQLite3Backend{DatabaseURL: dbPath}
+	// Initialize PostgreSQL backend
+	db := postgresql.PostgresBackend{DatabaseURL: connString}
 	if err := db.Init(); err != nil {
 		panic(err)
 	}

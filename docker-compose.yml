@@ -1,14 +1,19 @@
-version: "3.8"
 services:
-  relay:
-    image: ghcr.io/nbd-wtf/khatru:latest
+  postgres:
+    image: postgres:15-alpine
     ports:
-      - "${RELAY_PORT:-3002}:3002"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - ./apps/relay/data:/data
+      - postgres_data:/var/lib/postgresql/data
     environment:
-      - KHATRU_DB_PATH=/data/nostr.db
-      - KHATRU_PUBKEY=${RELAY_PUBKEY}
-      - KHATRU_CONTACT=${RELAY_CONTACT}
-      - KHATRU_NAME=Wavefunc Relay
-      - KHATRU_DESCRIPTION=A Nostr relay running on Khatru
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
