@@ -11,6 +11,7 @@ import {
 } from "@nostr-dev-kit/ndk";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RADIO_EVENT_KINDS } from "@wavefunc/common/src/nostr/radio";
 
 type DebugEvent = {
   id: string;
@@ -34,7 +35,10 @@ export function RelayDebugger() {
 
       const filter: NDKFilter = {
         // kinds: [5000, 6000 as NDKKind, 31337 as NDKKind],
-        kinds: [31337 as NDKKind, 5000 as NDKKind],
+        kinds: [
+          RADIO_EVENT_KINDS.STREAM as NDKKind,
+          RADIO_EVENT_KINDS.FAVORITES as NDKKind,
+        ],
       };
 
       await nostrService.getNDK().connect();

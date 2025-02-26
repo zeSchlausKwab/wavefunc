@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { eventSchema } from "../nostr";
 
 // Stream quality schema
 export const StreamQualitySchema = z.object({

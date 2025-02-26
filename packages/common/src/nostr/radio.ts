@@ -9,10 +9,10 @@ import type { NDKEvent } from "@nostr-dev-kit/ndk";
 import { Station } from "../types/station";
 
 export const RADIO_EVENT_KINDS = {
-  STREAM: 31337,
+  STREAM: 31227,
   FAVORITES: 30078,
-  SONG_HISTORY: 31339,
-  SONG_LIBRARY: 31340,
+  // SONG_HISTORY: 31339,
+  // SONG_LIBRARY: 31340,
 } as const;
 
 type RadioEventContent = z.infer<typeof RadioEventContentSchema>;

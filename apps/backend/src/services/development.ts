@@ -1,13 +1,13 @@
 import NDK, { NDKPrivateKeySigner, NostrEvent } from "@nostr-dev-kit/ndk";
+import { defaultRelays } from "@wavefunc/common/src/constants/relays";
 import { publishStation } from "@wavefunc/common/src/nostr/publish";
 import {
   seedStationKeys,
   seedStations,
 } from "@wavefunc/common/src/seed/stations";
-import { config } from "../config";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import path from "path";
+import { open } from "sqlite";
+import sqlite3 from "sqlite3";
 
 import WebSocket from "ws";
 (global as any).WebSocket = WebSocket;
@@ -17,7 +17,7 @@ export class DevelopmentService {
 
   constructor() {
     this.ndk = new NDK({
-      explicitRelayUrls: config.defaultRelays,
+      explicitRelayUrls: defaultRelays,
       enableOutboxModel: false,
     });
   }

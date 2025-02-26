@@ -1,16 +1,12 @@
 import NDK, { NDKEvent, NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import { config } from "dotenv";
 import { resolve } from "path";
+import { defaultRelays } from "@wavefunc/common";
 import WebSocket from "ws";
 (global as any).WebSocket = WebSocket;
 
 // Load root .env file
 config({ path: resolve(__dirname, "../../../../.env") });
-
-const defaultRelays =
-  process.env.NEXT_PUBLIC_DEFAULT_RELAYS ?
-    JSON.parse(process.env.NEXT_PUBLIC_DEFAULT_RELAYS)
-  : [`ws://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:3002`];
 
 const PRIVATE_KEY = process.env.DVM_PRIVATE_KEY;
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;

@@ -1,14 +1,10 @@
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
+import { defaultRelays } from "@wavefunc/common/src/constants/relays";
 
 // TODO: Move to env variables
 const PRIVATE_KEY =
   "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0"; // Replace with your test private key
-
-const defaultRelays =
-  process.env.NEXT_PUBLIC_DEFAULT_RELAYS ?
-    JSON.parse(process.env.NEXT_PUBLIC_DEFAULT_RELAYS)
-  : [`ws://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:3002`];
 
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
 if (!LOCAL_MACHINE_IP) {
