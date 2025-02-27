@@ -10,22 +10,26 @@ restartPolicyMaxRetries = 3
 # Define separate services
 [services.web]
 name = "web"
-startCommand = "cd apps/web && npm start"
+buildCommand = "cd apps/web && pnpm install && pnpm build"
+startCommand = "cd apps/web && pnpm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 10
 healthcheckInterval = 30
 
 [services.api]
 name = "backend"
-startCommand = "cd apps/backend && npm start"
+buildCommand = "cd apps/backend && pnpm install && pnpm build"
+startCommand = "cd apps/backend && pnpm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 10
 healthcheckInterval = 30
 
 [services.relay]
 name = "relay"
-startCommand = "cd apps/relay && go run main.go"
+buildCommand = "cd apps/relay && go mod download && go build -o relay"
+startCommand = "cd apps/relay && ./relay"
 
 [services.dvm]
 name = "dvm"
-startCommand = "cd apps/dvm && npm start" 
+buildCommand = "cd apps/dvm && pnpm install && pnpm build"
+startCommand = "cd apps/dvm && pnpm start" 

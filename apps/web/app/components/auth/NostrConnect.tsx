@@ -9,8 +9,8 @@ import {
   NDKPrivateKeySigner,
 } from "@nostr-dev-kit/ndk";
 import { useEffect, useState } from "react";
-import { BunkerConnectDialog } from "./BunkerConnect";
-import { NostrConnectQRDialog } from "./NostrConnectQR";
+import { BunkerConnect } from "./BunkerConnect";
+import { NostrConnectQR } from "./NostrConnectQR";
 
 export const NOSTR_CONNECT_KEY = "nostr_connect_url";
 export const NOSTR_LOCAL_SIGNER_KEY = "local_signer";
@@ -148,16 +148,8 @@ export function NostrConnect() {
         </CardContent>
       </Card>
 
-      <BunkerConnectDialog
-        open={showConnectBunkerScanner}
-        onOpenChange={setShowConnectBunkerScanner}
-        onConnect={handleConnectBunkerScanner}
-      />
-      <NostrConnectQRDialog
-        open={showConnectQR}
-        onOpenChange={setShowConnectQR}
-        onDone={handleConnectQR}
-      />
+      <BunkerConnect />
+      <NostrConnectQR />
     </>
   );
 }

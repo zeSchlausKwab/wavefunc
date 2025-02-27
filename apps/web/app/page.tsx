@@ -32,7 +32,7 @@ export default function Home() {
             description={group.description}
             stations={
               group.stationIds
-                .map((id) => stations.find((s) => s.id === id))
+                .map((id) => stations.find((s) => s.id === String(id)))
                 .filter(Boolean) as Station[]
             }
             onUpdateStation={handleUpdateStation}

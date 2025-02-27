@@ -1,43 +1,42 @@
 "use client";
 
-import React from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
+import { Station, Stream } from "@wavefunc/common";
+import { useSetAtom } from "jotai";
 import {
-  Play,
-  Pencil,
+  Calendar,
   ChevronDown,
   ChevronUp,
   Globe,
-  Zap,
-  Share2,
-  Music,
-  Users,
-  Calendar,
-  Star,
   Heart,
   MessageCircle,
+  Music,
+  Pencil,
+  Play,
+  Share2,
+  Star,
+  Users,
+  Zap,
 } from "lucide-react";
-import { EditStationDrawer } from "../EditStationDrawer";
-import { Station, Stream } from "@wavefunc/common";
-import { streams } from "../../data/streams";
-import { comments } from "../../data/comments";
-import { useAtom, useSetAtom } from "jotai";
+import Image from "next/image";
+import React from "react";
 import { currentStationAtom } from "../../atoms/stations";
-import { StreamSelector } from "./StreamSelector";
 import { openEditStationDrawer } from "../../atoms/ui";
+import { comments } from "../../data/comments";
+import { streams } from "../../data/streams";
+import { StreamSelector } from "./StreamSelector";
 
 interface ExpandableStationCardProps {
   station: Station;
-  onUpdate: (updatedStation: Station) => void;
+  onUpdate?: (updatedStation: Station) => void;
 }
 
 export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
@@ -45,12 +44,18 @@ export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
   const openEditDrawer = useSetAtom(openEditStationDrawer);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const stationStreams = React.useMemo(
-    () => streams.filter((stream) => stream.stationId === station.id),
+    () => streams.filter((stream) => stream.stationId === Number(station.id)),
     [station.id]
   );
 
   const stationComments = React.useMemo(
-    () => comments.filter((comment) => comment.stationId === station.id),
+    () =>
+      comments.filter((comment: any) =>
+        // Handle both Comment types (with or without stationId)
+        "stationId" in comment ?
+          comment.stationId === Number(station.id)
+        : false
+      ),
     [station.id]
   );
 
@@ -92,7 +97,7 @@ export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
                 </div>
                 <div className="flex items-center space-x-2">
                   <StreamSelector
-                    stationId={station.id}
+                    stationId={Number(station.id)}
                     onStreamSelect={handleStreamSelect}
                     selectedStreamId={selectedStreamId}
                   />

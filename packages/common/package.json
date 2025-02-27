@@ -10,11 +10,11 @@
   "devDependencies": {
     "@types/node": "^20.11.25",
     "eslint-config-custom": "workspace:*",
-    "typescript": "^5.4.2"
+    "typescript": "^5.7.3"
   },
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.11.0",
-    "zod": "^3.24.1",
-    "nostr-tools": "2.10.4"
+    "nostr-tools": "2.10.4",
+    "zod": "^3.24.1"
   }
 }

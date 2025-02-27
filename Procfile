@@ -1,4 +1,4 @@
-web: cd apps/web && npm start
-api: cd apps/backend && npm start
-relay: cd apps/relay && go run main.go
-dvm: cd apps/dvm && npm start 
+web: cd apps/web && NODE_ENV=production pnpm start
+api: cd apps/backend && NODE_ENV=production pnpm start
+relay: cd apps/relay && PORT=$PORT DATABASE_URL=$DATABASE_URL ./relay
+dvm: cd apps/dvm && NODE_ENV=production pnpm start 

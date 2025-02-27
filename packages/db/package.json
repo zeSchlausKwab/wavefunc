@@ -5,7 +5,6 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "lint": "eslint ."
@@ -16,6 +15,6 @@
   "devDependencies": {
     "eslint-config-custom": "workspace:*",
     "prisma": "^5.10.2",
-    "typescript": "^5.4.2"
+    "typescript": "^5.7.3"
   }
 }

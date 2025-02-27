@@ -3,12 +3,14 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --parallel dev",
-    "build": "pnpm --recursive build",
+    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" build",
+    "build-relay": "cd apps/relay && go build -o relay",
     "lint": "pnpm --parallel lint",
     "format": "pnpm --parallel format"
   },
   "devDependencies": {
-    "typescript": "^5.4.2"
+    "typescript": "^5.4.2",
+    "tsup": "^8.0.2"
   },
   "dependencies": {
     "dotenv": "^16.4.5"

@@ -130,7 +130,7 @@ export function subscribeToRadioStations(
  */
 export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
   const filter = {
-    kinds: [RADIO_EVENT_KINDS.STREAM],
+    kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
     since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 7, // Last 7 days
   };
 

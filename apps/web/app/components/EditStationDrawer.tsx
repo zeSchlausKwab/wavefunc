@@ -138,9 +138,7 @@ export function EditStationDrawer({
             <Controller
               name="name"
               control={control}
-              render={({ field }) => (
-                <Input {...field} error={errors.name?.message} />
-              )}
+              render={({ field }) => <Input {...field} />}
             />
           </div>
           <div className="space-y-2">
@@ -149,7 +147,6 @@ export function EditStationDrawer({
               id="description"
               value={watch("description") || ""}
               onChange={(e) => setValue("description", e.target.value)}
-              error={errors.description?.message}
               required
             />
           </div>
@@ -160,7 +157,6 @@ export function EditStationDrawer({
               type="url"
               value={watch("website") || ""}
               onChange={(e) => setValue("website", e.target.value)}
-              error={errors.website?.message}
               required
             />
           </div>
@@ -170,7 +166,6 @@ export function EditStationDrawer({
               id="genre"
               value={watch("genre") || ""}
               onChange={(e) => setValue("genre", e.target.value)}
-              error={errors.genre?.message}
               required
             />
           </div>
@@ -181,7 +176,6 @@ export function EditStationDrawer({
               type="url"
               value={watch("imageUrl") || ""}
               onChange={(e) => setValue("imageUrl", e.target.value)}
-              error={errors.imageUrl?.message}
               required
             />
           </div>
@@ -217,11 +211,7 @@ export function EditStationDrawer({
                   name={`streams.${index}.url`}
                   control={control}
                   render={({ field }) => (
-                    <Input
-                      {...field}
-                      placeholder="Stream URL"
-                      error={errors.streams?.[index]?.url?.message}
-                    />
+                    <Input {...field} placeholder="Stream URL" />
                   )}
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -232,7 +222,6 @@ export function EditStationDrawer({
                       onChange={(e) =>
                         setValue(`streams.${index}.format`, e.target.value)
                       }
-                      error={errors.streams?.[index]?.format?.message}
                     />
                   </div>
                   <div>

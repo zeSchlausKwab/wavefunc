@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsx build",
+    "build": "tsup src/index.ts --format esm,cjs --target node16 --clean",
     "start": "node dist/index.js",
     "lint": "eslint ."
   },
@@ -21,6 +21,7 @@
     "@types/node": "^20.11.25",
     "@types/ws": "^8.5.10",
     "eslint-config-custom": "workspace:*",
-    "tsx": "^4.7.1"
+    "tsx": "^4.7.1",
+    "tsup": "^8.0.2"
   }
 }

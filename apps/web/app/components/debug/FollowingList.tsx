@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { FollowingListRow } from "../FollowingListRow";
+import { FollowingListRow } from "./FollowingListRow";
 
 type ProfileWithStatus = {
   profile: NDKUser | null;
