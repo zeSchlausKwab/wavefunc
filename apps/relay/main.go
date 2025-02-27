@@ -14,9 +14,11 @@ import (
 )
 
 func main() {
-	// Load .env from root
-	if err := godotenv.Load(filepath.Join("..", "..", ".env")); err != nil {
-		fmt.Printf("Warning: Error loading .env file: %v\n", err)
+	// Load .env only in local development
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(filepath.Join("..", "..", ".env")); err != nil {
+			fmt.Printf("Warning: Error loading .env file: %v\n", err)
+		}
 	}
 
 	relay := khatru.NewRelay()
@@ -24,13 +26,21 @@ func main() {
 	// Get PostgreSQL connection string from env
 	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
 	if connString == "" {
+		// If DATABASE_URL is set (Railway standard), use that instead
+		connString = os.Getenv("DATABASE_URL")
+	}
+	
+	if connString == "" {
 		// Default connection string if env var not set
 		connString = "postgres://postgres:postgres@localhost:5432/nostr?sslmode=disable"
 		fmt.Println("Warning: Using default PostgreSQL connection string")
 	} else {
 		// When running locally, replace 'postgres' hostname with 'localhost'
 		// This allows connecting to the dockerized postgres from the local machine
-		connString = strings.Replace(connString, "@postgres:", "@localhost:", 1)
+		// Only do this if not in a Railway environment
+		if os.Getenv("RAILWAY_ENVIRONMENT") == "" {
+			connString = strings.Replace(connString, "@postgres:", "@localhost:", 1)
+		}
 		
 		// Add sslmode=disable if not already present
 		if !strings.Contains(connString, "sslmode=") {
@@ -41,10 +51,8 @@ func main() {
 			}
 		}
 		
-		fmt.Printf("Using modified connection string for local development\n")
+		fmt.Printf("Using connection string: %s\n", connString)
 	}
-	
-	fmt.Printf("Connecting to PostgreSQL with: %s\n", connString)
 
 	// Initialize PostgreSQL backend
 	db := postgresql.PostgresBackend{DatabaseURL: connString}
@@ -64,9 +72,14 @@ func main() {
 		},
 	}
 
-	port := os.Getenv("RELAY_PORT")
+	// Get PORT from environment (Railway sets this automatically)
+	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3002"
+		// Fallback to RELAY_PORT if PORT is not set
+		port = os.Getenv("RELAY_PORT")
+		if port == "" {
+			port = "3002"
+		}
 	}
 
 	fmt.Printf("running on :%s\n", port)
