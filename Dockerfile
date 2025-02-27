@@ -6,11 +6,14 @@ RUN npm install -g pnpm
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files for dependency installation
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+COPY apps/*/package.json ./apps/
+COPY packages/*/package.json ./packages/
+COPY tooling/*/package.json ./tooling/
 
-# Install dependencies
-RUN pnpm install
+# Install all dependencies (including workspace dependencies)
+RUN pnpm install --frozen-lockfile
 
 # Copy application code
 COPY . .
