@@ -22,6 +22,7 @@ import {
 } from "@wavefunc/common/src/schemas/station";
 import { createRadioEvent } from "@wavefunc/common/src/nostr/radio";
 import { nostrService } from "@/services/ndk";
+import { NDKEvent } from "@nostr-dev-kit/ndk";
 
 interface EditStationDrawerProps {
   station?: Station;
@@ -84,7 +85,6 @@ export function EditStationDrawer({
         ["client", "nostr_radio"],
       ];
 
-      // Create the event
       const event = createRadioEvent(
         {
           name: data.name,
@@ -95,12 +95,11 @@ export function EditStationDrawer({
         tags
       );
 
-      // Sign and publish the event
       const ndk = nostrService.getNDK();
-      const signedEvent = await ndk.signer?.signEvent(event);
+      const ndkEvent = new NDKEvent(ndk, event);
 
-      if (signedEvent) {
-        await ndk.publish(signedEvent);
+      if (ndkEvent) {
+        await ndkEvent.publish();
         onSave(data);
         onClose();
       }

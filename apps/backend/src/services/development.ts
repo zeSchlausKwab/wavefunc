@@ -70,32 +70,17 @@ export class DevelopmentService {
     console.log("Nuking data");
 
     try {
-      let connectionString = process.env.POSTGRES_CONNECTION_STRING;
-      if (!connectionString) {
-        throw new Error(
-          "PostgreSQL connection string not found in environment variables"
-        );
-      }
+      const user = process.env.POSTGRES_USER || "postgres";
+      const password = process.env.POSTGRES_PASSWORD || "postgres";
+      const host = process.env.POSTGRES_HOST || "localhost";
+      const port = process.env.POSTGRES_PORT || "5432";
+      const database = process.env.POSTGRES_DB || "nostr";
 
-      // When running locally, replace 'postgres' hostname with 'localhost'
-      connectionString = connectionString.replace("@postgres:", "@localhost:");
-
-      // Add sslmode=disable if not already present
-      if (!connectionString.includes("sslmode=")) {
-        connectionString +=
-          connectionString.includes("?") ? "&sslmode=disable" : (
-            "?sslmode=disable"
-          );
-      }
-
-      console.log("Using database connection:", connectionString);
+      let connectionString = `postgres://${user}:${password}@${host}:${port}/${database}?sslmode=disable`;
 
       const client = new Client({ connectionString });
       await client.connect();
 
-      // Delete all data from the events table
-      // Note: The table name might be different depending on the PostgreSQL schema
-      // Adjust the table name if necessary
       await client.query("DELETE FROM event");
       console.log("All data deleted from event table");
 

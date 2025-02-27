@@ -11,19 +11,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NDKNip46Signer } from "@nostr-dev-kit/ndk";
 import { useAtom, useSetAtom } from "jotai";
+import { useState } from "react";
 import {
   loginDialogAtom,
-  loginWithPrivateKey,
   loginWithExtension,
   loginWithNip46,
+  loginWithPrivateKey,
 } from "../../atoms/auth";
-import { useState } from "react";
-import { NostrConnect } from "./NostrConnect";
-import { NostrConnectQR } from "./NostrConnectQR";
 import { BunkerConnect } from "./BunkerConnect";
-import { NDKNip46Signer } from "@nostr-dev-kit/ndk";
-import { nostrService } from "@/services/ndk";
+import { NostrConnectQR } from "./NostrConnectQR";
 
 export function LoginDialog() {
   const [isOpen, setIsOpen] = useAtom(loginDialogAtom);

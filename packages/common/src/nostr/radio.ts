@@ -75,7 +75,6 @@ export function createFavoritesEvent(
  * Validates and parses a radio station event
  */
 export function parseRadioEvent(event: NDKEvent | NostrEvent) {
-  console.log("event", event);
   if (event.kind !== RADIO_EVENT_KINDS.STREAM) {
     throw new Error("Invalid event kind");
   }

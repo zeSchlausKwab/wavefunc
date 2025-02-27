@@ -8,13 +8,6 @@ import { openCreateStationDrawer } from "../atoms/ui";
 import { authStateAtom, loginDialogAtom, logout } from "../atoms/auth";
 import { LoginDialog } from "./auth/LoginDialog";
 
-// Placeholder data for the profile
-const placeholderProfile = {
-  name: "John Doe",
-  email: "john@example.com",
-  avatarUrl: "https://picsum.photos/seed/john/400/400",
-};
-
 export function Header() {
   const openCreateDrawer = useSetAtom(openCreateStationDrawer);
   const openLoginDialog = useSetAtom(loginDialogAtom);
