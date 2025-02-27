@@ -1,6 +1,5 @@
 [build]
-builder = "nixpacks"
-nixpacksVersion = "1.15.0"
+builder = "docker"
 
 [deploy]
 numReplicas = 1
