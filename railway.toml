@@ -1,5 +1,5 @@
 [build]
-builder = "docker"
+builder = "dockerfile"
 
 [deploy]
 numReplicas = 1
