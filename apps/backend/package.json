@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NODE_ENV=development tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm,cjs --target node16 --clean",
+    "build": "tsup src/index.ts --format esm,cjs --clean",
     "start": "NODE_ENV=production node dist/index.js",
     "lint": "eslint ."
   },
