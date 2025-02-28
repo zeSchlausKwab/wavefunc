@@ -3,8 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --parallel dev",
-    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" build",
+    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" build && pnpm build-relay",
     "build-relay": "cd apps/relay && go build -o relay",
+    "start-relay": "cd apps/relay && ./relay",
+    "start": "pnpm --parallel --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" start & pnpm start-relay",
     "lint": "pnpm --parallel lint",
     "format": "pnpm --parallel format"
   },

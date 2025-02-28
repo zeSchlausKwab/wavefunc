@@ -5,30 +5,3 @@ builder = "nixpacks"
 numReplicas = 1
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-
-# Define separate services
-[services.web]
-name = "web"
-buildCommand = "cd apps/web && pnpm install && pnpm build"
-startCommand = "cd apps/web && pnpm start"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 10
-healthcheckInterval = 30
-
-[services.api]
-name = "backend"
-buildCommand = "cd apps/backend && pnpm install && pnpm build"
-startCommand = "cd apps/backend && pnpm start"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 10
-healthcheckInterval = 30
-
-[services.relay]
-name = "relay"
-buildCommand = "cd apps/relay && go mod download && go build -o relay"
-startCommand = "cd apps/relay && ./relay"
-
-[services.dvm]
-name = "dvm"
-buildCommand = "cd apps/dvm && pnpm install && pnpm build"
-startCommand = "cd apps/dvm && pnpm start" 
