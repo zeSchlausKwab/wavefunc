@@ -1,10 +1,7 @@
 import NDK, { NDKPrivateKeySigner, NostrEvent } from "@nostr-dev-kit/ndk";
-import { defaultRelays } from "@wavefunc/common/src/constants/relays";
-import { publishStation } from "@wavefunc/common/src/nostr/publish";
-import {
-  seedStationKeys,
-  seedStations,
-} from "@wavefunc/common/src/seed/stations";
+import { defaultRelays } from "@wavefunc/common";
+import { publishStation } from "@wavefunc/common";
+import { seedStationKeys, seedStations } from "@wavefunc/common";
 import { Client } from "pg";
 import dotenv from "dotenv";
 import path from "path";

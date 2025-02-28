@@ -1,6 +1,6 @@
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
-import { defaultRelays } from "@wavefunc/common/src/constants/relays";
+import { defaultRelays } from "@wavefunc/common";
 
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
 const WS_PROTOCOL =

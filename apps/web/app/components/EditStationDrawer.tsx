@@ -14,13 +14,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Plus, Trash, X } from "lucide-react";
-import { Station } from "@wavefunc/common";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  Station,
   StationSchema,
   StationFormData,
-} from "@wavefunc/common/src/schemas/station";
-import { createRadioEvent } from "@wavefunc/common/src/nostr/radio";
+  createRadioEvent,
+} from "@wavefunc/common";
+import { Textarea } from "@/components/ui/textarea";
 import { nostrService } from "@/services/ndk";
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 

@@ -11,7 +11,7 @@ import {
 } from "@nostr-dev-kit/ndk";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RADIO_EVENT_KINDS } from "@wavefunc/common/src/nostr/radio";
+import { RADIO_EVENT_KINDS } from "@wavefunc/common";
 
 type DebugEvent = {
   id: string;

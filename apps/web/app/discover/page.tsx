@@ -7,9 +7,9 @@ import { RelayDebugger } from "../components/debug/RelayDebugger";
 import {
   subscribeToRadioStations,
   parseRadioEvent,
-} from "@wavefunc/common/src/nostr/radio";
+  Station,
+} from "@wavefunc/common";
 import { ExpandableStationCard } from "../components/station/ExpandableStationCard";
-import { Station } from "@wavefunc/common";
 
 export default function DiscoverPage() {
   const [stations, setStations] = useState<Station[]>([]);
