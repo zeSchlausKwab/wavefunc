@@ -1,40 +1,47 @@
 "use client";
 
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 
 const routes = [
-  { href: "/", label: "Home" },
   { href: "/discover", label: "Discover" },
-  { href: "/favorites", label: "Favorites" },
-  { href: "/add-station", label: "Add Station" },
+  { href: "/genres", label: "Genres" },
 ];
 
 export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="bg-white bg-opacity-80 border-b">
-      <div className="container mx-auto px-4 py-2">
-        <ul className="flex space-x-4">
-          {routes.map((route) => (
-            <li key={route.href}>
-              <Link
-                href={route.href}
+    <NavigationMenu>
+      <NavigationMenuList>
+        {routes.map((route) => (
+          <NavigationMenuItem key={route.href}>
+            <Link href={route.href} legacyBehavior passHref>
+              <NavigationMenuLink
                 className={cn(
-                  "text-sm font-press-start-2p transition-colors hover:text-primary",
+                  navigationMenuTriggerStyle(),
+                  "font-press-start-2p text-sm",
                   pathname === route.href ?
                     "text-primary font-medium"
                   : "text-muted-foreground"
                 )}
               >
                 {route.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+        ))}
+      </NavigationMenuList>
+    </NavigationMenu>
   );
 }

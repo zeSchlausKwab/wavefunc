@@ -55,27 +55,29 @@ export function NostrConnect() {
     }
   };
 
-  const handleConnectBunkerScanner = async (signer: NDKNip46Signer) => {
-    const ndk = nostrService.getNDK();
-    ndk.signer = signer;
+  // TODO: Remove this?
 
-    const user = await ndk.signer.user();
-    const profile = await user.fetchProfile();
+  // const handleConnectBunkerScanner = async (signer: NDKNip46Signer) => {
+  //   const ndk = nostrService.getNDK();
+  //   ndk.signer = signer;
 
-    setConnected(true);
-  };
+  //   const user = await ndk.signer.user();
+  //   const profile = await user.fetchProfile();
 
-  const handleConnectQR = async (signer: NDKNip46Signer) => {
-    const ndk = nostrService.getNDK();
-    ndk.signer = signer;
+  //   setConnected(true);
+  // };
 
-    const user = await ndk.signer.user();
-    const profile = await user.fetchProfile();
-    console.log(profile);
+  // const handleConnectQR = async (signer: NDKNip46Signer) => {
+  //   const ndk = nostrService.getNDK();
+  //   ndk.signer = signer;
 
-    // The NostrConnectQRDialog handles storing the bunker URL
-    setConnected(true);
-  };
+  //   const user = await ndk.signer.user();
+  //   const profile = await user.fetchProfile();
+  //   console.log(profile);
+
+  //   // The NostrConnectQRDialog handles storing the bunker URL
+  //   setConnected(true);
+  // };
 
   const handleConnectExtension = async () => {
     try {

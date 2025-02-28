@@ -32,7 +32,6 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
   const [listening, setListening] = useState(false);
   const [generatingConnectionUrl, setGeneratingConnectionUrl] = useState(false);
 
-  // Initialize local signer on mount
   useEffect(() => {
     setGeneratingConnectionUrl(true);
     const signer = NDKPrivateKeySigner.generate();

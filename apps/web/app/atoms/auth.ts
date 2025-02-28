@@ -19,7 +19,6 @@ export const authStateAtom = atom<AuthState>({
 
 export const loginDialogAtom = atom<boolean>(false);
 
-// Helper function to update auth state
 const updateAuthState = async (
   signer: NDKPrivateKeySigner | NDKNip07Signer | NDKNip46Signer
 ): Promise<AuthState> => {

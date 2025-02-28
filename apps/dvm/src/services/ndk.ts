@@ -5,7 +5,7 @@ import { defaultRelays } from "@wavefunc/common";
 import WebSocket from "ws";
 (global as any).WebSocket = WebSocket;
 
-// Load root .env file
+// TODO: Backend ndks can be extracted into a shared package
 config({ path: resolve(__dirname, "../../../../.env") });
 
 const PRIVATE_KEY = process.env.DVM_PRIVATE_KEY;

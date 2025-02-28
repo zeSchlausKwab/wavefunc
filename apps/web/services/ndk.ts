@@ -9,14 +9,14 @@ if (!LOCAL_MACHINE_IP) {
   );
 }
 
-const dexieAdapter = new NDKCacheAdapterDexie({ dbName: "gmsirs-ndk-cache" });
+const dexieAdapter = new NDKCacheAdapterDexie({ dbName: "wavefunc-ndk-cache" });
 
 class NostrService {
   private static instance: NostrService;
   private ndk: NDK;
 
   private constructor() {
-    const signer = new NDKPrivateKeySigner();
+    const signer = NDKPrivateKeySigner.generate();
     this.ndk = new NDK({
       explicitRelayUrls: [
         `ws://${LOCAL_MACHINE_IP}:3002`,
