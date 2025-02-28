@@ -2,10 +2,11 @@
   "name": "@wavefunc/common",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean"
   },
   "devDependencies": {
     "@types/node": "^20.11.25",

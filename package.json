@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --parallel dev",
-    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" build",
+    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/**\" --filter \"!./apps/relay\" build",
     "start": "pnpm --parallel --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" start",
     "lint": "pnpm --parallel lint",
     "format": "pnpm --parallel format"
