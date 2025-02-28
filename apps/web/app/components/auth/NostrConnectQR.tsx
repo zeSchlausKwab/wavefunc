@@ -50,7 +50,9 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
   const connectionUrl = useMemo(() => {
     if (!localPubkey) return null;
     const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
-    const relay = `ws://${localMachineIp}:3002`;
+    const wsProtocol =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
+    const relay = `${wsProtocol}://${localMachineIp}:3002`;
     const host = location.protocol + "//" + localMachineIp;
     const secret = Math.random().toString(36).substring(2, 15);
 
@@ -71,7 +73,9 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
 
     const baseUrl = `bunker://${event.pubkey}?`;
     const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
-    const relay = `ws://${localMachineIp}:3002`;
+    const wsProtocol =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
+    const relay = `${wsProtocol}://${localMachineIp}:3002`;
 
     const params = new URLSearchParams();
     params.set("relay", relay);

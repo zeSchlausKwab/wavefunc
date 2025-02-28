@@ -5,6 +5,8 @@
 //   "wss://relay.damus.io",
 // ];
 
-export const defaultRelays: string[] = ["ws://192.168.0.79:3002"];
+// export const defaultRelays: string[] = ["ws://192.168.0.79:3002"];
+
+export const defaultRelays: string[] = ["wss://wavefunc.live:3002"];
 
 export const defaultNostrConnectRelays = ["wss://relay.nsec.app/"];
