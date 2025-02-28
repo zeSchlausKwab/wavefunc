@@ -5,6 +5,10 @@ import { defaultRelays } from "@wavefunc/common/src/constants/relays";
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
 const WS_PROTOCOL =
   process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
+const REALY_PREFIX =
+  process.env.NEXT_PUBLIC_APP_ENV === "development" ? "" : "relay.";
+const PORT_OR_DEFAULT =
+  process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
 if (!LOCAL_MACHINE_IP) {
   throw new Error(
     "NEXT_PUBLIC_LOCAL_MACHINE_IP environment variable is required"
@@ -21,7 +25,7 @@ class NostrService {
     const signer = NDKPrivateKeySigner.generate();
     this.ndk = new NDK({
       explicitRelayUrls: [
-        `${WS_PROTOCOL}://${LOCAL_MACHINE_IP}:3002`,
+        `${WS_PROTOCOL}://${REALY_PREFIX}${LOCAL_MACHINE_IP}${PORT_OR_DEFAULT}`,
         ...defaultRelays,
         // 'wss://relay.damus.io',
         // 'wss://relay.nostr.band',

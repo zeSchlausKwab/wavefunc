@@ -52,7 +52,11 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
     const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
     const wsProtocol =
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
-    const relay = `${wsProtocol}://${localMachineIp}:3002`;
+    const relayPrefix =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? "" : "relay.";
+    const PORT_OR_DEFAULT =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
+    const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`;
     const host = location.protocol + "//" + localMachineIp;
     const secret = Math.random().toString(36).substring(2, 15);
 
@@ -75,7 +79,11 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
     const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
     const wsProtocol =
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
-    const relay = `${wsProtocol}://${localMachineIp}:3002`;
+    const relayPrefix =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? "" : "relay.";
+    const PORT_OR_DEFAULT =
+      process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
+    const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`;
 
     const params = new URLSearchParams();
     params.set("relay", relay);

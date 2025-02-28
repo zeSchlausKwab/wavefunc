@@ -12,6 +12,10 @@ const PRIVATE_KEY = process.env.DVM_PRIVATE_KEY;
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
 const WS_PROTOCOL =
   process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
+const REALY_PREFIX =
+  process.env.NEXT_PUBLIC_APP_ENV === "development" ? "" : "relay.";
+const PORT_OR_DEFAULT =
+  process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
 if (!PRIVATE_KEY) {
   throw new Error("DVM_PRIVATE_KEY environment variable is required");
 }
@@ -29,7 +33,7 @@ class DVMService {
     const signer = new NDKPrivateKeySigner(PRIVATE_KEY);
     this.ndk = new NDK({
       explicitRelayUrls: [
-        `${WS_PROTOCOL}://${LOCAL_MACHINE_IP}:3002`,
+        `${WS_PROTOCOL}://${REALY_PREFIX}${LOCAL_MACHINE_IP}${PORT_OR_DEFAULT}`,
         ...defaultRelays,
       ],
       signer,
