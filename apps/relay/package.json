@@ -5,6 +5,6 @@
   "scripts": {
     "dev": "go run main.go",
     "build": "go build -o relay",
-    "start": "go run main.go"
+    "start": "./relay"
   }
 }

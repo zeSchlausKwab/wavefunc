@@ -7,6 +7,7 @@ toolchain go1.23.1
 require (
 	github.com/fiatjaf/eventstore v0.3.1
 	github.com/fiatjaf/khatru v0.3.0
+	github.com/joho/godotenv v1.5.1
 )
 
 require (
@@ -20,11 +21,10 @@ require (
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.3.1 // indirect
 	github.com/jmoiron/sqlx v1.3.5 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.2 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-sqlite3 v1.14.18 // indirect
 	github.com/nbd-wtf/go-nostr v0.28.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.0.2 // indirect
 	github.com/rs/cors v1.7.0 // indirect
