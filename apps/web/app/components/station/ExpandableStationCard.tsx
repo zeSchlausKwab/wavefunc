@@ -35,12 +35,18 @@ import { streams } from "../../data/streams";
 import { StreamSelector } from "./StreamSelector";
 import { nostrService } from "@/services/ndk";
 import { NDKUser } from "@nostr-dev-kit/ndk";
+
 interface ExpandableStationCardProps {
   station: Station;
   onUpdate?: (updatedStation: Station) => void;
+  onDelete?: (stationId: string) => void;
 }
 
-export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
+export function ExpandableStationCard({
+  station,
+  onUpdate,
+  onDelete,
+}: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
   const setIsPlaying = useSetAtom(isPlayingAtom);
   const openEditDrawer = useSetAtom(openEditStationDrawer);

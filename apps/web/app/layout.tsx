@@ -32,6 +32,16 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
     closeDrawer();
   };
 
+  const handleDeleteStation = async (stationId: string) => {
+    console.log("Delete station:", stationId);
+    // The actual deletion is handled in the EditStationDrawer component
+    // This handler is for updating the UI after deletion
+    closeDrawer();
+
+    // The actual UI update will be handled by the DiscoverPage component
+    // since it's listening for deletion events
+  };
+
   return (
     <html lang="en">
       <body className={`${pressStart2P.variable} ${inter.className}`}>
@@ -52,6 +62,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
           isOpen={drawerState.isOpen}
           onClose={closeDrawer}
           onSave={handleSaveStation}
+          onDelete={handleDeleteStation}
         />
       </body>
     </html>

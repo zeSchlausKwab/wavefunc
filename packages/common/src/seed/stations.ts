@@ -17,6 +17,14 @@ export const seedStationKeys = {
   },
 } as const;
 
+// Define fixed d-tag values for our seed stations
+const FIP_RADIO_DTAG = "fip01";
+const FIP_ROCK_DTAG = "fip02";
+const DRONE_ZONE_DTAG = "soma01";
+const VAPORWAVES_DTAG = "soma02";
+const CLIQHOP_DTAG = "soma03";
+const IWAYHIGH_DTAG = "iway01";
+
 export const seedStations: NostrEvent[] = [
   // FIP Radio Stations
   {
@@ -51,6 +59,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", FIP_RADIO_DTAG],
       ["t", "jazz"],
       ["t", "world"],
       ["t", "electronic"],
@@ -86,6 +95,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", FIP_ROCK_DTAG],
       ["t", "rock"],
       ["t", "pop"],
       ["l", "fr"],
@@ -130,6 +140,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", DRONE_ZONE_DTAG],
       ["t", "ambient"],
       ["t", "electronic"],
       ["t", "space"],
@@ -164,6 +175,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", VAPORWAVES_DTAG],
       ["t", "vaporwave"],
       ["t", "electronic"],
       ["l", "en"],
@@ -206,6 +218,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", CLIQHOP_DTAG],
       ["t", "idm"],
       ["t", "electronic"],
       ["t", "experimental"],
@@ -241,6 +254,7 @@ export const seedStations: NostrEvent[] = [
       ],
     }),
     tags: [
+      ["d", IWAYHIGH_DTAG],
       ["t", "dub"],
       ["t", "electronic"],
       ["t", "chill"],

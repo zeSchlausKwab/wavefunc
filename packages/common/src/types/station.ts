@@ -7,6 +7,7 @@ export interface Comment {
 
 export interface Station {
   id: string;
+  naddr?: string;
   name: string;
   description: string;
   website: string;
