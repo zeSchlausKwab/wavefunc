@@ -31,7 +31,6 @@ export function DVMTest() {
     setResponse(null);
 
     try {
-      // Create and publish request event
       const requestEvent = new NDKEvent(nostrService.getNDK());
       requestEvent.kind = JOB_KIND;
       requestEvent.content = JSON.stringify({
@@ -45,17 +44,14 @@ export function DVMTest() {
 
       await requestEvent.sign();
 
-      // Subscribe to response before publishing request
       const sub = nostrService.getNDK().subscribe({
         kinds: [RESULT_KIND as NDKKind],
         "#e": [requestEvent.id],
         limit: 1,
       });
 
-      // Handle response
       sub.on("event", (event: NDKEvent) => {
         const content = JSON.parse(event.content);
-        console.log("Received response:", content);
         setResponse(content);
         setLoading(false);
         resetForm();
@@ -64,7 +60,6 @@ export function DVMTest() {
 
       await requestEvent.publish();
 
-      // Set timeout for response
       setTimeout(() => {
         if (loading) {
           setLoading(false);

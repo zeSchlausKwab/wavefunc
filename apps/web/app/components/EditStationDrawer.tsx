@@ -28,6 +28,8 @@ import {
   deleteStation,
   updateStation,
 } from "@wavefunc/common/src/nostr/publish";
+import { useSetAtom } from "jotai";
+import { closeStationDrawer } from "../atoms/ui";
 
 interface EditStationDrawerProps {
   station?: Station;
@@ -48,14 +50,9 @@ const emptyStream = {
   primary: true,
 };
 
-export function EditStationDrawer({
-  station,
-  isOpen,
-  onClose,
-  onSave,
-  onDelete,
-}: EditStationDrawerProps) {
+export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const closeDrawer = useSetAtom(closeStationDrawer);
 
   const {
     control,
@@ -89,12 +86,7 @@ export function EditStationDrawer({
     try {
       const ndk = nostrService.getNDK();
 
-      // Determine if this is an update or new creation
       if (station?.naddr) {
-        // If naddr exists, this is an update to an existing station
-        console.log("Updating existing station with naddr:", station.naddr);
-
-        // Use the dedicated updateStation function
         const ndkEvent = await updateStation(ndk, station, {
           name: data.name,
           description: data.description,
@@ -104,24 +96,8 @@ export function EditStationDrawer({
           imageUrl: data.imageUrl,
         });
 
-        // Log the d-tag after publishing
-        const publishedDTag = ndkEvent.tags.find((tag) => tag[0] === "d");
-        console.log("D-tag in updated event:", publishedDTag);
-
-        // Create updated station with preserved naddr
-        const updatedStation = {
-          ...data,
-          naddr: station.naddr,
-          id: station.id,
-          pubkey: station.pubkey || ndkEvent.pubkey,
-          tags: ndkEvent.tags,
-        };
-
-        onSave(updatedStation);
-        onClose();
+        closeDrawer();
       } else {
-        // This is a new station creation
-        // Create tags array
         const tags = [
           ["genre", data.genre],
           ["thumbnail", data.imageUrl],
@@ -142,21 +118,7 @@ export function EditStationDrawer({
 
         if (ndkEvent) {
           await ndkEvent.publish();
-
-          // Log the created d-tag
-          const dTag = ndkEvent.tags.find((tag) => tag[0] === "d");
-          console.log("D-tag in new station:", dTag);
-
-          const newStation = {
-            ...data,
-            id: ndkEvent.id,
-            pubkey: ndkEvent.pubkey,
-            tags: ndkEvent.tags,
-            // The naddr will be populated when mapping from subscription
-          };
-
-          onSave(newStation);
-          onClose();
+          closeDrawer();
         }
       }
     } catch (error) {
@@ -182,11 +144,7 @@ export function EditStationDrawer({
       const ndk = nostrService.getNDK();
       await deleteStation(ndk, station.id);
 
-      if (onDelete) {
-        onDelete(station.id);
-      }
-
-      onClose();
+      closeDrawer();
     } catch (error) {
       console.error("Error deleting station:", error);
     } finally {
@@ -195,7 +153,7 @@ export function EditStationDrawer({
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
+    <Sheet open={isOpen}>
       <SheetContent className="w-[90vw] sm:max-w-[540px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="text-primary text-lg font-press-start-2p">
@@ -358,7 +316,7 @@ export function EditStationDrawer({
                     Delete
                   </Button>
                 )}
-                <Button type="button" onClick={onClose} variant="outline">
+                <Button type="button" onClick={closeDrawer} variant="outline">
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>

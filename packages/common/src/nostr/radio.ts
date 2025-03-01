@@ -23,7 +23,6 @@ type FavoritesEventContent = z.infer<typeof FavoritesEventContentSchema>;
  * @returns A random ID to use as d-tag value
  */
 export function createStationDTagValue(): string {
-  // Generate a random ID (12 characters)
   return Math.random().toString(36).substring(2, 14);
 }
 
@@ -49,40 +48,27 @@ export function createRadioEvent(
   tags: string[][],
   existingTags?: string[][]
 ): NostrEvent {
-  // Make a copy of tags to avoid modifying the original
   let newTags = [...tags];
 
-  // Check if this is an update (has existing tags)
   if (existingTags) {
-    // Find the existing 'd' tag
     const existingDTag = existingTags.find((tag) => tag[0] === "d");
-
-    // Remove any 'd' tag from the new tags to avoid duplicates
     newTags = newTags.filter((tag) => tag[0] !== "d");
 
-    // If there was an existing 'd' tag, preserve it
     if (existingDTag) {
-      console.log("Preserving existing d-tag:", existingDTag[1]);
       newTags.push(existingDTag);
     } else {
-      // If no 'd' tag exists (unusual for existing event), create one
       const newDTag = ["d", createStationDTagValue()];
-      console.log("No existing d-tag found, creating new one:", newDTag[1]);
       newTags.push(newDTag);
     }
   } else {
-    // For new stations, check if a 'd' tag was provided
     const hasDTag = newTags.some((tag) => tag[0] === "d");
 
-    // Only add the 'd' tag if one doesn't already exist
     if (!hasDTag) {
       const newDTag = ["d", createStationDTagValue()];
-      console.log("Adding new d-tag for new station:", newDTag[1]);
       newTags.push(newDTag);
     }
   }
 
-  // Ensure the client tag is set
   const hasClientTag = newTags.some((tag) => tag[0] === "client");
   if (!hasClientTag) {
     newTags.push(["client", "nostr_radio"]);
@@ -147,7 +133,6 @@ export function subscribeToRadioStations(
 ) {
   const filter = {
     kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-    // since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 7,
   };
 
   const subscription = ndk.subscribe(filter, {
@@ -192,29 +177,12 @@ export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
 }
 
 export function stationToNostrEvent(station: Station): NostrEvent {
-  // Ensure there's a 'd' tag
   let tags = [...station.tags];
 
-  console.log("stationToNostrEvent: Tags:", tags);
-
-  // First check if the station already has a 'd' tag - if so, preserve it
   const existingDTag = tags.find((tag) => tag[0] === "d");
 
-  if (existingDTag) {
-    console.log(
-      "stationToNostrEvent: Preserving existing d-tag:",
-      existingDTag[1]
-    );
-  }
-
-  // If there's no existing 'd' tag, then we need to create one
   if (!existingDTag) {
-    // Create a new 'd' tag with just a random ID
     const newDTag = ["d", createStationDTagValue()];
-    console.log(
-      "stationToNostrEvent: No existing d-tag, creating new one:",
-      newDTag[1]
-    );
     tags.push(newDTag);
   }
 

@@ -33,35 +33,26 @@ export function RadioPlayer() {
     };
   }, []);
 
-  // Function to resolve playlist files into actual stream URLs
   const resolveStreamUrl = async (url: string): Promise<string> => {
-    // Check if URL ends with common playlist extensions
     const isPlaylist = /\.(pls|m3u|m3u8|asx)$/i.test(url);
 
     if (!isPlaylist) {
-      return url; // Return as-is if not a playlist file
+      return url;
     }
 
     try {
-      // Fetch the playlist file content
       const response = await fetch(url);
       const content = await response.text();
 
-      // Handle PLS format
       if (url.toLowerCase().endsWith(".pls")) {
-        // Extract File1= entry which usually contains the first stream URL
         const match = content.match(/File1=(.*)/i);
         if (match && match[1]) {
           return match[1].trim();
         }
-      }
-
-      // Handle M3U/M3U8 format
-      else if (
+      } else if (
         url.toLowerCase().endsWith(".m3u") ||
         url.toLowerCase().endsWith(".m3u8")
       ) {
-        // Look for the first non-comment line that doesn't start with #
         const lines = content.split("\n");
         for (const line of lines) {
           const trimmedLine = line.trim();
@@ -71,12 +62,11 @@ export function RadioPlayer() {
         }
       }
 
-      // If we couldn't parse the playlist or it's an unsupported format
       console.warn("Could not extract stream URL from playlist:", url);
       return url;
     } catch (error) {
       console.error("Error resolving playlist URL:", error);
-      return url; // Fall back to the original URL
+      return url;
     }
   };
 
@@ -87,13 +77,9 @@ export function RadioPlayer() {
       currentStation.streams.find((s: any) => s.primary) ||
       currentStation.streams[0];
 
-    console.log("primaryStream", primaryStream);
-
     if (primaryStream) {
-      // Reset the resolved URL when changing stations
       setResolvedStreamUrl(null);
 
-      // Resolve the stream URL (handle playlist files)
       resolveStreamUrl(primaryStream.url)
         .then((resolvedUrl) => {
           setResolvedStreamUrl(resolvedUrl);
@@ -144,7 +130,6 @@ export function RadioPlayer() {
     // setCurrentStation(stations[prevIndex]);
   };
 
-  // Get current station data directly
   const primaryStream =
     currentStation?.streams.find((s: any) => s.primary) ||
     currentStation?.streams[0];

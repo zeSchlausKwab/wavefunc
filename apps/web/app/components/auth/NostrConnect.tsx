@@ -25,11 +25,8 @@ export function NostrConnect() {
     const storedUrl = localStorage.getItem(NOSTR_CONNECT_KEY);
     const localSignerKey = localStorage.getItem("local_signer");
     if (storedUrl && storedUrl.startsWith("bunker://")) {
-      console.log("storedUrl", storedUrl);
       const localSigner = new NDKPrivateKeySigner(localSignerKey ?? "");
       const url = new URL(storedUrl);
-
-      console.log("url", url);
 
       initializeStoredSigner(url.toString(), localSigner);
     }
@@ -42,9 +39,7 @@ export function NostrConnect() {
     try {
       const ndk = nostrService.getNDK();
       const nip46signer = new NDKNip46Signer(ndk, url, localSigner);
-      console.log("nip46signer", nip46signer);
       await nip46signer.blockUntilReady();
-      console.log("nip46signer ready");
       ndk.signer = nip46signer;
       setConnected(true);
     } catch (error) {

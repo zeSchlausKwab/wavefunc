@@ -22,23 +22,6 @@ const inter = Inter({ subsets: ["latin"] });
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const [drawerState] = useAtom(stationDrawerAtom);
-  const closeDrawer = useSetAtom(closeStationDrawer);
-
-  const handleSaveStation = async (station: Partial<Station>) => {
-    // TODO: Implement station creation/update logic
-    console.log("Save station:", station);
-    closeDrawer();
-  };
-
-  const handleDeleteStation = async (stationId: string) => {
-    console.log("Delete station:", stationId);
-    // The actual deletion is handled in the EditStationDrawer component
-    // This handler is for updating the UI after deletion
-    closeDrawer();
-
-    // The actual UI update will be handled by the DiscoverPage component
-    // since it's listening for deletion events
-  };
 
   return (
     <html lang="en">
@@ -58,9 +41,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
         <EditStationDrawer
           station={drawerState.station}
           isOpen={drawerState.isOpen}
-          onClose={closeDrawer}
-          onSave={handleSaveStation}
-          onDelete={handleDeleteStation}
         />
       </body>
     </html>
