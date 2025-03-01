@@ -33,7 +33,7 @@ class DVMService {
     this.ndk = new NDK({
       explicitRelayUrls: [
         `${WS_PROTOCOL}://${REALY_PREFIX}${LOCAL_MACHINE_IP}${PORT_OR_DEFAULT}`,
-        ...defaultRelays,
+        // ...defaultRelays,
       ],
       signer,
     });

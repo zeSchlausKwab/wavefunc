@@ -10,12 +10,15 @@ import {
   isPlayingAtom,
   stationsAtom,
 } from "../atoms/stations";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function RadioPlayer() {
   const [stations] = useAtom(stationsAtom);
   const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
   const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
+  const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(
+    null
+  );
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentIndex =
@@ -34,6 +37,53 @@ export function RadioPlayer() {
     };
   }, []);
 
+  // Function to resolve playlist files into actual stream URLs
+  const resolveStreamUrl = async (url: string): Promise<string> => {
+    // Check if URL ends with common playlist extensions
+    const isPlaylist = /\.(pls|m3u|m3u8|asx)$/i.test(url);
+
+    if (!isPlaylist) {
+      return url; // Return as-is if not a playlist file
+    }
+
+    try {
+      // Fetch the playlist file content
+      const response = await fetch(url);
+      const content = await response.text();
+
+      // Handle PLS format
+      if (url.toLowerCase().endsWith(".pls")) {
+        // Extract File1= entry which usually contains the first stream URL
+        const match = content.match(/File1=(.*)/i);
+        if (match && match[1]) {
+          return match[1].trim();
+        }
+      }
+
+      // Handle M3U/M3U8 format
+      else if (
+        url.toLowerCase().endsWith(".m3u") ||
+        url.toLowerCase().endsWith(".m3u8")
+      ) {
+        // Look for the first non-comment line that doesn't start with #
+        const lines = content.split("\n");
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine && !trimmedLine.startsWith("#")) {
+            return trimmedLine;
+          }
+        }
+      }
+
+      // If we couldn't parse the playlist or it's an unsupported format
+      console.warn("Could not extract stream URL from playlist:", url);
+      return url;
+    } catch (error) {
+      console.error("Error resolving playlist URL:", error);
+      return url; // Fall back to the original URL
+    }
+  };
+
   useEffect(() => {
     if (!currentStation || !audioRef.current) return;
 
@@ -44,18 +94,31 @@ export function RadioPlayer() {
     console.log("primaryStream", primaryStream);
 
     if (primaryStream) {
-      audioRef.current.src = primaryStream.url;
-      if (isPlaying) {
-        audioRef.current.play().catch((error) => {
-          console.error("Error playing stream:", error);
+      // Reset the resolved URL when changing stations
+      setResolvedStreamUrl(null);
+
+      // Resolve the stream URL (handle playlist files)
+      resolveStreamUrl(primaryStream.url)
+        .then((resolvedUrl) => {
+          setResolvedStreamUrl(resolvedUrl);
+          audioRef.current!.src = resolvedUrl;
+
+          if (isPlaying) {
+            audioRef.current!.play().catch((error) => {
+              console.error("Error playing stream:", error);
+              setIsPlaying(false);
+            });
+          }
+        })
+        .catch((error) => {
+          console.error("Error resolving stream URL:", error);
           setIsPlaying(false);
         });
-      }
     }
-  }, [currentStation, isPlaying]);
+  }, [currentStation]);
 
   useEffect(() => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !resolvedStreamUrl) return;
 
     if (isPlaying) {
       audioRef.current.play().catch((error) => {
@@ -65,7 +128,7 @@ export function RadioPlayer() {
     } else {
       audioRef.current.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, resolvedStreamUrl]);
 
   const handlePlayPause = () => {
     if (currentStation) {

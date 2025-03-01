@@ -71,6 +71,7 @@ export function Profile({ pubkey }: ProfileProps) {
               ✓ {profile.nip05}
             </span>
           )}
+          {pubkey}
         </div>
         {profile?.about && (
           <p

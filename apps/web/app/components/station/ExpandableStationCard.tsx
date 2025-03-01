@@ -28,12 +28,13 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import React from "react";
-import { currentStationAtom } from "../../atoms/stations";
+import { currentStationAtom, isPlayingAtom } from "../../atoms/stations";
 import { openEditStationDrawer } from "../../atoms/ui";
 import { comments } from "../../data/comments";
 import { streams } from "../../data/streams";
 import { StreamSelector } from "./StreamSelector";
-
+import { nostrService } from "@/services/ndk";
+import { NDKUser } from "@nostr-dev-kit/ndk";
 interface ExpandableStationCardProps {
   station: Station;
   onUpdate?: (updatedStation: Station) => void;
@@ -41,12 +42,25 @@ interface ExpandableStationCardProps {
 
 export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
+  const setIsPlaying = useSetAtom(isPlayingAtom);
   const openEditDrawer = useSetAtom(openEditStationDrawer);
+
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [user, setUser] = React.useState<NDKUser | null>(null);
   const stationStreams = React.useMemo(
     () => streams.filter((stream) => stream.stationId === Number(station.id)),
     [station.id]
   );
+
+  React.useEffect(() => {
+    const getUser = async () => {
+      const user = await nostrService.getNDK().signer?.user();
+      if (user) {
+        setUser(user);
+      }
+    };
+    getUser();
+  }, [station.pubkey]);
 
   const stationComments = React.useMemo(
     () =>
@@ -67,7 +81,10 @@ export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
     setSelectedStreamId(stream.id);
   };
 
-  const handlePlay = () => setCurrentStation(station);
+  const handlePlay = () => {
+    setCurrentStation(station);
+    setIsPlaying(true);
+  };
 
   return (
     <Card className="w-full bg-white bg-opacity-90 shadow-lg overflow-hidden">
@@ -149,7 +166,7 @@ export function ExpandableStationCard({ station }: ExpandableStationCardProps) {
                   <Share2 className="h-4 w-4 text-primary" />
                 </Button>
               </div>
-              {station.isUserOwned && (
+              {station.pubkey === user?.pubkey && (
                 <Button
                   onClick={() => openEditDrawer(station)}
                   className="bg-secondary hover:bg-secondary-foreground text-primary hover:text-white font-press-start-2p text-xs"

@@ -12,7 +12,6 @@ export interface Station {
   website: string;
   genre: string;
   imageUrl: string;
-  isUserOwned: boolean;
   pubkey: string;
   tags: string[][];
   streams: {

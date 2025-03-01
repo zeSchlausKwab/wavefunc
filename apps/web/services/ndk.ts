@@ -1,6 +1,5 @@
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
-import { defaultRelays } from "@wavefunc/common";
 
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
 const WS_PROTOCOL =
@@ -26,7 +25,7 @@ class NostrService {
     this.ndk = new NDK({
       explicitRelayUrls: [
         `${WS_PROTOCOL}://${REALY_PREFIX}${LOCAL_MACHINE_IP}${PORT_OR_DEFAULT}`,
-        ...defaultRelays,
+        // ...defaultRelays,
         // 'wss://relay.damus.io',
         // 'wss://relay.nostr.band',
       ],
