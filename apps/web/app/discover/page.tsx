@@ -75,27 +75,24 @@ export default function DiscoverPage() {
     const sub = subscribeToRadioStations(
       nostrService.getNDK(),
       (event: NDKEvent) => {
-        // Skip stations that have been deleted
         if (deletedStationIds.has(event.id)) {
           return;
         }
 
         setStations((prev) => {
-          // Get the d-tag which is essential for replaceable events
           const dTag = event.tags.find((t) => t[0] === "d");
           if (!dTag) {
             console.warn(
               "Received station without a d-tag, skipping:",
               event.id
             );
-            return prev; // Skip events without d-tags
+            return prev;
           }
 
           console.log(
             `Received station with d-tag: ${dTag[1]}, id: ${event.id}`
           );
 
-          // Create the naddr identifier that we can use to track this event
           let naddr: string | undefined = undefined;
           try {
             naddr = `${RADIO_EVENT_KINDS.STREAM}:${event.pubkey}:${dTag[1]}`;

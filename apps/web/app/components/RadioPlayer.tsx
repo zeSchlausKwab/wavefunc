@@ -5,15 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { useAtom } from "jotai";
-import {
-  currentStationAtom,
-  isPlayingAtom,
-  stationsAtom,
-} from "../atoms/stations";
+import { currentStationAtom, isPlayingAtom } from "../atoms/stations";
 import { useEffect, useRef, useState } from "react";
 
 export function RadioPlayer() {
-  const [stations] = useAtom(stationsAtom);
+  // const [stations] = useAtom(stationsAtom);
   const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
   const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
   const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(
@@ -21,8 +17,8 @@ export function RadioPlayer() {
   );
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const currentIndex =
-    currentStation ? stations.findIndex((s) => s.id === currentStation.id) : -1;
+  // const currentIndex =
+  //   currentStation ? stations.findIndex((s) => s.id === currentStation.id) : -1;
 
   // Initialize audio element
   useEffect(() => {
@@ -137,15 +133,15 @@ export function RadioPlayer() {
   };
 
   const handleSkipForward = () => {
-    if (currentIndex === -1) return;
-    const nextIndex = (currentIndex + 1) % stations.length;
-    setCurrentStation(stations[nextIndex]);
+    // if (currentIndex === -1) return;
+    // const nextIndex = (currentIndex + 1) % stations.length;
+    // setCurrentStation(stations[nextIndex]);
   };
 
   const handleSkipBack = () => {
-    if (currentIndex === -1) return;
-    const prevIndex = (currentIndex - 1 + stations.length) % stations.length;
-    setCurrentStation(stations[prevIndex]);
+    // if (currentIndex === -1) return;
+    // const prevIndex = (currentIndex - 1 + stations.length) % stations.length;
+    // setCurrentStation(stations[prevIndex]);
   };
 
   // Get current station data directly

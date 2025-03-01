@@ -1,18 +1,16 @@
 "use client";
 
-import { Provider } from "jotai";
+import { Toaster } from "@/components/ui/toaster";
+import { Station } from "@wavefunc/common";
+import { Provider, useAtom, useSetAtom } from "jotai";
 import { Inter, Press_Start_2P } from "next/font/google";
+import { closeStationDrawer, stationDrawerAtom } from "./atoms/ui";
 import { DevelopmentControls } from "./components/debug/DevelopmentControls";
+import { EditStationDrawer } from "./components/EditStationDrawer";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
-import { Nav } from "./components/Nav";
 import { RadioPlayer } from "./components/RadioPlayer";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
-import { EditStationDrawer } from "./components/EditStationDrawer";
-import { useAtom, useSetAtom } from "jotai";
-import { stationDrawerAtom, closeStationDrawer } from "./atoms/ui";
-import { Station } from "@wavefunc/common";
 
 const pressStart2P = Press_Start_2P({
   weight: "400",

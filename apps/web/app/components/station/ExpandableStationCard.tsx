@@ -30,8 +30,6 @@ import Image from "next/image";
 import React from "react";
 import { currentStationAtom, isPlayingAtom } from "../../atoms/stations";
 import { openEditStationDrawer } from "../../atoms/ui";
-import { comments } from "../../data/comments";
-import { streams } from "../../data/streams";
 import { StreamSelector } from "./StreamSelector";
 import { nostrService } from "@/services/ndk";
 import { NDKUser } from "@nostr-dev-kit/ndk";
@@ -53,10 +51,10 @@ export function ExpandableStationCard({
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [user, setUser] = React.useState<NDKUser | null>(null);
-  const stationStreams = React.useMemo(
-    () => streams.filter((stream) => stream.stationId === Number(station.id)),
-    [station.id]
-  );
+  // const stationStreams = React.useMemo(
+  //   () => streams.filter((stream) => stream.stationId === Number(station.id)),
+  //   [station.id]
+  // );
 
   React.useEffect(() => {
     const getUser = async () => {
@@ -68,16 +66,16 @@ export function ExpandableStationCard({
     getUser();
   }, [station.pubkey]);
 
-  const stationComments = React.useMemo(
-    () =>
-      comments.filter((comment: any) =>
-        // Handle both Comment types (with or without stationId)
-        "stationId" in comment ?
-          comment.stationId === Number(station.id)
-        : false
-      ),
-    [station.id]
-  );
+  // const stationComments = React.useMemo(
+  //   () =>
+  //     comments.filter((comment: any) =>
+  //       // Handle both Comment types (with or without stationId)
+  //       "stationId" in comment ?
+  //         comment.stationId === Number(station.id)
+  //       : false
+  //     ),
+  //   [station.id]
+  // );
 
   const [selectedStreamId, setSelectedStreamId] = React.useState<
     number | undefined
@@ -147,7 +145,7 @@ export function ExpandableStationCard({
             <CardFooter className="flex justify-between">
               <div className="flex space-x-2">
                 <Button variant="ghost" size="icon" asChild>
-                  <a
+                  {/* <a
                     href={
                       stationStreams.find((s) => s.id === selectedStreamId)
                         ?.url || "#"
@@ -157,7 +155,7 @@ export function ExpandableStationCard({
                     aria-label="Visit Website"
                   >
                     <Globe className="h-4 w-4 text-primary" />
-                  </a>
+                  </a> */}
                 </Button>
                 <Button variant="ghost" size="icon" aria-label="Flash">
                   <Zap className="h-4 w-4 text-primary" />
@@ -224,14 +222,14 @@ export function ExpandableStationCard({
               <h4 className="text-sm font-semibold font-press-start-2p">
                 Comments
               </h4>
-              {stationComments.map((comment) => (
+              {/* {stationComments.map((comment) => (
                 <div key={comment.id} className="bg-white p-2 rounded-md">
                   <p className="text-xs font-press-start-2p">{comment.text}</p>
                   <p className="text-xs text-gray-500 font-press-start-2p mt-1">
                     {comment.user} - {comment.date}
                   </p>
                 </div>
-              ))}
+              ))} */}
             </div>
           </div>
         )}
