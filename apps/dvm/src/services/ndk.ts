@@ -16,7 +16,7 @@ class DVMService {
     dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
     const PRIVATE_KEY = process.env.DVM_PRIVATE_KEY;
-    const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
+    const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_HOST;
 
     const WS_PROTOCOL =
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";

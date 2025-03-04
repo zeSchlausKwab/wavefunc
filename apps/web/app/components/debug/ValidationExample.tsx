@@ -22,7 +22,7 @@ export function ValidationExample() {
     };
 
     const response = await fetch(
-      `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:3001/api/validate`,
+      `http://${process.env.NEXT_PUBLIC_HOST}:3001/api/validate`,
       {
         method: "POST",
         headers: {

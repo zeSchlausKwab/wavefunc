@@ -29,6 +29,7 @@ export function Profile({ pubkey }: ProfileProps) {
         const ndk = nostrService.getNDK();
         const user = new NDKUser({ pubkey });
         const userProfile = await user.fetchProfile();
+        // console.log("User profile:", userProfile);
         setProfile(userProfile);
       } catch (error) {
         console.error("Failed to fetch profile:", error);

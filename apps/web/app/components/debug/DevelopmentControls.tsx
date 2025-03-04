@@ -12,7 +12,7 @@ export function DevelopmentControls() {
   const callDevEndpoint = async (endpoint: string) => {
     try {
       const response = await fetch(
-        `http://${process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`,
+        `http://${process.env.NEXT_PUBLIC_HOST}:${process.env.NEXT_PUBLIC_API_PORT}/development/${endpoint}`,
         {
           method: "POST",
         }

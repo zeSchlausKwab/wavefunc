@@ -1,7 +1,7 @@
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 
-const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
+const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_HOST;
 const WS_PROTOCOL =
   process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
 const REALY_PREFIX =
@@ -9,9 +9,7 @@ const REALY_PREFIX =
 const PORT_OR_DEFAULT =
   process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
 if (!LOCAL_MACHINE_IP) {
-  throw new Error(
-    "NEXT_PUBLIC_LOCAL_MACHINE_IP environment variable is required"
-  );
+  throw new Error("HOST environment variable is required");
 }
 
 const dexieAdapter = new NDKCacheAdapterDexie({ dbName: "wavefunc-ndk-cache" });

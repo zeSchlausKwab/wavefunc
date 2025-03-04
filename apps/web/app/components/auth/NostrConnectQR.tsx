@@ -49,7 +49,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
 
   const connectionUrl = useMemo(() => {
     if (!localPubkey) return null;
-    const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
+    const localMachineIp = process.env.NEXT_PUBLIC_HOST;
     const wsProtocol =
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
     const relayPrefix =
@@ -58,7 +58,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? ":3002" : "";
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`;
     const host = location.protocol + "//" + localMachineIp;
-    const secret = Math.random().toString(36).substring(2, 15);
+    const secret = Math.random().toString(6).substring(2, 15);
 
     setTempSecret(secret);
 
@@ -76,7 +76,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
     if (!pTag?.[1]) throw new Error("No pubkey in p tag");
 
     const baseUrl = `bunker://${event.pubkey}?`;
-    const localMachineIp = process.env.NEXT_PUBLIC_LOCAL_MACHINE_IP;
+    const localMachineIp = process.env.NEXT_PUBLIC_HOST;
     const wsProtocol =
       process.env.NEXT_PUBLIC_APP_ENV === "development" ? "ws" : "wss";
     const relayPrefix =
@@ -105,6 +105,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
     });
 
     ackSub.on("event", async (event) => {
+      console.log("Received event:", event);
       try {
         await event.decrypt(undefined, localSigner);
         const response = JSON.parse(event.content);
