@@ -39,12 +39,14 @@ interface ExpandableStationCardProps {
   station: Station;
   onUpdate?: (updatedStation: Station) => void;
   onDelete?: (stationId: string) => void;
+  currentListId?: string;
 }
 
 export function ExpandableStationCard({
   station,
   onUpdate,
   onDelete,
+  currentListId,
 }: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
   const setIsPlaying = useSetAtom(isPlayingAtom);
@@ -198,7 +200,10 @@ export function ExpandableStationCard({
               </div>
             </div>
             <div className="mb-4">
-              <FavoritesDropdown station={station} />
+              <FavoritesDropdown
+                station={station}
+                currentListId={currentListId}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center">

@@ -13,10 +13,25 @@ import {
   FavoritesList,
   fetchFavoritesLists,
   subscribeToFavoritesLists,
+  Station,
+  parseRadioEvent,
 } from "@wavefunc/common";
 import { Edit, Heart, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EditFavoritesListDrawer } from "./EditFavoritesListDrawer";
+import { ExpandableStationCard } from "../station/ExpandableStationCard";
+import { NDKEvent } from "@nostr-dev-kit/ndk";
+
+interface ResolvedStation {
+  id: string;
+  station: Station | null;
+  favorite: {
+    event_id: string;
+    name: string;
+    added_at: number;
+    naddr?: string;
+  };
+}
 
 export function FavoritesManager() {
   const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([]);
@@ -25,6 +40,9 @@ export function FavoritesManager() {
     FavoritesList | undefined
   >();
   const [isLoading, setIsLoading] = useState(true);
+  const [resolvedStations, setResolvedStations] = useState<
+    Record<string, ResolvedStation>
+  >({});
 
   useEffect(() => {
     let subscription: ReturnType<typeof subscribeToFavoritesLists>;
@@ -75,6 +93,72 @@ export function FavoritesManager() {
     };
   }, []);
 
+  // Effect to resolve stations when favorites lists change
+  useEffect(() => {
+    const resolveStations = async () => {
+      const ndk = nostrService.getNDK();
+      if (!ndk) return;
+
+      const newResolvedStations: Record<string, ResolvedStation> = {};
+
+      for (const list of favoritesLists) {
+        for (const favorite of list.favorites) {
+          if (newResolvedStations[favorite.event_id]) continue;
+
+          try {
+            let event: NDKEvent | null = null;
+
+            if (favorite.naddr) {
+              // Try to fetch by naddr first
+              event = await ndk.fetchEvent(favorite.naddr);
+            } else {
+              // Fallback to event_id
+              event = await ndk.fetchEvent(favorite.event_id);
+            }
+
+            if (event) {
+              const parsedStation = parseRadioEvent(event);
+              const station: Station = {
+                ...parsedStation,
+                id: favorite.event_id,
+                genre:
+                  parsedStation.tags.find((t) => t[0] === "genre")?.[1] || "",
+                imageUrl:
+                  parsedStation.tags.find((t) => t[0] === "thumbnail")?.[1] ||
+                  "",
+                pubkey: event.pubkey,
+                created_at: favorite.added_at,
+              };
+
+              console.log("Resolved station:", station);
+
+              newResolvedStations[favorite.event_id] = {
+                id: favorite.event_id,
+                station,
+                favorite,
+              };
+            }
+          } catch (error) {
+            console.error(
+              `Error resolving station ${favorite.event_id}:`,
+              error
+            );
+            // Add a placeholder for failed resolutions
+            newResolvedStations[favorite.event_id] = {
+              id: favorite.event_id,
+              station: null,
+              favorite,
+            };
+          }
+        }
+      }
+
+      setResolvedStations(newResolvedStations);
+    };
+
+    resolveStations();
+  }, [favoritesLists]);
+
   const handleCreateNewList = () => {
     setSelectedFavoritesList(undefined);
     setIsDrawerOpen(true);
@@ -121,33 +205,68 @@ export function FavoritesManager() {
             </Button>
           </CardContent>
         </Card>
-      : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      : <div className="space-y-4">
           {favoritesLists.map((list) => (
-            <Card key={list.id} className="hover:shadow-md transition-shadow">
+            <Card key={list.id} className="w-full">
               <CardHeader>
-                <CardTitle className="text-md font-semibold">
-                  {list.name}
-                </CardTitle>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">
+                      {list.name}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {list.description || "No description"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditList(list)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground mb-2">
-                  {list.description || "No description"}
-                </p>
-                <p className="text-sm font-medium">
-                  {list.favorites.length}{" "}
-                  {list.favorites.length === 1 ? "station" : "stations"}
-                </p>
+                <div className="space-y-4">
+                  {list.favorites.map((favorite) => {
+                    const resolved = resolvedStations[favorite.event_id];
+                    if (!resolved) {
+                      return (
+                        <div
+                          key={favorite.event_id}
+                          className="text-center py-4 text-muted-foreground"
+                        >
+                          Loading station...
+                        </div>
+                      );
+                    }
+                    if (!resolved.station) {
+                      return (
+                        <div
+                          key={favorite.event_id}
+                          className="text-center py-4 text-destructive"
+                        >
+                          Failed to load station: {favorite.name}
+                        </div>
+                      );
+                    }
+                    return (
+                      <ExpandableStationCard
+                        key={favorite.event_id}
+                        station={resolved.station}
+                        currentListId={list.id}
+                      />
+                    );
+                  })}
+                  {list.favorites.length === 0 && (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No stations in this list yet
+                    </div>
+                  )}
+                </div>
               </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditList(list)}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              </CardFooter>
             </Card>
           ))}
         </div>

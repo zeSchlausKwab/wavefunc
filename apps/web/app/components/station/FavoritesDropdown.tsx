@@ -9,21 +9,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Heart, Plus } from "lucide-react";
+import { Heart, Plus, Trash2 } from "lucide-react";
 import { FavoritesList } from "@wavefunc/common";
 import { nostrService } from "@/services/ndk";
 import {
   fetchFavoritesLists,
   subscribeToFavoritesLists,
   addStationToFavorites,
+  updateFavoritesList,
 } from "@wavefunc/common";
 import { Station } from "@wavefunc/common";
 
 interface FavoritesDropdownProps {
   station: Station;
+  currentListId?: string; // If provided, the station is in this list
 }
 
-export function FavoritesDropdown({ station }: FavoritesDropdownProps) {
+export function FavoritesDropdown({
+  station,
+  currentListId,
+}: FavoritesDropdownProps) {
   const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([]);
   const [selectedListId, setSelectedListId] = useState<string>("loading");
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +104,34 @@ export function FavoritesDropdown({ station }: FavoritesDropdownProps) {
     }
   };
 
+  const handleRemoveFromFavorites = async () => {
+    if (!currentListId) return;
+
+    try {
+      const ndk = nostrService.getNDK();
+      if (!ndk) return;
+
+      const currentList = favoritesLists.find(
+        (list) => list.id === currentListId
+      );
+      if (!currentList) return;
+
+      // Remove the station from the favorites array
+      const updatedFavorites = currentList.favorites.filter(
+        (f) => f.event_id !== station.id
+      );
+
+      // Update the list
+      await updateFavoritesList(ndk, currentList, {
+        name: currentList.name,
+        description: currentList.description,
+        favorites: updatedFavorites,
+      });
+    } catch (error) {
+      console.error("Error removing station from favorites:", error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center space-x-2">
@@ -135,6 +168,24 @@ export function FavoritesDropdown({ station }: FavoritesDropdownProps) {
     );
   }
 
+  // If we have a currentListId, show the remove button
+  if (currentListId) {
+    return (
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleRemoveFromFavorites}
+          title="Remove from list"
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  // Otherwise show the add to list dropdown
   return (
     <div className="flex items-center space-x-2">
       <Select value={selectedListId} onValueChange={setSelectedListId}>
