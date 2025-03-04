@@ -14,7 +14,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { Plus, Trash, X, AlertCircle } from "lucide-react";
+import { Plus, Trash, X, AlertCircle, Wand2 } from "lucide-react";
 import {
   Station,
   StationSchema,
@@ -30,6 +30,7 @@ import {
 } from "@wavefunc/common/src/nostr/publish";
 import { useSetAtom } from "jotai";
 import { closeStationDrawer } from "../atoms/ui";
+import { toast } from "sonner";
 
 interface EditStationDrawerProps {
   station?: Station;
@@ -49,6 +50,106 @@ const emptyStream = {
   },
   primary: true,
 };
+
+// Helper functions for stream URL parsing
+function detectStreamFormat(url: string): string {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes(".mp3")) return "audio/mpeg";
+  if (lowerUrl.includes(".aac")) return "audio/aac";
+  if (lowerUrl.includes(".ogg")) return "audio/ogg";
+  if (lowerUrl.includes(".m3u8")) return "application/x-mpegURL";
+  if (lowerUrl.includes(".pls")) return "audio/x-scpls";
+  return "audio/mpeg"; // default
+}
+
+function detectStreamQuality(url: string): {
+  bitrate: number;
+  codec: string;
+  sampleRate: number;
+} {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes("128"))
+    return { bitrate: 128000, codec: "mp3", sampleRate: 44100 };
+  if (lowerUrl.includes("256"))
+    return { bitrate: 256000, codec: "mp3", sampleRate: 48000 };
+  if (lowerUrl.includes("320"))
+    return { bitrate: 320000, codec: "mp3", sampleRate: 48000 };
+  if (lowerUrl.includes("64"))
+    return { bitrate: 64000, codec: "mp3", sampleRate: 44100 };
+  return { bitrate: 128000, codec: "mp3", sampleRate: 44100 }; // default
+}
+
+async function fetchPlsContent(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch PLS file");
+    return await response.text();
+  } catch (error) {
+    console.error("Error fetching PLS file:", error);
+    throw error;
+  }
+}
+
+function parsePlsContent(content: string): string[] {
+  const lines = content.split("\n");
+  const streamUrls: string[] = [];
+
+  for (const line of lines) {
+    if (line.toLowerCase().startsWith("file")) {
+      const url = line.split("=")[1]?.trim();
+      if (url) streamUrls.push(url);
+    }
+  }
+
+  return streamUrls;
+}
+
+async function parseStreamUrl(url: string) {
+  // Handle PLS files
+  if (url.toLowerCase().endsWith(".pls")) {
+    try {
+      const content = await fetchPlsContent(url);
+      const streamUrls = parsePlsContent(content);
+
+      if (streamUrls.length === 0) {
+        throw new Error("No stream URLs found in PLS file");
+      }
+
+      // Use the first stream URL and detect its quality
+      const streamUrl = streamUrls[0];
+      return {
+        url: streamUrl,
+        format: "audio/mpeg",
+        quality: detectStreamQuality(streamUrl),
+        primary: true,
+      };
+    } catch (error) {
+      console.error("Error parsing PLS file:", error);
+      throw error;
+    }
+  }
+
+  // Handle M3U/M3U8 files
+  if (
+    url.toLowerCase().endsWith(".m3u") ||
+    url.toLowerCase().endsWith(".m3u8")
+  ) {
+    return {
+      url: url,
+      format: "application/x-mpegURL",
+      quality: { bitrate: 128000, codec: "mp3", sampleRate: 44100 },
+      primary: true,
+    };
+  }
+
+  // Handle direct stream URLs
+  return {
+    url: url,
+    format: detectStreamFormat(url),
+    quality: detectStreamQuality(url),
+    primary: true,
+  };
+}
 
 export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -149,6 +250,17 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
       console.error("Error deleting station:", error);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleStreamUrlPaste = async (index: number, url: string) => {
+    try {
+      const parsedStream = await parseStreamUrl(url);
+      setValue(`streams.${index}`, parsedStream);
+      toast.success("Stream details auto-detected!");
+    } catch (error) {
+      console.error("Error parsing stream URL:", error);
+      toast.error("Could not auto-detect stream details");
     }
   };
 
@@ -272,7 +384,27 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     name={`streams.${index}.url`}
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Stream URL" />
+                      <div className="relative">
+                        <Input
+                          {...field}
+                          placeholder="Stream URL"
+                          onPaste={async (e) => {
+                            const pastedText = e.clipboardData.getData("text");
+                            await handleStreamUrlPaste(index, pastedText);
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-2 top-1/2 -translate-y-1/2"
+                          onClick={async () => {
+                            await handleStreamUrlPaste(index, field.value);
+                          }}
+                        >
+                          <Wand2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     )}
                   />
                   <div className="grid grid-cols-2 gap-2">
