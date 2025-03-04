@@ -34,9 +34,9 @@ import { closeStationDrawer } from "../atoms/ui";
 interface EditStationDrawerProps {
   station?: Station;
   isOpen: boolean;
-  onClose: () => void;
-  onSave: (station: Partial<Station>) => void;
-  onDelete?: (stationId: string) => void;
+  // onClose: () => void;
+  // onSave: (station: Partial<Station>) => void;
+  // onDelete?: (stationId: string) => void;
 }
 
 const emptyStream = {

@@ -10,3 +10,4 @@ export * from "./nostr/publish";
 export * from "./seed/stations";
 export * from "./nostr/radio";
 export * from "./schemas/station";
+export * from "./nostr/favorites";

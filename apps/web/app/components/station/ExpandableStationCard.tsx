@@ -33,6 +33,7 @@ import { openEditStationDrawer } from "../../atoms/ui";
 import { StreamSelector } from "./StreamSelector";
 import { nostrService } from "@/services/ndk";
 import { NDKUser } from "@nostr-dev-kit/ndk";
+import { FavoritesDropdown } from "./FavoritesDropdown";
 
 interface ExpandableStationCardProps {
   station: Station;
@@ -195,6 +196,9 @@ export function ExpandableStationCard({
                   Station Creator
                 </p>
               </div>
+            </div>
+            <div className="mb-4">
+              <FavoritesDropdown station={station} />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center">

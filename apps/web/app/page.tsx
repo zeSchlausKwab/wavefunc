@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Station } from "@wavefunc/common";
 import { useAtom } from "jotai";
 import Link from "next/link";
+import { FavoritesManager } from "./components/favorites/FavoritesManager";
 // import { groupsAtom } from "./atoms/stations";
 
 export default function Home() {
@@ -19,33 +20,12 @@ export default function Home() {
   };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-primary font-press-start-2p">
-        Your Radio Stations
-      </h2>
-      {/* <div className="space-y-6">
-        {groups.map((group) => (
-          <StationGroup
-            key={group.id}
-            name={group.name}
-            description={group.description}
-            stations={
-              group.stationIds
-                .map((id) => stations.find((s) => s.id === String(id)))
-                .filter(Boolean) as Station[]
-            }
-            onUpdateStation={handleUpdateStation}
-          />
-        ))}
-      </div> */}
-      <div className="text-center">
-        <Button
-          className="bg-primary hover:bg-primary-foreground text-white font-press-start-2p text-xs"
-          asChild
-        >
-          <Link href="/add-station">Add New Station</Link>
-        </Button>
-      </div>
-    </div>
+    <main className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold font-press-start-2p text-primary mb-8">
+        Nostr Radio
+      </h1>
+
+      <FavoritesManager />
+    </main>
   );
 }

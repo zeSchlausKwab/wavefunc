@@ -26,16 +26,13 @@ export const RadioEventContentSchema = z.object({
 // Favorites list item schema
 export const FavoriteItemSchema = z.object({
   event_id: z.string(),
-  added_at: z.number(),
   name: z.string(),
-  notes: z.string().optional(),
+  added_at: z.number(),
 });
 
 // Favorites list content schema
 export const FavoritesEventContentSchema = z.object({
   name: z.string(),
   description: z.string(),
-  created_at: z.number(),
-  updated_at: z.number(),
   favorites: z.array(FavoriteItemSchema),
 });

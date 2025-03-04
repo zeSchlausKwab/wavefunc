@@ -1,8 +1,5 @@
 import type { NDKKind, NostrEvent } from "@nostr-dev-kit/ndk";
-import {
-  RadioEventContentSchema,
-  FavoritesEventContentSchema,
-} from "../schemas/radio";
+import { RadioEventContentSchema } from "../schemas/radio";
 import type { z } from "zod";
 import NDK, { NDKSubscriptionCacheUsage } from "@nostr-dev-kit/ndk";
 import type { NDKEvent } from "@nostr-dev-kit/ndk";
@@ -16,7 +13,6 @@ export const RADIO_EVENT_KINDS = {
 } as const;
 
 type RadioEventContent = z.infer<typeof RadioEventContentSchema>;
-type FavoritesEventContent = z.infer<typeof FavoritesEventContentSchema>;
 
 /**
  * Creates a random 'd' tag value
@@ -78,26 +74,6 @@ export function createRadioEvent(
     kind: RADIO_EVENT_KINDS.STREAM,
     created_at: Math.floor(Date.now() / 1000),
     tags: newTags,
-    content: JSON.stringify(content),
-    pubkey: "",
-  };
-}
-
-/**
- * Creates an unsigned favorites list event
- */
-export function createFavoritesEvent(
-  content: FavoritesEventContent,
-  isPrivate: boolean = false
-): NostrEvent {
-  return {
-    kind: RADIO_EVENT_KINDS.FAVORITES,
-    created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ["d", `favorites-${createStationDTagValue()}`],
-      ...content.favorites.map((fav) => ["e", fav.event_id]),
-      ["client", "nostr_radio"],
-    ],
     content: JSON.stringify(content),
     pubkey: "",
   };
