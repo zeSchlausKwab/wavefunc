@@ -117,7 +117,7 @@ export function ExpandableStationCard({
               className="rounded-t-lg md:rounded-l-lg md:rounded-t-none"
             />
           </div>
-          <div className="flex-grow">
+          <div className="grow">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>

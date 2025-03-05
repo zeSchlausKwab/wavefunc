@@ -272,7 +272,7 @@ export function RadioPlayer() {
     <Card className="w-full bg-white shadow-lg border-t border-gray-200">
       <CardContent className="p-2 sm:p-4">
         <div className="flex items-center space-x-2 sm:space-x-4">
-          <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
+          <div className="relative w-12 h-12 sm:w-16 sm:h-16 shrink-0">
             <Image
               src={
                 currentStation?.tags.find((t) => t[0] === "thumbnail")?.[1] ||
@@ -284,7 +284,7 @@ export function RadioPlayer() {
               className="rounded-md"
             />
           </div>
-          <div className="flex-grow min-w-0">
+          <div className="grow min-w-0">
             <h3 className="text-xs sm:text-sm font-semibold text-primary font-press-start-2p truncate">
               {currentStation?.name || "No station selected"}
             </h3>

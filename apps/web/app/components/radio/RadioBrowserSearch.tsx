@@ -424,7 +424,7 @@ export function RadioBrowserSearch() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start space-x-4">
-                      <div className="relative w-16 h-16 flex-shrink-0">
+                      <div className="relative w-16 h-16 shrink-0">
                         <img
                           src={
                             station.favicon ||
