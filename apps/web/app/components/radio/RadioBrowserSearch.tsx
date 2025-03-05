@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Play, Pause } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,21 +12,40 @@ import {
 } from "@/components/ui/select";
 
 interface RadioStation {
-  id: string;
+  changeuuid: string;
+  stationuuid: string;
+  serveruuid: string;
   name: string;
   url: string;
   url_resolved: string;
+  homepage: string;
   favicon: string;
   tags: string;
   country: string;
   countrycode: string;
+  iso_3166_2: string;
+  state: string;
   language: string;
-  languagecodes: string[];
+  languagecodes: string;
   votes: number;
+  lastchangetime: string;
+  lastchangetime_iso8601: string;
   codec: string;
   bitrate: number;
-  homepage: string;
-  state: string;
+  hls: number;
+  lastcheckok: number;
+  lastchecktime: string;
+  lastchecktime_iso8601: string;
+  lastlocalchecktime: string;
+  lastlocalchecktime_iso8601: string;
+  clicktimestamp: string;
+  clicktimestamp_iso8601: string;
+  clickcount: number;
+  clicktrend: number;
+  ssl_error: number;
+  geo_lat: number | null;
+  geo_long: number | null;
+  has_extended_info: boolean;
 }
 
 interface SearchFilters {
@@ -44,12 +63,16 @@ export function RadioBrowserSearch() {
   const [stations, setStations] = useState<RadioStation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(
+    null
+  );
   const [filters, setFilters] = useState<SearchFilters>({
     name: "",
-    countrycode: "",
-    language: "",
+    countrycode: "all",
+    language: "all",
     tag: "",
-    codec: "",
+    codec: "all",
     bitrateMin: 0,
     bitrateMax: 0,
   });
@@ -62,11 +85,13 @@ export function RadioBrowserSearch() {
       const params = new URLSearchParams();
 
       if (searchQuery) params.append("name", searchQuery);
-      if (filters.countrycode)
+      if (filters.countrycode && filters.countrycode !== "all")
         params.append("countrycode", filters.countrycode);
-      if (filters.language) params.append("language", filters.language);
+      if (filters.language && filters.language !== "all")
+        params.append("language", filters.language);
       if (filters.tag) params.append("tag", filters.tag);
-      if (filters.codec) params.append("codec", filters.codec);
+      if (filters.codec && filters.codec !== "all")
+        params.append("codec", filters.codec);
       if (filters.bitrateMin)
         params.append("bitrateMin", filters.bitrateMin.toString());
       if (filters.bitrateMax)
@@ -99,6 +124,52 @@ export function RadioBrowserSearch() {
   ) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
+
+  const handlePlayPause = (station: RadioStation) => {
+    if (!station.url_resolved) return;
+
+    if (currentlyPlaying === station.stationuuid) {
+      // Stop current playback
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+      setCurrentlyPlaying(null);
+      setAudioElement(null);
+    } else {
+      // Stop any existing playback
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+
+      // Create new audio element
+      const audio = new Audio(station.url_resolved);
+      audio.onerror = () => {
+        console.error("Error playing stream:", station.url_resolved);
+        setCurrentlyPlaying(null);
+        setAudioElement(null);
+      };
+      audio.play().catch((error) => {
+        console.error("Error playing stream:", error);
+        setCurrentlyPlaying(null);
+        setAudioElement(null);
+      });
+
+      setCurrentlyPlaying(station.stationuuid);
+      setAudioElement(audio);
+    }
+  };
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+    };
+  }, [audioElement]);
 
   return (
     <div className="space-y-6">
@@ -135,7 +206,7 @@ export function RadioBrowserSearch() {
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All countries</SelectItem>
+                <SelectItem value="all">All countries</SelectItem>
                 <SelectItem value="US">United States</SelectItem>
                 <SelectItem value="GB">United Kingdom</SelectItem>
                 <SelectItem value="DE">Germany</SelectItem>
@@ -155,7 +226,7 @@ export function RadioBrowserSearch() {
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All languages</SelectItem>
+                <SelectItem value="all">All languages</SelectItem>
                 <SelectItem value="english">English</SelectItem>
                 <SelectItem value="german">German</SelectItem>
                 <SelectItem value="french">French</SelectItem>
@@ -175,7 +246,7 @@ export function RadioBrowserSearch() {
                 <SelectValue placeholder="Select codec" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All codecs</SelectItem>
+                <SelectItem value="all">All codecs</SelectItem>
                 <SelectItem value="MP3">MP3</SelectItem>
                 <SelectItem value="AAC">AAC</SelectItem>
                 <SelectItem value="OGG">OGG</SelectItem>
@@ -223,7 +294,10 @@ export function RadioBrowserSearch() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {stations.map((station) => (
-          <Card key={station.id} className="hover:shadow-lg transition-shadow">
+          <Card
+            key={station.stationuuid}
+            className="hover:shadow-lg transition-shadow"
+          >
             <CardContent className="p-4">
               <div className="flex items-start space-x-4">
                 <div className="relative w-16 h-16 flex-shrink-0">
@@ -235,6 +309,17 @@ export function RadioBrowserSearch() {
                     alt={station.name}
                     className="w-full h-full object-cover rounded-md"
                   />
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute bottom-0 right-0 rounded-full w-8 h-8"
+                    onClick={() => handlePlayPause(station)}
+                    disabled={!station.url_resolved}
+                  >
+                    {currentlyPlaying === station.stationuuid ?
+                      <Pause className="w-4 h-4" />
+                    : <Play className="w-4 h-4" />}
+                  </Button>
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-primary font-press-start-2p truncate">
@@ -265,6 +350,18 @@ export function RadioBrowserSearch() {
                     </p>
                     <p>Codec: {station.codec || "Unknown"}</p>
                     <p>Votes: {station.votes}</p>
+                    <p className="truncate mt-1">
+                      Stream:{" "}
+                      <a
+                        href={station.url_resolved}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                        title={station.url_resolved}
+                      >
+                        {station.url_resolved}
+                      </a>
+                    </p>
                     {station.homepage && (
                       <a
                         href={station.homepage}
