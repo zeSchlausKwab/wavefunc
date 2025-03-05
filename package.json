@@ -20,7 +20,7 @@
     "start:web": "cd apps/web && bun --bun run dev",
     "start:backend": "cd apps/backend && bun run dev",
     "start:dvm": "cd apps/dvm && bun run dev",
-    "start:relay": "cd apps/relay && bun run start",
+    "start:relay": "cd apps/relay && ./relay",
     "lint": "bun run lint:packages && bun run lint:apps",
     "lint:packages": "cd packages && bun run lint",
     "lint:apps": "cd apps && bun run lint",

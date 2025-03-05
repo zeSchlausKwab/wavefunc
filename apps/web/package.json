@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
-    "start": "next start",
+    "dev": "bun --bun run next dev -H 0.0.0.0",
+    "build": "bun --bun run next build",
+    "start": "bun --bun run next start",
     "lint": "next lint"
   },
   "dependencies": {
