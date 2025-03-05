@@ -57,7 +57,6 @@
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-custom": "workspace:*",
-    "postcss": "^8.4.35",
     "typescript": "^5.3.3"
   }
 }
