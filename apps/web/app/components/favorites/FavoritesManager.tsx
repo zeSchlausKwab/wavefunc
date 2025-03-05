@@ -130,8 +130,6 @@ export function FavoritesManager() {
                 created_at: favorite.added_at,
               };
 
-              console.log("Resolved station:", station);
-
               newResolvedStations[favorite.event_id] = {
                 id: favorite.event_id,
                 station,

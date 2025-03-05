@@ -8,34 +8,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Stream } from "@wavefunc/common";
-import { useMemo } from "react";
 
 interface StreamSelectorProps {
   stationId: number;
   onStreamSelect: (stream: Stream) => void;
   selectedStreamId?: number;
+  streams: Stream[];
 }
 
 export function StreamSelector({
   stationId,
   onStreamSelect,
   selectedStreamId,
+  streams,
 }: StreamSelectorProps) {
-  // const stationStreams = useMemo(
-  //   () => streams.filter((stream) => stream.stationId === stationId),
-  //   [stationId]
-  // );
-
-  // const selectedStream = stationStreams.find(
-  //   (stream) => stream.id === selectedStreamId
-  // );
+  const selectedStream = streams.find(
+    (stream) => stream.quality.bitrate === selectedStreamId
+  );
 
   return (
     <div className="flex items-center gap-2">
-      {/* <Select
-        value={selectedStream?.id.toString()}
+      <Select
+        value={selectedStream?.quality.bitrate.toString()}
         onValueChange={(value) => {
-          const stream = stationStreams.find((s) => s.id === parseInt(value));
+          const stream = streams.find(
+            (s) => s.quality.bitrate === parseInt(value)
+          );
           if (stream) onStreamSelect(stream);
         }}
       >
@@ -43,17 +41,18 @@ export function StreamSelector({
           <SelectValue placeholder="Select quality" />
         </SelectTrigger>
         <SelectContent>
-          {stationStreams.map((stream) => (
+          {streams.map((stream) => (
             <SelectItem
-              key={stream.id}
-              value={stream.id.toString()}
+              key={`${stream.quality.bitrate}-${stream.quality.codec}-${stream.url}`}
+              value={stream.quality.bitrate.toString()}
               className="text-xs"
             >
-              {stream.bitrate} kbps
+              {Math.round(stream.quality.bitrate / 1000)} kbps •{" "}
+              {stream.quality.codec}
             </SelectItem>
           ))}
         </SelectContent>
-      </Select> */}
+      </Select>
     </div>
   );
 }

@@ -85,12 +85,21 @@ export function ExpandableStationCard({
   >(undefined);
 
   const handleStreamSelect = (stream: Stream) => {
-    setSelectedStreamId(stream.id);
+    setSelectedStreamId(stream.quality.bitrate);
   };
 
   const handlePlay = () => {
-    setCurrentStation(station);
-    setIsPlaying(true);
+    const selectedStream =
+      station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
+      station.streams.find((s) => s.primary) ||
+      station.streams[0];
+    if (selectedStream) {
+      setCurrentStation({
+        ...station,
+        streams: [selectedStream],
+      });
+      setIsPlaying(true);
+    }
   };
 
   return (
@@ -120,11 +129,14 @@ export function ExpandableStationCard({
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <StreamSelector
-                    stationId={Number(station.id)}
-                    onStreamSelect={handleStreamSelect}
-                    selectedStreamId={selectedStreamId}
-                  />
+                  {station.streams.length > 1 && (
+                    <StreamSelector
+                      stationId={Number(station.id)}
+                      onStreamSelect={handleStreamSelect}
+                      selectedStreamId={selectedStreamId}
+                      streams={station.streams}
+                    />
+                  )}
                   <Button variant="ghost" size="icon" onClick={handlePlay}>
                     <Play className="h-4 w-4 text-primary" />
                   </Button>

@@ -1,6 +1,10 @@
 export interface Stream {
-  id: number;
-  stationId: number;
   url: string;
-  bitrate: number;
+  format: string;
+  quality: {
+    bitrate: number;
+    codec: string;
+    sampleRate: number;
+  };
+  primary?: boolean;
 }
