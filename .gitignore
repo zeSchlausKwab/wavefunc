@@ -35,4 +35,14 @@ yarn-error.log*
 # database
 nostr.db
 
+# vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Bun
+bun.lockb
+
 # apps/relay/data/ 

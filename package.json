@@ -1,18 +1,31 @@
 {
   "name": "wavefunc",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tooling/*"
+  ],
   "scripts": {
-    "dev": "pnpm --parallel dev",
-    "build": "pnpm --recursive --filter \"./packages/**\" build && pnpm --recursive --filter \"./apps/**\" --filter \"!./apps/relay\" build",
-    "start": "pnpm --parallel --filter \"./apps/web\" --filter \"./apps/backend\" --filter \"./apps/dvm\" start",
-    "lint": "pnpm --parallel lint",
-    "format": "pnpm --parallel format"
-  },
-  "devDependencies": {
-    "typescript": "^5.4.2",
-    "tsup": "^8.0.2"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5"
+    "clean": "rm -rf **/node_modules **/dist",
+    "install:all": "bun install",
+    "dev": "bun run install:all && (bun run dev:web & bun run dev:backend & bun run dev:dvm & bun run dev:relay)",
+    "dev:web": "cd apps/web && bun --bun run dev",
+    "dev:backend": "cd apps/backend && bun run dev",
+    "dev:dvm": "cd apps/dvm && bun run dev",
+    "dev:relay": "cd apps/relay && bun run dev",
+    "build": "bun run build:web",
+    "build:web": "cd apps/web && bun run build",
+    "start": "bun run start:web & bun run start:backend & bun run start:dvm & bun run start:relay",
+    "start:web": "cd apps/web && bun --bun run dev",
+    "start:backend": "cd apps/backend && bun run dev",
+    "start:dvm": "cd apps/dvm && bun run dev",
+    "start:relay": "cd apps/relay && bun run start",
+    "lint": "bun run lint:packages && bun run lint:apps",
+    "lint:packages": "cd packages && bun run lint",
+    "lint:apps": "cd apps && bun run lint",
+    "format": "bun run format:packages && bun run format:apps",
+    "format:packages": "cd packages && bun run format",
+    "format:apps": "cd apps && bun run format"
   }
 }

@@ -1,0 +1,17 @@
+[install]
+peer = true
+production = false
+
+[install.dependencies]
+typescript = "latest"
+tsup = "latest"
+
+[workspaces]
+packages = [
+  "apps/*",
+  "packages/*",
+  "tooling/*"
+]
+
+[test]
+preload = "./test/setup.ts" 
