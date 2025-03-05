@@ -30,10 +30,10 @@ import Image from "next/image";
 import React from "react";
 import { currentStationAtom, isPlayingAtom } from "../../atoms/stations";
 import { openEditStationDrawer } from "../../atoms/ui";
-import { StreamSelector } from "./StreamSelector";
 import { nostrService } from "@/services/ndk";
 import { NDKUser } from "@nostr-dev-kit/ndk";
 import { FavoritesDropdown } from "./FavoritesDropdown";
+import { StreamSelector } from "../radio/StreamSelector";
 
 interface ExpandableStationCardProps {
   station: Station;

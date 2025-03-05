@@ -98,17 +98,24 @@ function transformToStation(radioStations: RadioStation[]): Station[] {
       .flat();
     const uniqueTags = [...new Set(allTags)];
 
-    // Create streams array from all stations
-    const streams = stations.map((s) => ({
-      url: s.url_resolved,
-      format: s.codec.toLowerCase(),
-      quality: {
-        bitrate: s.bitrate,
-        codec: s.codec,
-        sampleRate: 44100, // Default sample rate as it's not provided by the API
-      },
-      primary: s.bitrate === Math.max(...stations.map((st) => st.bitrate)), // Mark highest bitrate as primary
-    }));
+    // Create streams array from all stations, removing duplicates based on URL
+    const uniqueStreams = stations.reduce((acc, s) => {
+      const streamUrl = s.url_resolved;
+      // Only add if we haven't seen this URL before
+      if (!acc.some((existing) => existing.url === streamUrl)) {
+        acc.push({
+          url: streamUrl,
+          format: s.codec.toLowerCase(),
+          quality: {
+            bitrate: s.bitrate,
+            codec: s.codec,
+            sampleRate: 44100, // Default sample rate as it's not provided by the API
+          },
+          primary: s.bitrate === Math.max(...stations.map((st) => st.bitrate)), // Mark highest bitrate as primary
+        });
+      }
+      return acc;
+    }, [] as any[]);
 
     return {
       id: baseStation.stationuuid,
@@ -120,7 +127,7 @@ function transformToStation(radioStations: RadioStation[]): Station[] {
         baseStation.favicon || "https://picsum.photos/seed/no-station/200/200",
       pubkey: "", // Not provided by radio-browser API
       tags: uniqueTags.map((tag) => [tag]), // Convert to array of arrays as per our spec
-      streams,
+      streams: uniqueStreams,
       created_at: new Date(baseStation.lastchangetime_iso8601).getTime() / 1000,
       _originalStations: stations, // Keep reference to original stations for grouping
     };

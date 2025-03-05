@@ -3,27 +3,160 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward, Music } from "lucide-react";
 import { useAtom } from "jotai";
 import { currentStationAtom, isPlayingAtom } from "../atoms/stations";
 import { useEffect, useRef, useState } from "react";
 
+interface StreamMetadata {
+  title?: string;
+  artist?: string;
+  album?: string;
+  artwork?: string;
+  icyName?: string;
+  icyDescription?: string;
+  icyGenre?: string;
+  icyBitrate?: string;
+  icySamplerate?: string;
+  songTitle?: string;
+  songArtist?: string;
+  songAlbum?: string;
+  songYear?: string;
+  songGenre?: string;
+}
+
+// ID3v2 frame types
+const ID3_FRAMES = {
+  TIT2: "title",
+  TPE1: "artist",
+  TALB: "album",
+  TYER: "year",
+  TCON: "genre",
+  APIC: "picture",
+};
+
+function parseID3v2(buffer: ArrayBuffer): Partial<StreamMetadata> {
+  const view = new DataView(buffer);
+  const metadata: Partial<StreamMetadata> = {};
+
+  // Check for ID3v2 header
+  if (view.getUint32(0) === 0x494433) {
+    const version = view.getUint8(3);
+    const size = view.getUint32(4) & 0x7fffffff;
+    let offset = 10;
+
+    while (offset < size) {
+      const frameId = String.fromCharCode(
+        view.getUint8(offset),
+        view.getUint8(offset + 1),
+        view.getUint8(offset + 2),
+        view.getUint8(offset + 3)
+      );
+
+      const frameSize = view.getUint32(offset + 4);
+      const frameFlags = view.getUint16(offset + 8);
+      offset += 10;
+
+      if (frameId in ID3_FRAMES) {
+        const frameData = buffer.slice(offset, offset + frameSize);
+        const textDecoder = new TextDecoder("utf-8");
+
+        switch (frameId) {
+          case "TIT2":
+            metadata.songTitle = textDecoder.decode(frameData);
+            break;
+          case "TPE1":
+            metadata.songArtist = textDecoder.decode(frameData);
+            break;
+          case "TALB":
+            metadata.songAlbum = textDecoder.decode(frameData);
+            break;
+          case "TYER":
+            metadata.songYear = textDecoder.decode(frameData);
+            break;
+          case "TCON":
+            metadata.songGenre = textDecoder.decode(frameData);
+            break;
+          case "APIC":
+            // Handle APIC frame (picture)
+            const frameArray = new Uint8Array(frameData);
+            const nullIndex = frameArray.indexOf(0);
+            if (nullIndex !== -1) {
+              const mimeType = textDecoder.decode(
+                frameArray.slice(0, nullIndex)
+              );
+              const imageData = frameArray.slice(nullIndex + 1);
+              metadata.artwork = URL.createObjectURL(
+                new Blob([imageData], { type: mimeType })
+              );
+            }
+            break;
+        }
+      }
+
+      offset += frameSize;
+    }
+  }
+
+  return metadata;
+}
+
+function parseADTS(buffer: ArrayBuffer): Partial<StreamMetadata> {
+  const view = new DataView(buffer);
+  const metadata: Partial<StreamMetadata> = {};
+
+  // Check for ADTS header
+  if ((view.getUint16(0) & 0xfff6) === 0xfff0) {
+    const sampleRate = view.getUint16(2) & 0x3c0;
+    const bitrate = view.getUint32(2) & 0x1ffc00;
+
+    metadata.icySamplerate = sampleRate.toString();
+    metadata.icyBitrate = bitrate.toString();
+  }
+
+  return metadata;
+}
+
 export function RadioPlayer() {
-  // const [stations] = useAtom(stationsAtom);
   const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
   const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
   const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(
     null
   );
+  const [metadata, setMetadata] = useState<StreamMetadata>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // const currentIndex =
-  //   currentStation ? stations.findIndex((s) => s.id === currentStation.id) : -1;
-
-  // Initialize audio element
   useEffect(() => {
     audioRef.current = new Audio();
     audioRef.current.preload = "none";
+
+    console.log("audioRef.current", audioRef.current);
+
+    if (audioRef.current) {
+      audioRef.current.addEventListener("metadata", (e: any) => {
+        console.log("metadata", e);
+        if (e.data) {
+          setMetadata((prev) => ({
+            ...prev,
+            icyName: e.data.icymetadata?.name,
+            icyDescription: e.data.icymetadata?.description,
+            icyGenre: e.data.icymetadata?.genre,
+            icyBitrate: e.data.icymetadata?.bitrate,
+            icySamplerate: e.data.icymetadata?.samplerate,
+          }));
+        }
+      });
+
+      // Handle title updates
+      audioRef.current.addEventListener("titleupdate", (e: any) => {
+        if (e.data) {
+          setMetadata((prev) => ({
+            ...prev,
+            title: e.data.title,
+          }));
+        }
+      });
+    }
 
     return () => {
       if (audioRef.current) {
@@ -79,6 +212,7 @@ export function RadioPlayer() {
 
     if (primaryStream) {
       setResolvedStreamUrl(null);
+      setMetadata({}); // Reset metadata when changing streams
 
       resolveStreamUrl(primaryStream.url)
         .then((resolvedUrl) => {
@@ -160,7 +294,7 @@ export function RadioPlayer() {
               : "Select a station to play"}
             </p>
             {currentStation && (
-              <div className="hidden sm:block mt-1">
+              <div className="hidden sm:block mt-1 space-y-1">
                 <p className="text-xs text-muted-foreground font-press-start-2p truncate">
                   <span className="font-semibold">Genre:</span>{" "}
                   {currentStation.tags.find((t) => t[0] === "genre")?.[1] ||
@@ -173,6 +307,31 @@ export function RadioPlayer() {
                   : "Unknown"}{" "}
                   kbps
                 </p>
+                {metadata.songTitle && (
+                  <p className="text-xs text-muted-foreground font-press-start-2p truncate flex items-center gap-1">
+                    <Music className="h-3 w-3" />
+                    <span className="font-semibold">Now Playing:</span>{" "}
+                    {metadata.songTitle}
+                  </p>
+                )}
+                {metadata.songArtist && (
+                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
+                    <span className="font-semibold">Artist:</span>{" "}
+                    {metadata.songArtist}
+                  </p>
+                )}
+                {metadata.songAlbum && (
+                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
+                    <span className="font-semibold">Album:</span>{" "}
+                    {metadata.songAlbum}
+                  </p>
+                )}
+                {metadata.icyName && (
+                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
+                    <span className="font-semibold">Stream Info:</span>{" "}
+                    {metadata.icyName}
+                  </p>
+                )}
               </div>
             )}
           </div>
