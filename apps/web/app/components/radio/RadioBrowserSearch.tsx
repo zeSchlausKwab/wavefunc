@@ -1,8 +1,6 @@
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Filter, Play, Pause } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,6 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Station } from "@wavefunc/common";
+import { useSetAtom } from "jotai";
+import {
+  Filter,
+  Link as LinkIcon,
+  Pause,
+  Play,
+  Plus,
+  Search,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { openEditStationDrawer } from "../../atoms/ui";
 
 interface RadioStation {
   changeuuid: string;
@@ -58,15 +68,76 @@ interface SearchFilters {
   bitrateMax: number;
 }
 
+function transformToStation(radioStations: RadioStation[]): Station[] {
+  // Group stations by name
+  const groupedStations = radioStations.reduce(
+    (acc, station) => {
+      const key = station.name.toLowerCase();
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(station);
+      return acc;
+    },
+    {} as Record<string, RadioStation[]>
+  );
+
+  // Transform each group into a Station object
+  return Object.values(groupedStations).map((stations) => {
+    // Use the first station as the base for metadata
+    const baseStation = stations[0];
+
+    // Combine all unique tags
+    const allTags = stations
+      .map((s) =>
+        s.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      )
+      .flat();
+    const uniqueTags = [...new Set(allTags)];
+
+    // Create streams array from all stations
+    const streams = stations.map((s) => ({
+      url: s.url_resolved,
+      format: s.codec.toLowerCase(),
+      quality: {
+        bitrate: s.bitrate,
+        codec: s.codec,
+        sampleRate: 44100, // Default sample rate as it's not provided by the API
+      },
+      primary: s.bitrate === Math.max(...stations.map((st) => st.bitrate)), // Mark highest bitrate as primary
+    }));
+
+    return {
+      id: baseStation.stationuuid,
+      name: baseStation.name,
+      description: `${baseStation.country} • ${baseStation.language || "Unknown language"}`,
+      website: baseStation.homepage || "",
+      genre: uniqueTags.join(", "),
+      imageUrl:
+        baseStation.favicon || "https://picsum.photos/seed/no-station/200/200",
+      pubkey: "", // Not provided by radio-browser API
+      tags: uniqueTags.map((tag) => [tag]), // Convert to array of arrays as per our spec
+      streams,
+      created_at: new Date(baseStation.lastchangetime_iso8601).getTime() / 1000,
+      _originalStations: stations, // Keep reference to original stations for grouping
+    };
+  });
+}
+
 export function RadioBrowserSearch() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [stations, setStations] = useState<RadioStation[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [originalStations, setOriginalStations] = useState<RadioStation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(
     null
   );
+  const openDrawer = useSetAtom(openEditStationDrawer);
   const [filters, setFilters] = useState<SearchFilters>({
     name: "",
     countrycode: "all",
@@ -104,7 +175,12 @@ export function RadioBrowserSearch() {
         `https://at1.api.radio-browser.info/json/stations/search?${params.toString()}`
       );
       const data = await response.json();
-      setStations(data);
+
+      console.log(data);
+
+      setOriginalStations(data);
+      const transformedStations = transformToStation(data);
+      setStations(transformedStations);
     } catch (error) {
       console.error("Error searching stations:", error);
     } finally {
@@ -125,10 +201,12 @@ export function RadioBrowserSearch() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handlePlayPause = (station: RadioStation) => {
-    if (!station.url_resolved) return;
+  const handlePlayPause = (station: Station) => {
+    const primaryStream =
+      station.streams.find((s) => s.primary) || station.streams[0];
+    if (!primaryStream?.url) return;
 
-    if (currentlyPlaying === station.stationuuid) {
+    if (currentlyPlaying === station.id) {
       // Stop current playback
       if (audioElement) {
         audioElement.pause();
@@ -144,9 +222,9 @@ export function RadioBrowserSearch() {
       }
 
       // Create new audio element
-      const audio = new Audio(station.url_resolved);
+      const audio = new Audio(primaryStream.url);
       audio.onerror = () => {
-        console.error("Error playing stream:", station.url_resolved);
+        console.error("Error playing stream:", primaryStream.url);
         setCurrentlyPlaying(null);
         setAudioElement(null);
       };
@@ -156,9 +234,13 @@ export function RadioBrowserSearch() {
         setAudioElement(null);
       });
 
-      setCurrentlyPlaying(station.stationuuid);
+      setCurrentlyPlaying(station.id);
       setAudioElement(audio);
     }
+  };
+
+  const handleAddToLibrary = (station: Station) => {
+    openDrawer(station);
   };
 
   // Cleanup audio on unmount
@@ -170,6 +252,19 @@ export function RadioBrowserSearch() {
       }
     };
   }, [audioElement]);
+
+  // Group original stations by name for display
+  const groupedOriginalStations = originalStations.reduce(
+    (acc, station) => {
+      const key = station.name.toLowerCase();
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(station);
+      return acc;
+    },
+    {} as Record<string, RadioStation[]>
+  );
 
   return (
     <div className="space-y-6">
@@ -292,91 +387,150 @@ export function RadioBrowserSearch() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {stations.map((station) => (
-          <Card
-            key={station.stationuuid}
-            className="hover:shadow-lg transition-shadow"
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start space-x-4">
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <img
-                    src={
-                      station.favicon ||
-                      "https://picsum.photos/seed/no-station/200/200"
-                    }
-                    alt={station.name}
-                    className="w-full h-full object-cover rounded-md"
-                  />
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute bottom-0 right-0 rounded-full w-8 h-8"
-                    onClick={() => handlePlayPause(station)}
-                    disabled={!station.url_resolved}
-                  >
-                    {currentlyPlaying === station.stationuuid ?
-                      <Pause className="w-4 h-4" />
-                    : <Play className="w-4 h-4" />}
-                  </Button>
+      <div className="space-y-8">
+        {Object.entries(groupedOriginalStations).map(([name, stations]) => (
+          <div key={name} className="space-y-4">
+            {stations.length > 1 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <LinkIcon className="w-4 h-4" />
+                  <span>{stations.length} similar stations found</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-primary font-press-start-2p truncate">
-                    {station.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground font-press-start-2p mt-1">
-                    {station.country} • {station.language}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {station.tags
-                      .split(",")
-                      .map((tag) => tag.trim())
-                      .filter(Boolean)
-                      .slice(0, 3)
-                      .map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground font-press-start-2p">
-                    <p>
-                      Bitrate:{" "}
-                      {station.bitrate ? `${station.bitrate} kbps` : "Unknown"}
-                    </p>
-                    <p>Codec: {station.codec || "Unknown"}</p>
-                    <p>Votes: {station.votes}</p>
-                    <p className="truncate mt-1">
-                      Stream:{" "}
-                      <a
-                        href={station.url_resolved}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                        title={station.url_resolved}
-                      >
-                        {station.url_resolved}
-                      </a>
-                    </p>
-                    {station.homepage && (
-                      <a
-                        href={station.homepage}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline mt-1 block"
-                      >
-                        Visit Website
-                      </a>
-                    )}
-                  </div>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const unifiedStation = transformToStation(stations)[0];
+                    openDrawer(unifiedStation);
+                  }}
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Unify All Streams
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {stations.map((station) => (
+                <Card
+                  key={station.stationuuid}
+                  className="hover:shadow-lg transition-shadow"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start space-x-4">
+                      <div className="relative w-16 h-16 flex-shrink-0">
+                        <img
+                          src={
+                            station.favicon ||
+                            "https://picsum.photos/seed/no-station/200/200"
+                          }
+                          alt={station.name}
+                          className="w-full h-full object-cover rounded-md"
+                        />
+                        <div className="absolute bottom-0 right-0 flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="rounded-full w-8 h-8"
+                            onClick={() =>
+                              handlePlayPause({
+                                id: station.stationuuid,
+                                name: station.name,
+                                description: `${station.country} • ${station.language || "Unknown language"}`,
+                                website: station.homepage || "",
+                                genre: station.tags,
+                                imageUrl:
+                                  station.favicon ||
+                                  "https://picsum.photos/seed/no-station/200/200",
+                                pubkey: "",
+                                tags: station.tags
+                                  .split(",")
+                                  .map((tag) => [tag.trim()]),
+                                streams: [
+                                  {
+                                    url: station.url_resolved,
+                                    format: station.codec.toLowerCase(),
+                                    quality: {
+                                      bitrate: station.bitrate,
+                                      codec: station.codec,
+                                      sampleRate: 44100,
+                                    },
+                                    primary: true,
+                                  },
+                                ],
+                                created_at:
+                                  new Date(
+                                    station.lastchangetime_iso8601
+                                  ).getTime() / 1000,
+                              })
+                            }
+                            disabled={!station.url_resolved}
+                          >
+                            {currentlyPlaying === station.stationuuid ?
+                              <Pause className="w-4 h-4" />
+                            : <Play className="w-4 h-4" />}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="rounded-full w-8 h-8"
+                            onClick={() => {
+                              const transformedStation = stations.find(
+                                (s) => s.stationuuid === station.stationuuid
+                              );
+                              if (transformedStation) {
+                                const unifiedStation = transformToStation([
+                                  transformedStation,
+                                ])[0];
+                                openDrawer(unifiedStation);
+                              }
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-primary font-press-start-2p truncate">
+                          {station.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground font-press-start-2p mt-1">
+                          {station.country} •{" "}
+                          {station.language || "Unknown language"}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {station.tags
+                            .split(",")
+                            .slice(0, 3)
+                            .map((tag) => (
+                              <span
+                                key={tag}
+                                className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full"
+                              >
+                                {tag.trim()}
+                              </span>
+                            ))}
+                        </div>
+                        <div className="mt-2 text-xs text-muted-foreground font-press-start-2p">
+                          <p>Quality: {station.bitrate} kbps</p>
+                          <p>Codec: {station.codec}</p>
+                          {station.homepage && (
+                            <a
+                              href={station.homepage}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline mt-1 block"
+                            >
+                              Visit Website
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
