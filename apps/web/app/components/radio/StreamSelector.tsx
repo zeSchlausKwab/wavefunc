@@ -8,14 +8,16 @@ import {
 import { Stream } from "@wavefunc/common";
 
 interface StreamSelectorProps {
+  stationId: number;
   streams: Stream[];
-  selectedStream: Stream | null;
+  selectedStreamId: number | null | undefined;
   onStreamSelect: (stream: Stream) => void;
 }
 
 export function StreamSelector({
+  stationId,
   streams,
-  selectedStream,
+  selectedStreamId,
   onStreamSelect,
 }: StreamSelectorProps) {
   const handleStreamSelect = (stream: Stream) => {
@@ -27,7 +29,7 @@ export function StreamSelector({
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium">Stream Quality:</label>
         <Select
-          value={selectedStream?.url}
+          value={selectedStreamId?.toString()}
           onValueChange={(value) => {
             const stream = streams.find((s) => s.url === value);
             if (stream) {
@@ -53,19 +55,31 @@ export function StreamSelector({
           </SelectContent>
         </Select>
       </div>
-      {selectedStream && (
+      {selectedStreamId && (
         <div className="text-xs text-muted-foreground">
-          <p>Codec: {selectedStream.quality.codec}</p>
+          <p>
+            Codec:{" "}
+            {
+              streams.find((s) => s.url === selectedStreamId.toString())
+                ?.quality.codec
+            }
+          </p>
           <p>
             Bitrate:{" "}
-            {selectedStream.quality.bitrate ?
-              `${Math.round(selectedStream.quality.bitrate / 1000)} kbps`
+            {(
+              streams.find((s) => s.url === selectedStreamId.toString())
+                ?.quality.bitrate
+            ) ?
+              `${Math.round(streams.find((s) => s.url === selectedStreamId.toString())!.quality.bitrate / 1000)} kbps`
             : "Unknown"}
           </p>
           <p>
             Sample Rate:{" "}
-            {selectedStream.quality.sampleRate ?
-              `${selectedStream.quality.sampleRate} Hz`
+            {(
+              streams.find((s) => s.url === selectedStreamId.toString())
+                ?.quality.sampleRate
+            ) ?
+              `${streams.find((s) => s.url === selectedStreamId.toString())!.quality.sampleRate} Hz`
             : "Unknown"}
           </p>
         </div>
