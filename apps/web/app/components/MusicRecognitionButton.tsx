@@ -61,12 +61,17 @@ export function MusicRecognitionButton({
 
       console.log("Stream URL:", primaryStream.url);
 
+      // Create a new audio element for recording
+      const recordingAudio = new Audio();
+      recordingAudio.crossOrigin = "anonymous"; // Enable CORS
+      recordingAudio.src = primaryStream.url;
+
       // Create audio context
       audioContextRef.current = new AudioContext();
 
-      // Create a source from the audio element
+      // Create a source from the recording audio element
       const source =
-        audioContextRef.current.createMediaElementSource(audioElement);
+        audioContextRef.current.createMediaElementSource(recordingAudio);
 
       // Create a media stream destination
       const destination =
@@ -77,8 +82,15 @@ export function MusicRecognitionButton({
       streamRef.current = destination.stream;
 
       // Create media recorder with specific MIME type
+      const mimeType = "audio/webm";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        throw new Error(`MIME type ${mimeType} is not supported`);
+      }
+
+      console.log("Creating MediaRecorder with MIME type:", mimeType);
       mediaRecorderRef.current = new MediaRecorder(streamRef.current, {
-        mimeType: "audio/webm;codecs=opus",
+        mimeType,
+        audioBitsPerSecond: 128000, // 128 kbps
       });
       audioChunksRef.current = [];
 
@@ -94,15 +106,22 @@ export function MusicRecognitionButton({
           "Recording stopped, chunks:",
           audioChunksRef.current.length
         );
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: "audio/webm",
-        });
+        if (audioChunksRef.current.length === 0) {
+          throw new Error("No audio data was recorded");
+        }
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         console.log("Created blob:", audioBlob.size, "bytes");
         await handleRecognize(audioBlob);
       };
 
-      // Start recording
-      mediaRecorderRef.current.start(1000); // Collect data every second
+      mediaRecorderRef.current.onerror = (event) => {
+        console.error("MediaRecorder error:", event);
+        setIsLoading(false);
+      };
+
+      // Start recording and playing
+      recordingAudio.play();
+      mediaRecorderRef.current.start(100); // Collect data every 100ms for better quality
       console.log("MediaRecorder started");
 
       // Stop recording after duration
@@ -113,6 +132,8 @@ export function MusicRecognitionButton({
           mediaRecorderRef.current.state === "recording"
         ) {
           mediaRecorderRef.current.stop();
+          recordingAudio.pause();
+          recordingAudio.src = "";
         }
       }, RECORDING_DURATION * 1000);
     } catch (error) {
@@ -123,6 +144,8 @@ export function MusicRecognitionButton({
 
   const uploadToBlossom = async (audioBlob: Blob): Promise<string> => {
     console.log("Uploading to Satellite CDN...");
+    console.log("Blob type:", audioBlob.type);
+    console.log("Blob size:", audioBlob.size);
 
     if (!window.nostr) {
       throw new Error("Nostr extension not found");
@@ -134,9 +157,10 @@ export function MusicRecognitionButton({
       kind: 22242,
       content: "Authorize Upload",
       tags: [
-        ["name", "sample.mp3"], // Changed to mp3 since that's what AudD expects
+        ["name", "sample.mp3"],
         ["size", audioBlob.size.toString()],
         ["label", "music_recognition"],
+        ["mime", "audio/webm"], // Keep consistent with recording format
       ],
       pubkey: nostrService.getNDK().activeUser?.pubkey || "",
       id: "",
@@ -152,6 +176,9 @@ export function MusicRecognitionButton({
       {
         method: "PUT",
         body: audioBlob,
+        headers: {
+          "Content-Type": "audio/webm", // Keep consistent with recording format
+        },
       }
     );
 
