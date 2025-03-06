@@ -1,7 +1,7 @@
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import { defaultRelays } from "@wavefunc/common";
-import dotenv, { config } from "dotenv";
-import path, { resolve } from "path";
+import { config } from "dotenv";
+import path from "path";
 import WebSocket from "ws";
 
 (global as any).WebSocket = WebSocket;
@@ -13,7 +13,7 @@ class DVMService {
   private ndk: NDK;
 
   private constructor() {
-    dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+    config({ path: path.resolve(__dirname, "../../../../.env") });
 
     const PRIVATE_KEY = process.env.DVM_PRIVATE_KEY;
     const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_HOST;
