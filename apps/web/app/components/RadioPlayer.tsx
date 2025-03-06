@@ -3,10 +3,22 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pause, Play, SkipBack, SkipForward, Music } from "lucide-react";
+import {
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  Music,
+  VolumeX,
+  Volume2,
+} from "lucide-react";
 import { useAtom } from "jotai";
 import { currentStationAtom, isPlayingAtom } from "../atoms/stations";
 import { useEffect, useRef, useState } from "react";
+import { MusicRecognitionButton } from "./MusicRecognitionButton";
+import { Slider } from "@/components/ui/slider";
+import { formatTime } from "@/lib/utils";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface StreamMetadata {
   title?: string;
@@ -118,25 +130,29 @@ function parseADTS(buffer: ArrayBuffer): Partial<StreamMetadata> {
 }
 
 export function RadioPlayer() {
-  const [currentStation, setCurrentStation] = useAtom(currentStationAtom);
-  const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
+  const [currentStation] = useAtom(currentStationAtom);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(
     null
   );
   const [metadata, setMetadata] = useState<StreamMetadata>({});
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Initialize audio element
   useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.preload = "none";
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.preload = "none";
 
-    console.log("audioRef.current", audioRef.current);
-
-    if (audioRef.current) {
       audioRef.current.addEventListener("metadata", (e: any) => {
-        console.log("metadata", e);
         if (e.data) {
-          setMetadata((prev) => ({
+          setMetadata((prev: StreamMetadata) => ({
             ...prev,
             icyName: e.data.icymetadata?.name,
             icyDescription: e.data.icymetadata?.description,
@@ -147,10 +163,9 @@ export function RadioPlayer() {
         }
       });
 
-      // Handle title updates
       audioRef.current.addEventListener("titleupdate", (e: any) => {
         if (e.data) {
-          setMetadata((prev) => ({
+          setMetadata((prev: StreamMetadata) => ({
             ...prev,
             title: e.data.title,
           }));
@@ -165,6 +180,55 @@ export function RadioPlayer() {
       }
     };
   }, []);
+
+  // Handle stream URL resolution and playback
+  useEffect(() => {
+    if (!currentStation || !audioRef.current) return;
+
+    const primaryStream =
+      currentStation.streams.find((s: any) => s.primary) ||
+      currentStation.streams[0];
+    if (!primaryStream) return;
+
+    const loadStream = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        setMetadata({}); // Reset metadata when changing streams
+
+        const resolvedUrl = await resolveStreamUrl(primaryStream.url);
+        setResolvedStreamUrl(resolvedUrl);
+
+        audioRef.current!.src = resolvedUrl;
+
+        if (isPlaying) {
+          await audioRef.current!.play();
+        }
+      } catch (error) {
+        console.error("Error loading stream:", error);
+        setError("Failed to load audio stream");
+        setIsPlaying(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStream();
+  }, [currentStation]);
+
+  // Handle play/pause state
+  useEffect(() => {
+    if (!audioRef.current || !resolvedStreamUrl) return;
+
+    if (isPlaying) {
+      audioRef.current.play().catch((error) => {
+        console.error("Error playing stream:", error);
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, resolvedStreamUrl]);
 
   const resolveStreamUrl = async (url: string): Promise<string> => {
     const isPlaylist = /\.(pls|m3u|m3u8|asx)$/i.test(url);
@@ -203,49 +267,6 @@ export function RadioPlayer() {
     }
   };
 
-  useEffect(() => {
-    if (!currentStation || !audioRef.current) return;
-
-    const primaryStream =
-      currentStation.streams.find((s: any) => s.primary) ||
-      currentStation.streams[0];
-
-    if (primaryStream) {
-      setResolvedStreamUrl(null);
-      setMetadata({}); // Reset metadata when changing streams
-
-      resolveStreamUrl(primaryStream.url)
-        .then((resolvedUrl) => {
-          setResolvedStreamUrl(resolvedUrl);
-          audioRef.current!.src = resolvedUrl;
-
-          if (isPlaying) {
-            audioRef.current!.play().catch((error) => {
-              console.error("Error playing stream:", error);
-              setIsPlaying(false);
-            });
-          }
-        })
-        .catch((error) => {
-          console.error("Error resolving stream URL:", error);
-          setIsPlaying(false);
-        });
-    }
-  }, [currentStation]);
-
-  useEffect(() => {
-    if (!audioRef.current || !resolvedStreamUrl) return;
-
-    if (isPlaying) {
-      audioRef.current.play().catch((error) => {
-        console.error("Error playing stream:", error);
-        setIsPlaying(false);
-      });
-    } else {
-      audioRef.current.pause();
-    }
-  }, [isPlaying, resolvedStreamUrl]);
-
   const handlePlayPause = () => {
     if (currentStation) {
       setIsPlaying(!isPlaying);
@@ -268,21 +289,65 @@ export function RadioPlayer() {
     currentStation?.streams.find((s: any) => s.primary) ||
     currentStation?.streams[0];
 
+  const handleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    if (audioRef.current) {
+      audioRef.current.volume = value[0] / 100;
+      setVolume(value[0] / 100);
+    }
+  };
+
+  const handleSeek = (value: number[]) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = value[0];
+      setCurrentTime(value[0]);
+    }
+  };
+
+  const handlePreviousStation = () => {
+    // if (currentIndex === -1) return;
+    // const prevIndex = (currentIndex - 1 + stations.length) % stations.length;
+    // setCurrentStation(stations[prevIndex]);
+  };
+
+  const handleNextStation = () => {
+    // if (currentIndex === -1) return;
+    // const nextIndex = (currentIndex + 1) % stations.length;
+    // setCurrentStation(stations[nextIndex]);
+  };
+
   return (
-    <Card className="w-full bg-white shadow-lg border-t border-gray-200">
-      <CardContent className="p-2 sm:p-4">
-        <div className="flex items-center space-x-2 sm:space-x-4">
-          <div className="relative w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-            <Image
-              src={
-                currentStation?.tags.find((t) => t[0] === "thumbnail")?.[1] ||
-                "https://picsum.photos/seed/no-station/200/200"
-              }
-              alt={currentStation?.name || "No station selected"}
-              fill
-              style={{ objectFit: "cover" }}
-              className="rounded-md"
-            />
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-36 items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePlayPause}
+              disabled={isLoading || !currentStation}
+            >
+              {isPlaying ?
+                <Pause className="h-4 w-4" />
+              : <Play className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleSkipForward}
+              disabled={isLoading || !currentStation}
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
+            {audioRef.current && (
+              <MusicRecognitionButton audioElement={audioRef.current} />
+            )}
           </div>
           <div className="grow min-w-0">
             <h3 className="text-xs sm:text-sm font-semibold text-primary font-press-start-2p truncate">
@@ -348,20 +413,12 @@ export function RadioPlayer() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handlePlayPause}
+                onClick={handleMute}
                 disabled={!currentStation}
               >
-                {isPlaying ?
-                  <Pause className="h-4 w-4" />
-                : <Play className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleSkipForward}
-                disabled={!currentStation}
-              >
-                <SkipForward className="h-4 w-4" />
+                {isMuted ?
+                  <VolumeX className="h-4 w-4" />
+                : <Volume2 className="h-4 w-4" />}
               </Button>
             </div>
             {currentStation && (
@@ -376,7 +433,22 @@ export function RadioPlayer() {
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <audio
+        ref={audioRef}
+        src={currentStation?.streams.find((s: any) => s.primary)?.url || ""}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+        onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
+        onError={(e) => {
+          console.error("Audio error:", e);
+          setError("Failed to load audio stream");
+        }}
+        onLoadStart={() => setIsLoading(true)}
+        onCanPlay={() => setIsLoading(false)}
+      />
+    </div>
   );
 }
