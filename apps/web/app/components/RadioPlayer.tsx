@@ -1,24 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { useAtom } from "jotai";
 import {
+  Music,
   Pause,
   Play,
   SkipBack,
   SkipForward,
-  Music,
-  VolumeX,
   Volume2,
+  VolumeX,
 } from "lucide-react";
-import { useAtom } from "jotai";
-import { currentStationAtom, isPlayingAtom } from "../atoms/stations";
 import { useEffect, useRef, useState } from "react";
+import { currentStationAtom } from "../atoms/stations";
 import { MusicRecognitionButton } from "./MusicRecognitionButton";
-import { Slider } from "@/components/ui/slider";
-import { formatTime } from "@/lib/utils";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface StreamMetadata {
   title?: string;
