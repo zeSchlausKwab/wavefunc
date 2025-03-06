@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --bun run next dev -H 0.0.0.0",
+    "dev": "bun --bun run next dev --turbopack -H 0.0.0.0",
     "build": "bun --bun run next build",
     "start": "bun --bun run next start",
     "lint": "next lint"
@@ -36,12 +36,12 @@
     "dotenv": "^16.4.5",
     "jotai": "^2.12.1",
     "lucide-react": "^0.358.0",
-    "next": "14.2.24",
+    "next": "15.2.1",
     "next-themes": "^0.4.4",
     "nostr-tools": "^2.10.4",
     "qrcode.react": "^3.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-hook-form": "^7.54.2",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
@@ -52,11 +52,15 @@
   "devDependencies": {
     "@shadcn/ui": "^0.0.4",
     "@types/node": "^20.11.25",
-    "@types/react": "^18.2.64",
-    "@types/react-dom": "^18.2.21",
+    "@types/react": "19.0.10",
+    "@types/react-dom": "19.0.4",
     "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-custom": "workspace:*",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@types/react": "19.0.10",
+    "@types/react-dom": "19.0.4"
   }
 }
