@@ -5,9 +5,11 @@ import { nostrService } from "@/services/ndk";
 import { NDKEvent, NDKKind, NostrEvent } from "@nostr-dev-kit/ndk";
 import { useAtom } from "jotai";
 import { currentStationAtom } from "../atoms/stations";
+import { useToast } from "@/hooks/use-toast";
 
-const JOB_KIND = 5000;
-const RESULT_KIND = 6000;
+const JOB_KIND = 5000; // Music recognition job request
+const RESULT_KIND = 6000; // Music recognition result (1000 higher than request)
+const FEEDBACK_KIND = 7000; // Job feedback
 const RECORDING_DURATION = 5; // seconds
 
 interface RecognitionResult {
@@ -40,6 +42,7 @@ export function MusicRecognitionButton({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const { toast } = useToast();
 
   const startRecording = async () => {
     if (!currentStation || !audioElement) {
@@ -215,22 +218,55 @@ export function MusicRecognitionButton({
 
       await requestEvent.sign();
 
-      // Subscribe to the response
+      // Subscribe to both result and feedback events
       const sub = nostrService.getNDK().subscribe({
-        kinds: [RESULT_KIND as NDKKind],
+        kinds: [RESULT_KIND as NDKKind, FEEDBACK_KIND as NDKKind],
         "#e": [requestEvent.id],
         limit: 1,
       });
 
       sub.on("event", (event: NDKEvent) => {
-        const content = JSON.parse(event.content);
-        if (content.type === "audd_response") {
-          setResult(content.result);
-        } else if (content.type === "audd_error") {
-          console.error("Recognition error:", content.error);
+        if (event.kind === FEEDBACK_KIND) {
+          const status = event.tags.find((tag) => tag[0] === "status")?.[1];
+          if (status === "payment-required") {
+            toast({
+              title: "Payment Required",
+              description:
+                "Please complete the payment to continue recognition.",
+              variant: "destructive",
+            });
+          } else if (status === "processing") {
+            toast({
+              title: "Processing",
+              description: "Recognizing the song...",
+            });
+          } else if (status === "error") {
+            toast({
+              title: "Error",
+              description: event.content || "Failed to recognize the song",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            sub.stop();
+          }
+        } else if (event.kind === RESULT_KIND) {
+          const content = JSON.parse(event.content);
+          if (content.type === "audd_response") {
+            setResult(content.result);
+            toast({
+              title: "Song Recognized!",
+              description: `${content.result.title} by ${content.result.artist}`,
+            });
+          } else if (content.type === "audd_error") {
+            toast({
+              title: "Recognition Error",
+              description: content.error || "Failed to recognize the song",
+              variant: "destructive",
+            });
+          }
+          setIsLoading(false);
+          sub.stop();
         }
-        setIsLoading(false);
-        sub.stop();
       });
 
       await requestEvent.publish();
@@ -238,12 +274,25 @@ export function MusicRecognitionButton({
       // Timeout after 10 seconds
       setTimeout(() => {
         if (isLoading) {
+          toast({
+            title: "Timeout",
+            description: "Recognition request timed out",
+            variant: "destructive",
+          });
           setIsLoading(false);
           sub.stop();
         }
       }, 10000);
     } catch (error) {
       console.error("Error processing recognition:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ?
+            error.message
+          : "Failed to process recognition",
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
   };

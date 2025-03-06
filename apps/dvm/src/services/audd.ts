@@ -76,12 +76,22 @@ export class AudDService {
         throw new Error("No audioUrl provided in the event content");
       }
 
+      // Send processing feedback
+      const processingEvent = new NDKEvent(dvmService.getNDK());
+      processingEvent.kind = 7000; // Feedback kind
+      processingEvent.content = "Processing audio sample";
+      processingEvent.tags = [
+        ["e", event.id],
+        ["status", "processing"],
+      ];
+      await processingEvent.publish();
+
       const result = await this.recognizeSong(content.audioUrl);
       console.log("AudD API response:", result);
 
       // Create response event
       const responseEvent = new NDKEvent(dvmService.getNDK());
-      responseEvent.kind = 1; // Text note
+      responseEvent.kind = 6000; // Result kind (1000 higher than request)
       responseEvent.content = JSON.stringify({
         type: "audd_response",
         requestId: content.requestId,
@@ -97,7 +107,7 @@ export class AudDService {
 
       // Create error response event
       const errorEvent = new NDKEvent(dvmService.getNDK());
-      errorEvent.kind = 1;
+      errorEvent.kind = 6000; // Result kind (1000 higher than request)
       errorEvent.content = JSON.stringify({
         type: "audd_error",
         requestId: content?.requestId,
