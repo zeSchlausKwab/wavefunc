@@ -22,6 +22,7 @@ interface NostrProfile {
 export function Profile({ pubkey }: ProfileProps) {
   const [profile, setProfile] = useState<NostrProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -55,11 +56,16 @@ export function Profile({ pubkey }: ProfileProps) {
     <div className="flex items-center space-x-4">
       <div className="relative w-10 h-10">
         <Image
-          src={profile?.picture || "/placeholder.svg"}
+          src={
+            imageError ? "/placeholder.svg" : (
+              profile?.picture || "/placeholder.svg"
+            )
+          }
           alt={profile?.name || "Anonymous"}
           fill
           style={{ objectFit: "cover" }}
           className="rounded-full"
+          onError={() => setImageError(true)}
         />
       </div>
       <div className="hidden md:block">

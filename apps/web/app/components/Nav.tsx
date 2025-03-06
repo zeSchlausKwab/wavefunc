@@ -24,14 +24,14 @@ export function Nav() {
 
   return (
     <NavigationMenu>
-      <NavigationMenuList>
+      <NavigationMenuList className="flex-col sm:flex-row">
         {routes.map((route) => (
           <NavigationMenuItem key={route.href}>
             <Link href={route.href} legacyBehavior passHref>
               <NavigationMenuLink
                 className={cn(
                   navigationMenuTriggerStyle(),
-                  "font-press-start-2p text-sm",
+                  "font-press-start-2p text-sm w-full sm:w-auto text-center sm:text-left",
                   pathname === route.href ?
                     "text-primary font-medium"
                   : "text-muted-foreground"

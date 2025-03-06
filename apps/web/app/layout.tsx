@@ -26,17 +26,17 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${pressStart2P.variable} ${inter.className}`}>
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col min-h-screen pb-24">
           <Header />
-          <main className="grow container mx-auto px-4 py-8 mb-24">
+          <main className="grow container mx-auto px-4 py-8">
             {children}
             <Toaster />
           </main>
           <DevelopmentControls />
           <Footer />
-        </div>
-        <div className="fixed bottom-0 left-0 right-0 z-50">
-          <RadioPlayer />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t">
+            <RadioPlayer />
+          </div>
         </div>
         <EditStationDrawer
           station={drawerState.station}
