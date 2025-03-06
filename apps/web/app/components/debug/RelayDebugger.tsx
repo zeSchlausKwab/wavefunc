@@ -38,6 +38,8 @@ export function RelayDebugger() {
         kinds: [
           RADIO_EVENT_KINDS.STREAM as NDKKind,
           RADIO_EVENT_KINDS.FAVORITES as NDKKind,
+          5000,
+          6000 as NDKKind,
         ],
       };
 
