@@ -136,7 +136,7 @@ export function MusicRecognitionButton({
         ) {
           mediaRecorderRef.current.stop();
           recordingAudio.pause();
-          recordingAudio.src = "";
+          recordingAudio.remove(); // Remove the audio element entirely
         }
       }, RECORDING_DURATION * 1000);
     } catch (error) {

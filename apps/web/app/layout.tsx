@@ -1,10 +1,10 @@
 "use client";
 
 import { Toaster } from "@/components/ui/toaster";
-import { Station } from "@wavefunc/common";
-import { Provider, useAtom, useSetAtom } from "jotai";
+import { Provider, useAtom } from "jotai";
+import { Metadata } from "next";
 import { Inter, Press_Start_2P } from "next/font/google";
-import { closeStationDrawer, stationDrawerAtom } from "./atoms/ui";
+import { stationDrawerAtom } from "./atoms/ui";
 import { DevelopmentControls } from "./components/debug/DevelopmentControls";
 import { EditStationDrawer } from "./components/EditStationDrawer";
 import { Footer } from "./components/Footer";

@@ -195,10 +195,7 @@ export function RadioPlayer() {
         setResolvedStreamUrl(resolvedUrl);
 
         audioRef.current!.src = resolvedUrl;
-
-        if (isPlaying) {
-          await audioRef.current!.play();
-        }
+        setIsPlaying(true); // Set playing state before attempting to play
       } catch (error) {
         console.error("Error loading stream:", error);
         setError("Failed to load audio stream");
@@ -215,14 +212,20 @@ export function RadioPlayer() {
   useEffect(() => {
     if (!audioRef.current || !resolvedStreamUrl) return;
 
-    if (isPlaying) {
-      audioRef.current.play().catch((error) => {
-        console.error("Error playing stream:", error);
+    const playAudio = async () => {
+      try {
+        if (isPlaying) {
+          await audioRef.current!.play();
+        } else {
+          audioRef.current!.pause();
+        }
+      } catch (error) {
+        console.error("Error controlling playback:", error);
         setIsPlaying(false);
-      });
-    } else {
-      audioRef.current.pause();
-    }
+      }
+    };
+
+    playAudio();
   }, [isPlaying, resolvedStreamUrl]);
 
   const resolveStreamUrl = async (url: string): Promise<string> => {
@@ -430,20 +433,24 @@ export function RadioPlayer() {
         </div>
       </div>
 
-      <audio
-        ref={audioRef}
-        src={currentStation?.streams.find((s: any) => s.primary)?.url || ""}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-        onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
-        onError={(e) => {
-          console.error("Audio error:", e);
-          setError("Failed to load audio stream");
-        }}
-        onLoadStart={() => setIsLoading(true)}
-        onCanPlay={() => setIsLoading(false)}
-      />
+      {currentStation?.streams.find((s: any) => s.primary)?.url && (
+        <audio
+          ref={audioRef}
+          src={currentStation.streams.find((s: any) => s.primary)?.url}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onTimeUpdate={() =>
+            setCurrentTime(audioRef.current?.currentTime || 0)
+          }
+          onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
+          onError={(e) => {
+            console.error("Audio error:", e);
+            setError("Failed to load audio stream");
+          }}
+          onLoadStart={() => setIsLoading(true)}
+          onCanPlay={() => setIsLoading(false)}
+        />
+      )}
     </div>
   );
 }
