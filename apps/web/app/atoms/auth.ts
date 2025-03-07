@@ -13,9 +13,31 @@ interface AuthState {
   signer?: NDKPrivateKeySigner | NDKNip07Signer | NDKNip46Signer;
 }
 
-export const authStateAtom = atom<AuthState>({
-  isAuthenticated: false,
-});
+// Initialize auth state from localStorage if available
+const getInitialAuthState = (): AuthState => {
+  if (typeof window === "undefined") {
+    return { isAuthenticated: false };
+  }
+
+  const savedAuth = localStorage.getItem("AUTH_STATE");
+  if (savedAuth) {
+    try {
+      const parsed = JSON.parse(savedAuth);
+      // Only restore if we have a valid user pubkey
+      if (parsed.user?.pubkey) {
+        return {
+          isAuthenticated: true,
+          user: parsed.user,
+        };
+      }
+    } catch (error) {
+      console.error("Failed to parse saved auth state:", error);
+    }
+  }
+  return { isAuthenticated: false };
+};
+
+export const authStateAtom = atom<AuthState>(getInitialAuthState());
 
 export const loginDialogAtom = atom<boolean>(false);
 
@@ -27,11 +49,27 @@ const updateAuthState = async (
   const user = await signer.user();
   await user.fetchProfile();
 
-  return {
+  const authState = {
     isAuthenticated: true,
     user,
     signer,
   };
+
+  // Save to localStorage
+  if (typeof window !== "undefined") {
+    localStorage.setItem(
+      "AUTH_STATE",
+      JSON.stringify({
+        isAuthenticated: true,
+        user: {
+          pubkey: user.pubkey,
+          profile: user.profile,
+        },
+      })
+    );
+  }
+
+  return authState;
 };
 
 export const loginWithPrivateKey = atom(
@@ -85,6 +123,7 @@ export const logout = atom(null, (get, set) => {
   const ndk = nostrService.getNDK();
   ndk.signer = undefined;
   set(authStateAtom, { isAuthenticated: false });
+  localStorage.removeItem("AUTH_STATE");
   localStorage.removeItem("NOSTR_CONNECT_KEY");
   localStorage.removeItem("NOSTR_LOCAL_SIGNER_KEY");
 });
