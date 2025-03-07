@@ -75,10 +75,11 @@ async function main() {
 
     const filter: NDKFilter = {
       kinds: [JOB_KIND],
-      since: Math.floor(Date.now() / 1000) - 100,
+      since: Math.floor(Date.now() / 1000) - 10,
     };
     const sub = dvmService.getNDK().subscribe(filter, {
       closeOnEose: false,
+      dontSaveToCache: true,
     });
 
     sub.on("event", (event: NDKEvent) => {
