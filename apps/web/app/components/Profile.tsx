@@ -28,12 +28,29 @@ export function Profile({ pubkey }: ProfileProps) {
     async function fetchProfile() {
       try {
         const ndk = nostrService.getNDK();
-        const user = new NDKUser({ pubkey });
+        if (!ndk) {
+          throw new Error("NDK not initialized");
+        }
+
+        const user = ndk.getUser({ pubkey });
         const userProfile = await user.fetchProfile();
-        // console.log("User profile:", userProfile);
-        setProfile(userProfile);
+
+        if (!userProfile) {
+          console.log("No profile found for user:", pubkey);
+          setProfile({
+            name: "Anonymous",
+            picture: "/placeholder.svg",
+          });
+        } else {
+          setProfile(userProfile);
+        }
       } catch (error) {
         console.error("Failed to fetch profile:", error);
+        // Set a default profile on error
+        setProfile({
+          name: "Anonymous",
+          picture: "/placeholder.svg",
+        });
       } finally {
         setLoading(false);
       }
