@@ -15,16 +15,16 @@ const RECORDING_DURATION = 5; // seconds
 interface RecognitionResult {
   title: string;
   artist: string;
-  album: string;
-  release_date: string;
-  song_link: string;
-  apple_music: {
-    preview: string;
-    url: string;
+  album?: string;
+  release_date?: string;
+  song_link?: string;
+  apple_music?: {
+    preview?: string;
+    url?: string;
   };
-  spotify: {
-    preview: string;
-    url: string;
+  spotify?: {
+    preview?: string;
+    url?: string;
   };
 }
 
@@ -324,9 +324,11 @@ export function MusicRecognitionButton({
           <div className="space-y-1">
             <p className="text-xs font-semibold">{result.title}</p>
             <p className="text-xs text-muted-foreground">{result.artist}</p>
-            <p className="text-xs text-muted-foreground">{result.album}</p>
+            {result.album && (
+              <p className="text-xs text-muted-foreground">{result.album}</p>
+            )}
             <div className="mt-2 flex space-x-2">
-              {result.spotify.url && (
+              {result.spotify?.url && (
                 <a
                   href={result.spotify.url}
                   target="_blank"
@@ -336,7 +338,7 @@ export function MusicRecognitionButton({
                   Spotify
                 </a>
               )}
-              {result.apple_music.url && (
+              {result.apple_music?.url && (
                 <a
                   href={result.apple_music.url}
                   target="_blank"
@@ -344,6 +346,16 @@ export function MusicRecognitionButton({
                   className="text-xs text-primary hover:underline"
                 >
                   Apple Music
+                </a>
+              )}
+              {result.song_link && (
+                <a
+                  href={result.song_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Listen
                 </a>
               )}
             </div>

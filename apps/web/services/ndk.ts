@@ -1,4 +1,4 @@
-import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
+import NDK, { NDKSigner } from "@nostr-dev-kit/ndk";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 
 const LOCAL_MACHINE_IP = process.env.NEXT_PUBLIC_HOST;
@@ -19,15 +19,10 @@ class NostrService {
   private ndk: NDK;
 
   private constructor() {
-    const signer = NDKPrivateKeySigner.generate();
     this.ndk = new NDK({
       explicitRelayUrls: [
         `${WS_PROTOCOL}://${REALY_PREFIX}${LOCAL_MACHINE_IP}${PORT_OR_DEFAULT}`,
-        // ...defaultRelays,
-        // 'wss://relay.damus.io',
-        // 'wss://relay.nostr.band',
       ],
-      signer,
       cacheAdapter: dexieAdapter,
     });
   }
@@ -45,6 +40,10 @@ class NostrService {
 
   public getNDK(): NDK {
     return this.ndk;
+  }
+
+  public setSigner(signer: NDKSigner | null): void {
+    this.ndk.signer = signer || undefined;
   }
 }
 

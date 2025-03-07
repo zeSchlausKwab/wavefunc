@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Station, Stream } from "@wavefunc/common";
+import { Station, Stream, FavoritesList } from "@wavefunc/common";
 import { useSetAtom } from "jotai";
 import {
   Calendar,
@@ -40,6 +40,7 @@ interface ExpandableStationCardProps {
   onUpdate?: (updatedStation: Station) => void;
   onDelete?: (stationId: string) => void;
   currentListId?: string;
+  favoritesLists: FavoritesList[];
 }
 
 export function ExpandableStationCard({
@@ -47,6 +48,7 @@ export function ExpandableStationCard({
   onUpdate,
   onDelete,
   currentListId,
+  favoritesLists,
 }: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
   const setIsPlaying = useSetAtom(isPlayingAtom);
@@ -215,6 +217,7 @@ export function ExpandableStationCard({
               <FavoritesDropdown
                 station={station}
                 currentListId={currentListId}
+                favoritesLists={favoritesLists}
               />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">

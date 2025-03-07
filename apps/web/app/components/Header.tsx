@@ -9,7 +9,7 @@ import { authStateAtom, loginDialogAtom, logout } from "../atoms/auth";
 import { LoginDialog } from "./auth/LoginDialog";
 import { Nav } from "./Nav";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function Header() {
   const openCreateDrawer = useSetAtom(openCreateStationDrawer);
@@ -17,6 +17,16 @@ export function Header() {
   const doLogout = useSetAtom(logout);
   const authState = useAtomValue(authStateAtom);
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <header className="flex flex-col sm:flex-row items-center p-4 gap-4 bg-white shadow-md">

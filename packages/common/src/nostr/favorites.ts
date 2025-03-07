@@ -36,7 +36,8 @@ export interface FavoritesListContent {
  * Creates an unsigned favorites list event
  */
 export function createFavoritesEvent(
-  content: FavoritesListContent
+  content: FavoritesListContent,
+  pubkey: string
 ): NostrEvent {
   return {
     kind: RADIO_EVENT_KINDS.FAVORITES,
@@ -50,7 +51,7 @@ export function createFavoritesEvent(
       ["client", "nostr_radio"],
     ],
     content: JSON.stringify(content),
-    pubkey: "",
+    pubkey,
   };
 }
 
@@ -61,8 +62,14 @@ export async function publishFavoritesList(
   ndk: NDK,
   content: FavoritesListContent
 ): Promise<NDKEvent> {
-  const event = createFavoritesEvent(content);
+  if (!ndk.signer) {
+    throw new Error("No signer available");
+  }
+
+  const pubkey = await ndk.signer.user().then((user) => user.pubkey);
+  const event = createFavoritesEvent(content, pubkey);
   const ndkEvent = new NDKEvent(ndk, event);
+  await ndkEvent.sign();
   await ndkEvent.publish();
   return ndkEvent;
 }
@@ -75,6 +82,12 @@ export async function updateFavoritesList(
   favoritesList: FavoritesList,
   updatedContent: Partial<FavoritesListContent>
 ): Promise<NDKEvent> {
+  if (!ndk.signer) {
+    throw new Error("No signer available");
+  }
+
+  const pubkey = await ndk.signer.user().then((user) => user.pubkey);
+
   // Get the existing d-tag to preserve it
   const dTag = favoritesList.tags.find((tag) => tag[0] === "d");
 
@@ -100,10 +113,11 @@ export async function updateFavoritesList(
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content: JSON.stringify(content),
-    pubkey: "",
+    pubkey,
   };
 
   const ndkEvent = new NDKEvent(ndk, event);
+  await ndkEvent.sign();
   await ndkEvent.publish();
   return ndkEvent;
 }

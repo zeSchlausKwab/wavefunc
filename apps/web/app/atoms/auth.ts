@@ -4,27 +4,61 @@ import {
   NDKUser,
   NDKNip07Signer,
   NDKNip46Signer,
+  NDKSigner,
 } from "@nostr-dev-kit/ndk";
 import { nostrService } from "@/services/ndk";
 
 interface AuthState {
   isAuthenticated: boolean;
   user?: NDKUser;
-  signer?: NDKPrivateKeySigner | NDKNip07Signer | NDKNip46Signer;
+  signer?: NDKSigner;
 }
 
 // Initialize auth state from localStorage if available
-const getInitialAuthState = (): AuthState => {
+const getInitialAuthState = async (): Promise<AuthState> => {
   if (typeof window === "undefined") {
     return { isAuthenticated: false };
   }
 
   const savedAuth = localStorage.getItem("AUTH_STATE");
+  const savedPrivateKey = localStorage.getItem("NOSTR_LOCAL_SIGNER_KEY");
+
   if (savedAuth) {
     try {
       const parsed = JSON.parse(savedAuth);
       // Only restore if we have a valid user pubkey
       if (parsed.user?.pubkey) {
+        // If we have a saved private key, restore the signer
+        if (savedPrivateKey) {
+          const signer = new NDKPrivateKeySigner(savedPrivateKey);
+          await signer.blockUntilReady();
+          nostrService.setSigner(signer);
+          const user = await signer.user();
+          return {
+            isAuthenticated: true,
+            user,
+            signer,
+          };
+        }
+
+        // If we have a saved NIP-07 signer and window.nostr is available
+        if (window.nostr) {
+          try {
+            const signer = new NDKNip07Signer();
+            await signer.blockUntilReady();
+            nostrService.setSigner(signer);
+            const user = await signer.user();
+            return {
+              isAuthenticated: true,
+              user,
+              signer,
+            };
+          } catch (error) {
+            console.warn("Failed to restore NIP-07 signer:", error);
+          }
+        }
+
+        // If no signer could be restored but we have user data
         return {
           isAuthenticated: true,
           user: parsed.user,
@@ -37,15 +71,28 @@ const getInitialAuthState = (): AuthState => {
   return { isAuthenticated: false };
 };
 
-export const authStateAtom = atom<AuthState>(getInitialAuthState());
+// Create a loading atom to track initialization
+export const authLoadingAtom = atom<boolean>(true);
+
+// Create an async atom that initializes auth state
+const initAuthStateAtom = atom<Promise<AuthState>>(getInitialAuthState());
+
+// Create the main auth state atom that depends on the async initialization
+export const authStateAtom = atom(
+  async (get) => {
+    const authState = await get(initAuthStateAtom);
+    return authState;
+  },
+  (_get, set, update: AuthState) => {
+    set(authStateAtom, update);
+  }
+);
 
 export const loginDialogAtom = atom<boolean>(false);
 
-const updateAuthState = async (
-  signer: NDKPrivateKeySigner | NDKNip07Signer | NDKNip46Signer
-): Promise<AuthState> => {
+const updateAuthState = async (signer: NDKSigner): Promise<AuthState> => {
   const ndk = nostrService.getNDK();
-  ndk.signer = signer;
+  nostrService.setSigner(signer);
   const user = await signer.user();
   await user.fetchProfile();
 
@@ -120,8 +167,7 @@ export const loginWithExtension = atom(null, async (get, set) => {
 });
 
 export const logout = atom(null, (get, set) => {
-  const ndk = nostrService.getNDK();
-  ndk.signer = undefined;
+  nostrService.setSigner(null);
   set(authStateAtom, { isAuthenticated: false });
   localStorage.removeItem("AUTH_STATE");
   localStorage.removeItem("NOSTR_CONNECT_KEY");

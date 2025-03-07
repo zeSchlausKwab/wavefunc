@@ -23,71 +23,33 @@ import { Station } from "@wavefunc/common";
 interface FavoritesDropdownProps {
   station: Station;
   currentListId?: string; // If provided, the station is in this list
+  favoritesLists: FavoritesList[]; // Add this prop
 }
 
 export function FavoritesDropdown({
   station,
   currentListId,
+  favoritesLists = [], // Add default value
 }: FavoritesDropdownProps) {
-  const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([]);
-  const [selectedListId, setSelectedListId] = useState<string>("loading");
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedListId, setSelectedListId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Set initial selected list when lists are available
   useEffect(() => {
-    let subscription: ReturnType<typeof subscribeToFavoritesLists>;
-
-    const fetchData = async () => {
-      try {
-        const ndk = nostrService.getNDK();
-        if (!ndk) return;
-
-        // Initial fetch
-        const lists = await fetchFavoritesLists(ndk, {
-          pubkey: ndk.activeUser?.pubkey,
-        });
-        setFavoritesLists(lists);
-
-        // Subscribe to updates
-        subscription = subscribeToFavoritesLists(
-          ndk,
-          { pubkey: ndk.activeUser?.pubkey },
-          (favoritesList) => {
-            setFavoritesLists((prev) => {
-              // Replace if exists, otherwise add
-              const index = prev.findIndex(
-                (list) => list.id === favoritesList.id
-              );
-              if (index >= 0) {
-                const newLists = [...prev];
-                newLists[index] = favoritesList;
-                return newLists;
-              }
-              return [...prev, favoritesList];
-            });
-          }
-        );
-      } catch (error) {
-        console.error("Error fetching favorites lists:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      if (subscription) {
-        subscription.stop();
-      }
-    };
-  }, []);
+    if (favoritesLists.length > 0 && !selectedListId) {
+      setSelectedListId(favoritesLists[0].id);
+    }
+  }, [favoritesLists, selectedListId]);
 
   const handleAddToFavorites = async () => {
     if (!selectedListId) return;
 
     try {
       const ndk = nostrService.getNDK();
-      if (!ndk) return;
+      if (!ndk?.activeUser?.pubkey) {
+        console.log("No user logged in");
+        return;
+      }
 
       const selectedList = favoritesLists.find(
         (list) => list.id === selectedListId
@@ -109,7 +71,10 @@ export function FavoritesDropdown({
 
     try {
       const ndk = nostrService.getNDK();
-      if (!ndk) return;
+      if (!ndk?.activeUser?.pubkey) {
+        console.log("No user logged in");
+        return;
+      }
 
       const currentList = favoritesLists.find(
         (list) => list.id === currentListId
@@ -132,6 +97,26 @@ export function FavoritesDropdown({
     }
   };
 
+  // Check if user is logged in
+  const ndk = nostrService.getNDK();
+  if (!ndk?.activeUser?.pubkey) {
+    return (
+      <div className="flex items-center space-x-2">
+        <Select disabled>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Login to add to favorites" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="login">Login required</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" size="icon" disabled>
+          <Heart className="h-4 w-4 text-primary" />
+        </Button>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center space-x-2">
@@ -150,7 +135,7 @@ export function FavoritesDropdown({
     );
   }
 
-  if (favoritesLists.length === 0) {
+  if (!Array.isArray(favoritesLists) || favoritesLists.length === 0) {
     return (
       <div className="flex items-center space-x-2">
         <Select disabled>
@@ -194,7 +179,7 @@ export function FavoritesDropdown({
         </SelectTrigger>
         <SelectContent>
           {favoritesLists.map((list) => (
-            <SelectItem key={list.id} value={list.id}>
+            <SelectItem key={list.id} value={list.id || "no-id"}>
               {list.name}
             </SelectItem>
           ))}
@@ -204,7 +189,7 @@ export function FavoritesDropdown({
         variant="ghost"
         size="icon"
         onClick={handleAddToFavorites}
-        disabled={selectedListId === "loading" || selectedListId === "no-lists"}
+        disabled={!selectedListId}
         title="Add to selected list"
       >
         <Heart className="h-4 w-4 text-primary" />

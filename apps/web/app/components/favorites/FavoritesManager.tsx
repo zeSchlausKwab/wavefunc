@@ -17,7 +17,7 @@ import {
   parseRadioEvent,
 } from "@wavefunc/common";
 import { Edit, Heart, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { EditFavoritesListDrawer } from "./EditFavoritesListDrawer";
 import { ExpandableStationCard } from "../station/ExpandableStationCard";
 import { NDKEvent } from "@nostr-dev-kit/ndk";
@@ -39,66 +39,71 @@ export function FavoritesManager() {
   const [selectedFavoritesList, setSelectedFavoritesList] = useState<
     FavoritesList | undefined
   >();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [resolvedStations, setResolvedStations] = useState<
     Record<string, ResolvedStation>
   >({});
+  const mounted = useRef(false);
 
+  // Effect to handle NDK state and subscriptions
   useEffect(() => {
-    let subscription: ReturnType<typeof subscribeToFavoritesLists>;
+    const ndk = nostrService.getNDK();
+    const pubkey = ndk?.activeUser?.pubkey;
 
-    const fetchData = async () => {
-      try {
-        const ndk = nostrService.getNDK();
-        if (!ndk) return;
+    if (!pubkey) {
+      setFavoritesLists([]);
+      setResolvedStations({});
+      return;
+    }
 
-        // Initial fetch
-        const lists = await fetchFavoritesLists(ndk, {
-          pubkey: ndk.activeUser?.pubkey,
-        });
+    setIsLoading(true);
+
+    // Initial fetch
+    fetchFavoritesLists(ndk, { pubkey })
+      .then((lists) => {
+        console.log("Fetched lists for pubkey:", pubkey, lists);
         setFavoritesLists(lists);
-
-        // Subscribe to updates
-        subscription = subscribeToFavoritesLists(
-          ndk,
-          { pubkey: ndk.activeUser?.pubkey },
-          (favoritesList) => {
-            setFavoritesLists((prev) => {
-              // Replace if exists, otherwise add
-              const index = prev.findIndex(
-                (list) => list.id === favoritesList.id
-              );
-              if (index >= 0) {
-                const newLists = [...prev];
-                newLists[index] = favoritesList;
-                return newLists;
-              }
-              return [...prev, favoritesList];
-            });
-          }
-        );
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error("Error fetching favorites lists:", error);
-      } finally {
+      })
+      .finally(() => {
         setIsLoading(false);
-      }
-    };
+      });
 
-    fetchData();
+    // Subscribe to updates
+    const subscription = subscribeToFavoritesLists(
+      ndk,
+      { pubkey },
+      (favoritesList) => {
+        console.log("Received list update for pubkey:", pubkey, favoritesList);
+        setFavoritesLists((prev) => {
+          const index = prev.findIndex((list) => list.id === favoritesList.id);
+          if (index >= 0) {
+            const newLists = [...prev];
+            newLists[index] = favoritesList;
+            return newLists;
+          }
+          return [...prev, favoritesList];
+        });
+      }
+    );
 
     return () => {
-      if (subscription) {
-        subscription.stop();
-      }
+      subscription?.stop();
+      setFavoritesLists([]);
+      setResolvedStations({});
     };
-  }, []);
+  }, [nostrService.getNDK()?.activeUser?.pubkey]); // Depend on pubkey changes
 
   // Effect to resolve stations when favorites lists change
   useEffect(() => {
-    const resolveStations = async () => {
-      const ndk = nostrService.getNDK();
-      if (!ndk) return;
+    const ndk = nostrService.getNDK();
+    if (!ndk?.activeUser?.pubkey || favoritesLists.length === 0) {
+      return;
+    }
 
+    const resolveStations = async () => {
       const newResolvedStations: Record<string, ResolvedStation> = {};
 
       for (const list of favoritesLists) {
@@ -109,10 +114,8 @@ export function FavoritesManager() {
             let event: NDKEvent | null = null;
 
             if (favorite.naddr) {
-              // Try to fetch by naddr first
               event = await ndk.fetchEvent(favorite.naddr);
             } else {
-              // Fallback to event_id
               event = await ndk.fetchEvent(favorite.event_id);
             }
 
@@ -141,7 +144,6 @@ export function FavoritesManager() {
               `Error resolving station ${favorite.event_id}:`,
               error
             );
-            // Add a placeholder for failed resolutions
             newResolvedStations[favorite.event_id] = {
               id: favorite.event_id,
               station: null,
@@ -155,7 +157,7 @@ export function FavoritesManager() {
     };
 
     resolveStations();
-  }, [favoritesLists]);
+  }, [favoritesLists, nostrService.getNDK()?.activeUser?.pubkey]);
 
   const handleCreateNewList = () => {
     setSelectedFavoritesList(undefined);
@@ -255,6 +257,7 @@ export function FavoritesManager() {
                         key={favorite.event_id}
                         station={resolved.station}
                         currentListId={list.id}
+                        favoritesLists={favoritesLists}
                       />
                     );
                   })}
