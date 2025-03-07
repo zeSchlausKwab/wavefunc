@@ -40,7 +40,7 @@ interface ExpandableStationCardProps {
   onUpdate?: (updatedStation: Station) => void;
   onDelete?: (stationId: string) => void;
   currentListId?: string;
-  favoritesLists: FavoritesList[];
+  favoritesLists?: FavoritesList[];
 }
 
 export function ExpandableStationCard({
@@ -48,7 +48,7 @@ export function ExpandableStationCard({
   onUpdate,
   onDelete,
   currentListId,
-  favoritesLists,
+  favoritesLists = [],
 }: ExpandableStationCardProps) {
   const setCurrentStation = useSetAtom(currentStationAtom);
   const setIsPlaying = useSetAtom(isPlayingAtom);
@@ -103,6 +103,16 @@ export function ExpandableStationCard({
       setIsPlaying(true);
     }
   };
+
+  // Debug logs
+  React.useEffect(() => {
+    console.log("ExpandableStationCard props:", {
+      stationId: station.id,
+      currentListId,
+      favoritesListsCount: favoritesLists.length,
+      hasLists: favoritesLists && favoritesLists.length > 0,
+    });
+  }, [station.id, currentListId, favoritesLists]);
 
   return (
     <Card className="w-full bg-white bg-opacity-90 shadow-lg overflow-hidden">
@@ -206,7 +216,7 @@ export function ExpandableStationCard({
               <div className="w-10 h-10 rounded-full bg-primary mr-3"></div>
               <div>
                 <p className="text-sm font-semibold font-press-start-2p">
-                  John Doe
+                  {user?.profile?.name || "Anonymous"}
                 </p>
                 <p className="text-xs text-gray-500 font-press-start-2p">
                   Station Creator
@@ -214,11 +224,13 @@ export function ExpandableStationCard({
               </div>
             </div>
             <div className="mb-4">
-              <FavoritesDropdown
-                station={station}
-                currentListId={currentListId}
-                favoritesLists={favoritesLists}
-              />
+              {Array.isArray(favoritesLists) && (
+                <FavoritesDropdown
+                  station={station}
+                  currentListId={currentListId}
+                  favoritesLists={favoritesLists}
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="flex items-center">

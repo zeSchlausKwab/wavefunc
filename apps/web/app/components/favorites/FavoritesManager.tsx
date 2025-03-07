@@ -45,10 +45,26 @@ export function FavoritesManager() {
   >({});
   const mounted = useRef(false);
 
+  // Debug logs for state changes
+  useEffect(() => {
+    console.log("FavoritesManager state:", {
+      listsCount: favoritesLists.length,
+      lists: favoritesLists.map((l) => ({ id: l.id, name: l.name })),
+      resolvedStationsCount: Object.keys(resolvedStations).length,
+      isLoading,
+    });
+  }, [favoritesLists, resolvedStations, isLoading]);
+
   // Effect to handle NDK state and subscriptions
   useEffect(() => {
     const ndk = nostrService.getNDK();
     const pubkey = ndk?.activeUser?.pubkey;
+
+    console.log("FavoritesManager NDK state:", {
+      pubkey,
+      hasNDK: !!ndk,
+      hasSigner: !!ndk?.signer,
+    });
 
     if (!pubkey) {
       setFavoritesLists([]);
