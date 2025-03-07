@@ -1,11 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { Music2 } from "lucide-react";
+import { Music2, ExternalLink } from "lucide-react";
 import { useState, useRef } from "react";
 import { nostrService } from "@/services/ndk";
 import { NDKEvent, NDKKind, NostrEvent } from "@nostr-dev-kit/ndk";
 import { useAtom } from "jotai";
 import { currentStationAtom } from "../atoms/stations";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 const JOB_KIND = 5000; // Music recognition job request
 const RESULT_KIND = 6000; // Music recognition result (1000 higher than request)
@@ -19,12 +27,40 @@ interface RecognitionResult {
   release_date?: string;
   song_link?: string;
   apple_music?: {
-    preview?: string;
+    previews?: Array<{ url: string }>;
+    artwork?: {
+      url: string;
+      width: number;
+      height: number;
+      bgColor?: string;
+      textColor1?: string;
+    };
+    artistName?: string;
     url?: string;
+    albumName?: string;
+    genreNames?: string[];
+    durationInMillis?: number;
+    composerName?: string;
   };
   spotify?: {
-    preview?: string;
-    url?: string;
+    album?: {
+      artists?: Array<{
+        name: string;
+        external_urls?: { spotify?: string };
+      }>;
+      images?: Array<{
+        url: string;
+        width: number;
+        height: number;
+      }>;
+      name?: string;
+      release_date?: string;
+    };
+    external_urls?: {
+      spotify?: string;
+    };
+    name?: string;
+    duration_ms?: number;
   };
 }
 
@@ -38,6 +74,7 @@ export function MusicRecognitionButton({
   const [currentStation] = useAtom(currentStationAtom);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<RecognitionResult | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -253,6 +290,7 @@ export function MusicRecognitionButton({
           const content = JSON.parse(event.content);
           if (content.type === "audd_response") {
             setResult(content.result);
+            setIsDialogOpen(true);
             toast({
               title: "Song Recognized!",
               description: `${content.result.title} by ${content.result.artist}`,
@@ -302,8 +340,15 @@ export function MusicRecognitionButton({
     startRecording();
   };
 
+  const formatDuration = (ms?: number) => {
+    if (!ms) return "";
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}:${Number(seconds) < 10 ? "0" : ""}${seconds}`;
+  };
+
   return (
-    <div className="relative">
+    <>
       <Button
         variant="outline"
         size="icon"
@@ -319,49 +364,124 @@ export function MusicRecognitionButton({
         )}
       </Button>
 
-      {result && (
-        <div className="absolute bottom-full left-0 mb-2 w-64 rounded-lg bg-card p-2 shadow-lg">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold">{result.title}</p>
-            <p className="text-xs text-muted-foreground">{result.artist}</p>
-            {result.album && (
-              <p className="text-xs text-muted-foreground">{result.album}</p>
-            )}
-            <div className="mt-2 flex space-x-2">
-              {result.spotify?.url && (
-                <a
-                  href={result.spotify.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Spotify
-                </a>
-              )}
-              {result.apple_music?.url && (
-                <a
-                  href={result.apple_music.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Apple Music
-                </a>
-              )}
-              {result.song_link && (
-                <a
-                  href={result.song_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Listen
-                </a>
-              )}
+      <Dialog open={isDialogOpen && !!result} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Song Recognition Result</DialogTitle>
+          </DialogHeader>
+          {result && (
+            <div className="grid gap-4">
+              <div className="flex items-start gap-4">
+                {(
+                  result.spotify?.album?.images?.[0]?.url ||
+                  result.apple_music?.artwork?.url
+                ) ?
+                  <div className="relative h-24 w-24 overflow-hidden rounded-md">
+                    <Image
+                      src={
+                        result.spotify?.album?.images?.[0]?.url ||
+                        result.apple_music?.artwork?.url
+                          ?.replace("{w}", "500")
+                          .replace("{h}", "500") ||
+                        ""
+                      }
+                      alt={result.title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                : null}
+                <div className="flex flex-col">
+                  <h3 className="font-semibold">{result.title}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {result.artist}
+                  </p>
+                  {result.album && (
+                    <p className="text-sm text-muted-foreground">
+                      {result.album}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-2 text-sm">
+                {result.release_date && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Release Date</span>
+                    <span>
+                      {new Date(result.release_date).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                {(result.spotify?.duration_ms ||
+                  result.apple_music?.durationInMillis) && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Duration</span>
+                    <span>
+                      {formatDuration(
+                        result.spotify?.duration_ms ||
+                          result.apple_music?.durationInMillis
+                      )}
+                    </span>
+                  </div>
+                )}
+                {result.apple_music?.genreNames &&
+                  result.apple_music.genreNames.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Genres</span>
+                      <span>{result.apple_music.genreNames.join(", ")}</span>
+                    </div>
+                  )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {result.spotify?.external_urls?.spotify && (
+                  <a
+                    href={result.spotify.external_urls.spotify}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2",
+                      "rounded-md bg-[#1DB954] px-3 py-2 text-sm font-semibold text-white",
+                      "hover:bg-[#1DB954]/90"
+                    )}
+                  >
+                    Spotify <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+                {result.apple_music?.url && (
+                  <a
+                    href={result.apple_music.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2",
+                      "rounded-md bg-[#FB233B] px-3 py-2 text-sm font-semibold text-white",
+                      "hover:bg-[#FB233B]/90"
+                    )}
+                  >
+                    Apple Music <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+                {result.song_link && (
+                  <a
+                    href={result.song_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2",
+                      "rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground",
+                      "hover:bg-primary/90"
+                    )}
+                  >
+                    Listen <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

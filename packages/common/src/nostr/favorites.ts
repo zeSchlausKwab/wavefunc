@@ -322,7 +322,7 @@ export function subscribeToFavoritesLists(
 
   const subscription = ndk.subscribe(filter, {
     closeOnEose: false,
-    cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
   });
 
   if (onEvent) {

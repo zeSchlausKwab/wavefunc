@@ -32,7 +32,7 @@ export function DevelopmentControls() {
   };
 
   return (
-    <div className="fixed bottom-20 right-4 flex flex-col gap-2 bg-white p-4 rounded-lg shadow-lg border">
+    <div className="fixed bottom-30 right-4 flex flex-col gap-2 bg-white p-4 rounded-lg shadow-lg border">
       <h2 className="font-bold mb-2">Development Controls</h2>
       <button
         onClick={() => callDevEndpoint("seed")}
