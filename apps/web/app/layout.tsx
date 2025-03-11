@@ -33,7 +33,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
             <Toaster />
           </main>
           <DevelopmentControls />
-          <Footer />
           <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t">
             <RadioPlayer />
           </div>

@@ -322,9 +322,9 @@ export function RadioPlayer() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-36 items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
+      <div className="container flex h-24 items-center justify-between py-2">
+        <div className="flex items-center gap-4 w-full">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
@@ -347,7 +347,7 @@ export function RadioPlayer() {
               <MusicRecognitionButton audioElement={audioRef.current} />
             )}
           </div>
-          <div className="grow min-w-0">
+          <div className="grow min-w-0 max-w-[50%]">
             <h3 className="text-xs sm:text-sm font-semibold text-primary font-press-start-2p truncate">
               {currentStation?.name || "No station selected"}
             </h3>
@@ -356,50 +356,15 @@ export function RadioPlayer() {
                 currentStation.description
               : "Select a station to play"}
             </p>
-            {currentStation && (
-              <div className="hidden sm:block mt-1 space-y-1">
-                <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                  <span className="font-semibold">Genre:</span>{" "}
-                  {currentStation.tags.find((t) => t[0] === "genre")?.[1] ||
-                    "Unknown"}
-                </p>
-                <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                  <span className="font-semibold">Bitrate:</span>{" "}
-                  {primaryStream?.quality.bitrate ?
-                    `${Math.round(primaryStream.quality.bitrate / 1000)}`
-                  : "Unknown"}{" "}
-                  kbps
-                </p>
-                {metadata.songTitle && (
-                  <p className="text-xs text-muted-foreground font-press-start-2p truncate flex items-center gap-1">
-                    <Music className="h-3 w-3" />
-                    <span className="font-semibold">Now Playing:</span>{" "}
-                    {metadata.songTitle}
-                  </p>
-                )}
-                {metadata.songArtist && (
-                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                    <span className="font-semibold">Artist:</span>{" "}
-                    {metadata.songArtist}
-                  </p>
-                )}
-                {metadata.songAlbum && (
-                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                    <span className="font-semibold">Album:</span>{" "}
-                    {metadata.songAlbum}
-                  </p>
-                )}
-                {metadata.icyName && (
-                  <p className="text-xs text-muted-foreground font-press-start-2p truncate">
-                    <span className="font-semibold">Stream Info:</span>{" "}
-                    {metadata.icyName}
-                  </p>
-                )}
-              </div>
+            {currentStation && metadata.songTitle && (
+              <p className="text-xs text-muted-foreground font-press-start-2p truncate flex items-center gap-1 mt-1">
+                <Music className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{metadata.songTitle}</span>
+              </p>
             )}
           </div>
-          <div className="flex flex-col items-end space-y-1">
-            <div className="flex items-center space-x-1 sm:space-x-2">
+          <div className="flex flex-col items-end gap-1 ml-auto">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="outline"
                 size="icon"
@@ -419,7 +384,7 @@ export function RadioPlayer() {
                 : <Volume2 className="h-4 w-4" />}
               </Button>
             </div>
-            {currentStation && (
+            {currentStation?.website && (
               <a
                 href={currentStation.website}
                 target="_blank"

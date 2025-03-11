@@ -100,7 +100,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
     const ackSub = ndk.subscribe({
       kinds: [NDKKind.NostrConnect],
       "#p": [localPubkey],
-      since: Math.floor(Date.now() / 1000),
+      since: Math.floor(Date.now() / 1000) - 10,
       limit: 1,
     });
 
