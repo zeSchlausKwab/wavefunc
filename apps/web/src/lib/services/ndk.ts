@@ -4,6 +4,7 @@ import { generateSecretKey } from 'nostr-tools'
 
 const WS_PROTOCOL = import.meta.env.DEV ? 'ws' : 'wss'
 const RELAY_PREFIX = import.meta.env.DEV ? '' : 'relay.'
+const PORT_OR_DEFAULT = import.meta.env.DEV ? `:${import.meta.env.VITE_PUBLIC_RELAY_PORT}` : ''
 
 const dexieAdapter = new NDKCacheAdapterDexie({ dbName: 'wavefunc-ndk-cache' })
 
@@ -13,7 +14,7 @@ class NostrService {
     private anonymousSigner: NDKPrivateKeySigner | null = null
 
     private constructor() {
-        const relayUrl = `${WS_PROTOCOL}://${RELAY_PREFIX}${import.meta.env.VITE_PUBLIC_HOST}:${import.meta.env.VITE_PUBLIC_RELAY_PORT}`
+        const relayUrl = `${WS_PROTOCOL}://${RELAY_PREFIX}${import.meta.env.VITE_PUBLIC_HOST}${PORT_OR_DEFAULT}`
         console.log('Connecting to relay:', relayUrl)
 
         this.ndk = new NDK({
