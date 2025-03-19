@@ -1,12 +1,12 @@
 {
-  "extends": "../../tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "module": "ESNext",
-    "target": "ESNext",
-    "lib": ["ESNext"],
-    "moduleResolution": "node"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
-} 
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"]
+}

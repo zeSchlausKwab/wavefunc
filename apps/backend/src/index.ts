@@ -1,81 +1,61 @@
-import { serve } from "@hono/node-server";
-import { formatPhoneNumber, isValidEmail } from "@wavefunc/common";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { z } from "zod";
-import { config } from "./config";
-import { developmentService } from "./services/development";
+import { Elysia } from 'elysia'
+import { cors } from '@elysiajs/cors'
+import { swagger } from '@elysiajs/swagger'
+import { config } from '@wavefunc/common'
+import type { NostrEvent } from '@wavefunc/common'
 
-const app = new Hono();
+// Get the web app URL for CORS configuration
+const WEB_HOST = config.server.host || 'localhost'
+const WEB_PORT = process.env.PUBLIC_WEB_PORT || 8080
+const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+const WEB_URL = `${PROTOCOL}://${WEB_HOST}:${WEB_PORT}`
 
-// Middleware
-app.use("*", logger());
-app.use("*", cors());
+// Create a new Elysia instance with plugins
+const app = new Elysia()
+    .use(
+        cors({
+            origin: [WEB_URL, 'http://localhost:8080', `http://${WEB_HOST}:8080`],
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization'],
+            credentials: true,
+        }),
+    )
+    .use(
+        swagger({
+            documentation: {
+                info: {
+                    title: 'Bun Nostr API',
+                    version: '0.1.0',
+                    description: 'API for the Bun Nostr application',
+                },
+            },
+        }),
+    )
+    .get('/', () => {
+        return { message: 'Welcome to the Bun Nostr API' }
+    })
+    .get('/health', () => {
+        return { status: 'ok', timestamp: new Date().toISOString() }
+    })
+    .get('/api/posts', () => {
+        const response: NostrEvent[] = [
+            {
+                id: '1',
+                content: 'Hello from the API!',
+                pubkey: '123456789abcdef',
+                created_at: new Date().getTime(),
+                kind: 1,
+                tags: [['nostr', 'hello']],
+                sig: '123456789abcdef',
+            },
+        ]
 
-// Development routes - only available in development
-if (config.isDevelopment) {
-  app.post("/development/seed", async (c) => {
-    const result = await developmentService.seedData();
-    return c.json(result);
-  });
+        return response
+    })
+    .listen(config.server.port)
 
-  app.post("/development/nuke", async (c) => {
-    const result = await developmentService.nukeData();
-    return c.json(result);
-  });
+console.log(`🦊 Elysia is running at http://${config.server.host}:${config.server.port} in ${config.app.env} mode`)
+console.log(`📚 Swagger documentation available at http://${config.server.host}:${config.server.port}/swagger`)
+console.log(`🔒 CORS configured to allow requests from: ${WEB_URL}`)
 
-  app.post("/development/reset", async (c) => {
-    const result = await developmentService.resetData();
-    return c.json(result);
-  });
-} else {
-  const devRouteHandler = (c: any) =>
-    c.json({ error: "Development routes not available in production" }, 404);
-  app.post("/development/*", devRouteHandler);
-}
-
-// Routes
-app.get("/", (c) => {
-  return c.json({
-    message: "Hello from Hono!",
-    status: "ok",
-  });
-});
-
-app.get("/api/health", (c) => {
-  return c.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-const ValidateRequestSchema = z.object({
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-});
-
-app.post("/api/validate", async (c) => {
-  const body = await c.req.json();
-  const result = ValidateRequestSchema.safeParse(body);
-
-  if (!result.success) {
-    return c.json({ error: result.error.issues }, 400);
-  }
-
-  const { email, phone } = result.data;
-
-  return c.json({
-    isValidEmail: email ? isValidEmail(email) : false,
-    formattedPhone: phone ? formatPhoneNumber(phone) : "",
-  });
-});
-
-// Start the server
-const port = config.port;
-console.log(`Server is running on port ${port}`);
-
-serve({
-  fetch: app.fetch,
-  port,
-});
+export type App = typeof app
