@@ -1,31 +1,33 @@
 {
-  "name": "wavefunc",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "tooling/*"
-  ],
-  "scripts": {
-    "clean": "rm -rf **/node_modules **/dist",
-    "install:all": "bun install",
-    "dev": "bun run install:all && (bun run dev:web & bun run dev:backend & bun run dev:dvm & bun run dev:relay)",
-    "dev:web": "cd apps/web && bun --bun run dev",
-    "dev:backend": "cd apps/backend && bun run dev",
-    "dev:dvm": "cd apps/dvm && bun run dev",
-    "dev:relay": "cd apps/relay && bun run dev",
-    "build": "bun run build:web",
-    "build:web": "cd apps/web && bun run build",
-    "start": "bun run start:web & bun run start:backend & bun run start:dvm & bun run start:relay",
-    "start:web": "cd apps/web && bun --bun run dev",
-    "start:backend": "cd apps/backend && bun run dev",
-    "start:dvm": "cd apps/dvm && bun run dev",
-    "start:relay": "cd apps/relay && ./relay",
-    "lint": "bun run lint:packages && bun run lint:apps",
-    "lint:packages": "cd packages && bun run lint",
-    "lint:apps": "cd apps && bun run lint",
-    "format": "bun run format:packages && bun run format:apps",
-    "format:packages": "cd packages && bun run format",
-    "format:apps": "cd apps && bun run format"
-  }
+    "name": "wavefunc",
+    "module": "index.ts",
+    "type": "module",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "infra/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "bun run dev:web & bun run dev:backend & bun run dev:relay",
+        "dev:clean": "./scripts/dev.sh",
+        "dev:web": "bun run --cwd apps/web dev",
+        "dev:backend": "bun run --cwd apps/backend dev",
+        "dev:relay": "bun run --cwd infra/relay dev",
+        "test": "bun test",
+        "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
+        "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\""
+    },
+    "devDependencies": {
+        "@types/bun": "^1.2.4",
+        "@types/node": "^22.13.10",
+        "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.4",
+        "blossom-server-ts": "latest",
+        "prettier": "3.5.3",
+        "typescript": "^5.8.2"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    }
 }

@@ -1,0 +1,38 @@
+# Ignore artifacts
+node_modules
+dist
+build
+coverage
+.next
+out
+
+# Ignore generated files
+*.min.js
+*.min.css
+*.bundle.js
+
+# Ignore specific file types
+*.lock
+package-lock.json
+bun.lockb
+yarn.lock
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.*
+
+# Docker volumes
+blossom_data
+postgres_data
+postgres_secondary_data

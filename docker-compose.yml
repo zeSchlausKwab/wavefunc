@@ -1,6 +1,6 @@
 services:
-  postgres:
-    image: postgres:15-alpine
+  postgres-relay:
+    image: postgres:14-alpine
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -14,6 +14,33 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      
+  postgres-main:
+    image: postgres:14-alpine
+    ports:
+      - "${POSTGRES_SECONDARY_PORT:-5433}:5432"
+    volumes:
+      - postgres_secondary_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_SECONDARY_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_SECONDARY_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_SECONDARY_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SECONDARY_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  blossom:
+    image: ghcr.io/hzrd149/blossom-server:master
+    ports:
+      - "3004:3000"
+    volumes:
+      - blossom_data:/app/data
+      - ./infra/blossom/config.yaml:/app/config.yml
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  postgres_secondary_data:
+  blossom_data:
