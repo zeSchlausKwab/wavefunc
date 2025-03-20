@@ -31,7 +31,7 @@ export function Header() {
         <header className="flex flex-col sm:flex-row items-center p-4 gap-4 bg-white shadow-md">
             <div className="flex items-center justify-between w-full sm:w-auto">
                 <Link to="/" className="text-2xl font-bold font-press-start-2p">
-                    WaveFunc
+                    Wavef(u)nc
                 </Link>
                 <Button variant="ghost" size="icon" className="sm:hidden" onClick={() => setIsNavOpen(!isNavOpen)}>
                     <Menu className="h-5 w-5" />
