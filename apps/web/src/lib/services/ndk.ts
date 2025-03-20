@@ -13,7 +13,7 @@ class NostrService {
     private anonymousSigner: NDKPrivateKeySigner | null = null
 
     private constructor() {
-        const relayUrl = `${WS_PROTOCOL}://${RELAY_PREFIX}${import.meta.env.PUBLIC_HOST}:${import.meta.env.PUBLIC_RELAY_PORT}`
+        const relayUrl = `${WS_PROTOCOL}://${RELAY_PREFIX}${import.meta.env.VITE_PUBLIC_HOST}:${import.meta.env.VITE_PUBLIC_RELAY_PORT}`
         console.log('Connecting to relay:', relayUrl)
 
         this.ndk = new NDK({
@@ -30,7 +30,6 @@ class NostrService {
     }
 
     public async connect(): Promise<void> {
-        // If we don't have a signer, create an anonymous one
         if (!this.ndk.signer) {
             await this.createAnonymousSigner()
         }
@@ -38,16 +37,13 @@ class NostrService {
     }
 
     public async createAnonymousSigner(): Promise<void> {
-        // Don't create a new one if we already have one
         if (this.anonymousSigner) {
             return
         }
 
-        // Check if we have a stored anonymous key
         const storedKey = localStorage.getItem('ANONYMOUS_PRIVATE_KEY')
         const privateKey = storedKey ? new Uint8Array(JSON.parse(storedKey)) : generateSecretKey()
 
-        // Store the key if it's new
         if (!storedKey) {
             localStorage.setItem('ANONYMOUS_PRIVATE_KEY', JSON.stringify(Array.from(privateKey)))
         }
@@ -62,13 +58,11 @@ class NostrService {
     }
 
     public setSigner(signer: NDKSigner | null): void {
-        // If signer is null and we have an anonymous signer, use that
         if (!signer && this.anonymousSigner) {
             this.ndk.signer = this.anonymousSigner
             return
         }
 
-        // Otherwise set the provided signer or undefined
         this.ndk.signer = signer || undefined
     }
 

@@ -76,7 +76,7 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		// Fallback to RELAY_PORT if PORT is not set
-		port = os.Getenv("PUBLIC_RELAY_PORT")
+		port = os.Getenv("VITE_PUBLIC_RELAY_PORT")
 		if port == "" {
 			port = "3002"
 		}

@@ -94,12 +94,12 @@ export const config = {
     },
 
     web: {
-        port: getEnvVarAsNumber('PUBLIC_WEB_PORT', 8080),
+        port: getEnvVarAsNumber('VITE_PUBLIC_WEB_PORT', 8080),
     },
 
     server: {
-        host: getEnvVar('PUBLIC_HOST', 'localhost'),
-        port: getEnvVarAsNumber('PUBLIC_API_PORT', 3001),
+        host: getEnvVar('VITE_PUBLIC_HOST', 'localhost'),
+        port: getEnvVarAsNumber('VITE_PUBLIC_API_PORT', 3001),
     },
 
     databases: {
@@ -129,7 +129,7 @@ export const config = {
     },
 
     relay: {
-        port: getEnvVarAsNumber('PUBLIC_RELAY_PORT', 3002),
+        port: getEnvVarAsNumber('VITE_PUBLIC_RELAY_PORT', 3002),
         pubkey: getEnvVar('PUBLIC_RELAY_PUBKEY', ''),
         contact: getEnvVar('PUBLIC_RELAY_CONTACT', 'relay@example.com'),
     },

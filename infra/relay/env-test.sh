@@ -21,7 +21,7 @@ echo "🧪 Environment Variable Check:"
 
 # Define required variables
 required_vars=(
-    "PUBLIC_RELAY_PORT"
+    "VITE_PUBLIC_RELAY_PORT"
     "PUBLIC_RELAY_PUBKEY"
     "PUBLIC_RELAY_CONTACT"
     "POSTGRES_CONNECTION_STRING"
@@ -43,7 +43,7 @@ echo ""
 
 # Display relay configuration
 echo "📡 Relay Configuration:"
-echo "  Port: $PUBLIC_RELAY_PORT"
+echo "  Port: $VITE_PUBLIC_RELAY_PORT"
 echo "  Public Key: $PUBLIC_RELAY_PUBKEY"
 echo "  Contact: $PUBLIC_RELAY_CONTACT"
 echo ""

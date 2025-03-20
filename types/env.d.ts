@@ -23,13 +23,14 @@ declare module 'bun' {
         POSTGRES_SECONDARY_CONNECTION_STRING: string
 
         // Relay Configuration
-        PUBLIC_RELAY_PORT: string
+        VITE_PUBLIC_RELAY_PORT: string
         PUBLIC_RELAY_PUBKEY: string
         PUBLIC_RELAY_CONTACT: string
 
         // Public settings
-        PUBLIC_HOST: string
-        PUBLIC_API_PORT: string
+        VITE_PUBLIC_HOST: string
+        VITE_PUBLIC_API_PORT: string
+        VITE_PUBLIC_WEB_PORT: string
 
         // DVM Configuration
         DVM_PRIVATE_KEY: string

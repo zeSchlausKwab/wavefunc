@@ -38,7 +38,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
 
     const connectionUrl = useMemo(() => {
         if (!localPubkey) return null
-        const localMachineIp = import.meta.env.PUBLIC_HOST
+        const localMachineIp = import.meta.env.VITE_PUBLIC_HOST
         const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
         const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
         const PORT_OR_DEFAULT = import.meta.env.DEV ? ':3002' : ''
@@ -62,7 +62,7 @@ export function NostrConnectQR({ onError }: NostrConnectQRProps) {
         if (!pTag?.[1]) throw new Error('No pubkey in p tag')
 
         const baseUrl = `bunker://${event.pubkey}?`
-        const localMachineIp = import.meta.env.PUBLIC_HOST
+        const localMachineIp = import.meta.env.VITE_PUBLIC_HOST
         const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
         const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
         const PORT_OR_DEFAULT = import.meta.env.DEV ? ':3002' : ''

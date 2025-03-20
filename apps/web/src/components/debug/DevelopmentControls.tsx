@@ -10,7 +10,7 @@ export function DevelopmentControls() {
     const callDevEndpoint = async (endpoint: string) => {
         try {
             const response = await fetch(
-                `http://${import.meta.env.PUBLIC_HOST}:${import.meta.env.PUBLIC_API_PORT}/development/${endpoint}`,
+                `http://${import.meta.env.VITE_PUBLIC_HOST}:${import.meta.env.VITE_PUBLIC_API_PORT}/development/${endpoint}`,
                 {
                     method: 'POST',
                 },
