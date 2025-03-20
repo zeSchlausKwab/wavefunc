@@ -37,7 +37,6 @@ export function RadioStationCard({ station }: RadioStationCardProps) {
                 if (!isMounted) return
 
                 const nostrEvent = await findStationByNameInNostr(ndk, station.name)
-
                 if (!isMounted) return
 
                 setExistsInNostr(!!nostrEvent)

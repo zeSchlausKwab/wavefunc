@@ -1,5 +1,5 @@
 import { Header } from '@/components/Header'
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, HeadContent } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { EditStationDrawer } from '@/components/EditStationDrawer'
 import { useStore } from '@tanstack/react-store'
@@ -24,6 +24,7 @@ export const Route = createRootRoute({
     component: () => (
         <Providers>
             <div className="min-h-screen flex flex-col">
+                <HeadContent />
                 <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
                     <Header />
                 </div>

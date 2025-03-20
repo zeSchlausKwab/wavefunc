@@ -10,7 +10,8 @@
         "@wavefunc/common": "workspace:*",
         "elysia": "1.2.25",
         "@elysiajs/cors": "1.2.0",
-        "@elysiajs/swagger": "1.2.2"
+        "@nostr-dev-kit/ndk": "2.12.2",
+        "nostr-tools": "2.11.0"
     },
     "devDependencies": {
         "@types/node": "22.13.10",

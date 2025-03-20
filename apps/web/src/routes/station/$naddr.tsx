@@ -22,11 +22,11 @@ import {
     Music,
     Pencil,
     Play,
-    Share2,
     Zap,
 } from 'lucide-react'
 import React from 'react'
 import CommentsList from '@/components/comments/CommentsList'
+import { ShareStationButton } from '@/components/ShareStationButton'
 
 async function fetchStation(naddr: string): Promise<Station> {
     const ndk = nostrService.getNDK()
@@ -66,7 +66,7 @@ async function fetchStation(naddr: string): Promise<Station> {
             throw new Error('No events found for this station')
         }
 
-        let event: NDKEvent | undefined = events.values().next().value
+        let event = events.values().next().value as NDKEvent
         if (!event) {
             throw new Error('Station not found')
         }
@@ -95,17 +95,17 @@ async function fetchStation(naddr: string): Promise<Station> {
     }
 }
 
+// Define the loader data type
+interface StationLoaderData {
+    naddr: string
+}
+
 export const Route = createFileRoute('/station/$naddr')({
     validateSearch: (search) => ({}),
 
-    loader: async ({ params }) => {
+    loader: async ({ params }): Promise<StationLoaderData> => {
         const { naddr } = params
-        try {
-            await nostrService.connect()
-            return { naddr }
-        } catch (error) {
-            throw new Error(error instanceof Error ? error.message : 'Failed to connect to NDK')
-        }
+        return { naddr }
     },
 
     errorComponent: ({ error }) => {
@@ -157,9 +157,9 @@ function StationPage() {
     React.useEffect(() => {
         const getUser = async () => {
             if (station?.pubkey) {
-                const user = await nostrService.getNDK()?.signer?.user()
-                if (user) {
-                    setUser(user)
+                const userObj = await nostrService.getNDK()?.signer?.user()
+                if (userObj) {
+                    setUser(userObj as NDKUser)
                 }
             }
         }
@@ -274,9 +274,7 @@ function StationPage() {
                             <Button variant="outline" size="icon" aria-label="Comment">
                                 <MessageCircle className="h-4 w-4 text-primary" />
                             </Button>
-                            <Button variant="outline" size="icon" aria-label="Share">
-                                <Share2 className="h-4 w-4 text-primary" />
-                            </Button>
+                            <ShareStationButton stationId={station.id} stationName={station.name} />
                         </div>
 
                         {station.pubkey === user?.pubkey && (
@@ -394,7 +392,7 @@ function StationPage() {
             </div>
 
             <div className="mt-12 mb-8">
-                <CommentsList stationId={station.id} stationEvent={station} />
+                <CommentsList stationId={station.id} stationEvent={station} commentsCount={0} />
             </div>
         </div>
     )
