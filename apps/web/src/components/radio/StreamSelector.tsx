@@ -1,5 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Stream } from '@wavefunc/common'
+import { useMedia } from 'react-use'
+import { cn } from '@/lib/utils'
 
 interface StreamSelectorProps {
     stationId: number
@@ -9,14 +11,15 @@ interface StreamSelectorProps {
 }
 
 export function StreamSelector({ stationId, streams, selectedStreamId, onStreamSelect }: StreamSelectorProps) {
+    const isMobile = useMedia('(max-width: 640px)')
     const handleStreamSelect = (stream: Stream) => {
         onStreamSelect(stream)
     }
 
     return (
-        <div className="space-y-2">
-            <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">Stream Quality:</label>
+        <div className={cn('space-y-1', isMobile && 'w-full')}>
+            <div className={cn('flex items-center gap-1', !isMobile && 'gap-2')}>
+                {!isMobile && <label className="text-sm font-medium">Quality:</label>}
                 <Select
                     value={selectedStreamId?.toString()}
                     onValueChange={(value) => {
@@ -26,25 +29,26 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                         }
                     }}
                 >
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select stream quality" />
+                    <SelectTrigger className={cn(isMobile ? 'w-full h-7 text-xs px-2' : 'w-[180px]')}>
+                        <SelectValue placeholder={isMobile ? 'Quality' : 'Select quality'} />
                     </SelectTrigger>
                     <SelectContent>
                         {streams.map((stream, index) => (
                             <SelectItem
                                 key={`${stream.quality.bitrate}-${stream.quality.codec}-${stream.url}-${index}`}
                                 value={stream.url}
+                                className={cn(isMobile && 'text-xs h-7')}
                             >
                                 {stream.quality.bitrate
                                     ? `${Math.round(stream.quality.bitrate / 1000)} kbps`
                                     : 'Unknown'}{' '}
-                                ({stream.quality.codec})
+                                {!isMobile && `(${stream.quality.codec})`}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
             </div>
-            {selectedStreamId && (
+            {selectedStreamId && !isMobile && (
                 <div className="text-xs text-muted-foreground">
                     <p>Codec: {streams.find((s) => s.url === selectedStreamId.toString())?.quality.codec}</p>
                     <p>

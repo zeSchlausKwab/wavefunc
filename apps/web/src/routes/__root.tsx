@@ -29,7 +29,7 @@ export const Route = createRootRoute({
                     <Header />
                 </div>
 
-                <main className="flex-1 container mx-auto px-4 py-6">
+                <main className="flex-1 container mx-auto px-2 py-2">
                     <Outlet />
                 </main>
 
