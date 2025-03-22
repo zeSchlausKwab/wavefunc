@@ -6,6 +6,7 @@ import {
 } from '@/components/ui/navigation-menu'
 import { cn } from '@/lib/utils'
 import { Link, useRouter } from '@tanstack/react-router'
+import { useMedia } from 'react-use'
 
 const routes = [
     { href: '/discover', label: 'Discover' },
@@ -15,19 +16,21 @@ const routes = [
 
 export function Nav() {
     const router = useRouter()
+    const isMobile = useMedia('(max-width: 640px)')
 
     return (
-        <NavigationMenu>
-            <NavigationMenuList className="flex-col sm:flex-row">
+        <NavigationMenu className="w-full">
+            <NavigationMenuList className={cn(isMobile ? 'flex-col w-full space-y-1' : 'flex-row justify-center')}>
                 {routes.map((route) => (
-                    <NavigationMenuItem key={route.href}>
+                    <NavigationMenuItem key={route.href} className={cn(isMobile && 'w-full')}>
                         <Link
                             to={route.href}
                             className={cn(
                                 navigationMenuTriggerStyle(),
-                                'font-press-start-2p text-sm w-full sm:w-auto text-center sm:text-left',
+                                'font-press-start-2p text-sm',
+                                isMobile ? 'w-full justify-center' : '',
                                 router.state.location.pathname === route.href
-                                    ? 'text-primary font-medium'
+                                    ? 'text-primary font-medium bg-accent/30'
                                     : 'text-muted-foreground',
                             )}
                         >

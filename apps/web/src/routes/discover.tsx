@@ -138,42 +138,64 @@ function Discover() {
         })
     }
 
-    const genres = Array.from(new Set(stations.map((station) => station.genre))).filter(Boolean)
+    // Split each genre string at commas, flatten the array, and remove duplicates
+    const genres = stations
+        .flatMap((station) =>
+            station.genre
+                ? station.genre
+                      .split(',')
+                      .map((g) => g.trim())
+                      .filter(Boolean)
+                : [],
+        )
+        .filter((genre, index, self) => self.indexOf(genre) === index)
+        .sort((a, b) => a.localeCompare(b))
 
-    const filteredStations = selectedGenre ? stations.filter((station) => station.genre === selectedGenre) : stations
+    // Filter stations by selected genre, check if any comma-separated genre matches
+    const filteredStations = selectedGenre
+        ? stations.filter((station) => {
+              if (!station.genre) return false
+              const stationGenres = station.genre.split(',').map((g) => g.trim())
+              return stationGenres.includes(selectedGenre)
+          })
+        : stations
 
     return (
-        <div className={cn('container mx-auto', isMobile ? 'px-1 py-1' : 'p-6')}>
-            <h1 className={cn('font-bold font-press-start-2p mb-4', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>
+        <div className={cn('container mx-auto', isMobile ? 'px-2 py-2' : 'p-6')}>
+            <h1 className={cn('font-bold font-press-start-2p mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>
                 Discover
             </h1>
 
-            {genres.length > 0 && (
-                <div className="mb-4 overflow-x-auto scrollbar-hide whitespace-nowrap pb-2">
-                    <div className="inline-flex gap-1 p-1 bg-background/80 backdrop-blur-sm rounded-lg">
-                        <Button
-                            variant={selectedGenre === null ? 'default' : 'ghost'}
-                            size={isMobile ? 'sm' : 'default'}
-                            onClick={() => setSelectedGenre(null)}
-                            className={cn(isMobile && 'text-xs h-7 px-2')}
-                        >
-                            All
-                        </Button>
+            <div className="mb-4 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex flex-nowrap gap-1">
+                    <Button
+                        variant={selectedGenre === null ? 'default' : 'outline'}
+                        size={isMobile ? 'sm' : 'default'}
+                        onClick={() => setSelectedGenre(null)}
+                        className={cn(
+                            'rounded-md whitespace-nowrap min-w-max',
+                            isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3',
+                        )}
+                    >
+                        All
+                    </Button>
 
-                        {genres.map((genre) => (
-                            <Button
-                                key={genre}
-                                variant={selectedGenre === genre ? 'default' : 'ghost'}
-                                size={isMobile ? 'sm' : 'default'}
-                                onClick={() => setSelectedGenre(genre)}
-                                className={cn(isMobile && 'text-xs h-7 px-2')}
-                            >
-                                {genre}
-                            </Button>
-                        ))}
-                    </div>
+                    {genres.map((genre) => (
+                        <Button
+                            key={genre}
+                            variant={selectedGenre === genre ? 'default' : 'outline'}
+                            size={isMobile ? 'sm' : 'default'}
+                            onClick={() => setSelectedGenre(genre)}
+                            className={cn(
+                                'rounded-md whitespace-nowrap min-w-max',
+                                isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3',
+                            )}
+                        >
+                            {genre}
+                        </Button>
+                    ))}
                 </div>
-            )}
+            </div>
 
             <div className={cn('grid grid-cols-1', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
                 {filteredStations.map((station) => (

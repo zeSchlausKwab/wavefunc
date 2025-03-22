@@ -1,7 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { Stream } from '@wavefunc/common'
-import { useMedia } from 'react-use'
 import { cn } from '@/lib/utils'
+import type { Stream } from '@wavefunc/common'
+import * as React from 'react'
+import { useMedia } from 'react-use'
 
 interface StreamSelectorProps {
     stationId: number
@@ -16,12 +17,17 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
         onStreamSelect(stream)
     }
 
+    // Find the stream by bitrate for the value
+    const selectedStream = React.useMemo(() => {
+        return streams.find((s) => s.quality.bitrate === selectedStreamId)
+    }, [streams, selectedStreamId])
+
     return (
         <div className={cn('space-y-1', isMobile && 'w-full')}>
             <div className={cn('flex items-center gap-1', !isMobile && 'gap-2')}>
                 {!isMobile && <label className="text-sm font-medium">Quality:</label>}
                 <Select
-                    value={selectedStreamId?.toString()}
+                    value={selectedStream?.url}
                     onValueChange={(value) => {
                         const stream = streams.find((s) => s.url === value)
                         if (stream) {
@@ -48,20 +54,18 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                     </SelectContent>
                 </Select>
             </div>
-            {selectedStreamId && !isMobile && (
+            {selectedStream && !isMobile && (
                 <div className="text-xs text-muted-foreground">
-                    <p>Codec: {streams.find((s) => s.url === selectedStreamId.toString())?.quality.codec}</p>
+                    <p>Codec: {selectedStream.quality.codec}</p>
                     <p>
                         Bitrate:{' '}
-                        {streams.find((s) => s.url === selectedStreamId.toString())?.quality.bitrate
-                            ? `${Math.round(streams.find((s) => s.url === selectedStreamId.toString())!.quality.bitrate / 1000)} kbps`
+                        {selectedStream.quality.bitrate
+                            ? `${Math.round(selectedStream.quality.bitrate / 1000)} kbps`
                             : 'Unknown'}
                     </p>
                     <p>
                         Sample Rate:{' '}
-                        {streams.find((s) => s.url === selectedStreamId.toString())?.quality.sampleRate
-                            ? `${streams.find((s) => s.url === selectedStreamId.toString())!.quality.sampleRate} Hz`
-                            : 'Unknown'}
+                        {selectedStream.quality.sampleRate ? `${selectedStream.quality.sampleRate} Hz` : 'Unknown'}
                     </p>
                 </div>
             )}
