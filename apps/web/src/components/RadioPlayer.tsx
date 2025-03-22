@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { nextStation, previousStation, stationsStore, togglePlayback } from '@/lib/store/stations'
-import { Music, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MusicRecognitionButton } from './MusicRecognitionButton'
 import { useStore } from '@tanstack/react-store'
@@ -114,6 +114,7 @@ export function RadioPlayer() {
     const [error, setError] = useState<string | null>(null)
     const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(null)
     const [metadata, setMetadata] = useState<StreamMetadata>({})
+    const [actuallyPlaying, setActuallyPlaying] = useState(false)
     const playbackStateRef = useRef({ isPlaying, attemptingToPlay: false })
 
     // Update ref whenever the store changes
@@ -149,21 +150,20 @@ export function RadioPlayer() {
         }
 
         const handlePlay = () => {
-            // We don't need to update the store here, as the UI will already
-            // reflect the intended state
             playbackStateRef.current.attemptingToPlay = false
+            setActuallyPlaying(true)
         }
 
         const handlePause = () => {
-            // We don't need to update the store here, as the UI will already
-            // reflect the intended state
             playbackStateRef.current.attemptingToPlay = false
+            setActuallyPlaying(false)
         }
 
         const handleError = (e: any) => {
             console.error('Audio error:', e)
             setError('Failed to load audio stream')
             setIsLoading(false)
+            setActuallyPlaying(false)
 
             // Only toggle if we were attempting to play and not just in a transition state
             if (playbackStateRef.current.isPlaying && !playbackStateRef.current.attemptingToPlay) {
@@ -258,15 +258,19 @@ export function RadioPlayer() {
                 setMetadata((prev) => ({ ...prev, ...newMetadata }))
             })
 
-            // If we should be playing, start playback
-            if (playbackStateRef.current.isPlaying) {
-                await playAudio()
+            // Always attempt to play the new station
+            // This ensures autoplay when a new station is selected
+            if (!isPlaying) {
+                togglePlayback() // Set isPlaying to true in the store
+            } else {
+                await playAudio() // Start playing immediately
             }
 
             return cleanupFn
         } catch (error) {
             console.error('Error loading stream:', error)
             setError('Failed to load stream')
+            setActuallyPlaying(false)
 
             // Only update state if we're not in a transitional state
             if (playbackStateRef.current.isPlaying && !playbackStateRef.current.attemptingToPlay) {
@@ -346,16 +350,10 @@ export function RadioPlayer() {
         }
     }
 
-    const handleVolumeChange = (value: number[]) => {
+    const handleVolumeChange = (value: number) => {
         if (audioRef.current) {
-            audioRef.current.volume = value[0] / 100
-            setVolume(value[0] / 100)
-        }
-    }
-
-    const handleSeek = (value: number[]) => {
-        if (audioRef.current) {
-            audioRef.current.currentTime = value[0]
+            audioRef.current.volume = value / 100
+            setVolume(value / 100)
         }
     }
 
@@ -377,6 +375,7 @@ export function RadioPlayer() {
             }
         } catch (error: any) {
             console.error('Error playing audio:', error)
+            setActuallyPlaying(false)
 
             // Only treat non-abort errors as fatal
             if (error.name !== 'AbortError') {
@@ -391,10 +390,15 @@ export function RadioPlayer() {
         }
     }
 
+    // Type assertion component to help TypeScript understand the icons
+    const IconWrapper = ({ icon: Icon }: { icon: any }) => {
+        return <Icon className="h-5 w-5" />
+    }
+
     return (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-8 flex flex-col z-50">
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex-1 overflow-hidden">
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 md:p-8 flex flex-col z-50">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
+                <div className="flex-1 overflow-hidden mb-2 md:mb-0">
                     {currentStation ? (
                         <StreamMetadataDisplay
                             audioElement={audioRef.current}
@@ -408,7 +412,7 @@ export function RadioPlayer() {
                     )}
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 justify-center md:justify-end">
                     <Button
                         variant="ghost"
                         size="icon"
@@ -417,7 +421,7 @@ export function RadioPlayer() {
                             previousStation()
                         }}
                     >
-                        <SkipBack className="h-5 w-5" />
+                        <IconWrapper icon={SkipBack} />
                     </Button>
 
                     <Button
@@ -427,7 +431,7 @@ export function RadioPlayer() {
                         onClick={() => togglePlayback()}
                         className={isLoading ? 'animate-pulse' : ''}
                     >
-                        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                        {actuallyPlaying ? <IconWrapper icon={Pause} /> : <IconWrapper icon={Play} />}
                     </Button>
 
                     <Button
@@ -438,11 +442,11 @@ export function RadioPlayer() {
                             nextStation()
                         }}
                     >
-                        <SkipForward className="h-5 w-5" />
+                        <IconWrapper icon={SkipForward} />
                     </Button>
 
                     <Button variant="ghost" size="icon" onClick={handleMute}>
-                        {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                        {isMuted ? <IconWrapper icon={VolumeX} /> : <IconWrapper icon={Volume2} />}
                     </Button>
 
                     {currentStation && <MusicRecognitionButton audioElement={audioRef.current!} />}
