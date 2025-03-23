@@ -323,7 +323,6 @@ export const auth = {
     async loginWithNostrConnect(signer: NDKNip46Signer) {
         try {
             updateAuthState({ status: 'loading', error: null })
-
             await signer.blockUntilReady()
             nostrService.setSigner(signer)
 
