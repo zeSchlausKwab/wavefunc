@@ -302,7 +302,7 @@ export function LoginDialog() {
                             </TabsList>
 
                             <TabsContent value="qr">
-                                <NostrConnectQR onError={handleError} />
+                                <NostrConnectQR onError={handleError} onSuccess={() => auth.closeLoginDialog()} />
                             </TabsContent>
 
                             <TabsContent value="bunker">

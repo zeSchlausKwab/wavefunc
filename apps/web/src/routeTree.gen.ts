@@ -11,6 +11,7 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as FavouritesImport } from './routes/favourites'
 import { Route as DiscoverImport } from './routes/discover'
 import { Route as BrowseImport } from './routes/browse'
 import { Route as AboutImport } from './routes/about'
@@ -19,133 +20,149 @@ import { Route as StationNaddrImport } from './routes/station/$naddr'
 
 // Create/Update Routes
 
+const FavouritesRoute = FavouritesImport.update({
+    id: '/favourites',
+    path: '/favourites',
+    getParentRoute: () => rootRoute,
+} as any)
+
 const DiscoverRoute = DiscoverImport.update({
-  id: '/discover',
-  path: '/discover',
-  getParentRoute: () => rootRoute,
+    id: '/discover',
+    path: '/discover',
+    getParentRoute: () => rootRoute,
 } as any)
 
 const BrowseRoute = BrowseImport.update({
-  id: '/browse',
-  path: '/browse',
-  getParentRoute: () => rootRoute,
+    id: '/browse',
+    path: '/browse',
+    getParentRoute: () => rootRoute,
 } as any)
 
 const AboutRoute = AboutImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRoute,
+    id: '/about',
+    path: '/about',
+    getParentRoute: () => rootRoute,
 } as any)
 
 const IndexRoute = IndexImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => rootRoute,
 } as any)
 
 const StationNaddrRoute = StationNaddrImport.update({
-  id: '/station/$naddr',
-  path: '/station/$naddr',
-  getParentRoute: () => rootRoute,
+    id: '/station/$naddr',
+    path: '/station/$naddr',
+    getParentRoute: () => rootRoute,
 } as any)
 
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
+    interface FileRoutesByPath {
+        '/': {
+            id: '/'
+            path: '/'
+            fullPath: '/'
+            preLoaderRoute: typeof IndexImport
+            parentRoute: typeof rootRoute
+        }
+        '/about': {
+            id: '/about'
+            path: '/about'
+            fullPath: '/about'
+            preLoaderRoute: typeof AboutImport
+            parentRoute: typeof rootRoute
+        }
+        '/browse': {
+            id: '/browse'
+            path: '/browse'
+            fullPath: '/browse'
+            preLoaderRoute: typeof BrowseImport
+            parentRoute: typeof rootRoute
+        }
+        '/discover': {
+            id: '/discover'
+            path: '/discover'
+            fullPath: '/discover'
+            preLoaderRoute: typeof DiscoverImport
+            parentRoute: typeof rootRoute
+        }
+        '/favourites': {
+            id: '/favourites'
+            path: '/favourites'
+            fullPath: '/favourites'
+            preLoaderRoute: typeof FavouritesImport
+            parentRoute: typeof rootRoute
+        }
+        '/station/$naddr': {
+            id: '/station/$naddr'
+            path: '/station/$naddr'
+            fullPath: '/station/$naddr'
+            preLoaderRoute: typeof StationNaddrImport
+            parentRoute: typeof rootRoute
+        }
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutImport
-      parentRoute: typeof rootRoute
-    }
-    '/browse': {
-      id: '/browse'
-      path: '/browse'
-      fullPath: '/browse'
-      preLoaderRoute: typeof BrowseImport
-      parentRoute: typeof rootRoute
-    }
-    '/discover': {
-      id: '/discover'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof DiscoverImport
-      parentRoute: typeof rootRoute
-    }
-    '/station/$naddr': {
-      id: '/station/$naddr'
-      path: '/station/$naddr'
-      fullPath: '/station/$naddr'
-      preLoaderRoute: typeof StationNaddrImport
-      parentRoute: typeof rootRoute
-    }
-  }
 }
 
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/browse': typeof BrowseRoute
-  '/discover': typeof DiscoverRoute
-  '/station/$naddr': typeof StationNaddrRoute
+    '/': typeof IndexRoute
+    '/about': typeof AboutRoute
+    '/browse': typeof BrowseRoute
+    '/discover': typeof DiscoverRoute
+    '/favourites': typeof FavouritesRoute
+    '/station/$naddr': typeof StationNaddrRoute
 }
 
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/browse': typeof BrowseRoute
-  '/discover': typeof DiscoverRoute
-  '/station/$naddr': typeof StationNaddrRoute
+    '/': typeof IndexRoute
+    '/about': typeof AboutRoute
+    '/browse': typeof BrowseRoute
+    '/discover': typeof DiscoverRoute
+    '/favourites': typeof FavouritesRoute
+    '/station/$naddr': typeof StationNaddrRoute
 }
 
 export interface FileRoutesById {
-  __root__: typeof rootRoute
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/browse': typeof BrowseRoute
-  '/discover': typeof DiscoverRoute
-  '/station/$naddr': typeof StationNaddrRoute
+    __root__: typeof rootRoute
+    '/': typeof IndexRoute
+    '/about': typeof AboutRoute
+    '/browse': typeof BrowseRoute
+    '/discover': typeof DiscoverRoute
+    '/favourites': typeof FavouritesRoute
+    '/station/$naddr': typeof StationNaddrRoute
 }
 
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/browse' | '/discover' | '/station/$naddr'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/browse' | '/discover' | '/station/$naddr'
-  id: '__root__' | '/' | '/about' | '/browse' | '/discover' | '/station/$naddr'
-  fileRoutesById: FileRoutesById
+    fileRoutesByFullPath: FileRoutesByFullPath
+    fullPaths: '/' | '/about' | '/browse' | '/discover' | '/favourites' | '/station/$naddr'
+    fileRoutesByTo: FileRoutesByTo
+    to: '/' | '/about' | '/browse' | '/discover' | '/favourites' | '/station/$naddr'
+    id: '__root__' | '/' | '/about' | '/browse' | '/discover' | '/favourites' | '/station/$naddr'
+    fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
-  BrowseRoute: typeof BrowseRoute
-  DiscoverRoute: typeof DiscoverRoute
-  StationNaddrRoute: typeof StationNaddrRoute
+    IndexRoute: typeof IndexRoute
+    AboutRoute: typeof AboutRoute
+    BrowseRoute: typeof BrowseRoute
+    DiscoverRoute: typeof DiscoverRoute
+    FavouritesRoute: typeof FavouritesRoute
+    StationNaddrRoute: typeof StationNaddrRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
-  BrowseRoute: BrowseRoute,
-  DiscoverRoute: DiscoverRoute,
-  StationNaddrRoute: StationNaddrRoute,
+    IndexRoute: IndexRoute,
+    AboutRoute: AboutRoute,
+    BrowseRoute: BrowseRoute,
+    DiscoverRoute: DiscoverRoute,
+    FavouritesRoute: FavouritesRoute,
+    StationNaddrRoute: StationNaddrRoute,
 }
 
-export const routeTree = rootRoute
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+export const routeTree = rootRoute._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 
 /* ROUTE_MANIFEST_START
 {
@@ -157,6 +174,7 @@ export const routeTree = rootRoute
         "/about",
         "/browse",
         "/discover",
+        "/favourites",
         "/station/$naddr"
       ]
     },
@@ -171,6 +189,9 @@ export const routeTree = rootRoute
     },
     "/discover": {
       "filePath": "discover.tsx"
+    },
+    "/favourites": {
+      "filePath": "favourites.tsx"
     },
     "/station/$naddr": {
       "filePath": "station/$naddr.tsx"

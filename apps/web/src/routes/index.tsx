@@ -10,7 +10,6 @@ function Index() {
     return (
         <div className="home-page">
             <TopClickedStations />
-            <FavoritesManager />
         </div>
     )
 }

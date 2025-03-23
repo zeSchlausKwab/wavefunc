@@ -54,6 +54,7 @@
     },
     "devDependencies": {
         "@tanstack/router-plugin": "^1.114.13",
+        "@types/qrcode": "^1.5.5",
         "@types/react": "19.0.10",
         "@types/react-dom": "19.0.4",
         "@types/react-router-dom": "5.3.3",
