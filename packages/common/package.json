@@ -9,7 +9,7 @@
         "dev": "echo 'No build needed with Bun'"
     },
     "dependencies": {
-        "@nostr-dev-kit/ndk": "2.12.2",
+        "@nostr-dev-kit/ndk": "2.13.0-rc2",
         "@nostr-dev-kit/ndk-cache-dexie": "2.5.15",
         "nostr-tools": "2.11.0",
         "zod": "3.24.2"

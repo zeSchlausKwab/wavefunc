@@ -10,11 +10,11 @@
         "@wavefunc/common": "workspace:*",
         "elysia": "1.2.25",
         "@elysiajs/cors": "1.2.0",
-        "@nostr-dev-kit/ndk": "2.12.2",
+        "@nostr-dev-kit/ndk": "2.13.0-rc2",
         "nostr-tools": "2.11.0"
     },
     "devDependencies": {
-        "@types/node": "22.13.10",
+        "@types/node": "22.13.11",
         "typescript": "5.8.2"
     }
 }
