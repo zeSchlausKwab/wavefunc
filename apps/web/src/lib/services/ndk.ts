@@ -2,9 +2,10 @@ import NDK, { type NDKSigner, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
 import { generateSecretKey } from 'nostr-tools'
 
-const WS_PROTOCOL = import.meta.env.DEV ? 'ws' : 'wss'
-const RELAY_PREFIX = import.meta.env.DEV ? '' : 'relay.'
-const PORT_OR_DEFAULT = import.meta.env.DEV ? `:${import.meta.env.VITE_PUBLIC_RELAY_PORT}` : ''
+const WS_PROTOCOL = import.meta.env.PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
+const RELAY_PREFIX = import.meta.env.PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
+const PORT_OR_DEFAULT =
+    import.meta.env.PUBLIC_APP_ENV === 'development' ? `:${import.meta.env.VITE_PUBLIC_RELAY_PORT}` : ''
 
 const dexieAdapter = new NDKCacheAdapterDexie({ dbName: 'wavefunc-ndk-cache' })
 
