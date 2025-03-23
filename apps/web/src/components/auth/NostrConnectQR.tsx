@@ -15,6 +15,9 @@ interface NostrConnectQRProps {
 export const NOSTR_CONNECT_KEY = 'nostr_connect_url'
 export const NOSTR_LOCAL_SIGNER_KEY = 'nostr_local_signer_key'
 
+// Global lock to prevent multiple login attempts across component remounts
+let globalLoginInProgress = false
+
 export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null)
     const [localPubkey, setLocalPubkey] = useState<string | null>(null)
@@ -23,38 +26,90 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const [generatingConnectionUrl, setGeneratingConnectionUrl] = useState(false)
     const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
 
+    // Component level refs
     const isLoggingInRef = useRef(false)
     const activeSubscriptionRef = useRef<any>(null)
     const isMountedRef = useRef(true)
+    const hasTriggeredSuccessRef = useRef(false)
 
+    // Ensure we clean up any previous login attempts on mount
     useEffect(() => {
+        // Reset global lock if it's been stuck
+        if (!document.querySelector('[data-nostr-connect-active="true"]')) {
+            globalLoginInProgress = false
+        }
+
+        // Mark this component as active
         isMountedRef.current = true
+        document.body.setAttribute('data-nostr-connect-active', 'true')
+
+        return () => {
+            // Mark component as unmounted to prevent any state updates
+            isMountedRef.current = false
+            document.body.removeAttribute('data-nostr-connect-active')
+
+            // Ensure we're doing a thorough cleanup
+            if (activeSubscriptionRef.current) {
+                console.log('Final cleanup on unmount')
+                try {
+                    activeSubscriptionRef.current.stop()
+                } catch (e) {
+                    console.error('Error stopping subscription:', e)
+                }
+                activeSubscriptionRef.current = null
+            }
+        }
+    }, [])
+
+    const cleanup = () => {
+        if (!isMountedRef.current) return
+
+        console.log('Running cleanup')
+        isLoggingInRef.current = false
+
+        if (activeSubscriptionRef.current) {
+            console.log('Cleaning up subscription')
+            try {
+                activeSubscriptionRef.current.stop()
+            } catch (e) {
+                console.error('Error stopping subscription:', e)
+            }
+            activeSubscriptionRef.current = null
+        }
+
+        setListening(false)
+    }
+
+    // One-time initialization for connection URL and signer
+    useEffect(() => {
+        // Skip if login is already happening
+        if (globalLoginInProgress) {
+            console.log('Global login already in progress, skipping initialization')
+            return
+        }
 
         setGeneratingConnectionUrl(true)
         const signer = NDKPrivateKeySigner.generate()
         setLocalSigner(signer)
-        signer.user().then((user) => {
-            if (isMountedRef.current) {
+
+        signer
+            .user()
+            .then((user) => {
+                if (!isMountedRef.current) return
                 setLocalPubkey(user.pubkey)
                 setGeneratingConnectionUrl(false)
-            }
-        })
-
-        return () => {
-            isMountedRef.current = false
-
-            if (activeSubscriptionRef.current) {
-                activeSubscriptionRef.current.stop()
-                activeSubscriptionRef.current = null
-            }
-
-            setLocalSigner(null)
-            setLocalPubkey(null)
-        }
+            })
+            .catch((err) => {
+                console.error('Failed to get user pubkey:', err)
+                if (!isMountedRef.current) return
+                setConnectionStatus('error')
+                onError?.('Failed to initialize connection')
+            })
     }, [])
 
     const connectionUrl = useMemo(() => {
         if (!localPubkey) return null
+
         const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
         const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
         const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
@@ -96,22 +151,40 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         return baseUrl + params.toString()
     }
 
+    const triggerSuccess = () => {
+        if (hasTriggeredSuccessRef.current) {
+            return
+        }
+
+        hasTriggeredSuccessRef.current = true
+        cleanup()
+
+        isMountedRef.current = false
+        globalLoginInProgress = false
+
+        if (onSuccess) {
+            setTimeout(() => {
+                onSuccess()
+            }, 0)
+        }
+    }
+
     const handleLoginWithSigner = async (event: NDKEvent, logMessage: string) => {
-        if (isLoggingInRef.current || !isMountedRef.current) {
+        // Triple-check if login is already in progress (global, component level, or already succeeded)
+        if (
+            globalLoginInProgress ||
+            isLoggingInRef.current ||
+            !isMountedRef.current ||
+            hasTriggeredSuccessRef.current
+        ) {
             console.log('Login already in progress or component unmounted, skipping duplicate login attempt')
             return
         }
 
         try {
+            globalLoginInProgress = true
             isLoggingInRef.current = true
-
-            if (activeSubscriptionRef.current) {
-                activeSubscriptionRef.current.stop()
-                activeSubscriptionRef.current = null
-            }
-
-            if (!isMountedRef.current) return
-            setListening(false)
+            cleanup()
 
             const bunkerUrl = constructBunkerUrl(event)
             if (!localSigner) {
@@ -129,27 +202,44 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
             localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
 
-            if (!isMountedRef.current) return
+            if (!isMountedRef.current) {
+                console.log('Component unmounted during login, aborting')
+                return
+            }
+
             setConnectionStatus('connected')
             await auth.loginWithNostrConnect(nip46Signer)
-            if (onSuccess) {
-                onSuccess()
-            }
+
+            triggerSuccess()
         } catch (err) {
             console.error('Error in login flow:', err)
+
             if (isMountedRef.current) {
                 setConnectionStatus('error')
                 if (onError) {
                     onError(err instanceof Error ? err.message : 'Connection error')
                 }
             }
+
             isLoggingInRef.current = false
+            globalLoginInProgress = false
         }
     }
 
     useEffect(() => {
-        if (!localPubkey || !localSigner || !connectionUrl || isLoggingInRef.current) return
+        if (
+            !localPubkey ||
+            !localSigner ||
+            !connectionUrl ||
+            isLoggingInRef.current ||
+            globalLoginInProgress ||
+            hasTriggeredSuccessRef.current ||
+            !isMountedRef.current
+        ) {
+            return
+        }
 
+        console.log('Starting subscription for pubkey:', localPubkey)
         setListening(true)
         setConnectionStatus('connecting')
 
@@ -162,6 +252,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         }
 
         const processedRequestIds = new Set<string>()
+        const processedAckIds = new Set<string>()
 
         const sub = ndk.subscribe(
             {
@@ -175,7 +266,13 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         activeSubscriptionRef.current = sub
 
         sub.on('event', async (event) => {
-            if (isLoggingInRef.current || !isMountedRef.current) {
+            if (
+                globalLoginInProgress ||
+                isLoggingInRef.current ||
+                !isMountedRef.current ||
+                hasTriggeredSuccessRef.current
+            ) {
+                console.log('Login in progress or component unmounted, ignoring event')
                 return
             }
 
@@ -183,15 +280,16 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 await event.decrypt(undefined, localSigner)
                 const request = JSON.parse(event.content)
 
-                if (request.id && processedRequestIds.has(request.id)) {
-                    return
-                }
-
-                if (request.id) {
-                    processedRequestIds.add(request.id)
-                }
-
                 if (request.method === 'connect') {
+                    if (request.id && processedRequestIds.has(request.id)) {
+                        console.log('Skipping already processed connect request:', request.id)
+                        return
+                    }
+
+                    if (request.id) {
+                        processedRequestIds.add(request.id)
+                    }
+
                     if (request.params && request.params.token === tempSecret) {
                         const response = {
                             id: request.id,
@@ -208,20 +306,32 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                             // @ts-ignore - The NDK API requires a string pubkey here despite type definitions
                             await responseEvent.encrypt(undefined, localSigner, event.pubkey)
                             await responseEvent.publish()
+
+                            console.log('Connection approved, waiting for ACK response')
                         } catch (err) {
                             console.error('Error sending approval:', err)
-                            setConnectionStatus('error')
-                            if (onError) onError(err instanceof Error ? err.message : 'Error sending approval')
+                            if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
+                                setConnectionStatus('error')
+                                if (onError) onError(err instanceof Error ? err.message : 'Error sending approval')
+                            }
                         }
                     } else {
                         console.log('Token mismatch:', request.params?.token, tempSecret)
                     }
                 } else if (request.result === 'ack') {
+                    if (processedAckIds.has(event.id)) {
+                        console.log('Skipping already processed ACK:', event.id)
+                        return
+                    }
+
+                    processedAckIds.add(event.id)
+
+                    console.log('Received ACK response, processing login...')
                     await handleLoginWithSigner(event, 'Starting login flow from ACK response')
                 }
             } catch (error) {
                 console.error('Failed to process event:', error)
-                if (isMountedRef.current) {
+                if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
                     setConnectionStatus('error')
                     if (onError) onError(error instanceof Error ? error.message : 'Failed to process event')
                 }
@@ -229,24 +339,21 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         })
 
         const timeout = setTimeout(() => {
-            if (isMountedRef.current && connectionStatus !== 'connected' && !isLoggingInRef.current) {
-                if (activeSubscriptionRef.current) {
-                    activeSubscriptionRef.current.stop()
-                    activeSubscriptionRef.current = null
-                }
+            if (
+                isMountedRef.current &&
+                !hasTriggeredSuccessRef.current &&
+                connectionStatus !== 'connected' &&
+                !isLoggingInRef.current
+            ) {
+                cleanup()
                 setConnectionStatus('error')
-                setListening(false)
                 if (onError) onError('Connection timed out. Please try again.')
             }
         }, 300000) // 5 minutes
 
         return () => {
             clearTimeout(timeout)
-            if (activeSubscriptionRef.current === sub) {
-                sub.stop()
-                activeSubscriptionRef.current = null
-            }
-            setListening(false)
+            cleanup()
         }
     }, [connectionUrl, localPubkey, localSigner, onError, onSuccess, tempSecret])
 

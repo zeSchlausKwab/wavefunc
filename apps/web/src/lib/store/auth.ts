@@ -30,9 +30,6 @@ const createNcryptSec = (nsecKey: string, password: string) => {
         if (type !== 'nsec') throw new Error('Invalid key format, expected nsec')
 
         const decodedSk = data as Uint8Array
-        const hexKey = Array.from(decodedSk)
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
         const created = Math.floor(Date.now() / 1000)
 
         try {
@@ -130,6 +127,41 @@ const getEncryptedKeyInfo = () => ({
 
 const initAuth = async () => {
     try {
+        const storedLocalSignerKey = localStorage.getItem('nostr_local_signer_key')
+        const storedConnectUrl = localStorage.getItem('nostr_connect_url')
+
+        if (storedLocalSignerKey && storedConnectUrl) {
+            try {
+                const localSigner = new NDKPrivateKeySigner(storedLocalSignerKey)
+                await localSigner.blockUntilReady()
+
+                const ndk = nostrService.getNDK()
+                if (!ndk) throw new Error('NDK not initialized')
+
+                const nip46Signer = new NDKNip46Signer(ndk, storedConnectUrl, localSigner)
+                await nip46Signer.blockUntilReady()
+
+                nostrService.setSigner(nip46Signer)
+
+                const user = await nip46Signer.user()
+                await user.fetchProfile()
+
+                persistUserSession(user)
+
+                updateAuthState({
+                    status: 'authenticated',
+                    user,
+                    signer: nip46Signer,
+                    error: null,
+                })
+
+                return // Skip anonymous signer creation
+            } catch (error) {
+                localStorage.removeItem('nostr_local_signer_key')
+                localStorage.removeItem('nostr_connect_url')
+            }
+        }
+
         await nostrService.createAnonymousSigner()
         const signer = nostrService.getAnonymousSigner()
         if (!signer) throw new Error('Failed to create anonymous signer')
@@ -331,6 +363,8 @@ export const auth = {
 
             persistUserSession(user)
 
+            localStorage.removeItem('ANONYMOUS_PRIVATE_KEY')
+
             updateAuthState({
                 status: 'authenticated',
                 user,
@@ -360,6 +394,8 @@ export const auth = {
         sessionStorage.removeItem(storageKeys.authState)
         localStorage.removeItem(storageKeys.encryptedKey)
         localStorage.removeItem(storageKeys.pubkey)
+        localStorage.removeItem('nostr_local_signer_key')
+        localStorage.removeItem('nostr_connect_url')
 
         this.restoreAnonymousUser()
     },
