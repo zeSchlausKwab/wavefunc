@@ -6,6 +6,7 @@
         "baseUrl": ".",
         "paths": {
             "@/*": ["./src/*"],
+            "react": ["./node_modules/@types/react"],
             "@wavefunc/ui/*": ["../../packages/ui/src/*"],
             "@wavefunc/common/*": ["../../packages/common/src/*"],
             "@wavefunc/backend/*": ["../../apps/backend/src/*"]

@@ -102,8 +102,11 @@ export class NostrService {
             throw new Error('NDK instance not available')
         }
 
-        // Create anonymous signer if no signer is set
-        if (!this.ndk.signer) {
+        // Check if we have a bunker URL or other authentication method first
+        const hasBunkerUrl = typeof localStorage !== 'undefined' && localStorage.getItem('nostr_connect_url')
+
+        // Only create anonymous signer if no signer is set and no bunker URL exists
+        if (!this.ndk.signer && !hasBunkerUrl) {
             await this.createAnonymousSigner()
         }
 
@@ -137,14 +140,24 @@ export class NostrService {
         // In browser environments, try to use localStorage
         if (typeof localStorage !== 'undefined') {
             const storedKey = localStorage.getItem('ANONYMOUS_PRIVATE_KEY')
-            privateKey = storedKey || generateSecretKey()
 
-            if (!storedKey) {
+            if (storedKey) {
+                // Use existing key
+                privateKey = storedKey
+            } else {
+                // Generate a new key and convert from Uint8Array to hex string
+                const secretKey = generateSecretKey()
+                privateKey = Array.from(secretKey)
+                    .map((b) => b.toString(16).padStart(2, '0'))
+                    .join('')
                 localStorage.setItem('ANONYMOUS_PRIVATE_KEY', privateKey)
             }
         } else {
             // For non-browser environments (Node.js)
-            privateKey = generateSecretKey()
+            const secretKey = generateSecretKey()
+            privateKey = Array.from(secretKey)
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('')
         }
 
         this.anonymousSigner = new NDKPrivateKeySigner(privateKey)
