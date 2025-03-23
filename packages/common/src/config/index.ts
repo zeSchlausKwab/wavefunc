@@ -88,9 +88,9 @@ if (!isBrowser) {
  */
 export const config = {
     app: {
-        env: getEnvVar('PUBLIC_APP_ENV', 'development'),
-        isProd: getEnvVar('PUBLIC_APP_ENV', 'development') === 'production',
-        isDev: getEnvVar('PUBLIC_APP_ENV', 'development') === 'development',
+        env: getEnvVar('VITE_PUBLIC_APP_ENV', 'development'),
+        isProd: getEnvVar('VITE_PUBLIC_APP_ENV', 'development') === 'production',
+        isDev: getEnvVar('VITE_PUBLIC_APP_ENV', 'development') === 'development',
     },
 
     web: {

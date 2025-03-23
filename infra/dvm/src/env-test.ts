@@ -27,7 +27,7 @@ console.log('')
 
 // Check if the DVM can access all required environment variables
 console.log('🧪 Environment Variable Check:')
-const requiredVars = ['PUBLIC_APP_ENV', 'VITE_PUBLIC_HOST', 'DVM_PRIVATE_KEY', 'AUDD_API_TOKEN']
+const requiredVars = ['VITE_PUBLIC_APP_ENV', 'VITE_PUBLIC_HOST', 'DVM_PRIVATE_KEY', 'AUDD_API_TOKEN']
 
 let allVarsPresent = true
 for (const varName of requiredVars) {

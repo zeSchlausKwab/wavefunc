@@ -4,7 +4,7 @@
 declare module 'bun' {
     interface Env {
         // App environment
-        PUBLIC_APP_ENV: string
+        VITE_PUBLIC_APP_ENV: string
 
         // Primary Database
         POSTGRES_USER: string

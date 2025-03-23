@@ -29,7 +29,7 @@ console.log('')
 
 // Check if the web app can access all required environment variables
 console.log('🧪 Environment Variable Check:')
-const requiredVars = ['PUBLIC_APP_ENV', 'PUBLIC_HOST', 'PUBLIC_API_PORT', 'PUBLIC_WEB_PORT', 'PUBLIC_BLOSSOM_URL']
+const requiredVars = ['VITE_PUBLIC_APP_ENV', 'PUBLIC_HOST', 'PUBLIC_API_PORT', 'PUBLIC_WEB_PORT', 'PUBLIC_BLOSSOM_URL']
 
 let allVarsPresent = true
 for (const varName of requiredVars) {

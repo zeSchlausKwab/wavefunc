@@ -71,7 +71,7 @@ This will start all services:
 The following environment variables are required:
 
 ```
-PUBLIC_APP_ENV=development
+VITE_PUBLIC_APP_ENV=development
 PUBLIC_HOST=localhost
 PUBLIC_RELAY_PORT=3002
 PUBLIC_WEB_PORT=8080
