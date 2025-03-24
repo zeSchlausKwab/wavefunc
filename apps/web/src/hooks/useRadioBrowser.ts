@@ -1,11 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import type {
-    Station,
-    RadioStation,
-    RadioBrowserEndpoint,
-    RadioBrowserParams,
-    UseRadioBrowserConfig,
-} from '@wavefunc/common/types'
+import type { RadioBrowserParams, RadioStation, Station, UseRadioBrowserConfig } from '@wavefunc/common/types'
 
 // Default config
 const defaultConfig: UseRadioBrowserConfig = {

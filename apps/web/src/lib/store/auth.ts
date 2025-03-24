@@ -5,7 +5,7 @@ import { encrypt, decrypt } from 'nostr-tools/nip49'
 import { nip19 } from 'nostr-tools'
 
 export interface AuthState {
-    status: 'loading' | 'authenticated' | 'anonymous' | 'error'
+    status: 'loading' | 'authenticated' | 'unauthenticated' | 'error'
     user: NDKUser | null
     signer: NDKSigner | null
     error: Error | null
@@ -101,23 +101,21 @@ const updateAuthState = (state: Partial<AuthState>) => {
     authStore.setState((current) => ({ ...current, ...state }))
 }
 
-const persistUserSession = (user: NDKUser, isAnonymous = false) => {
+const persistUserSession = (user: NDKUser) => {
     if (typeof window === 'undefined') return
 
     const persistData = {
         pubkey: user.pubkey,
         profile: user.profile,
-        ...(isAnonymous ? { isAnonymous: true } : {}),
     }
 
-    sessionStorage.setItem(isAnonymous ? 'ANONYMOUS_AUTH_STATE' : 'AUTH_STATE', JSON.stringify(persistData))
+    sessionStorage.setItem('AUTH_STATE', JSON.stringify(persistData))
 }
 
 const storageKeys = {
     encryptedKey: 'ENCRYPTED_PRIVATE_KEY',
     pubkey: 'AUTH_PUBKEY',
     authState: 'AUTH_STATE',
-    anonymousState: 'ANONYMOUS_AUTH_STATE',
 }
 
 const getEncryptedKeyInfo = () => ({
@@ -160,31 +158,40 @@ const initAuth = async () => {
 
                 return // Skip anonymous signer creation
             } catch (error) {
+                console.error('Failed to initialize NIP-46 signer:', error)
                 localStorage.removeItem('nostr_local_signer_key')
                 localStorage.removeItem('nostr_connect_url')
             }
         }
 
-        await nostrService.createAnonymousSigner()
-        const signer = nostrService.getAnonymousSigner()
-        if (!signer) throw new Error('Failed to create anonymous signer')
+        // Check for encrypted private key
+        const { encryptedKey, pubkey } = getEncryptedKeyInfo()
+        if (encryptedKey && pubkey) {
+            // We have an encrypted key but user needs to login
+            await nostrService.connect()
+            updateAuthState({
+                status: 'unauthenticated',
+                user: null,
+                signer: null,
+                error: null,
+            })
+            return
+        }
 
-        const user = await signer.user()
-        updateAuthState({ status: 'anonymous', user, signer, error: null })
+        // Initialize without any signer
+        nostrService.setSigner(null)
+        await nostrService.connect()
 
-        nostrService.connect().then(async () => {
-            try {
-                await user.fetchProfile()
-                persistUserSession(user, true)
-                updateAuthState({ user })
-            } catch (error) {
-                console.error('Failed to fetch profile:', error)
-            }
+        updateAuthState({
+            status: 'unauthenticated',
+            user: null,
+            signer: null,
+            error: null,
         })
     } catch (error) {
         updateAuthState({
             status: 'error',
-            error: error instanceof Error ? error : new Error('Failed to initialize anonymous user'),
+            error: error instanceof Error ? error : new Error('Failed to initialize auth'),
         })
     }
 }
@@ -218,7 +225,7 @@ export const auth = {
             }
 
             updateAuthState({
-                status: 'anonymous',
+                status: 'unauthenticated',
                 privateKeyValidated: true,
                 privateKeyToEncrypt: privateKey,
                 error: null,
@@ -227,7 +234,7 @@ export const auth = {
             return true
         } catch (error) {
             updateAuthState({
-                status: 'anonymous',
+                status: 'unauthenticated',
                 error: error instanceof Error ? error : new Error('Unknown error occurred'),
                 privateKeyValidated: false,
                 privateKeyToEncrypt: null,
@@ -364,8 +371,6 @@ export const auth = {
 
             persistUserSession(user)
 
-            localStorage.removeItem('ANONYMOUS_PRIVATE_KEY')
-
             updateAuthState({
                 status: 'authenticated',
                 user,
@@ -398,7 +403,17 @@ export const auth = {
         localStorage.removeItem('nostr_local_signer_key')
         localStorage.removeItem('nostr_connect_url')
 
-        this.restoreAnonymousUser()
+        nostrService.setSigner(null)
+
+        updateAuthState({
+            status: 'unauthenticated',
+            user: null,
+            signer: null,
+            error: null,
+            isLoginDialogOpen: false,
+            privateKeyValidated: false,
+            privateKeyToEncrypt: null,
+        })
     },
 
     clearStoredKeys() {
@@ -406,47 +421,14 @@ export const auth = {
         localStorage.removeItem(storageKeys.pubkey)
 
         updateAuthState({
+            status: 'unauthenticated',
+            user: null,
+            signer: null,
+            error: null,
             isLoginDialogOpen: false,
             privateKeyValidated: false,
             privateKeyToEncrypt: null,
         })
-
-        this.restoreAnonymousUser()
-    },
-
-    restoreAnonymousUser() {
-        const anonymousSigner = nostrService.getAnonymousSigner()
-        if (!anonymousSigner) {
-            updateAuthState({
-                status: 'error',
-                error: new Error('Failed to restore anonymous signer'),
-                privateKeyToEncrypt: null,
-            })
-            return
-        }
-
-        nostrService.setSigner(anonymousSigner)
-
-        anonymousSigner
-            .user()
-            .then(async (user) => {
-                await user.fetchProfile()
-                updateAuthState({
-                    status: 'anonymous',
-                    user,
-                    signer: anonymousSigner,
-                    error: null,
-                    isLoginDialogOpen: false,
-                    privateKeyValidated: false,
-                    privateKeyToEncrypt: null,
-                })
-            })
-            .catch((error) => {
-                updateAuthState({
-                    status: 'error',
-                    error: error instanceof Error ? error : new Error('Failed to restore anonymous user'),
-                })
-            })
     },
 
     initialize: initAuth,

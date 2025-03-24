@@ -6,7 +6,6 @@ import NDK, {
     type NDKSigner,
 } from '@nostr-dev-kit/ndk'
 import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
-import { generateSecretKey } from 'nostr-tools/pure'
 
 // Configuration can be overridden during initialization
 interface NDKServiceConfig {
@@ -21,7 +20,6 @@ interface NDKServiceConfig {
 export class NostrService {
     private static instance: NostrService | null = null
     private ndk: NDK | null = null
-    private anonymousSigner: NDKPrivateKeySigner | null = null
     private isInitialized = false
     private config: NDKServiceConfig = {
         host: 'localhost',
@@ -102,14 +100,6 @@ export class NostrService {
             throw new Error('NDK instance not available')
         }
 
-        // Check if we have a bunker URL or other authentication method first
-        const hasBunkerUrl = typeof localStorage !== 'undefined' && localStorage.getItem('nostr_connect_url')
-
-        // Only create anonymous signer if no signer is set and no bunker URL exists
-        if (!this.ndk.signer && !hasBunkerUrl) {
-            await this.createAnonymousSigner()
-        }
-
         // Connect to relays
         try {
             await this.ndk.connect()
@@ -119,53 +109,6 @@ export class NostrService {
         } catch (error) {
             console.error('Failed to connect to NDK relays:', error)
             throw error
-        }
-    }
-
-    /**
-     * Create an anonymous signer for the NDK instance
-     */
-    public async createAnonymousSigner(): Promise<void> {
-        if (!this.ndk) {
-            throw new Error('NDK instance not available')
-        }
-
-        if (this.anonymousSigner) {
-            this.ndk.signer = this.anonymousSigner
-            return
-        }
-
-        let privateKey: string
-
-        // In browser environments, try to use localStorage
-        if (typeof localStorage !== 'undefined') {
-            const storedKey = localStorage.getItem('ANONYMOUS_PRIVATE_KEY')
-
-            if (storedKey) {
-                // Use existing key
-                privateKey = storedKey
-            } else {
-                // Generate a new key and convert from Uint8Array to hex string
-                const secretKey = generateSecretKey()
-                privateKey = Array.from(secretKey)
-                    .map((b) => b.toString(16).padStart(2, '0'))
-                    .join('')
-                localStorage.setItem('ANONYMOUS_PRIVATE_KEY', privateKey)
-            }
-        } else {
-            // For non-browser environments (Node.js)
-            const secretKey = generateSecretKey()
-            privateKey = Array.from(secretKey)
-                .map((b) => b.toString(16).padStart(2, '0'))
-                .join('')
-        }
-
-        this.anonymousSigner = new NDKPrivateKeySigner(privateKey)
-        await this.anonymousSigner.blockUntilReady()
-        this.ndk.signer = this.anonymousSigner
-
-        if (this.config.enableLogging) {
-            console.log('Anonymous signer created and set')
         }
     }
 
@@ -184,26 +127,7 @@ export class NostrService {
             throw new Error('NDK instance not available')
         }
 
-        if (!signer && this.anonymousSigner) {
-            this.ndk.signer = this.anonymousSigner
-            return
-        }
-
         this.ndk.signer = signer || undefined
-    }
-
-    /**
-     * Check if the current signer is the anonymous signer
-     */
-    public isAnonymousSigner(signer: NDKSigner | null | undefined): boolean {
-        return signer === this.anonymousSigner
-    }
-
-    /**
-     * Get the anonymous signer
-     */
-    public getAnonymousSigner(): NDKPrivateKeySigner | null {
-        return this.anonymousSigner
     }
 
     /**
