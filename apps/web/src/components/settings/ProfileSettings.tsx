@@ -1,0 +1,390 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/lib/hooks/use-toast'
+import { auth } from '@/lib/store/auth'
+import type { NDKUserProfile } from '@nostr-dev-kit/ndk'
+import { useStore } from '@tanstack/react-store'
+import { nostrService } from '@wavefunc/common'
+import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
+import type { FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+
+export function ProfileSettings() {
+    const [isProfileLoading, setIsProfileLoading] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [saveSuccess, setSaveSuccess] = useState(false)
+    const authState = useStore(auth.store)
+    const { toast } = useToast()
+
+    // Create a state for the profile form
+    const [profile, setProfile] = useState<NDKUserProfile>({
+        name: '',
+        displayName: '',
+        about: '',
+        picture: '',
+        image: '',
+        banner: '',
+        website: '',
+        nip05: '',
+        lud06: '',
+        lud16: '',
+    })
+
+    // Check if user is ready to edit (authenticated or anonymous with pubkey)
+    const canEditProfile = authState.status !== 'loading' && authState.status !== 'error' && !!authState.user?.pubkey
+
+    // Handle login button click
+    const handleLoginClick = () => {
+        auth.openLoginDialog()
+    }
+
+    // Handle form changes
+    const handleProfileChange = (field: keyof NDKUserProfile, value: string) => {
+        setProfile((prev) => ({
+            ...prev,
+            [field]: value,
+            // For backwards compatibility, set both picture and image
+            ...(field === 'picture' ? { image: value } : {}),
+            ...(field === 'image' ? { picture: value } : {}),
+            // For consistency, set displayName same as name
+            ...(field === 'name' ? { displayName: value } : {}),
+        }))
+    }
+
+    // Handle form submission
+    const handleSubmitProfile = async (e: FormEvent) => {
+        e.preventDefault()
+        console.log('Submit profile form triggered')
+        setSaveSuccess(false)
+
+        // Check auth status - must be authenticated or anonymous with a valid pubkey
+        if (!authState.user?.pubkey || authState.status === 'loading' || authState.status === 'error') {
+            console.error('Auth state:', authState.status, 'Pubkey available:', !!authState.user?.pubkey)
+            toast({
+                title: 'Authentication Required',
+                description: 'Please sign in to save your profile settings',
+                variant: 'destructive',
+            })
+            // Open login dialog if not authenticated
+            if (authState.status !== 'authenticated') {
+                auth.openLoginDialog()
+            }
+            return
+        }
+
+        setIsSubmitting(true)
+        try {
+            const ndk = nostrService.getNDK()
+            if (!ndk) {
+                throw new Error('NDK not available')
+            }
+
+            if (!ndk.signer) {
+                throw new Error('No signer available. You need to be signed in to update your profile.')
+            }
+
+            console.log('Creating profile event with pubkey:', authState.user.pubkey)
+
+            // Get the user
+            const user = ndk.getUser({ pubkey: authState.user.pubkey })
+
+            // Set the profile on the user object
+            user.profile = { ...profile }
+
+            // Publish the profile update
+            console.log('user', user)
+            console.log('Attempting to publish profile update')
+            await user.publish()
+            console.log('Profile published successfully')
+
+            // Show success state
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 3000)
+
+            toast({
+                title: 'Profile Updated',
+                description: 'Your profile has been updated successfully',
+            })
+        } catch (error) {
+            console.error('Failed to update profile:', error)
+            toast({
+                title: 'Error',
+                description: `Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                variant: 'destructive',
+            })
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    // Load user profile
+    useEffect(() => {
+        const fetchUserProfile = async () => {
+            if (!authState.user?.pubkey) return
+
+            setIsProfileLoading(true)
+            try {
+                const ndk = nostrService.getNDK()
+                if (!ndk) return
+
+                const user = ndk.getUser({ pubkey: authState.user.pubkey })
+                const fetchedProfile = await user.fetchProfile()
+
+                if (fetchedProfile) {
+                    setProfile(fetchedProfile)
+                }
+            } catch (error) {
+                console.error('Failed to fetch profile:', error)
+                toast({
+                    title: 'Error',
+                    description: 'Failed to load profile data',
+                    variant: 'destructive',
+                })
+            } finally {
+                setIsProfileLoading(false)
+            }
+        }
+
+        fetchUserProfile()
+    }, [authState.user?.pubkey, toast])
+
+    const resetProfile = () => {
+        setProfile({
+            name: '',
+            displayName: '',
+            about: '',
+            picture: '',
+            image: '',
+            banner: '',
+            website: '',
+            nip05: '',
+            lud06: '',
+            lud16: '',
+        })
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Profile Settings</CardTitle>
+                <CardDescription>Manage your Nostr profile information</CardDescription>
+            </CardHeader>
+
+            {!canEditProfile ? (
+                <CardContent className="space-y-6">
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+                        <div className="bg-muted rounded-full p-3">
+                            <User className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-medium">Authentication Required</h3>
+                            <p className="text-sm text-muted-foreground max-w-md">
+                                You need to sign in with your Nostr identity to update your profile settings. Anonymous
+                                browsing doesn't allow profile changes.
+                            </p>
+                        </div>
+                        <Button onClick={handleLoginClick} className="mt-4">
+                            <LogIn className="h-4 w-4 mr-2" />
+                            Sign In
+                        </Button>
+                    </div>
+                </CardContent>
+            ) : (
+                <form onSubmit={handleSubmitProfile}>
+                    <CardContent className="space-y-6">
+                        {isProfileLoading ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium flex items-center gap-2">
+                                        <User className="h-4 w-4" />
+                                        Basic Information
+                                    </h3>
+
+                                    <div className="flex items-center gap-4">
+                                        <Avatar className="h-20 w-20">
+                                            <AvatarImage src={profile.picture || profile.image} alt="Profile" />
+                                            <AvatarFallback>
+                                                {(profile.name || '').substring(0, 2) || '?'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1">
+                                            <Label htmlFor="picture" className="text-sm font-medium mb-2 block">
+                                                Profile Picture URL
+                                            </Label>
+                                            <Input
+                                                id="picture"
+                                                placeholder="https://example.com/avatar.jpg"
+                                                value={profile.picture || profile.image || ''}
+                                                onChange={(e) => handleProfileChange('picture', e.target.value)}
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Direct link to an image file
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="banner" className="text-sm font-medium mb-2 block">
+                                            Banner Image URL
+                                        </Label>
+                                        <Input
+                                            id="banner"
+                                            placeholder="https://example.com/banner.jpg"
+                                            value={profile.banner || ''}
+                                            onChange={(e) => handleProfileChange('banner', e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Optional banner image for your profile
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="name" className="text-sm font-medium mb-2 block">
+                                            Display Name
+                                        </Label>
+                                        <Input
+                                            id="name"
+                                            placeholder="Your name"
+                                            value={profile.name || ''}
+                                            onChange={(e) => handleProfileChange('name', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="about" className="text-sm font-medium mb-2 block">
+                                            About
+                                        </Label>
+                                        <Textarea
+                                            id="about"
+                                            placeholder="Tell people about yourself"
+                                            value={profile.about || ''}
+                                            onChange={(e) => handleProfileChange('about', e.target.value)}
+                                            className="min-h-[120px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <hr className="my-4" />
+
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium flex items-center gap-2">
+                                        <Globe className="h-4 w-4" />
+                                        Web & Verification
+                                    </h3>
+
+                                    <div>
+                                        <Label htmlFor="website" className="text-sm font-medium mb-2 block">
+                                            Website
+                                        </Label>
+                                        <Input
+                                            id="website"
+                                            placeholder="https://yourdomain.com"
+                                            value={profile.website || ''}
+                                            onChange={(e) => handleProfileChange('website', e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="nip05" className="text-sm font-medium mb-2 block">
+                                            NIP-05 Identifier
+                                        </Label>
+                                        <Input
+                                            id="nip05"
+                                            placeholder="you@domain.com"
+                                            value={profile.nip05 || ''}
+                                            onChange={(e) => handleProfileChange('nip05', e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Verifiable identifier that proves ownership of your profile
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <hr className="my-4" />
+
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium flex items-center gap-2">
+                                        <Zap className="h-4 w-4" />
+                                        Lightning Payment Options
+                                    </h3>
+
+                                    <div>
+                                        <Label htmlFor="lud16" className="text-sm font-medium mb-2 block">
+                                            Lightning Address
+                                        </Label>
+                                        <Input
+                                            id="lud16"
+                                            placeholder="you@wallet.com"
+                                            value={profile.lud16 || ''}
+                                            onChange={(e) => handleProfileChange('lud16', e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Your Lightning address for receiving payments (like an email for Bitcoin)
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="lud06" className="text-sm font-medium mb-2 block">
+                                            LNURL
+                                        </Label>
+                                        <Input
+                                            id="lud06"
+                                            placeholder="LNURL..."
+                                            value={profile.lud06 || ''}
+                                            onChange={(e) => handleProfileChange('lud06', e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Alternative Lightning payment URL
+                                        </p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+
+                    <CardFooter className="flex justify-end gap-2 mb-12">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={resetProfile}
+                            disabled={isProfileLoading || isSubmitting}
+                        >
+                            Reset
+                        </Button>
+                        <Button
+                            type="submit"
+                            disabled={isProfileLoading || isSubmitting}
+                            variant={saveSuccess ? 'secondary' : 'default'}
+                            className={saveSuccess ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : saveSuccess ? (
+                                <>
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Saved!
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save Profile
+                                </>
+                            )}
+                        </Button>
+                    </CardFooter>
+                </form>
+            )}
+        </Card>
+    )
+}

@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { nostrService } from '@wavefunc/common'
-
 import { routeTree } from './routeTree.gen'
+import auth from './lib/store/auth'
 
 // Initialize the NDK service
 nostrService.init({
@@ -14,6 +14,9 @@ nostrService.init({
     useCache: true,
     enableLogging: import.meta.env.DEV,
 })
+
+console.log('Initializing auth state... in main')
+auth.initialize()
 
 // Create router and query client before connecting to NDK
 const queryClient = new QueryClient()

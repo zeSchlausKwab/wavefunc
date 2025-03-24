@@ -1,10 +1,10 @@
-import { Header } from '@/components/Header'
-import { createRootRoute, Outlet, HeadContent } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { EditStationDrawer } from '@/components/EditStationDrawer'
-import { useStore } from '@tanstack/react-store'
-import { uiStore } from '@/lib/store/ui'
+import { Header } from '@/components/Header'
 import { RadioPlayer } from '@/components/RadioPlayer'
+import { uiStore } from '@/lib/store/ui'
+import { createRootRoute, HeadContent, Outlet } from '@tanstack/react-router'
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common/types/station'
 
 function Providers({ children }: { children: React.ReactNode }) {

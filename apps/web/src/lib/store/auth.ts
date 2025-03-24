@@ -130,6 +130,9 @@ const initAuth = async () => {
         const storedLocalSignerKey = localStorage.getItem('nostr_local_signer_key')
         const storedConnectUrl = localStorage.getItem('nostr_connect_url')
 
+        console.log('storedLocalSignerKey', storedLocalSignerKey)
+        console.log('storedConnectUrl', storedConnectUrl)
+
         if (storedLocalSignerKey && storedConnectUrl) {
             try {
                 const localSigner = new NDKPrivateKeySigner(storedLocalSignerKey)
@@ -185,8 +188,6 @@ const initAuth = async () => {
         })
     }
 }
-
-initAuth()
 
 export const auth = {
     store: authStore,
@@ -447,6 +448,8 @@ export const auth = {
                 })
             })
     },
+
+    initialize: initAuth,
 }
 
 export default auth

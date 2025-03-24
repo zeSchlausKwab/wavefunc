@@ -16,7 +16,7 @@ const defaultConfig: UseRadioBrowserConfig = {
     },
     enabled: false,
     transformResponse: true,
-    baseUrl: 'https://at1.api.radio-browser.info/json/stations',
+    baseUrl: 'https://de2.api.radio-browser.info/json/stations',
 }
 
 /**
