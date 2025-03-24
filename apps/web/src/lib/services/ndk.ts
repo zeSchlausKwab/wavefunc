@@ -1,4 +1,4 @@
-import NDK, { type NDKSigner, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+import NDK, { type NDKSigner } from '@nostr-dev-kit/ndk'
 import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
 
 const WS_PROTOCOL = import.meta.env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'

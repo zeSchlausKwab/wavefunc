@@ -8,10 +8,11 @@ import { useToast } from '@/lib/hooks/use-toast'
 import { auth } from '@/lib/store/auth'
 import type { NDKUserProfile } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
-import { nostrService } from '@wavefunc/common'
+import { nostrService } from '@/lib/services/ndk'
 import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
+import { updateUserProfile } from '@wavefunc/common'
 
 export function ProfileSettings() {
     const [isProfileLoading, setIsProfileLoading] = useState(false)
@@ -20,7 +21,6 @@ export function ProfileSettings() {
     const authState = useStore(auth.store)
     const { toast } = useToast()
 
-    // Create a state for the profile form
     const [profile, setProfile] = useState<NDKUserProfile>({
         name: '',
         displayName: '',
@@ -34,15 +34,12 @@ export function ProfileSettings() {
         lud16: '',
     })
 
-    // Check if user is ready to edit (authenticated or anonymous with pubkey)
     const canEditProfile = authState.status !== 'loading' && authState.status !== 'error' && !!authState.user?.pubkey
 
-    // Handle login button click
     const handleLoginClick = () => {
         auth.openLoginDialog()
     }
 
-    // Handle form changes
     const handleProfileChange = (field: keyof NDKUserProfile, value: string) => {
         setProfile((prev) => ({
             ...prev,
@@ -61,7 +58,7 @@ export function ProfileSettings() {
         console.log('Submit profile form triggered')
         setSaveSuccess(false)
 
-        // Check auth status - must be authenticated or anonymous with a valid pubkey
+        // Check auth status - must be authenticated with a valid pubkey
         if (!authState.user?.pubkey || authState.status === 'loading' || authState.status === 'error') {
             console.error('Auth state:', authState.status, 'Pubkey available:', !!authState.user?.pubkey)
             toast({
@@ -69,7 +66,6 @@ export function ProfileSettings() {
                 description: 'Please sign in to save your profile settings',
                 variant: 'destructive',
             })
-            // Open login dialog if not authenticated
             if (authState.status !== 'authenticated') {
                 auth.openLoginDialog()
             }
@@ -83,25 +79,7 @@ export function ProfileSettings() {
                 throw new Error('NDK not available')
             }
 
-            if (!ndk.signer) {
-                throw new Error('No signer available. You need to be signed in to update your profile.')
-            }
-
-            console.log('Creating profile event with pubkey:', authState.user.pubkey)
-
-            // Get the user
-            const user = ndk.getUser({ pubkey: authState.user.pubkey })
-
-            // Set the profile on the user object
-            user.profile = { ...profile }
-
-            // Publish the profile update
-            console.log('user', user)
-            console.log('Attempting to publish profile update')
-            await user.publish()
-            console.log('Profile published successfully')
-
-            // Show success state
+            await updateUserProfile(ndk, profile)
             setSaveSuccess(true)
             setTimeout(() => setSaveSuccess(false), 3000)
 
@@ -121,7 +99,6 @@ export function ProfileSettings() {
         }
     }
 
-    // Load user profile
     useEffect(() => {
         const fetchUserProfile = async () => {
             if (!authState.user?.pubkey) return

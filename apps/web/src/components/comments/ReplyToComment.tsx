@@ -27,10 +27,8 @@ export function ReplyToComment({ stationEvent, parentComment, onCommentPosted }:
             const ndk = nostrService.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            // Create an unsigned event
             const commentEvent = createCommentEvent(content.trim(), stationEvent, parentComment)
 
-            // Publish the comment
             await publishComment(ndk, commentEvent)
 
             setContent('')

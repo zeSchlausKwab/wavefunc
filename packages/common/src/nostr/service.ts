@@ -1,13 +1,12 @@
 import NDK, {
-    NDKPrivateKeySigner,
+    NDKEvent,
     type NDKCacheAdapter,
-    type NDKEvent,
     type NDKFilter,
     type NDKSigner,
+    type NDKUserProfile,
 } from '@nostr-dev-kit/ndk'
 import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
 
-// Configuration can be overridden during initialization
 interface NDKServiceConfig {
     host?: string
     relayPort?: string | number
@@ -50,7 +49,6 @@ export class NostrService {
             return
         }
 
-        // Merge provided config with defaults
         this.config = { ...this.config, ...config }
 
         if (this.config.enableLogging) {
@@ -169,8 +167,59 @@ export class NostrService {
     }
 }
 
-// Export a singleton instance
+/**
+ * Update a user's profile
+ * @param ndk NDK instance
+ * @param pubkey The public key of the user
+ * @param profile The profile data to update
+ * @param overwrite Whether to completely overwrite the existing profile (default: false)
+ * @returns Promise<NDKEvent> The published event
+ */
+export async function updateUserProfile(
+    ndk: NDK,
+    profile: NDKUserProfile,
+    overwrite: boolean = false,
+): Promise<NDKEvent> {
+    if (!ndk.signer) {
+        throw new Error('No signer available. You need to be signed in to update your profile.')
+    }
+
+    const user = await ndk.signer.user()
+    const pubkey = user.pubkey
+
+    let finalProfile = { ...profile }
+
+    if (!overwrite) {
+        try {
+            const user = ndk.getUser({ pubkey })
+            const existingProfile = await user.fetchProfile()
+            if (existingProfile) {
+                finalProfile = {
+                    ...existingProfile,
+                    ...profile,
+                    ...(profile.picture ? { image: profile.picture } : {}),
+                    ...(profile.image ? { picture: profile.image } : {}),
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to fetch existing profile, using provided data only', error)
+        }
+    }
+
+    const profileEvent = new NDKEvent(ndk, {
+        kind: 0,
+        pubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        content: JSON.stringify(finalProfile),
+        tags: [],
+    })
+
+    await profileEvent.sign()
+    await profileEvent.publish()
+
+    return profileEvent
+}
+
 export const nostrService = NostrService.getInstance()
 
-// Re-export NDK types for convenience
-export type { NDKEvent, NDKFilter, NDKSigner }
+export type { NDKEvent, NDKFilter, NDKSigner, NDKUserProfile }
