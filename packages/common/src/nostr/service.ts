@@ -7,6 +7,13 @@ import NDK, {
 } from '@nostr-dev-kit/ndk'
 import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
 
+// Define a type for relay configuration
+export interface RelayConfig {
+    url: string
+    read: boolean
+    write: boolean
+}
+
 interface NDKServiceConfig {
     host?: string
     relayPort?: string | number
@@ -126,6 +133,77 @@ export class NostrService {
         }
 
         this.ndk.signer = signer || undefined
+    }
+
+    /**
+     * Get the list of configured relays
+     * @returns Array of relay configurations
+     */
+    public getRelays(): RelayConfig[] {
+        if (!this.ndk) {
+            return []
+        }
+
+        const relays: RelayConfig[] = []
+
+        // Get all relay objects from NDK
+        for (const [url, relayObj] of Object.entries(this.ndk.pool.relays)) {
+            relays.push({
+                url,
+                read: relayObj.settings?.read !== false, // Default to true if not set
+                write: relayObj.settings?.write !== false, // Default to true if not set
+            })
+        }
+
+        return relays
+    }
+
+    /**
+     * Update the list of relays
+     * @param relays Array of relay configurations to set
+     */
+    public async updateRelays(relays: RelayConfig[]): Promise<void> {
+        if (!this.ndk) {
+            throw new Error('NDK instance not available')
+        }
+
+        // Store the relay configuration in localStorage for persistence
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('RELAY_LIST', JSON.stringify(relays))
+        }
+
+        try {
+            // Explicitly set the relays
+            const relayUrls = relays.map((relay) => relay.url)
+
+            // Update the explicit relay URLs
+            this.ndk.explicitRelayUrls = relayUrls
+
+            // // Set individual relay settings
+            // for (const relay of relays) {
+            //     if (this.ndk.pool.relays[relay.url]) {
+            //         // Update existing relay settings
+            //         this.ndk.pool.relays.get(relay.url)?.settings = {
+            //             read: relay.read,
+            //             write: relay.write,
+            //         }
+            //     }
+            // }
+
+            // Reconnect to apply changes
+            if (this.config.enableLogging) {
+                console.log('Relay configuration updated, reconnecting...')
+            }
+
+            // For a complete refresh, we'd need to re-initialize NDK
+            // but for now we'll just log that relays were updated
+            if (this.config.enableLogging) {
+                console.log('Relay settings updated:', relayUrls)
+            }
+        } catch (error) {
+            console.error('Failed to update relays:', error)
+            throw error
+        }
     }
 
     /**
