@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { auth, authStore } from '@/lib/store/auth'
+import { authActions, authStore } from '@/lib/store/auth'
+import { uiActions, uiStore } from '@/lib/store/ui'
 import { useStore } from '@tanstack/react-store'
 import { generateSecretKey, nip19 } from 'nostr-tools'
 import { useEffect, useState } from 'react'
@@ -12,6 +13,8 @@ import { NostrConnectQR } from './NostrConnectQR'
 
 export function LoginDialog() {
     const authState = useStore(authStore)
+    const uiState = useStore(uiStore)
+
     const [privateKey, setPrivateKey] = useState('')
     const [encryptionPassword, setEncryptionPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
@@ -19,9 +22,8 @@ export function LoginDialog() {
     const [hasPromptedForLogin, setHasPromptedForLogin] = useState(false)
     const [activeTab, setActiveTab] = useState('private-key')
 
-    const isLoading = authState.status === 'loading'
-    const hasStoredKey = auth.hasEncryptedKey()
-    const storedPubkey = auth.getStoredPubkey()
+    const isLoading = authState.isAuthenticating
+    const storedPubkey = authState.user?.pubkey
 
     // Reset form state when component mounts or inputs need cleaning
     const resetFormInputs = () => {
@@ -39,31 +41,31 @@ export function LoginDialog() {
 
     useEffect(() => {
         const shouldPromptForLogin =
-            hasStoredKey && !authState.isLoginDialogOpen && authState.status !== 'authenticated' && !hasPromptedForLogin
+            authState.user?.encryptedPrivateKey && !authState.isAuthenticated && !hasPromptedForLogin
 
         if (shouldPromptForLogin) {
             setHasPromptedForLogin(true)
             resetAuthState()
-            auth.openLoginDialog()
+            uiActions.openAuthDialog()
         }
-    }, [authState.isLoginDialogOpen, authState.status, hasPromptedForLogin, hasStoredKey])
+    }, [authState.isAuthenticated, hasPromptedForLogin])
 
     useEffect(() => {
-        if (authState.status === 'authenticated') {
+        if (authState.isAuthenticated) {
             setHasPromptedForLogin(true)
             resetFormInputs()
         }
-    }, [authState.status])
+    }, [authState.isAuthenticated])
 
     // Reset inputs when dialog opens or closes
     useEffect(() => {
-        if (!authState.isLoginDialogOpen) {
+        if (!uiState.authDialog.isOpen) {
             resetFormInputs()
         }
-    }, [authState.isLoginDialogOpen])
+    }, [uiState.authDialog.isOpen])
 
     const resetAuthState = () => {
-        auth.store.setState((state) => ({
+        authStore.setState((state) => ({
             ...state,
             status: 'anonymous',
             error: null,
@@ -72,9 +74,9 @@ export function LoginDialog() {
 
     const handleDialogChange = (open: boolean) => {
         if (open) {
-            auth.openLoginDialog()
+            uiActions.openAuthDialog()
         } else {
-            auth.closeLoginDialog()
+            uiActions.closeAuthDialog()
             if (isLoading) resetAuthState()
             resetFormInputs()
         }
@@ -87,7 +89,7 @@ export function LoginDialog() {
 
     const handleValidatePrivateKey = async () => {
         try {
-            await auth.validatePrivateKey(privateKey)
+            await authActions.validatePrivateKey(privateKey)
             setPrivateKey('') // Clear private key after validation
         } catch (error) {
             console.error('Private key validation failed:', error)

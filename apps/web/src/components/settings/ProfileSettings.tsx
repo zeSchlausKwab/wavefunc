@@ -5,20 +5,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/lib/hooks/use-toast'
-import { auth } from '@/lib/store/auth'
+import { authStore } from '@/lib/store/auth'
+import { ndkActions } from '@/lib/store/ndk'
+import { uiActions } from '@/lib/store/ui'
 import type { NDKUserProfile } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
-import { nostrService } from '@/lib/services/ndk'
+import { updateUserProfile } from '@wavefunc/common'
 import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { updateUserProfile } from '@wavefunc/common'
 
 export function ProfileSettings() {
     const [isProfileLoading, setIsProfileLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
-    const authState = useStore(auth.store)
+    const authState = useStore(authStore)
     const { toast } = useToast()
 
     const [profile, setProfile] = useState<NDKUserProfile>({
@@ -34,10 +35,10 @@ export function ProfileSettings() {
         lud16: '',
     })
 
-    const canEditProfile = authState.status !== 'loading' && authState.status !== 'error' && !!authState.user?.pubkey
+    const canEditProfile = authState.isAuthenticated
 
     const handleLoginClick = () => {
-        auth.openLoginDialog()
+        uiActions.openAuthDialog()
     }
 
     const handleProfileChange = (field: keyof NDKUserProfile, value: string) => {
@@ -59,22 +60,20 @@ export function ProfileSettings() {
         setSaveSuccess(false)
 
         // Check auth status - must be authenticated with a valid pubkey
-        if (!authState.user?.pubkey || authState.status === 'loading' || authState.status === 'error') {
-            console.error('Auth state:', authState.status, 'Pubkey available:', !!authState.user?.pubkey)
+        if (!authState.user?.pubkey) {
+            console.error('Auth state:', authState.isAuthenticated, 'Pubkey available:', !!authState.user?.pubkey)
             toast({
                 title: 'Authentication Required',
                 description: 'Please sign in to save your profile settings',
                 variant: 'destructive',
             })
-            if (authState.status !== 'authenticated') {
-                auth.openLoginDialog()
-            }
+            uiActions.openAuthDialog()
             return
         }
 
         setIsSubmitting(true)
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) {
                 throw new Error('NDK not available')
             }
@@ -105,7 +104,7 @@ export function ProfileSettings() {
 
             setIsProfileLoading(true)
             try {
-                const ndk = nostrService.getNDK()
+                const ndk = ndkActions.getNDK()
                 if (!ndk) return
 
                 const user = ndk.getUser({ pubkey: authState.user.pubkey })

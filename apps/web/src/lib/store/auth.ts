@@ -1,437 +1,180 @@
+import { NDKNip07Signer, NDKNip46Signer, NDKPrivateKeySigner, NDKUser } from '@nostr-dev-kit/ndk'
 import { Store } from '@tanstack/store'
-import { NDKPrivateKeySigner, NDKUser, type NDKSigner, NDKNip07Signer, NDKNip46Signer } from '@nostr-dev-kit/ndk'
-import { nostrService } from '@/lib/services/ndk'
-import { encrypt, decrypt } from 'nostr-tools/nip49'
-import { nip19 } from 'nostr-tools'
+import { ndkActions } from './ndk'
 
-export interface AuthState {
-    status: 'loading' | 'authenticated' | 'unauthenticated' | 'error'
+export const NOSTR_CONNECT_KEY = 'nostr_connect_url'
+export const NOSTR_LOCAL_SIGNER_KEY = 'nostr_local_signer_key'
+export const NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY = 'nostr_local_encrypted_signer_key'
+export const NOSTR_AUTO_LOGIN = 'nostr_auto_login'
+
+interface AuthState {
     user: NDKUser | null
-    signer: NDKSigner | null
-    error: Error | null
-    isLoginDialogOpen: boolean
-    privateKeyValidated: boolean
-    privateKeyToEncrypt: string | null
+    isAuthenticated: boolean
+    needsDecryptionPassword: boolean
+    isAuthenticating: boolean
 }
 
-export const authStore = new Store<AuthState>({
-    status: 'loading',
+const initialState: AuthState = {
     user: null,
-    signer: null,
-    error: null,
-    isLoginDialogOpen: false,
-    privateKeyValidated: false,
-    privateKeyToEncrypt: null,
-})
+    isAuthenticated: false,
+    needsDecryptionPassword: false,
+    isAuthenticating: false,
+}
 
-const createNcryptSec = (nsecKey: string, password: string) => {
-    try {
-        const { type, data } = nip19.decode(nsecKey)
-        if (type !== 'nsec') throw new Error('Invalid key format, expected nsec')
-
-        const decodedSk = data as Uint8Array
-        const created = Math.floor(Date.now() / 1000)
-
+export const authStore = new Store<AuthState>(initialState)
+export const authActions = {
+    getAuthFromLocalStorageAndLogin: async () => {
         try {
-            return { decodedSk, ncryptsec: encrypt(decodedSk, password, created) }
-        } catch {
-            const textEncoder = new TextEncoder()
-            const pwBytes = textEncoder.encode(password)
-            const allBytes = new Uint8Array(pwBytes.length + decodedSk.length + 1)
+            const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN)
+            if (autoLogin !== 'true') return
 
-            allBytes.set(pwBytes)
-            allBytes[pwBytes.length] = 58 // ':' character
-            allBytes.set(decodedSk, pwBytes.length + 1)
-
-            const base64Encoded = btoa(
-                Array.from(allBytes)
-                    .map((b) => String.fromCharCode(b))
-                    .join(''),
-            )
-            return { decodedSk, ncryptsec: 'ncrypt1:' + base64Encoded }
-        }
-    } catch (error) {
-        throw new Error('Failed to encrypt private key: ' + (error instanceof Error ? error.message : String(error)))
-    }
-}
-
-const decryptKey = (encryptedKey: string, password: string): Uint8Array => {
-    if (encryptedKey.startsWith('ncrypt1:')) {
-        const payload = encryptedKey.substring(8)
-        const base64Decoded = atob(payload)
-        const bytes = new Uint8Array(base64Decoded.length)
-
-        for (let i = 0; i < base64Decoded.length; i++) {
-            bytes[i] = base64Decoded.charCodeAt(i)
-        }
-
-        const colonIndex = Array.from(bytes).findIndex((b) => b === 58)
-        if (colonIndex === -1) throw new Error('Invalid encryption format')
-
-        const passwordBytes = bytes.slice(0, colonIndex)
-        const keyBytes = bytes.slice(colonIndex + 1)
-
-        const storedPassword = new TextDecoder().decode(passwordBytes)
-        if (storedPassword !== password) throw new Error('Invalid password')
-
-        return keyBytes
-    } else {
-        const decrypted = decrypt(encryptedKey, password)
-        if (!decrypted) throw new Error('Failed to decrypt private key')
-        return decrypted
-    }
-}
-
-const createSigner = async (privateKey: Uint8Array): Promise<{ signer: NDKPrivateKeySigner; user: NDKUser }> => {
-    const hexKey = Array.from(privateKey)
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('')
-    const signer = new NDKPrivateKeySigner(hexKey)
-
-    await signer.blockUntilReady()
-    nostrService.setSigner(signer)
-
-    const user = await signer.user()
-    await user.fetchProfile()
-
-    return { signer, user }
-}
-
-const updateAuthState = (state: Partial<AuthState>) => {
-    authStore.setState((current) => ({ ...current, ...state }))
-}
-
-const persistUserSession = (user: NDKUser) => {
-    if (typeof window === 'undefined') return
-
-    const persistData = {
-        pubkey: user.pubkey,
-        profile: user.profile,
-    }
-
-    sessionStorage.setItem('AUTH_STATE', JSON.stringify(persistData))
-}
-
-const storageKeys = {
-    encryptedKey: 'ENCRYPTED_PRIVATE_KEY',
-    pubkey: 'AUTH_PUBKEY',
-    authState: 'AUTH_STATE',
-}
-
-const getEncryptedKeyInfo = () => ({
-    encryptedKey: localStorage.getItem(storageKeys.encryptedKey),
-    pubkey: localStorage.getItem(storageKeys.pubkey),
-})
-
-const initAuth = async () => {
-    try {
-        const storedLocalSignerKey = localStorage.getItem('nostr_local_signer_key')
-        const storedConnectUrl = localStorage.getItem('nostr_connect_url')
-
-        console.log('storedLocalSignerKey', storedLocalSignerKey)
-        console.log('storedConnectUrl', storedConnectUrl)
-
-        if (storedLocalSignerKey && storedConnectUrl) {
-            try {
-                const localSigner = new NDKPrivateKeySigner(storedLocalSignerKey)
-                await localSigner.blockUntilReady()
-
-                const ndk = nostrService.getNDK()
-                if (!ndk) throw new Error('NDK not initialized')
-
-                const nip46Signer = new NDKNip46Signer(ndk, storedConnectUrl, localSigner)
-                await nip46Signer.blockUntilReady()
-
-                nostrService.setSigner(nip46Signer)
-
-                const user = await nip46Signer.user()
-                await user.fetchProfile()
-
-                persistUserSession(user)
-
-                updateAuthState({
-                    status: 'authenticated',
-                    user,
-                    signer: nip46Signer,
-                    error: null,
-                })
-
-                return // Skip anonymous signer creation
-            } catch (error) {
-                console.error('Failed to initialize NIP-46 signer:', error)
-                localStorage.removeItem('nostr_local_signer_key')
-                localStorage.removeItem('nostr_connect_url')
-            }
-        }
-
-        // Check for encrypted private key
-        const { encryptedKey, pubkey } = getEncryptedKeyInfo()
-        if (encryptedKey && pubkey) {
-            // We have an encrypted key but user needs to login
-            await nostrService.connect()
-            updateAuthState({
-                status: 'unauthenticated',
-                user: null,
-                signer: null,
-                error: null,
-            })
-            return
-        }
-
-        // Initialize without any signer
-        nostrService.setSigner(null)
-        await nostrService.connect()
-
-        updateAuthState({
-            status: 'unauthenticated',
-            user: null,
-            signer: null,
-            error: null,
-        })
-    } catch (error) {
-        updateAuthState({
-            status: 'error',
-            error: error instanceof Error ? error : new Error('Failed to initialize auth'),
-        })
-    }
-}
-
-export const auth = {
-    store: authStore,
-
-    openLoginDialog() {
-        updateAuthState({
-            isLoginDialogOpen: true,
-            privateKeyValidated: false,
-            privateKeyToEncrypt: null,
-        })
-    },
-
-    closeLoginDialog() {
-        updateAuthState({
-            isLoginDialogOpen: false,
-            privateKeyValidated: false,
-            privateKeyToEncrypt: null,
-            error: null,
-        })
-    },
-
-    async validatePrivateKey(privateKey: string) {
-        try {
-            updateAuthState({ status: 'loading', error: null })
-
-            if (!privateKey.startsWith('nsec1')) {
-                throw new Error('Invalid private key format. Must be nsec1 format.')
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+            const privateKey = localStorage.getItem(NOSTR_LOCAL_SIGNER_KEY)
+            const bunkerUrl = localStorage.getItem(NOSTR_CONNECT_KEY)
+            if (privateKey && bunkerUrl) {
+                await authActions.loginWithNip46(bunkerUrl, new NDKPrivateKeySigner(privateKey))
+                return
             }
 
-            updateAuthState({
-                status: 'unauthenticated',
-                privateKeyValidated: true,
-                privateKeyToEncrypt: privateKey,
-                error: null,
-            })
-
-            return true
-        } catch (error) {
-            updateAuthState({
-                status: 'unauthenticated',
-                error: error instanceof Error ? error : new Error('Unknown error occurred'),
-                privateKeyValidated: false,
-                privateKeyToEncrypt: null,
-            })
-            throw error
-        }
-    },
-
-    async encryptAndLoginWithPrivateKey(password: string) {
-        let privateKey: string | null = null
-
-        try {
-            privateKey = authStore.state.privateKeyToEncrypt
-            if (!privateKey) throw new Error('No private key to encrypt')
-
-            updateAuthState({ status: 'loading', error: null })
-
-            const { decodedSk, ncryptsec } = createNcryptSec(privateKey, password)
-            const { signer, user } = await createSigner(decodedSk)
-
-            localStorage.setItem(storageKeys.encryptedKey, ncryptsec)
-            localStorage.setItem(storageKeys.pubkey, user.pubkey)
-
-            persistUserSession(user)
-
-            updateAuthState({
-                status: 'authenticated',
-                user,
-                signer,
-                error: null,
-                isLoginDialogOpen: false,
-                privateKeyValidated: false,
-                privateKeyToEncrypt: null,
-            })
-
-            return true
-        } catch (error) {
-            updateAuthState({
-                status: 'error',
-                error: error instanceof Error ? error : new Error('Unknown error occurred'),
-                privateKeyValidated: true,
-                privateKeyToEncrypt: privateKey,
-            })
-            throw error
-        }
-    },
-
-    async loginWithPrivateKey(privateKey: string, password?: string) {
-        if (password) {
-            updateAuthState({
-                privateKeyValidated: true,
-                privateKeyToEncrypt: privateKey,
-            })
-            return this.encryptAndLoginWithPrivateKey(password)
-        }
-        return this.validatePrivateKey(privateKey)
-    },
-
-    async loginWithEncryptedKey(password: string) {
-        try {
-            updateAuthState({ status: 'loading', error: null })
-
-            const { encryptedKey, pubkey } = getEncryptedKeyInfo()
-            if (!encryptedKey || !pubkey) throw new Error('No encrypted key found')
-
-            const privateKey = decryptKey(encryptedKey, password)
-            const { signer, user } = await createSigner(privateKey)
-
-            if (user.pubkey !== pubkey) throw new Error('Decrypted key does not match stored public key')
-
-            persistUserSession(user)
-
-            updateAuthState({
-                status: 'authenticated',
-                user,
-                signer,
-                error: null,
-                isLoginDialogOpen: false,
-            })
-
-            return true
-        } catch (error) {
-            updateAuthState({
-                status: 'error',
-                error: error instanceof Error ? error : new Error('Unknown error occurred'),
-            })
-            throw error
-        }
-    },
-
-    async loginWithExtension() {
-        try {
-            updateAuthState({ status: 'loading', error: null })
-
-            const signer = new NDKNip07Signer()
-
-            try {
-                await signer.blockUntilReady()
-            } catch {
-                throw new Error('Extension not responding. Please check if it is unlocked and permissions are granted.')
+            const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
+            if (encryptedPrivateKey) {
+                authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                return
             }
 
-            nostrService.setSigner(signer)
-
-            const user = await signer.user()
-            await user.fetchProfile()
-
-            persistUserSession(user)
-
-            updateAuthState({
-                status: 'authenticated',
-                user,
-                signer,
-                error: null,
-                isLoginDialogOpen: false,
-            })
+            await authActions.loginWithExtension()
         } catch (error) {
-            updateAuthState({
-                status: 'error',
-                error: error instanceof Error ? error : new Error('Extension login failed'),
-            })
-            throw error
+            console.error('Authentication failed:', error)
+        } finally {
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         }
     },
 
-    async loginWithNostrConnect(signer: NDKNip46Signer) {
+    decryptAndLogin: async (password: string) => {
         try {
-            updateAuthState({ status: 'loading', error: null })
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+            const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
+            if (!encryptedPrivateKey) {
+                throw new Error('No encrypted key found')
+            }
+
+            const [, key] = encryptedPrivateKey.split(':')
+            await authActions.loginWithPrivateKey(key)
+            authStore.setState((state) => ({ ...state, needsDecryptionPassword: false }))
+        } catch (error) {
+            throw error
+        } finally {
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+        }
+    },
+
+    loginWithPrivateKey: async (privateKey: string) => {
+        const ndk = ndkActions.getNDK()
+        if (!ndk) throw new Error('NDK not initialized')
+
+        try {
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+            const signer = new NDKPrivateKeySigner(privateKey)
             await signer.blockUntilReady()
-            nostrService.setSigner(signer)
+            ndkActions.setSigner(signer)
 
             const user = await signer.user()
-            await user.fetchProfile()
 
-            persistUserSession(user)
-
-            updateAuthState({
-                status: 'authenticated',
+            authStore.setState((state) => ({
+                ...state,
                 user,
-                signer,
-                error: null,
-                isLoginDialogOpen: false,
-            })
+                isAuthenticated: true,
+            }))
+
+            return user
         } catch (error) {
-            updateAuthState({
-                status: 'error',
-                error: error instanceof Error ? error : new Error('Nostr Connect login failed'),
-            })
+            authStore.setState((state) => ({
+                ...state,
+                isAuthenticated: false,
+            }))
             throw error
+        } finally {
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         }
     },
 
-    hasEncryptedKey() {
-        const { encryptedKey, pubkey } = getEncryptedKeyInfo()
-        return !!encryptedKey && !!pubkey
+    loginWithExtension: async () => {
+        const ndk = ndkActions.getNDK()
+        if (!ndk) throw new Error('NDK not initialized')
+
+        try {
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+            const signer = new NDKNip07Signer()
+            await signer.blockUntilReady()
+            ndkActions.setSigner(signer)
+
+            const user = await signer.user()
+
+            authStore.setState((state) => ({
+                ...state,
+                user,
+                isAuthenticated: true,
+            }))
+
+            return user
+        } catch (error) {
+            authStore.setState((state) => ({
+                ...state,
+                isAuthenticated: false,
+            }))
+            throw error
+        } finally {
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+        }
     },
 
-    getStoredPubkey() {
-        return localStorage.getItem(storageKeys.pubkey)
+    loginWithNip46: async (bunkerUrl: string, localSigner: NDKPrivateKeySigner) => {
+        const ndk = ndkActions.getNDK()
+        if (!ndk) throw new Error('NDK not initialized')
+
+        localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
+        localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
+
+        try {
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+            const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
+            await signer.blockUntilReady()
+            ndkActions.setSigner(signer)
+            const user = await signer.user()
+
+            authStore.setState((state) => ({
+                ...state,
+                user,
+                isAuthenticated: true,
+            }))
+
+            return user
+        } catch (error) {
+            authStore.setState((state) => ({
+                ...state,
+                isAuthenticated: false,
+            }))
+            throw error
+        } finally {
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+        }
     },
 
-    logout() {
-        sessionStorage.removeItem(storageKeys.authState)
-        localStorage.removeItem(storageKeys.encryptedKey)
-        localStorage.removeItem(storageKeys.pubkey)
-        localStorage.removeItem('nostr_local_signer_key')
-        localStorage.removeItem('nostr_connect_url')
-
-        nostrService.setSigner(null)
-
-        updateAuthState({
-            status: 'unauthenticated',
-            user: null,
-            signer: null,
-            error: null,
-            isLoginDialogOpen: false,
-            privateKeyValidated: false,
-            privateKeyToEncrypt: null,
-        })
+    logout: () => {
+        const ndk = ndkActions.getNDK()
+        if (!ndk) return
+        ndkActions.removeSigner()
+        localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+        localStorage.removeItem(NOSTR_CONNECT_KEY)
+        localStorage.removeItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
+        localStorage.removeItem(NOSTR_AUTO_LOGIN)
+        authStore.setState(() => initialState)
     },
-
-    clearStoredKeys() {
-        localStorage.removeItem(storageKeys.encryptedKey)
-        localStorage.removeItem(storageKeys.pubkey)
-
-        updateAuthState({
-            status: 'unauthenticated',
-            user: null,
-            signer: null,
-            error: null,
-            isLoginDialogOpen: false,
-            privateKeyValidated: false,
-            privateKeyToEncrypt: null,
-        })
-    },
-
-    initialize: initAuth,
 }
 
-export default auth
+export const useAuth = () => {
+    return {
+        ...authStore.state,
+        ...authActions,
+    }
+}

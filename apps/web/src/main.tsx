@@ -1,22 +1,27 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
-import { RouterProvider, createRouter } from '@tanstack/react-router'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { nostrService } from '@wavefunc/common'
+import { authActions } from './lib/store/auth'
 import { routeTree } from './routeTree.gen'
-import auth from './lib/store/auth'
-
-// Initialize the NDK service
-nostrService.init({
-    host: import.meta.env.VITE_PUBLIC_HOST || 'localhost',
-    relayPort: import.meta.env.VITE_PUBLIC_RELAY_PORT || 3002,
-    webPort: import.meta.env.VITE_PUBLIC_WEB_PORT || 8080,
-    useCache: true,
-    enableLogging: import.meta.env.DEV,
-})
+import { ndkActions } from './lib/store/ndk'
 
 console.log('Initializing auth state... in main')
-auth.initialize()
+
+const connectToRelay = async () => {
+    const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
+    const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
+    const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
+    const PORT_OR_DEFAULT = import.meta.env.DEV ? ':3002' : ''
+    const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
+
+    console.log(`Adding relay from config: ${relay}`)
+    ndkActions.initialize([relay])
+    ndkActions.connect()
+    authActions.getAuthFromLocalStorageAndLogin()
+}
+
+connectToRelay().catch(console.error)
 
 // Create router and query client before connecting to NDK
 const queryClient = new QueryClient()
@@ -33,16 +38,6 @@ declare module '@tanstack/react-router' {
         router: typeof router
     }
 }
-
-// Connect to relays in the background after router is created
-nostrService
-    .connect()
-    .then(() => {
-        console.log('Connected to NDK relays')
-    })
-    .catch((err) => {
-        console.warn('Failed to connect to NDK relays:', err)
-    })
 
 // Render the application
 const rootElement = document.getElementById('root')!

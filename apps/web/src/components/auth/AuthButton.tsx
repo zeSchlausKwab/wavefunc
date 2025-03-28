@@ -1,19 +1,20 @@
 import { Button } from '@/components/ui/button'
-import { auth } from '@/lib/store/auth'
-import { type ComponentPropsWithoutRef } from 'react'
-import { useStore } from '@tanstack/react-store'
-import { UserCircle2, Loader2, Settings, LogIn } from 'lucide-react'
-import { Profile } from '../Profile'
+import { authActions, authStore } from '@/lib/store/auth'
 import { Link } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
+import { Loader2, LogIn, Settings, UserCircle2 } from 'lucide-react'
+import { type ComponentPropsWithoutRef } from 'react'
+import { Profile } from '../Profile'
+import { uiActions } from '@/lib/store/ui'
 
 interface AuthButtonProps extends Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> {
     compact?: boolean
 }
 
 export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
-    const authState = useStore(auth.store)
+    const authState = useStore(authStore)
 
-    if (authState.status === 'loading') {
+    if (authState.isAuthenticating) {
         return (
             <Button disabled variant="ghost" {...props}>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -22,7 +23,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
         )
     }
 
-    if (authState.status === 'authenticated') {
+    if (authState.isAuthenticated) {
         return (
             <div className="flex items-center gap-2">
                 <Link to="/settings">
@@ -36,7 +37,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
     }
 
     // Unauthenticated state
-    if (authState.status === 'unauthenticated') {
+    if (!authState.isAuthenticated) {
         return (
             <div className="flex items-center gap-2">
                 <Link to="/settings">
@@ -47,7 +48,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
                 <Button
                     variant="outline"
                     size={compact ? 'sm' : 'default'}
-                    onClick={() => auth.openLoginDialog()}
+                    onClick={() => uiActions.openAuthDialog()}
                     {...props}
                 >
                     <LogIn className="h-4 w-4 mr-2" />
@@ -59,7 +60,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
 
     // Error or any other state - show basic login button
     return (
-        <Button variant="outline" onClick={() => auth.openLoginDialog()} {...props}>
+        <Button variant="outline" onClick={() => authActions.openLoginDialog()} {...props}>
             <UserCircle2 className="h-4 w-4 mr-2" />
             <span>Sign In</span>
         </Button>

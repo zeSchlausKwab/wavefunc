@@ -14,8 +14,8 @@ import {
     deleteFavoritesList,
 } from '@wavefunc/common'
 import { Textarea } from '@/components/ui/textarea'
-import { nostrService } from '@/lib/services/ndk'
 import { z } from 'zod'
+import { ndkActions } from '@/lib/store/ndk'
 
 const FavoritesListSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -68,7 +68,10 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
 
     const onSubmit = async (data: FavoritesListFormData) => {
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
 
             if (favoritesList) {
                 // Update existing favorites list
@@ -99,7 +102,10 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
         if (!favoritesList) return
 
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
             await deleteFavoritesList(ndk, favoritesList.id)
             onClose()
         } catch (error) {

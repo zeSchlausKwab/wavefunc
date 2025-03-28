@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { auth } from '@/lib/store/auth'
+import { authStore } from '@/lib/store/auth'
 import { ProfileSettings } from '@/components/settings/ProfileSettings'
 import { RelaysSettings } from '@/components/settings/RelaysSettings'
 import { createFileRoute } from '@tanstack/react-router'
@@ -13,10 +13,10 @@ export const Route = createFileRoute('/settings')({
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile')
-    const authState = useStore(auth.store)
+    const authState = useStore(authStore)
 
     const renderUserIdentity = () => {
-        if (authState.status === 'authenticated' || authState.status === 'anonymous') {
+        if (authState.isAuthenticated) {
             const pubkey = authState.user?.pubkey || ''
             return (
                 <div className="mb-6 p-4 bg-muted rounded-lg">
@@ -27,7 +27,7 @@ export default function Settings() {
                     <p className="text-sm text-muted-foreground mb-1">Public Key:</p>
                     <code className="text-xs bg-background p-2 rounded block overflow-x-auto">{pubkey}</code>
                     <p className="text-xs text-muted-foreground mt-2">
-                        {authState.status === 'authenticated'
+                        {authState.isAuthenticated
                             ? 'You are signed in with your Nostr identity.'
                             : 'You are browsing anonymously. Sign in to save your settings.'}
                     </p>

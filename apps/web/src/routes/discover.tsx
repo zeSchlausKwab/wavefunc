@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
-import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
-import { nostrService } from '@/lib/services/ndk'
-import { RelayDebugger } from '../components/debug/RelayDebugger'
-import { subscribeToRadioStations, parseRadioEvent, RADIO_EVENT_KINDS, type Station } from '@wavefunc/common'
-import { ExpandableStationCard } from '../components/station/ExpandableStationCard'
-import { createFileRoute } from '@tanstack/react-router'
-import { useMedia } from 'react-use'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ndkActions } from '@/lib/store/ndk'
+import { cn } from '@/lib/utils'
+import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
+import { createFileRoute } from '@tanstack/react-router'
+import { parseRadioEvent, RADIO_EVENT_KINDS, subscribeToRadioStations, type Station } from '@wavefunc/common'
+import { useEffect, useState } from 'react'
+import { useMedia } from 'react-use'
+import { RelayDebugger } from '../components/debug/RelayDebugger'
+import { ExpandableStationCard } from '../components/station/ExpandableStationCard'
 
 export const Route = createFileRoute('/discover')({
     component: Discover,
@@ -23,7 +23,10 @@ function Discover() {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const user = await nostrService.getNDK().signer?.user()
+                const ndk = ndkActions.getNDK()
+                if (!ndk) return
+
+                const user = await ndk.signer?.user()
                 if (user) {
                     setCurrentUser(user)
                 }
@@ -36,7 +39,9 @@ function Discover() {
     }, [])
 
     useEffect(() => {
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
+        if (!ndk) return
+
         const sub = ndk.subscribe(
             {
                 kinds: [5],
@@ -64,7 +69,10 @@ function Discover() {
     }, [])
 
     useEffect(() => {
-        const sub = subscribeToRadioStations(nostrService.getNDK(), (event: NDKEvent) => {
+        const ndk = ndkActions.getNDK()
+        if (!ndk) return
+
+        const sub = subscribeToRadioStations(ndk, (event: NDKEvent) => {
             if (deletedStationIds.has(event.id)) {
                 return
             }

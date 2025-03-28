@@ -6,9 +6,9 @@ import type { Station } from '@wavefunc/common'
 import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
 import { useState, useEffect } from 'react'
 import { Pause, Play, Plus, CircleDashed, CheckCircle2, ExternalLink } from 'lucide-react'
-import { nostrService } from '@/lib/services/ndk'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import { ndkActions, ndkStore, useNDK } from '@/lib/store/ndk'
 
 interface RadioStationCardProps {
     station: Station
@@ -23,16 +23,22 @@ export function RadioStationCard({ station }: RadioStationCardProps) {
     const currentStation = useStore(stationsStore, (state) => state.currentStation)
     const isCurrentlyPlaying = currentStation?.id === station.id && isPlaying
 
+    const { isConnected, ndk } = useStore(ndkStore)
+
     useEffect(() => {
         let isMounted = true
+
+        if (!isConnected) return
 
         const checkNostr = async () => {
             if (!station.name) return
 
             try {
                 setCheckingNostr(true)
-                await nostrService.connect()
-                const ndk = nostrService.getNDK()
+
+                if (!ndk) {
+                    throw new Error('NDK not initialized')
+                }
 
                 if (!isMounted) return
 
@@ -63,7 +69,7 @@ export function RadioStationCard({ station }: RadioStationCardProps) {
         return () => {
             isMounted = false
         }
-    }, [station.name])
+    }, [station.name, isConnected])
 
     const handlePlayPause = () => {
         const primaryStream = station.streams.find((s) => s.primary) || station.streams[0]

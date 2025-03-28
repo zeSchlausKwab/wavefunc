@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { createCommentEvent, publishComment } from '@wavefunc/common'
 import { Loader2 } from 'lucide-react'
-import { nostrService } from '@/lib/services/ndk'
 import { toast } from 'sonner'
-
+import { ndkActions } from '@/lib/store/ndk'
 interface CreateCommentProps {
     stationEvent: any // NDKEvent, avoiding direct import
     onCommentPosted: () => void
@@ -23,7 +22,7 @@ export default function CreateComment({ stationEvent, onCommentPosted }: CreateC
         setIsSubmitting(true)
 
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
             // Create an unsigned event for a root comment

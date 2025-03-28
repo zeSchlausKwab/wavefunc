@@ -100,7 +100,7 @@ export function Header() {
                 </div>
             )}
 
-            <LoginDialog />
+            {/* <LoginDialog /> */}
         </header>
     )
 }

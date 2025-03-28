@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import React from 'react'
 
-import { nostrService } from '@/lib/services/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
 import type { Station } from '@wavefunc/common/types/station'
@@ -29,6 +28,7 @@ import { FavoritesDropdown } from './FavoritesDropdown'
 import CommentsList from '@/components/comments'
 import { useMedia } from 'react-use'
 import { cn } from '@/lib/utils'
+import { ndkActions } from '@/lib/store/ndk'
 
 interface ExpandableStationCardProps {
     station: Station
@@ -48,7 +48,11 @@ export function ExpandableStationCard({ station, currentListId, favoritesLists =
 
     React.useEffect(() => {
         const getUser = async () => {
-            const user = await nostrService.getNDK().signer?.user()
+            const ndk = ndkActions.getNDK()
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
+            const user = await ndk.signer?.user()
             if (user) {
                 setUser(user)
             }

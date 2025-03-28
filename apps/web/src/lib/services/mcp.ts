@@ -1,7 +1,7 @@
 import type { RecognitionResult } from '@/types/recognition'
 import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
 import type { NDKFilter } from '@nostr-dev-kit/ndk'
-import { nostrService } from './ndk'
+import { ndkActions } from '../store/ndk'
 
 /**
  * DVMCP Client Service
@@ -52,7 +52,13 @@ class DVMCPService {
                 limit: 10,
             }
 
-            const events = await nostrService.getNDK().fetchEvents(filter)
+            const ndk = ndkActions?.getNDK()
+
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
+
+            const events = await ndk.fetchEvents(filter)
 
             const providers: { pubkey: string; name: string; tools: any[] }[] = []
 
@@ -88,8 +94,13 @@ class DVMCPService {
      * Discover tools through direct list-tools request
      */
     private async discoverThroughListTools(): Promise<void> {
+        const ndk = ndkActions?.getNDK()
+
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
         // Create a request to list all available tools
-        const requestEvent = new NDKEvent(nostrService.getNDK())
+        const requestEvent = new NDKEvent(ndk)
         requestEvent.kind = this.REQUEST_KIND
         requestEvent.content = ''
         requestEvent.tags = [
@@ -100,7 +111,7 @@ class DVMCPService {
         await requestEvent.sign()
 
         // Subscribe to responses
-        const sub = nostrService.getNDK().subscribe({
+        const sub = ndk.subscribe({
             kinds: [this.RESPONSE_KIND],
             '#e': [requestEvent.id],
             limit: 10,
@@ -167,8 +178,14 @@ class DVMCPService {
 
             console.log(`Using DVMCP provider: ${provider.name}`)
 
+            const ndk = ndkActions.getNDK()
+
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
+
             // Create the tool execution request
-            const requestEvent = new NDKEvent(nostrService.getNDK())
+            const requestEvent = new NDKEvent(ndk)
             requestEvent.kind = this.REQUEST_KIND
             requestEvent.content = JSON.stringify({
                 name: 'music_recognition',
@@ -187,7 +204,7 @@ class DVMCPService {
             await requestEvent.sign()
 
             // Subscribe to responses and feedback
-            const sub = nostrService.getNDK().subscribe({
+            const sub = ndkActions.getNDK().subscribe({
                 kinds: [this.RESPONSE_KIND, this.FEEDBACK_KIND],
                 '#e': [requestEvent.id],
             })
