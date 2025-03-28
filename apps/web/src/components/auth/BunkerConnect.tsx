@@ -25,14 +25,14 @@ export function BunkerConnect({ onError }: BunkerConnectProps) {
             if (!ndk) {
                 throw new Error('NDK not initialized')
             }
-            
+
             // Generate a local signer for NIP-46
             const localSigner = NDKPrivateKeySigner.generate()
             await localSigner.blockUntilReady()
-            
+
             // Use the loginWithNip46 method from authActions
             await authActions.loginWithNip46(url, localSigner)
-            
+
             // Close the dialog on success
             uiActions.closeAuthDialog()
         } catch (err) {

@@ -3,8 +3,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { authActions, authStore, NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY, NOSTR_LOCAL_SIGNER_KEY, NOSTR_AUTO_LOGIN } from '@/lib/store/auth'
-import { ndkActions } from '@/lib/store/ndk'
+import {
+    authActions,
+    authStore,
+    NOSTR_AUTO_LOGIN,
+    NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY,
+    NOSTR_LOCAL_SIGNER_KEY,
+} from '@/lib/store/auth'
 import { uiActions, uiStore } from '@/lib/store/ui'
 import { useStore } from '@tanstack/react-store'
 import { generateSecretKey, nip19 } from 'nostr-tools'
@@ -26,7 +31,7 @@ export function LoginDialog() {
 
     const isLoading = authState.isAuthenticating
     const storedPubkey = authState.user?.pubkey
-    
+
     // Check if we have a stored key
     const hasStoredKey = Boolean(localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY))
 
@@ -94,10 +99,10 @@ export function LoginDialog() {
             // Try to validate the private key without logging in
             // We're not using loginWithPrivateKey here as that would log the user in immediately
             const validKey = await authActions.loginWithPrivateKey(privateKey)
-            
+
             // If we get here, the key is valid
             setPrivateKeyValidated(true)
-            
+
             // Don't close the dialog yet, let the user encrypt their key
             authActions.logout() // Log out immediately since we just want to validate
         } catch (error) {
@@ -147,13 +152,13 @@ export function LoginDialog() {
         try {
             // Log in with the validated private key
             await authActions.loginWithPrivateKey(privateKey)
-            
+
             // Store for auto login next time
             localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
-            
+
             // TODO: Implement encryption of the private key when that feature is needed
             // For now, we'll just use the direct private key login
-            
+
             resetFormInputs()
             uiActions.closeAuthDialog()
         } catch (error) {
@@ -230,11 +235,7 @@ export function LoginDialog() {
                         <div className="flex-grow h-px bg-muted"></div>
                     </div>
 
-                    <Button
-                        onClick={clearStoredKeys}
-                        variant="outline"
-                        className="w-full"
-                    >
+                    <Button onClick={clearStoredKeys} variant="outline" className="w-full">
                         Remove Stored Key & Continue Anonymously
                     </Button>
                 </div>
@@ -361,19 +362,13 @@ export function LoginDialog() {
                             <p className="text-sm text-muted-foreground">
                                 Login using your Nostr browser extension (e.g., Alby, nos2x).
                             </p>
-                            <Button
-                                onClick={handleExtensionLogin}
-                                disabled={isLoading}
-                                className="w-full"
-                            >
+                            <Button onClick={handleExtensionLogin} disabled={isLoading} className="w-full">
                                 {isLoading ? 'Connecting...' : 'Connect to Extension'}
                             </Button>
                         </div>
                     </TabsContent>
                 </Tabs>
-                {passwordError && (
-                    <div className="text-sm text-red-500 mt-2 text-center">{passwordError}</div>
-                )}
+                {passwordError && <div className="text-sm text-red-500 mt-2 text-center">{passwordError}</div>}
             </DialogContent>
         </Dialog>
     )
