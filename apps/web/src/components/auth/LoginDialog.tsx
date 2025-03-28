@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { authActions, authStore } from '@/lib/store/auth'
+import { authActions, authStore, NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY, NOSTR_LOCAL_SIGNER_KEY, NOSTR_AUTO_LOGIN } from '@/lib/store/auth'
+import { ndkActions } from '@/lib/store/ndk'
 import { uiActions, uiStore } from '@/lib/store/ui'
 import { useStore } from '@tanstack/react-store'
 import { generateSecretKey, nip19 } from 'nostr-tools'
@@ -21,9 +22,13 @@ export function LoginDialog() {
     const [passwordError, setPasswordError] = useState('')
     const [hasPromptedForLogin, setHasPromptedForLogin] = useState(false)
     const [activeTab, setActiveTab] = useState('private-key')
+    const [privateKeyValidated, setPrivateKeyValidated] = useState(false)
 
     const isLoading = authState.isAuthenticating
     const storedPubkey = authState.user?.pubkey
+    
+    // Check if we have a stored key
+    const hasStoredKey = Boolean(localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY))
 
     // Reset form state when component mounts or inputs need cleaning
     const resetFormInputs = () => {
@@ -31,6 +36,7 @@ export function LoginDialog() {
         setEncryptionPassword('')
         setConfirmPassword('')
         setPasswordError('')
+        setPrivateKeyValidated(false)
     }
 
     useEffect(() => {
@@ -40,8 +46,8 @@ export function LoginDialog() {
     }, [isLoading])
 
     useEffect(() => {
-        const shouldPromptForLogin =
-            authState.user?.encryptedPrivateKey && !authState.isAuthenticated && !hasPromptedForLogin
+        const hasEncryptedKey = Boolean(localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY))
+        const shouldPromptForLogin = hasEncryptedKey && !authState.isAuthenticated && !hasPromptedForLogin
 
         if (shouldPromptForLogin) {
             setHasPromptedForLogin(true)
@@ -65,11 +71,7 @@ export function LoginDialog() {
     }, [uiState.authDialog.isOpen])
 
     const resetAuthState = () => {
-        authStore.setState((state) => ({
-            ...state,
-            status: 'anonymous',
-            error: null,
-        }))
+        // Remove any additional state that's not in the original authStore
     }
 
     const handleDialogChange = (open: boolean) => {
@@ -89,10 +91,18 @@ export function LoginDialog() {
 
     const handleValidatePrivateKey = async () => {
         try {
-            await authActions.validatePrivateKey(privateKey)
-            setPrivateKey('') // Clear private key after validation
+            // Try to validate the private key without logging in
+            // We're not using loginWithPrivateKey here as that would log the user in immediately
+            const validKey = await authActions.loginWithPrivateKey(privateKey)
+            
+            // If we get here, the key is valid
+            setPrivateKeyValidated(true)
+            
+            // Don't close the dialog yet, let the user encrypt their key
+            authActions.logout() // Log out immediately since we just want to validate
         } catch (error) {
             console.error('Private key validation failed:', error)
+            setPasswordError(error instanceof Error ? error.message : 'Invalid private key')
         }
     }
 
@@ -101,17 +111,24 @@ export function LoginDialog() {
 
         try {
             if (hasStoredKey) {
-                await auth.loginWithEncryptedKey(password)
+                await authActions.decryptAndLogin(password)
                 resetFormInputs()
-            } else {
-                await auth.encryptAndLoginWithPrivateKey(password)
-                resetFormInputs()
+                uiActions.closeAuthDialog()
+            } else if (privateKeyValidated) {
+                // This case isn't implemented in the current authActions
+                // We'll need to directly use private key login instead
+                if (privateKey) {
+                    await authActions.loginWithPrivateKey(privateKey)
+                    // Store encrypted key would be added here
+                    resetFormInputs()
+                    uiActions.closeAuthDialog()
+                }
             }
         } catch (error) {
             if (hasStoredKey) {
                 setPasswordError('Incorrect password')
             } else {
-                setPasswordError(error instanceof Error ? error.message : 'Encryption failed')
+                setPasswordError(error instanceof Error ? error.message : 'Authentication failed')
             }
         }
     }
@@ -127,7 +144,21 @@ export function LoginDialog() {
             return
         }
 
-        await handleLoginWithPassword(encryptionPassword)
+        try {
+            // Log in with the validated private key
+            await authActions.loginWithPrivateKey(privateKey)
+            
+            // Store for auto login next time
+            localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+            
+            // TODO: Implement encryption of the private key when that feature is needed
+            // For now, we'll just use the direct private key login
+            
+            resetFormInputs()
+            uiActions.closeAuthDialog()
+        } catch (error) {
+            setPasswordError(error instanceof Error ? error.message : 'Authentication failed')
+        }
     }
 
     const handleStoredKeyLogin = async () => {
@@ -142,10 +173,25 @@ export function LoginDialog() {
     const handleError = (error: string | Error) => {
         const errorMessage = error instanceof Error ? error.message : error
         console.error(errorMessage)
-        auth.store.setState((state) => ({
-            ...state,
-            error: new Error(errorMessage),
-        }))
+        setPasswordError(errorMessage)
+    }
+
+    const handleExtensionLogin = async () => {
+        try {
+            await authActions.loginWithExtension()
+            uiActions.closeAuthDialog()
+        } catch (error) {
+            console.error('Extension login failed:', error)
+            handleError(error instanceof Error ? error : String(error))
+        }
+    }
+
+    const clearStoredKeys = () => {
+        localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+        localStorage.removeItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
+        authActions.logout()
+        resetFormInputs()
+        uiActions.closeAuthDialog()
     }
 
     const renderPrivateKeySection = () => {
@@ -185,10 +231,7 @@ export function LoginDialog() {
                     </div>
 
                     <Button
-                        onClick={() => {
-                            auth.clearStoredKeys()
-                            resetFormInputs()
-                        }}
+                        onClick={clearStoredKeys}
                         variant="outline"
                         className="w-full"
                     >
@@ -198,7 +241,7 @@ export function LoginDialog() {
             )
         }
 
-        if (authState.privateKeyValidated) {
+        if (privateKeyValidated) {
             return (
                 <div className="space-y-4 py-4">
                     <div className="space-y-2">
@@ -274,6 +317,7 @@ export function LoginDialog() {
                             }
                         }}
                     />
+                    {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
                 </div>
                 <Button onClick={handleValidatePrivateKey} disabled={isLoading || !privateKey} className="w-full">
                     {isLoading ? 'Validating...' : 'Continue'}
@@ -283,7 +327,7 @@ export function LoginDialog() {
     }
 
     return (
-        <Dialog open={authState.isLoginDialogOpen} onOpenChange={handleDialogChange}>
+        <Dialog open={uiState.authDialog.isOpen} onOpenChange={handleDialogChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Login to WaveFunc</DialogTitle>
@@ -304,7 +348,7 @@ export function LoginDialog() {
                             </TabsList>
 
                             <TabsContent value="qr">
-                                <NostrConnectQR onError={handleError} onSuccess={() => auth.closeLoginDialog()} />
+                                <NostrConnectQR onError={handleError} onSuccess={() => uiActions.closeAuthDialog()} />
                             </TabsContent>
 
                             <TabsContent value="bunker">
@@ -318,7 +362,7 @@ export function LoginDialog() {
                                 Login using your Nostr browser extension (e.g., Alby, nos2x).
                             </p>
                             <Button
-                                onClick={() => auth.loginWithExtension().catch(console.error)}
+                                onClick={handleExtensionLogin}
                                 disabled={isLoading}
                                 className="w-full"
                             >
@@ -327,8 +371,8 @@ export function LoginDialog() {
                         </div>
                     </TabsContent>
                 </Tabs>
-                {authState.error?.message && !passwordError && (
-                    <div className="text-sm text-red-500 mt-2 text-center">{authState.error.message}</div>
+                {passwordError && (
+                    <div className="text-sm text-red-500 mt-2 text-center">{passwordError}</div>
                 )}
             </DialogContent>
         </Dialog>

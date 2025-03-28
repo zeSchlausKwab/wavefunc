@@ -60,7 +60,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
 
     // Error or any other state - show basic login button
     return (
-        <Button variant="outline" onClick={() => authActions.openLoginDialog()} {...props}>
+        <Button variant="outline" onClick={() => uiActions.openAuthDialog()} {...props}>
             <UserCircle2 className="h-4 w-4 mr-2" />
             <span>Sign In</span>
         </Button>
