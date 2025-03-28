@@ -330,7 +330,7 @@ export function RadioPlayer() {
                         {isMuted ? <IconWrapper icon={VolumeX} /> : <IconWrapper icon={Volume2} />}
                     </Button>
 
-                    {currentStation && <MusicRecognitionButton audioElement={audioRef.current!} />}
+                    {/* {currentStation && <MusicRecognitionButton audioElement={audioRef.current!} />} */}
                 </div>
             </div>
 
