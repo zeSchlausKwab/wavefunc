@@ -7,8 +7,7 @@ import { MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ReplyToComment } from './ReplyToComment'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { nostrService } from '@/lib/services/ndk'
-
+import { ndkActions } from '@/lib/store/ndk'
 interface CommentItemProps {
     comment: NostrComment
     stationEvent: any // NDKEvent, but avoid direct import
@@ -42,7 +41,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
         queryFn: async () => {
             if (!comment.id) return []
 
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
             try {
@@ -67,7 +66,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
     useEffect(() => {
         if (!comment.id) return
 
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
         if (!ndk) return
 
         // Track if component is mounted to prevent updates after unmount

@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { createCommentEvent, publishComment, type NostrComment } from '@wavefunc/common'
 import { Loader2, X } from 'lucide-react'
-import { nostrService } from '@/lib/services/ndk'
 import { toast } from 'sonner'
+import { ndkActions } from '@/lib/store/ndk'
 
 interface ReplyToCommentProps {
     stationEvent: any // NDKEvent, avoiding direct import
@@ -24,7 +24,7 @@ export function ReplyToComment({ stationEvent, parentComment, onCommentPosted }:
         setIsSubmitting(true)
 
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
             const commentEvent = createCommentEvent(content.trim(), stationEvent, parentComment)

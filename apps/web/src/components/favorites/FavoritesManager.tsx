@@ -1,14 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { nostrService } from '@/lib/services/ndk'
-import type { Station } from '@wavefunc/common'
-import {
-    type FavoritesList,
-    fetchFavoritesLists,
-    parseRadioEvent,
-    subscribeToFavoritesLists,
-} from '@wavefunc/common'
+import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
+import { useStore } from '@tanstack/react-store'
+import type { Station } from '@wavefunc/common'
+import { type FavoritesList, fetchFavoritesLists, parseRadioEvent, subscribeToFavoritesLists } from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ExpandableStationCard } from '../station/ExpandableStationCard'
@@ -32,9 +28,13 @@ export function FavoritesManager() {
     const [isLoading, setIsLoading] = useState(false)
     const [resolvedStations, setResolvedStations] = useState<Record<string, ResolvedStation>>({})
     const mounted = useRef(false)
+    const { ndk } = useStore(ndkStore)
 
     useEffect(() => {
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
         const pubkey = ndk?.activeUser?.pubkey
 
         if (!pubkey) {
@@ -76,11 +76,14 @@ export function FavoritesManager() {
             setFavoritesLists([])
             setResolvedStations({})
         }
-    }, [nostrService.getNDK()?.activeUser?.pubkey]) // Depend on pubkey changes
+    }, [ndk?.activeUser?.pubkey, ndk]) // Depend on pubkey changes
 
     // Effect to resolve stations when favorites lists change
     useEffect(() => {
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
         if (!ndk?.activeUser?.pubkey || favoritesLists.length === 0) {
             return
         }
@@ -133,7 +136,7 @@ export function FavoritesManager() {
         }
 
         resolveStations()
-    }, [favoritesLists, nostrService.getNDK()?.activeUser?.pubkey])
+    }, [favoritesLists, ndk?.activeUser?.pubkey])
 
     const handleCreateNewList = () => {
         setSelectedFavoritesList(undefined)

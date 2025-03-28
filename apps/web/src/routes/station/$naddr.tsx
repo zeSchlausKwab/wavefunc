@@ -1,7 +1,6 @@
 import { StreamSelector } from '@/components/radio/StreamSelector'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { nostrService } from '@/lib/services/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
 import type { Station } from '@wavefunc/common'
@@ -27,9 +26,10 @@ import {
 import React from 'react'
 import CommentsList from '@/components/comments/CommentsList'
 import { ShareStationButton } from '@/components/ShareStationButton'
+import { ndkActions } from '@/lib/store/ndk'
 
 async function fetchStation(naddr: string): Promise<Station> {
-    const ndk = nostrService.getNDK()
+    const ndk = ndkActions.getNDK()
     if (!ndk) {
         throw new Error('NDK instance not available')
     }
@@ -157,7 +157,11 @@ function StationPage() {
     React.useEffect(() => {
         const getUser = async () => {
             if (station?.pubkey) {
-                const userObj = await nostrService.getNDK()?.signer?.user()
+                const ndk = ndkActions.getNDK()
+                if (!ndk) {
+                    throw new Error('NDK not initialized')
+                }
+                const userObj = await ndk.signer?.user()
                 if (userObj) {
                     setUser(userObj as NDKUser)
                 }

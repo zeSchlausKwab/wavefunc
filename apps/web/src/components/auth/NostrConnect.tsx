@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { NDKEvent, NDKKind, NDKPrivateKeySigner, NDKNip46Signer, NDKUser } from '@nostr-dev-kit/ndk'
-import { nostrService } from '@/lib/services/ndk'
-import { auth } from '@/lib/store/auth'
 import { generateSecretToken } from '@/lib/utils'
+import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+import { useEffect, useState } from 'react'
 
 import { QRCodeSVG } from 'qrcode.react'
+import { ndkActions } from '@/lib/store/ndk'
 
 interface NostrConnectProps {
     onSuccess?: () => void
@@ -42,7 +41,7 @@ export function NostrConnect({ onSuccess, onError, onCancel }: NostrConnectProps
 
             const signer = NDKPrivateKeySigner.generate()
 
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not initialized')
 
             const user = await signer.user()
@@ -85,7 +84,7 @@ export function NostrConnect({ onSuccess, onError, onCancel }: NostrConnectProps
 
     const listenForConnections = (clientPubkey: string, token: string, signer: NDKPrivateKeySigner) => {
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not initialized')
 
             setStatus('connecting')

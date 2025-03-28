@@ -7,7 +7,6 @@ import { AlertTriangle, Menu, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { AuthButton } from './auth/AuthButton'
-import { LoginDialog } from './auth/LoginDialog'
 import { Nav } from './Nav'
 import { Link } from '@tanstack/react-router'
 
@@ -99,8 +98,6 @@ export function Header() {
                     <Nav />
                 </div>
             )}
-
-            <LoginDialog />
         </header>
     )
 }

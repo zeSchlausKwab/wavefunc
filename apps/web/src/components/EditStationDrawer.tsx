@@ -4,7 +4,6 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/lib/hooks/use-toast'
-import { nostrService } from '@/lib/services/ndk'
 import { closeStationDrawer } from '@/lib/store/ui'
 import {
     createRadioEvent,
@@ -19,6 +18,7 @@ import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { AlertCircle, Plus, Trash, Wand2, X } from 'lucide-react'
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { ndkActions } from '@/lib/store/ndk'
 
 interface EditStationDrawerProps {
     station?: Station
@@ -169,7 +169,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
 
     const onSubmit = async (data: StationFormData) => {
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
+
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
 
             if (station?.naddr) {
                 const ndkEvent = await updateStation(ndk, station, {
@@ -230,7 +234,12 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         if (!station || !station.id) return
 
         try {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
+
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
+
             await deleteStation(ndk, station.id)
 
             handleClose()

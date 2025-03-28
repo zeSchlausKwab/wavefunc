@@ -7,6 +7,7 @@ import type { NostrEvent } from '@wavefunc/common'
 // Get the web app URL for CORS configuration
 const WEB_HOST = process.env.VITE_PUBLIC_HOST || 'localhost'
 const WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT || 8080
+
 const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http'
 const WEB_URL = `${PROTOCOL}://${WEB_HOST}:${WEB_PORT}`
 

@@ -2,10 +2,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
-import { nostrService } from '@/lib/services/ndk'
-import { NDKNip46Signer } from '@nostr-dev-kit/ndk'
-import { auth } from '@/lib/store/auth'
+import { NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { Loader2 } from 'lucide-react'
+import { ndkActions } from '@/lib/store/ndk'
+import { authActions } from '@/lib/store/auth'
+import { uiActions } from '@/lib/store/ui'
 
 interface BunkerConnectProps {
     onError?: (error: string) => void
@@ -19,10 +20,21 @@ export function BunkerConnect({ onError }: BunkerConnectProps) {
         setLoading(true)
 
         try {
-            const ndk = nostrService.getNDK()
-            const nip46signer = new NDKNip46Signer(ndk, url)
-            await nip46signer.blockUntilReady()
-            await auth.loginWithNostrConnect(nip46signer)
+            const ndk = ndkActions.getNDK()
+
+            if (!ndk) {
+                throw new Error('NDK not initialized')
+            }
+
+            // Generate a local signer for NIP-46
+            const localSigner = NDKPrivateKeySigner.generate()
+            await localSigner.blockUntilReady()
+
+            // Use the loginWithNip46 method from authActions
+            await authActions.loginWithNip46(url, localSigner)
+
+            // Close the dialog on success
+            uiActions.closeAuthDialog()
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to connect'
             onError?.(errorMessage)

@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
-import { nostrService } from '@/lib/services/ndk'
 import { NDKEvent, type NDKFilter, NDKKind, NDKSubscription, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RADIO_EVENT_KINDS } from '@wavefunc/common'
-
+import { useStore } from '@tanstack/react-store'
+import { ndkStore } from '@/lib/store/ndk'
 type DebugEvent = {
     id: string
     timestamp: number
@@ -18,6 +18,7 @@ export function RelayDebugger() {
     const [events, setEvents] = useState<DebugEvent[]>([])
     const subscriptionRef = useRef<NDKSubscription | null>(null)
     const isInitializedRef = useRef(false)
+    const { ndk } = useStore(ndkStore)
 
     useEffect(() => {
         const initRelay = async () => {
@@ -36,9 +37,9 @@ export function RelayDebugger() {
                 ],
             }
 
-            await nostrService.getNDK().connect()
+            if (!ndk) return
 
-            const sub = nostrService.getNDK().subscribe(filter, {
+            const sub = ndk.subscribe(filter, {
                 cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
             })
             subscriptionRef.current = sub
@@ -73,7 +74,7 @@ export function RelayDebugger() {
             }
             isInitializedRef.current = false
         }
-    }, [])
+    }, [ndk])
 
     const getEventKindLabel = (kind: number): string => {
         const kinds: Record<number, string> = {

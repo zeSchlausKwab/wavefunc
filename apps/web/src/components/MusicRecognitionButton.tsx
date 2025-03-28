@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Music2, ExternalLink } from 'lucide-react'
 import { useState, useRef } from 'react'
-import { nostrService } from '@/lib/services/ndk'
 import { mcpService } from '@/lib/services/mcp'
 import { NDKEvent, NDKKind, type NostrEvent } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
@@ -10,6 +9,7 @@ import { useToast } from '@/lib/hooks/use-toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import type { RecognitionResult } from '@/types/recognition'
+import { ndkActions, ndkStore } from '@/lib/store/ndk'
 
 const JOB_KIND = 5000 // Music recognition job request
 const RESULT_KIND = 6000 // Music recognition result (1000 higher than request)
@@ -31,6 +31,7 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
     const streamRef = useRef<MediaStream | null>(null)
     const { toast } = useToast()
     const [recognitionMethod, setRecognitionMethod] = useState<'dvmcp' | 'dvm' | null>(null)
+    const { ndk } = useStore(ndkStore)
 
     const startRecording = async () => {
         if (!currentStation || !audioElement) {
@@ -143,12 +144,16 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
                 ['label', 'music_recognition'],
                 ['mime', 'audio/webm'], // Keep consistent with recording format
             ],
-            pubkey: nostrService.getNDK().activeUser?.pubkey || '',
+            pubkey: ndk?.activeUser?.pubkey || '',
             id: '',
             sig: '',
         }
 
-        const ev = new NDKEvent(nostrService.getNDK(), uploadAuth)
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
+
+        const ev = new NDKEvent(ndk, uploadAuth)
         await ev.sign()
 
         // Sign the event
@@ -225,7 +230,11 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
     }
 
     const handleDVMRecognition = async (audioUrl: string) => {
-        const requestEvent = new NDKEvent(nostrService.getNDK())
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
+
+        const requestEvent = new NDKEvent(ndk)
         requestEvent.kind = JOB_KIND
         requestEvent.content = JSON.stringify({
             type: 'music_recognition',
@@ -236,7 +245,7 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
         await requestEvent.sign()
 
         // Subscribe to both result and feedback events
-        const sub = nostrService.getNDK().subscribe({
+        const sub = ndk.subscribe({
             kinds: [RESULT_KIND as NDKKind, FEEDBACK_KIND as NDKKind],
             '#e': [requestEvent.id],
             limit: 1,

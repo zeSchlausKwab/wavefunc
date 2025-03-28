@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import { auth } from '@/lib/store/auth'
-import { nostrService } from '@/lib/services/ndk'
 import { Loader2, UserCircle2, Shield, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +12,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useStore } from '@tanstack/react-store'
+import { ndkActions, useNDK } from '@/lib/store/ndk'
+import { authActions, authStore } from '@/lib/store/auth'
 
 interface ProfileProps {
     compact?: boolean
@@ -30,18 +30,19 @@ const PROFILE_CACHE_TIME = 5 * 60 * 1000
 const profileCache = new Map<string, { data: ProfileData; timestamp: number }>()
 
 export function Profile({ compact = false }: ProfileProps) {
-    const authState = useStore(auth.store)
+    const authState = useStore(authStore)
     const [profile, setProfile] = useState<ProfileData | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const { ndk } = useNDK()
 
     useEffect(() => {
-        if (!authState.user?.pubkey) {
+        if (!ndk?.activeUser?.pubkey) {
             setIsLoading(false)
             return
         }
 
         const fetchProfile = async () => {
-            const pubkey = authState.user?.pubkey
+            const pubkey = ndk?.activeUser?.pubkey
             if (!pubkey) {
                 setIsLoading(false)
                 return
@@ -56,7 +57,7 @@ export function Profile({ compact = false }: ProfileProps) {
                     return
                 }
 
-                const ndk = nostrService.getNDK()
+                const ndk = ndkActions.getNDK()
                 if (!ndk) {
                     throw new Error('NDK not initialized')
                 }
@@ -95,7 +96,7 @@ export function Profile({ compact = false }: ProfileProps) {
     }, [authState.user?.pubkey])
 
     const displayName = profile?.name || 'Local User'
-    const isAnonymous = authState.status === 'anonymous'
+    const isAnonymous = authState.isAuthenticated === false
 
     // Show a quick loading state for the first 500ms
     if (isLoading && Date.now() - performance.now() < 500) {
@@ -142,7 +143,10 @@ export function Profile({ compact = false }: ProfileProps) {
                         <span className="block text-xs text-muted-foreground truncate">{authState.user?.pubkey}</span>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => auth.logout()}>
+                    <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => authActions.logout()}
+                    >
                         <LogOut className="mr-2 h-4 w-4" />
                         Log out
                     </DropdownMenuItem>

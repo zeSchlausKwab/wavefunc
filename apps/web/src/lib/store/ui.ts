@@ -6,6 +6,10 @@ interface UIState {
         isOpen: boolean
         station: Station | null
     }
+    authDialog: {
+        isOpen: boolean
+        error: string | null
+    }
 }
 
 const initialState: UIState = {
@@ -13,9 +17,22 @@ const initialState: UIState = {
         isOpen: false,
         station: null,
     },
+    authDialog: {
+        isOpen: false,
+        error: null,
+    },
 }
 
 export const uiStore = new Store<UIState>(initialState)
+
+export const uiActions = {
+    openAuthDialog: () => {
+        uiStore.setState((state) => ({ ...state, authDialog: { isOpen: true, error: null } }))
+    },
+    closeAuthDialog: () => {
+        uiStore.setState((state) => ({ ...state, authDialog: { isOpen: false, error: null } }))
+    },
+}
 
 export const openCreateStationDrawer = () => {
     uiStore.setState((state) => ({

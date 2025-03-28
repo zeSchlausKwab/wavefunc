@@ -1,19 +1,16 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { nostrService } from '@/lib/services/ndk'
-import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner, NDKUser } from '@nostr-dev-kit/ndk'
+import { authActions, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@/lib/store/auth'
+import { ndkActions } from '@/lib/store/ndk'
+import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { CopyIcon, Loader2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { auth } from '@/lib/store/auth'
 
 interface NostrConnectQRProps {
     onError?: (error: string) => void
     onSuccess?: () => void
 }
-
-export const NOSTR_CONNECT_KEY = 'nostr_connect_url'
-export const NOSTR_LOCAL_SIGNER_KEY = 'nostr_local_signer_key'
 
 // Global lock to prevent multiple login attempts across component remounts
 let globalLoginInProgress = false
@@ -191,7 +188,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 throw new Error('No local signer available')
             }
 
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) {
                 throw new Error('NDK not initialized')
             }
@@ -208,7 +205,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             }
 
             setConnectionStatus('connected')
-            await auth.loginWithNostrConnect(nip46Signer)
+            await authActions.loginWithNip46(bunkerUrl, localSigner)
 
             triggerSuccess()
         } catch (err) {
@@ -243,7 +240,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         setListening(true)
         setConnectionStatus('connecting')
 
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
         if (!ndk) {
             console.error('NDK not initialized')
             setConnectionStatus('error')

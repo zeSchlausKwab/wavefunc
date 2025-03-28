@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { nostrService } from '@/lib/services/ndk'
-import { type DVMResponse } from '@wavefunc/common'
+import { ndkActions } from '@/lib/store/ndk'
 import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
+import { type DVMResponse } from '@wavefunc/common'
 import { useState } from 'react'
 
 const JOB_KIND = 5000
@@ -28,8 +28,13 @@ export function DVMTest() {
         setLoading(true)
         setResponse(null)
 
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
+
         try {
-            const requestEvent = new NDKEvent(nostrService.getNDK())
+            const requestEvent = new NDKEvent(ndk)
             requestEvent.kind = JOB_KIND
             requestEvent.content = JSON.stringify({
                 type: 'text-process',
@@ -42,7 +47,7 @@ export function DVMTest() {
 
             await requestEvent.sign()
 
-            const sub = nostrService.getNDK().subscribe({
+            const sub = ndk.subscribe({
                 kinds: [RESULT_KIND as NDKKind],
                 '#e': [requestEvent.id],
                 limit: 1,

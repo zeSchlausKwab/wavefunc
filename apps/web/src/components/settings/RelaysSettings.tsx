@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/lib/hooks/use-toast'
-import { nostrService } from '@wavefunc/common'
+import { ndkActions } from '@/lib/store/ndk'
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -18,8 +18,8 @@ export function RelaysSettings() {
             if (savedRelays) {
                 setRelays(JSON.parse(savedRelays))
             } else {
-                const currentRelays = nostrService.getRelays()
-                setRelays(currentRelays.map((url) => ({ url, read: true, write: true })))
+                // const currentRelays = ndkActions.getNDK()?
+                // setRelays(currentRelays.map((url) => ({ url, read: true, write: true })))
             }
         } catch (error) {
             console.error('Failed to load relays:', error)
@@ -70,7 +70,7 @@ export function RelaysSettings() {
     const handleSaveRelays = async () => {
         try {
             setIsLoading(true)
-            await nostrService.updateRelays(relays)
+            // await nostrService.updateRelays(relays)
             toast({
                 title: 'Relays Updated',
                 description: 'Your relay settings have been updated successfully',

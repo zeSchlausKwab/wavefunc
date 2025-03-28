@@ -1,3 +1,4 @@
+import { LoginDialog } from '@/components/auth/LoginDialog'
 import { EditStationDrawer } from '@/components/EditStationDrawer'
 import { Header } from '@/components/Header'
 import { RadioPlayer } from '@/components/RadioPlayer'
@@ -32,7 +33,7 @@ export const Route = createRootRoute({
                 <main className="flex-1 container mx-auto px-2 py-2">
                     <Outlet />
                 </main>
-
+                <LoginDialog />
                 <RadioPlayer />
             </div>
 

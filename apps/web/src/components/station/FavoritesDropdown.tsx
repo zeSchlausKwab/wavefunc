@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/lib/hooks/use-toast'
-import { nostrService } from '@/lib/services/ndk'
+import { useNDK } from '@/lib/store/ndk'
 import {
     addStationToFavorites,
     fetchFavoritesLists,
@@ -28,9 +28,9 @@ export function FavoritesDropdown({
     const [isLoading, setIsLoading] = useState(false)
     const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
     const { toast } = useToast()
+    const { ndk } = useNDK()
 
     useEffect(() => {
-        const ndk = nostrService.getNDK()
         const pubkey = ndk?.activeUser?.pubkey
 
         if (!pubkey || !ndk) {
@@ -71,7 +71,7 @@ export function FavoritesDropdown({
             subscription?.stop()
             setFavoritesLists([])
         }
-    }, [nostrService.getNDK()?.activeUser?.pubkey])
+    }, [ndk?.activeUser?.pubkey])
 
     useEffect(() => {
         if (favoritesLists.length > 0) {
@@ -87,7 +87,6 @@ export function FavoritesDropdown({
         if (!selectedListId) return
 
         try {
-            const ndk = nostrService.getNDK()
             if (!ndk?.activeUser?.pubkey) {
                 console.log('No user logged in')
                 return
@@ -114,7 +113,6 @@ export function FavoritesDropdown({
         if (!currentListId) return
 
         try {
-            const ndk = nostrService.getNDK()
             if (!ndk?.activeUser?.pubkey) {
                 console.log('No user logged in')
                 return
@@ -151,7 +149,6 @@ export function FavoritesDropdown({
         )
     }
 
-    const ndk = nostrService.getNDK()
     if (!ndk?.activeUser?.pubkey) {
         return (
             <div className="flex items-center space-x-2">

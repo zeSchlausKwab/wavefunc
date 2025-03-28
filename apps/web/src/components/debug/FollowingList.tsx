@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { nostrService } from '@/lib/services/ndk'
 import { PublicKeySchema, subscribeToFollowingList, type FollowingUpdate } from '@wavefunc/common'
 import type { NDKUser } from '@nostr-dev-kit/ndk'
 import { useEffect, useState } from 'react'
 import { FollowingListRow } from './FollowingListRow'
+import { ndkActions } from '@/lib/store/ndk'
 
 type ProfileWithStatus = {
     profile: NDKUser | null
@@ -30,8 +30,13 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
     const fetchProfile = async (pubkey: string) => {
         setProfiles((prev) => new Map(prev).set(pubkey, { profile: null, loading: true }))
 
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
+
         try {
-            const user = await nostrService.getNDK().getUser({ pubkey })
+            const user = await ndk.getUser({ pubkey })
             await user.fetchProfile()
             setProfiles((prev) => new Map(prev).set(pubkey, { profile: user, loading: false }))
         } catch (error) {
@@ -45,6 +50,11 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
         setFollowing(new Set())
         setProfiles(new Map())
 
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            throw new Error('NDK not initialized')
+        }
+
         const handleUpdate = (update: FollowingUpdate) => {
             if (update.type === 'add' && update.pubkey) {
                 setFollowing((prev) => new Set([...prev, update.pubkey!]))
@@ -54,8 +64,8 @@ export function FollowingList({ pubkey }: { pubkey: string }) {
             }
         }
 
-        nostrService.connect().then(() => {
-            const cleanup = subscribeToFollowingList(nostrService.getNDK(), pubkey, MAX_FOLLOWERS, handleUpdate)
+        ndk.connect().then(() => {
+            const cleanup = subscribeToFollowingList(ndk, pubkey, MAX_FOLLOWERS, handleUpdate)
 
             return () => cleanup()
         })

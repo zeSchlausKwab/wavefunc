@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
-import { fetchRootComments, subscribeToRootComments, type NostrComment } from '@wavefunc/common'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import CommentItem from './CommentItem'
 import { Button } from '@/components/ui/button'
+import { ndkActions } from '@/lib/store/ndk'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchRootComments, subscribeToRootComments } from '@wavefunc/common'
 import { MessageSquare, RefreshCw } from 'lucide-react'
-import { nostrService } from '@/lib/services/ndk'
+import { useEffect, useRef, useState } from 'react'
+import CommentItem from './CommentItem'
 import CreateComment from './CreateComment'
 
 interface CommentsListProps {
@@ -26,7 +26,7 @@ export default function CommentsList({ stationEvent, stationId, commentsCount }:
     } = useQuery({
         queryKey: ['root-comments', stationId, commentsCount],
         queryFn: async () => {
-            const ndk = nostrService.getNDK()
+            const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
             try {
@@ -47,7 +47,7 @@ export default function CommentsList({ stationEvent, stationId, commentsCount }:
 
     // Subscribe to new root comments
     useEffect(() => {
-        const ndk = nostrService.getNDK()
+        const ndk = ndkActions.getNDK()
         if (!ndk) return
 
         // Reset state when station changes
