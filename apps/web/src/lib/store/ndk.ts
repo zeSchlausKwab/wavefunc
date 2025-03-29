@@ -31,8 +31,6 @@ export const ndkActions = {
             explicitRelayUrls: relays && relays.length > 0 ? relays : [],
         })
 
-        console.log('Initializing NDK', ndk)
-
         ndkStore.setState((state) => ({
             ...state,
             ndk,

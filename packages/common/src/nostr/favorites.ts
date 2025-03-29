@@ -36,8 +36,11 @@ export function createFavoritesEvent(content: FavoritesListContent, pubkey: stri
         created_at: Math.floor(Date.now() / 1000),
         tags: [
             ['d', `favorites-${createStationDTagValue()}`],
-            ...content.favorites.map((fav) => ['e', fav.event_id, fav.name]),
-            ...content.favorites.filter((fav) => fav.naddr).map((fav) => ['a', fav.naddr || '', fav.name]),
+            ...content.favorites.map((fav) => [
+                'a',
+                fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`,
+                fav.name,
+            ]),
             ['client', 'nostr_radio'],
         ],
         content: JSON.stringify(content),
@@ -88,8 +91,7 @@ export async function updateFavoritesList(
     // Create tag array with preserved d-tag
     const tags = [
         dTag || ['d', `favorites-${createStationDTagValue()}`],
-        ...content.favorites.map((fav) => ['e', fav.event_id, fav.name]),
-        ...content.favorites.filter((fav) => fav.naddr).map((fav) => ['a', fav.naddr || '', fav.name]),
+        ...content.favorites.map((fav) => ['a', fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`, fav.name]),
         ['client', 'nostr_radio'],
     ]
 
@@ -144,6 +146,8 @@ export async function addStationToFavorites(
             added_at: Math.floor(Date.now() / 1000),
         },
     ]
+
+    console.log('Adding to favorites', updatedFavorites)
 
     // Update the list with the new favorites
     return updateFavoritesList(ndk, favoritesList, {
@@ -207,7 +211,7 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
     try {
         const content = JSON.parse(event.content) as FavoritesListContent
 
-        // Extract favorites from e-tags if not in content
+        // Extract favorites from content or tags
         let favorites = content.favorites || []
         if (favorites.length === 0) {
             // Define our favorite item type
@@ -218,44 +222,22 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
                 added_at: number
             }
 
-            // Fallback to parsing e-tags and a-tags
-            const eTags = event.tags.filter((tag) => tag[0] === 'e')
+            // Use a-tags as the only source for favorites
             const aTags = event.tags.filter((tag) => tag[0] === 'a')
 
-            // Process e-tags
-            const eTagFavorites: FavoriteItem[] = eTags.map((tag) => ({
-                event_id: tag[1],
-                name: tag[2] || 'Unknown Station',
-                added_at: Math.floor(Date.now() / 1000),
-            }))
-
             // Process a-tags
-            const aTagsProcessed = aTags.map((tag) => {
-                // Find matching e-tag to avoid duplicates
-                const matchingETagIndex = eTagFavorites.findIndex((f) => tag[1].includes(f.event_id))
+            favorites = aTags.map((tag) => {
+                // Extract event_id from addressable reference (kind:pubkey:d-value)
+                const parts = tag[1].split(':')
+                const event_id = parts.length >= 3 ? parts[2] : tag[1]
 
-                if (matchingETagIndex >= 0) {
-                    // If we have a matching e-tag, add the naddr to it
-                    eTagFavorites[matchingETagIndex].naddr = tag[1]
-                    return null
-                }
-
-                // If no matching e-tag, create a new favorite
-                const favorite: FavoriteItem = {
-                    event_id: tag[1].split(':')[2] || tag[1], // Try to extract event_id from naddr
-                    naddr: tag[1],
+                return {
+                    event_id: event_id || tag[1],
                     name: tag[2] || 'Unknown Station',
+                    naddr: tag[1],
                     added_at: Math.floor(Date.now() / 1000),
                 }
-
-                return favorite
             })
-
-            // Filter out nulls and add the remaining a-tags to our favorites
-            const aTagFavorites: FavoriteItem[] = aTagsProcessed.filter((item): item is FavoriteItem => item !== null)
-
-            // Combine both types of tags
-            favorites = [...eTagFavorites, ...aTagFavorites]
         }
 
         return {
@@ -299,6 +281,7 @@ export function subscribeToFavoritesLists(
 
     if (onEvent) {
         subscription.on('event', (event: NDKEvent) => {
+            console.log('Favorites list event', event)
             try {
                 const favoritesList = parseFavoritesEvent(event)
                 onEvent(favoritesList)

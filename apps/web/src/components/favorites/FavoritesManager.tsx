@@ -9,6 +9,7 @@ import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ExpandableStationCard } from '../station/ExpandableStationCard'
 import { EditFavoritesListDrawer } from './EditFavoritesListDrawer'
+import { RadioCard } from '../radio/RadioCard'
 
 interface ResolvedStation {
     id: string
@@ -27,7 +28,6 @@ export function FavoritesManager() {
     const [selectedFavoritesList, setSelectedFavoritesList] = useState<FavoritesList | undefined>()
     const [isLoading, setIsLoading] = useState(false)
     const [resolvedStations, setResolvedStations] = useState<Record<string, ResolvedStation>>({})
-    const mounted = useRef(false)
     const { ndk } = useStore(ndkStore)
 
     useEffect(() => {
@@ -45,7 +45,6 @@ export function FavoritesManager() {
 
         setIsLoading(true)
 
-        // Initial fetch
         fetchFavoritesLists(ndk, { pubkey })
             .then((lists) => {
                 setFavoritesLists(lists)
@@ -57,7 +56,6 @@ export function FavoritesManager() {
                 setIsLoading(false)
             })
 
-        // Subscribe to updates
         const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
             console.log('Received list update for pubkey:', pubkey, favoritesList)
             setFavoritesLists((prev) => {
@@ -103,6 +101,8 @@ export function FavoritesManager() {
                         } else {
                             event = await ndk.fetchEvent(favorite.event_id)
                         }
+
+                        console.log('Event', event)
 
                         if (event) {
                             const parsedStation = parseRadioEvent(event)
@@ -198,7 +198,7 @@ export function FavoritesManager() {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4">
+                                <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-4">
                                     {list.favorites.map((favorite) => {
                                         const resolved = resolvedStations[favorite.event_id]
                                         if (!resolved) {
@@ -222,7 +222,7 @@ export function FavoritesManager() {
                                             )
                                         }
                                         return (
-                                            <ExpandableStationCard
+                                            <RadioCard
                                                 key={favorite.event_id}
                                                 station={resolved.station}
                                                 currentListId={list.id}
