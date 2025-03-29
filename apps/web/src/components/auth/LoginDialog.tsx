@@ -9,6 +9,7 @@ import {
     NOSTR_AUTO_LOGIN,
     NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY,
     NOSTR_LOCAL_SIGNER_KEY,
+    NOSTR_STORED_PUBKEY,
 } from '@/lib/store/auth'
 import { uiActions, uiStore } from '@/lib/store/ui'
 import { useStore } from '@tanstack/react-store'
@@ -17,6 +18,7 @@ import { useEffect, useState } from 'react'
 import { BunkerConnect } from './BunkerConnect'
 import { NostrConnectQR } from './NostrConnectQR'
 import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export function LoginDialog() {
     const authState = useStore(authStore)
@@ -30,12 +32,21 @@ export function LoginDialog() {
     const [activeTab, setActiveTab] = useState('private-key')
     const [privateKeyValidated, setPrivateKeyValidated] = useState(false)
     const [validatedUser, setValidatedUser] = useState<string | null>(null)
+    const [autoLogin, setAutoLogin] = useState(true)
+    const [storedPubkey, setStoredPubkey] = useState<string | null>(null)
 
     const isLoading = authState.isAuthenticating
-    const storedPubkey = authState.user?.pubkey
 
     // Check if we have a stored key
     const hasStoredKey = Boolean(localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY))
+
+    // Get stored pubkey if available
+    useEffect(() => {
+        if (hasStoredKey) {
+            const pubkey = localStorage.getItem(NOSTR_STORED_PUBKEY)
+            setStoredPubkey(pubkey)
+        }
+    }, [hasStoredKey])
 
     // Reset form state when component mounts or inputs need cleaning
     const resetFormInputs = () => {
@@ -45,6 +56,7 @@ export function LoginDialog() {
         setPasswordError('')
         setPrivateKeyValidated(false)
         setValidatedUser(null)
+        setAutoLogin(true)
     }
 
     useEffect(() => {
@@ -154,16 +166,11 @@ export function LoginDialog() {
         }
 
         try {
+            // Use the auth store to encrypt and store the private key
+            await authActions.encryptAndStorePrivateKey(privateKey, encryptionPassword, autoLogin)
+
             // Log in with the validated private key
             await authActions.loginWithPrivateKey(privateKey)
-
-            // TODO: Implement proper encryption for the private key
-            // For now, store a simple placeholder for the encrypted key
-            // This is not secure and should be replaced with proper encryption
-            localStorage.setItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY, `placeholder:${privateKey}`)
-
-            // Store for auto login next time
-            localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
 
             resetFormInputs()
             uiActions.closeAuthDialog()
@@ -291,6 +298,18 @@ export function LoginDialog() {
                         />
                         {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
                     </div>
+
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id="auto-login"
+                            checked={autoLogin}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => setAutoLogin(checked === true)}
+                        />
+                        <Label htmlFor="auto-login" className="text-sm text-muted-foreground cursor-pointer">
+                            Automatically login next time
+                        </Label>
+                    </div>
+
                     <Button
                         onClick={handleEncryptAndLogin}
                         disabled={isLoading || encryptionPassword === '' || confirmPassword === ''}
