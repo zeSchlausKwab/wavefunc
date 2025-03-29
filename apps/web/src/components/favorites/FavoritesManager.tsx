@@ -6,10 +6,9 @@ import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common'
 import { type FavoritesList, fetchFavoritesLists, parseRadioEvent, subscribeToFavoritesLists } from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { ExpandableStationCard } from '../station/ExpandableStationCard'
-import { EditFavoritesListDrawer } from './EditFavoritesListDrawer'
+import { useEffect, useState } from 'react'
 import { RadioCard } from '../radio/RadioCard'
+import { EditFavoritesListDrawer } from './EditFavoritesListDrawer'
 
 interface ResolvedStation {
     id: string
@@ -57,7 +56,6 @@ export function FavoritesManager() {
             })
 
         const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
-            console.log('Received list update for pubkey:', pubkey, favoritesList)
             setFavoritesLists((prev) => {
                 const index = prev.findIndex((list) => list.id === favoritesList.id)
                 if (index >= 0) {
@@ -101,8 +99,6 @@ export function FavoritesManager() {
                         } else {
                             event = await ndk.fetchEvent(favorite.event_id)
                         }
-
-                        console.log('Event', event)
 
                         if (event) {
                             const parsedStation = parseRadioEvent(event)

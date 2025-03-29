@@ -45,21 +45,16 @@ export function ProfileSettings() {
         setProfile((prev) => ({
             ...prev,
             [field]: value,
-            // For backwards compatibility, set both picture and image
             ...(field === 'picture' ? { image: value } : {}),
             ...(field === 'image' ? { picture: value } : {}),
-            // For consistency, set displayName same as name
             ...(field === 'name' ? { displayName: value } : {}),
         }))
     }
 
-    // Handle form submission
     const handleSubmitProfile = async (e: FormEvent) => {
         e.preventDefault()
-        console.log('Submit profile form triggered')
         setSaveSuccess(false)
 
-        // Check auth status - must be authenticated with a valid pubkey
         if (!authState.user?.pubkey) {
             console.error('Auth state:', authState.isAuthenticated, 'Pubkey available:', !!authState.user?.pubkey)
             toast({

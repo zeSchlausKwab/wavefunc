@@ -6,8 +6,6 @@ import { authActions } from './lib/store/auth'
 import { routeTree } from './routeTree.gen'
 import { ndkActions } from './lib/store/ndk'
 
-console.log('Initializing auth state... in main')
-
 const connectToRelay = async () => {
     const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
     const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'

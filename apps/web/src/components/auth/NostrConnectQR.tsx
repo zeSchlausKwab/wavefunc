@@ -47,7 +47,6 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
 
             // Ensure we're doing a thorough cleanup
             if (activeSubscriptionRef.current) {
-                console.log('Final cleanup on unmount')
                 try {
                     activeSubscriptionRef.current.stop()
                 } catch (e) {
@@ -61,11 +60,9 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const cleanup = () => {
         if (!isMountedRef.current) return
 
-        console.log('Running cleanup')
         isLoggingInRef.current = false
 
         if (activeSubscriptionRef.current) {
-            console.log('Cleaning up subscription')
             try {
                 activeSubscriptionRef.current.stop()
             } catch (e) {
@@ -200,7 +197,6 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
 
             if (!isMountedRef.current) {
-                console.log('Component unmounted during login, aborting')
                 return
             }
 
@@ -236,7 +232,6 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             return
         }
 
-        console.log('Starting subscription for pubkey:', localPubkey)
         setListening(true)
         setConnectionStatus('connecting')
 
@@ -303,8 +298,6 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                             // @ts-ignore - The NDK API requires a string pubkey here despite type definitions
                             await responseEvent.encrypt(undefined, localSigner, event.pubkey)
                             await responseEvent.publish()
-
-                            console.log('Connection approved, waiting for ACK response')
                         } catch (err) {
                             console.error('Error sending approval:', err)
                             if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
@@ -323,7 +316,6 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
 
                     processedAckIds.add(event.id)
 
-                    console.log('Received ACK response, processing login...')
                     await handleLoginWithSigner(event, 'Starting login flow from ACK response')
                 }
             } catch (error) {

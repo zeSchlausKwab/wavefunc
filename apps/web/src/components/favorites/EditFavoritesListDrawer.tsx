@@ -88,7 +88,6 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                     favorites: [],
                 }
 
-                console.log('Publishing favorites list:', content)
                 await publishFavoritesList(ndk, content)
             }
 

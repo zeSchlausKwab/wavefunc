@@ -67,7 +67,6 @@ export function FavoritesDropdown({
             })
 
         return () => {
-            console.log('Cleaning up dropdown subscription')
             subscription?.stop()
             setFavoritesLists([])
         }
