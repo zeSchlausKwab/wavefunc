@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { RelayDebugger } from '../components/debug/RelayDebugger'
 import { ExpandableStationCard } from '../components/station/ExpandableStationCard'
+import { RadioCard } from '@/components/radio/RadioCard'
 
 export const Route = createFileRoute('/discover')({
     component: Discover,
@@ -205,14 +206,9 @@ function Discover() {
                 </div>
             </div>
 
-            <div className={cn('grid grid-cols-1', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
+            <div className={cn('grid md:grid-cols-1 lg:grid-cols-2', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
                 {filteredStations.map((station) => (
-                    <ExpandableStationCard
-                        key={station.id}
-                        station={station}
-                        onUpdate={handleStationUpdate}
-                        onDelete={handleStationDelete}
-                    />
+                    <RadioCard key={station.id} station={station} />
                 ))}
 
                 {filteredStations.length === 0 && (

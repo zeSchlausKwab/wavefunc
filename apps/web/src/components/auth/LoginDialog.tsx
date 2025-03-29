@@ -16,6 +16,7 @@ import { generateSecretKey, nip19 } from 'nostr-tools'
 import { useEffect, useState } from 'react'
 import { BunkerConnect } from './BunkerConnect'
 import { NostrConnectQR } from './NostrConnectQR'
+import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 
 export function LoginDialog() {
     const authState = useStore(authStore)
@@ -28,6 +29,7 @@ export function LoginDialog() {
     const [hasPromptedForLogin, setHasPromptedForLogin] = useState(false)
     const [activeTab, setActiveTab] = useState('private-key')
     const [privateKeyValidated, setPrivateKeyValidated] = useState(false)
+    const [validatedUser, setValidatedUser] = useState<string | null>(null)
 
     const isLoading = authState.isAuthenticating
     const storedPubkey = authState.user?.pubkey
@@ -42,6 +44,7 @@ export function LoginDialog() {
         setConfirmPassword('')
         setPasswordError('')
         setPrivateKeyValidated(false)
+        setValidatedUser(null)
     }
 
     useEffect(() => {
@@ -95,19 +98,29 @@ export function LoginDialog() {
     }
 
     const handleValidatePrivateKey = async () => {
+        setPasswordError('')
         try {
-            // Try to validate the private key without logging in
-            // We're not using loginWithPrivateKey here as that would log the user in immediately
-            const validKey = await authActions.loginWithPrivateKey(privateKey)
+            // Don't actually log out - just create a temporary validation
+            // Set authenticating state while validating
+            authStore.setState((state) => ({ ...state, isAuthenticating: true }))
 
-            // If we get here, the key is valid
+            // Create a temporary signer to validate the key without logging in fully
+            const tempSigner = new NDKPrivateKeySigner(privateKey)
+            await tempSigner.blockUntilReady()
+
+            // Get the user's pubkey to show
+            const user = await tempSigner.user()
+            setValidatedUser(user.pubkey)
+
+            // Mark key as validated but don't actually log in
             setPrivateKeyValidated(true)
 
-            // Don't close the dialog yet, let the user encrypt their key
-            authActions.logout() // Log out immediately since we just want to validate
+            // Reset authentication state
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         } catch (error) {
             console.error('Private key validation failed:', error)
             setPasswordError(error instanceof Error ? error.message : 'Invalid private key')
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         }
     }
 
@@ -119,15 +132,6 @@ export function LoginDialog() {
                 await authActions.decryptAndLogin(password)
                 resetFormInputs()
                 uiActions.closeAuthDialog()
-            } else if (privateKeyValidated) {
-                // This case isn't implemented in the current authActions
-                // We'll need to directly use private key login instead
-                if (privateKey) {
-                    await authActions.loginWithPrivateKey(privateKey)
-                    // Store encrypted key would be added here
-                    resetFormInputs()
-                    uiActions.closeAuthDialog()
-                }
             }
         } catch (error) {
             if (hasStoredKey) {
@@ -153,11 +157,13 @@ export function LoginDialog() {
             // Log in with the validated private key
             await authActions.loginWithPrivateKey(privateKey)
 
+            // TODO: Implement proper encryption for the private key
+            // For now, store a simple placeholder for the encrypted key
+            // This is not secure and should be replaced with proper encryption
+            localStorage.setItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY, `placeholder:${privateKey}`)
+
             // Store for auto login next time
             localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
-
-            // TODO: Implement encryption of the private key when that feature is needed
-            // For now, we'll just use the direct private key login
 
             resetFormInputs()
             uiActions.closeAuthDialog()
@@ -192,8 +198,6 @@ export function LoginDialog() {
     }
 
     const clearStoredKeys = () => {
-        localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
-        localStorage.removeItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
         authActions.logout()
         resetFormInputs()
         uiActions.closeAuthDialog()
@@ -250,6 +254,14 @@ export function LoginDialog() {
                         <p className="text-sm text-muted-foreground">
                             Your private key will be encrypted and stored in your browser.
                         </p>
+                        {validatedUser && (
+                            <p className="text-sm font-medium">
+                                Pubkey:{' '}
+                                {validatedUser
+                                    ? `${validatedUser.slice(0, 8)}...${validatedUser.slice(-4)}`
+                                    : 'Unknown'}
+                            </p>
+                        )}
                         <Input
                             id="encryption-password"
                             type="password"

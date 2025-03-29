@@ -36,8 +36,23 @@ export const authActions = {
             const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
             if (encryptedPrivateKey) {
                 const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN)
-                if (autoLogin !== 'true') return
-                authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                if (autoLogin !== 'true') {
+                    authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                    return
+                }
+
+                try {
+                    // For now, just use the simple placeholder format until proper encryption is implemented
+                    if (encryptedPrivateKey.startsWith('placeholder:')) {
+                        const [, key] = encryptedPrivateKey.split(':')
+                        await authActions.loginWithPrivateKey(key)
+                    } else {
+                        authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                    }
+                } catch (error) {
+                    console.error('Auto login failed:', error)
+                    authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                }
                 return
             }
 
@@ -57,8 +72,15 @@ export const authActions = {
                 throw new Error('No encrypted key found')
             }
 
-            const [, key] = encryptedPrivateKey.split(':')
-            await authActions.loginWithPrivateKey(key)
+            // For now, we're using a simple placeholder format
+            // TODO: Implement proper encryption/decryption
+            if (encryptedPrivateKey.startsWith('placeholder:')) {
+                const [, key] = encryptedPrivateKey.split(':')
+                await authActions.loginWithPrivateKey(key)
+            } else {
+                throw new Error('Invalid key format')
+            }
+
             authStore.setState((state) => ({ ...state, needsDecryptionPassword: false }))
         } catch (error) {
             throw error
@@ -74,6 +96,9 @@ export const authActions = {
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
             const signer = new NDKPrivateKeySigner(privateKey)
+
+            console.log('signer', signer)
+
             await signer.blockUntilReady()
             ndkActions.setSigner(signer)
 
@@ -163,10 +188,13 @@ export const authActions = {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
         ndkActions.removeSigner()
+
+        // Clean up all storage keys on logout
         localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
         localStorage.removeItem(NOSTR_CONNECT_KEY)
         localStorage.removeItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
         localStorage.removeItem(NOSTR_AUTO_LOGIN)
+
         authStore.setState(() => initialState)
     },
 }
