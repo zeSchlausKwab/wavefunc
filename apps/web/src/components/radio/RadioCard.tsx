@@ -212,7 +212,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
             className={cn(
                 'transition-all duration-300 bg-white bg-opacity-90 shadow-lg overflow-hidden flex flex-col',
                 existsInNostr ? 'border-green-500 border-2' : '',
-                isFullWidth ? 'col-span-full w-full' : 'h-full h-[280px]',
+                isFullWidth ? 'col-span-full w-full' : 'h-full h-[240px]',
             )}
         >
             <div ref={contentRef} className="flex flex-col h-full">
