@@ -13,6 +13,8 @@ export interface Station {
     website: string
     genre: string
     imageUrl: string
+    countryCode?: string
+    languageCodes?: string[]
     pubkey: string
     tags: string[][]
     streams: {

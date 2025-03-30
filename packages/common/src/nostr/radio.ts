@@ -41,6 +41,16 @@ export function createRadioEvent(
             }
             primary?: boolean
         }[]
+        // New fields from radio-browser.info
+        countryCode?: string // ISO 3166-2 country code
+        languageCodes?: string[] // ISO language codes
+        tags?: string[]
+        favicon?: string
+        // TODO: Implement proper UI for geo data in the future
+        // geo?: {
+        //     lat?: number
+        //     long?: number
+        // }
     },
     tags: string[][],
     existingTags?: string[][],
@@ -56,6 +66,40 @@ export function createRadioEvent(
     const hasDescriptionTag = newTags.some((tag) => tag[0] === 'description')
     if (!hasDescriptionTag) {
         newTags.push(['description', content.description])
+    }
+
+    // Add new tags for additional metadata
+    if (content.countryCode && !newTags.some((tag) => tag[0] === 'countryCode')) {
+        newTags.push(['countryCode', content.countryCode])
+    }
+
+    // Add language codes as individual language tags
+    if (content.languageCodes && content.languageCodes.length > 0) {
+        content.languageCodes.forEach((code) => {
+            if (code.trim()) {
+                newTags.push(['language', code.trim()])
+            }
+        })
+    }
+
+    // Add tags as individual t tags
+    if (content.tags && content.tags.length > 0) {
+        content.tags.forEach((tag) => {
+            if (tag.trim()) {
+                newTags.push(['t', tag.trim()])
+            }
+        })
+    }
+
+    // Add favicon as thumbnail if not already present
+    if (content.favicon && !newTags.some((tag) => tag[0] === 'thumbnail')) {
+        newTags.push(['thumbnail', content.favicon])
+    }
+
+    // Add geolocation
+    if (content.geo && content.geo.lat && content.geo.long) {
+        // TODO: Geolocation support is reserved for future implementation
+        newTags.push(['g', `${content.geo.lat},${content.geo.long}`])
     }
 
     if (existingTags) {
@@ -100,12 +144,153 @@ export function parseRadioEvent(event: NDKEvent | NostrEvent) {
     }
 
     const content = JSON.parse(event.content)
+
+    // Extract tags
+    const tags = event.tags as string[][]
+    const tagsArray = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
+
+    // Extract country code and language codes from tags
+    const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1]
+
+    // Get all language tags and collect their values
+    const languageCodes = tags.filter((tag) => tag[0] === 'language').map((tag) => tag[1])
+
+    // Extract geolocation if available
+    const geoTag = tags.find((tag) => tag[0] === 'g')?.[1]
+    // TODO: Geolocation data is extracted but UI implementation is pending
+    const geo = geoTag
+        ? {
+              lat: parseFloat(geoTag.split(',')[0]),
+              long: parseFloat(geoTag.split(',')[1]),
+          }
+        : undefined
+
     return {
         name: content.name,
         description: content.description,
         website: content.website,
         streams: content.streams,
-        tags: event.tags as string[][],
+        countryCode: countryCode || content.countryCode,
+        languageCodes: languageCodes.length > 0 ? languageCodes : content.languageCodes,
+        tags: tagsArray.length > 0 ? tagsArray : content.tags,
+        geo: geo || content.geo,
+        eventTags: tags,
+    }
+}
+
+/**
+ * Convert station from radio-browser.info format to our format
+ * @param radioBrowserStation Station data from radio-browser.info API
+ * @returns Station in our format
+ */
+export function convertFromRadioBrowser(radioBrowserStation: any): {
+    content: any
+    tags: string[][]
+} {
+    // Extract tags from comma-separated string
+    const tags = radioBrowserStation.tags
+        ? radioBrowserStation.tags
+              .split(',')
+              .map((t: string) => t.trim())
+              .filter(Boolean)
+        : []
+
+    // Extract language codes from comma-separated string
+    const languageCodes = radioBrowserStation.languagecodes
+        ? radioBrowserStation.languagecodes
+              .split(',')
+              .map((l: string) => l.trim())
+              .filter(Boolean)
+        : []
+
+    // Prepare content object
+    const content: {
+        name: string
+        description: string
+        website: string
+        streams: {
+            url: string
+            format: string
+            quality: {
+                bitrate: number
+                codec: string
+                sampleRate: number
+            }
+            primary: boolean
+        }[]
+        countryCode: string
+        languageCodes: string[]
+        tags: string[]
+        favicon: string
+        geo?: {
+            lat: number
+            long: number
+        }
+    } = {
+        name: radioBrowserStation.name,
+        description: radioBrowserStation.name, // API doesn't have a description, use name as fallback
+        website: radioBrowserStation.homepage || '',
+        streams: [
+            {
+                url: radioBrowserStation.url_resolved || radioBrowserStation.url,
+                format: radioBrowserStation.codec ? `audio/${radioBrowserStation.codec.toLowerCase()}` : 'audio/mpeg',
+                quality: {
+                    bitrate: radioBrowserStation.bitrate || 128000,
+                    codec: radioBrowserStation.codec || 'mp3',
+                    sampleRate: 44100, // Not provided by API, use default
+                },
+                primary: true,
+            },
+        ],
+        countryCode: radioBrowserStation.countrycode || '',
+        languageCodes,
+        tags,
+        favicon: radioBrowserStation.favicon || '',
+    }
+
+    // Prepare tags array
+    const tagsArray: string[][] = [['name', content.name]]
+
+    // Add description tag (using name as fallback)
+    tagsArray.push(['description', content.description])
+
+    // Add genre/tags as t tags
+    tags.forEach((tag: string) => {
+        tagsArray.push(['t', tag])
+    })
+
+    // Add country code
+    if (content.countryCode) {
+        tagsArray.push(['countryCode', content.countryCode])
+    }
+
+    // Add language codes as individual language tags
+    if (languageCodes.length > 0) {
+        languageCodes.forEach((code: string) => {
+            tagsArray.push(['language', code])
+        })
+    }
+
+    // Add favicon as thumbnail
+    if (content.favicon) {
+        tagsArray.push(['thumbnail', content.favicon])
+    }
+
+    // Add geolocation if available
+    if (radioBrowserStation.geo_lat && radioBrowserStation.geo_long) {
+        // TODO: Geolocation data from radio-browser.info will be used in future UI enhancements
+        tagsArray.push(['g', `${radioBrowserStation.geo_lat},${radioBrowserStation.geo_long}`])
+
+        // Add to content as well
+        content.geo = {
+            lat: radioBrowserStation.geo_lat,
+            long: radioBrowserStation.geo_long,
+        }
+    }
+
+    return {
+        content,
+        tags: tagsArray,
     }
 }
 

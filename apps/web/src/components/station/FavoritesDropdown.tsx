@@ -16,13 +16,11 @@ import { useEffect, useState } from 'react'
 interface FavoritesDropdownProps {
     station: Station
     currentListId?: string
-    favoritesLists: FavoritesList[]
 }
 
 export function FavoritesDropdown({
     station,
     currentListId,
-    favoritesLists: propFavoritesLists = [],
 }: FavoritesDropdownProps) {
     const [selectedListId, setSelectedListId] = useState<string>('')
     const [isLoading, setIsLoading] = useState(false)
@@ -205,9 +203,11 @@ export function FavoritesDropdown({
                 </SelectTrigger>
                 <SelectContent>
                     {favoritesLists.map((list) => (
-                        <SelectItem key={list.id} value={list.id}>
-                            {list.name}
-                        </SelectItem>
+                        list.id ? (
+                            <SelectItem key={list.id} value={list.id}>
+                                {list.name}
+                            </SelectItem>
+                        ) : null
                     ))}
                 </SelectContent>
             </Select>

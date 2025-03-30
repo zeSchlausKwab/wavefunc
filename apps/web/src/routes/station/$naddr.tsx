@@ -258,7 +258,7 @@ function StationPage() {
                                 Play Station
                             </Button>
 
-                            {station.streams.length > 1 && (
+                            {station.streams.length > 1 && station.id && !isNaN(Number(station.id)) && (
                                 <StreamSelector
                                     stationId={Number(station.id)}
                                     onStreamSelect={handleStreamSelect}
@@ -396,7 +396,11 @@ function StationPage() {
             </div>
 
             <div className="mt-12 mb-8">
-                <CommentsList stationId={station.id} stationEvent={station} commentsCount={0} />
+                {station.id ? (
+                    <CommentsList stationId={station.id} stationEvent={station} commentsCount={0} />
+                ) : (
+                    <div className="text-center py-4 text-muted-foreground">Cannot load comments for this station.</div>
+                )}
             </div>
         </div>
     )

@@ -19,8 +19,10 @@ export const StationSchema = z.object({
   website: z.string().url("Must be a valid URL"),
   genre: z.string().min(1, "Genre is required"),
   imageUrl: z.string().url("Must be a valid URL"),
+  countryCode: z.string().max(10).optional(),
+  languageCodes: z.array(z.string()).default([]),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),
-  tags: z.array(z.array(z.string())).default([]),
+  tags: z.array(z.string()).default([]),
 });
 
 export type StationFormData = z.infer<typeof StationSchema>;

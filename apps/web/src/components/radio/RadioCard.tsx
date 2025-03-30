@@ -45,11 +45,21 @@ import { NDKUser } from '@nostr-dev-kit/ndk'
 
 interface RadioCardProps {
     station: Station
-    favoritesLists?: FavoritesList[]
     currentListId?: string
 }
 
-export function RadioCard({ station, favoritesLists = [], currentListId }: RadioCardProps) {
+export function RadioCard({ station, currentListId }: RadioCardProps) {
+    // Debug logging
+    console.log('RadioCard received station:', {
+        id: station.id,
+        name: station.name,
+        genre: station.genre,
+        countryCode: station.countryCode,
+        languageCodes: station.languageCodes,
+        streams: station.streams,
+        tags: station.tags,
+    });
+    
     // Responsive state
     const isMobile = useMedia('(max-width: 640px)')
 
@@ -157,6 +167,10 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
 
     // Play/Pause handler
     const handlePlay = () => {
+        if (!station.streams || !Array.isArray(station.streams) || station.streams.length === 0) {
+            return
+        }
+
         const selectedStream =
             station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
             station.streams.find((s) => s.primary) ||
@@ -197,14 +211,15 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
     }, [isExpanded])
 
     // Extract tags from station
-    const stationTags = useMemo(
-        () =>
-            station.tags
-                .filter((tag) => tag[0] !== 'd' && tag[0] !== 'genre' && tag[0] !== 'thumbnail')
-                .map((tag) => tag[1] || tag[0])
-                .filter(Boolean),
-        [station.tags],
-    )
+    const stationTags = useMemo(() => {
+        if (!station.tags || !Array.isArray(station.tags)) {
+            return []
+        }
+        return station.tags
+            .filter((tag) => tag[0] !== 'd' && tag[0] !== 'genre' && tag[0] !== 'thumbnail')
+            .map((tag) => tag[1] || tag[0])
+            .filter(Boolean)
+    }, [station.tags])
 
     // Determine if card should be rendered as expanded (full width) when on Nostr
     const isFullWidth = isExpanded && existsInNostr
@@ -250,7 +265,11 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                                     variant="secondary"
                                     className="rounded-full w-7 h-7"
                                     onClick={handlePlay}
-                                    disabled={!station.streams.length}
+                                    disabled={
+                                        !station.streams ||
+                                        !Array.isArray(station.streams) ||
+                                        station.streams.length === 0
+                                    }
                                 >
                                     {isCurrentlyPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                                 </Button>
@@ -314,16 +333,21 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                                     </CardDescription>
                                 </div>
                                 <div className="flex items-center space-x-1">
-                                    {!isFullWidth && station.streams.length > 1 && (
-                                        <div className={cn('shrink-0', isMobile ? 'w-16' : 'w-24')}>
-                                            <StreamSelector
-                                                stationId={Number(station.id)}
-                                                onStreamSelect={handleStreamSelect}
-                                                selectedStreamId={selectedStreamId}
-                                                streams={station.streams}
-                                            />
-                                        </div>
-                                    )}
+                                    {!isFullWidth &&
+                                        station.streams &&
+                                        Array.isArray(station.streams) &&
+                                        station.streams.length > 1 && (
+                                            <div className={cn('shrink-0', isMobile ? 'w-16' : 'w-24')}>
+                                                {station.id && !isNaN(Number(station.id)) ? (
+                                                    <StreamSelector
+                                                        stationId={Number(station.id)}
+                                                        onStreamSelect={handleStreamSelect}
+                                                        selectedStreamId={selectedStreamId}
+                                                        streams={station.streams}
+                                                    />
+                                                ) : null}
+                                            </div>
+                                        )}
                                     {isFullWidth && (
                                         <>
                                             <Button
@@ -331,6 +355,11 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                                                 size={isMobile ? 'sm' : 'icon'}
                                                 onClick={handlePlay}
                                                 className="shrink-0"
+                                                disabled={
+                                                    !station.streams ||
+                                                    !Array.isArray(station.streams) ||
+                                                    station.streams.length === 0
+                                                }
                                             >
                                                 {isCurrentlyPlaying ? (
                                                     <Pause className="h-4 w-4 text-primary" />
@@ -395,15 +424,18 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
 
                             {!isFullWidth && !isMobile && (
                                 <div className="mt-2 flex items-center justify-between">
-                                    {station.streams.length > 0 && (
-                                        <div className="text-xs text-muted-foreground line-clamp-1">
-                                            <span className="font-press-start-2p">
-                                                {station.streams.find((s) => s.primary)?.quality?.bitrate ||
-                                                    station.streams[0].quality.bitrate}{' '}
-                                                kbps
-                                            </span>
-                                        </div>
-                                    )}
+                                    {station.streams &&
+                                        Array.isArray(station.streams) &&
+                                        station.streams.length > 0 && (
+                                            <div className="text-xs text-muted-foreground line-clamp-1">
+                                                <span className="font-press-start-2p">
+                                                    {station.streams.find((s) => s.primary)?.quality?.bitrate ||
+                                                        station.streams[0]?.quality?.bitrate ||
+                                                        'Unknown'}{' '}
+                                                    kbps
+                                                </span>
+                                            </div>
+                                        )}
                                     {existsInNostr && (
                                         <Button
                                             variant="ghost"
@@ -458,19 +490,24 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                                     </Button>
                                 </div>
 
-                                {station.pubkey === user?.pubkey && (
-                                    <Button
-                                        onClick={handleEdit}
-                                        className={cn(
-                                            'bg-secondary hover:bg-secondary-foreground text-primary hover:text-white',
-                                            'h-7 px-2 text-[10px]',
-                                        )}
-                                        size="sm"
-                                    >
-                                        <Pencil className="h-3 w-3 mr-1" />
-                                        Edit
-                                    </Button>
-                                )}
+                                <div className="flex items-center space-x-2">
+                                    {existsInNostr && station && station.id && (
+                                        <FavoritesDropdown station={station} currentListId={currentListId} />
+                                    )}
+                                    {station.pubkey === user?.pubkey && (
+                                        <Button
+                                            onClick={handleEdit}
+                                            className={cn(
+                                                'bg-secondary hover:bg-secondary-foreground text-primary hover:text-white',
+                                                'h-7 px-2 text-[10px]',
+                                            )}
+                                            size="sm"
+                                        >
+                                            <Pencil className="h-3 w-3 mr-1" />
+                                            Edit
+                                        </Button>
+                                    )}
+                                </div>
                             </CardFooter>
                         )}
 
@@ -556,12 +593,11 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                         </div>
 
                         <div className="mb-3">
-                            {Array.isArray(favoritesLists) && (
-                                <FavoritesDropdown
-                                    station={station}
-                                    currentListId={currentListId}
-                                    favoritesLists={favoritesLists}
-                                />
+                            <h3 className={cn('font-semibold', isMobile ? 'text-[10px] mb-1' : 'text-xs mb-2')}>
+                                Add to Nostr Favorites
+                            </h3>
+                            {existsInNostr && station && station.id && (
+                                <FavoritesDropdown station={station} currentListId={currentListId} />
                             )}
                         </div>
 
@@ -597,7 +633,13 @@ export function RadioCard({ station, favoritesLists = [], currentListId }: Radio
                 {/* Comments section - Only visible when both showComments is true and card is expanded */}
                 {showComments && isExpanded && existsInNostr && (
                     <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
-                        <CommentsList stationId={station.id} stationEvent={station} commentsCount={commentsCount} />
+                        {station.id ? (
+                            <CommentsList stationId={station.id} stationEvent={station} commentsCount={commentsCount} />
+                        ) : (
+                            <div className="text-center py-4 text-muted-foreground">
+                                Cannot load comments for this station.
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

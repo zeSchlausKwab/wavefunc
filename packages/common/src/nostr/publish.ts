@@ -46,6 +46,9 @@ export async function updateStation(
         streams: any[]
         genre?: string
         imageUrl?: string
+        countryCode?: string
+        languageCodes?: string[]
+        tags?: string[]
     },
 ): Promise<NDKEvent> {
     // Create the basic tags array
@@ -56,6 +59,29 @@ export async function updateStation(
         ['thumbnail', updatedData.imageUrl || ''],
         ['client', 'nostr_radio'],
     ]
+    
+    // Add countryCode if provided
+    if (updatedData.countryCode) {
+        tags.push(['countryCode', updatedData.countryCode])
+    }
+    
+    // Add language codes as individual language tags
+    if (updatedData.languageCodes && updatedData.languageCodes.length > 0) {
+        updatedData.languageCodes.forEach(code => {
+            if (code.trim()) {
+                tags.push(['language', code.trim()])
+            }
+        })
+    }
+    
+    // Add tags as t tags
+    if (updatedData.tags && updatedData.tags.length > 0) {
+        updatedData.tags.forEach(tag => {
+            if (tag.trim()) {
+                tags.push(['t', tag.trim()])
+            }
+        })
+    }
 
     // Create a radio event that preserves the existing tags (including d-tag)
     const event = createRadioEvent(
@@ -64,6 +90,9 @@ export async function updateStation(
             description: updatedData.description,
             website: updatedData.website,
             streams: updatedData.streams,
+            countryCode: updatedData.countryCode,
+            languageCodes: updatedData.languageCodes,
+            tags: updatedData.tags,
         },
         tags,
         station.tags, // Pass existing tags to preserve 'd' tag

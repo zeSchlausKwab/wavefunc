@@ -4,7 +4,13 @@ import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common'
-import { type FavoritesList, fetchFavoritesLists, parseRadioEvent, subscribeToFavoritesLists } from '@wavefunc/common'
+import {
+    type FavoritesList,
+    fetchFavoritesLists,
+    generateStationNaddr,
+    parseRadioEvent,
+    subscribeToFavoritesLists,
+} from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { RadioCard } from '../radio/RadioCard'
@@ -101,24 +107,61 @@ export function FavoritesManager() {
                         }
 
                         if (event) {
-                            const parsedStation = parseRadioEvent(event)
-                            const station: Station = {
-                                ...parsedStation,
-                                id: favorite.event_id,
-                                genre: parsedStation.tags.find((t) => t[0] === 'genre')?.[1] || '',
-                                imageUrl: parsedStation.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
-                                pubkey: event.pubkey,
-                                created_at: favorite.added_at,
-                            }
+                            try {
+                                const parsedStation = parseRadioEvent(event)
 
+                                // Make sure to get the naddr if available
+                                let naddr = favorite.naddr
+                                if (!naddr && event) {
+                                    try {
+                                        naddr = generateStationNaddr(event)
+                                    } catch (error) {
+                                        console.warn('Could not generate naddr for station:', error)
+                                    }
+                                }
+
+                                const station: Station = {
+                                    id: favorite.event_id,
+                                    naddr, // Use the generated naddr or the one from the favorite
+                                    name: parsedStation.name,
+                                    description: parsedStation.description,
+                                    website: parsedStation.website,
+                                    streams: parsedStation.streams,
+                                    // Properly map tags - Station.tags expects string[][]
+                                    tags: parsedStation.eventTags || event.tags,
+                                    // Extract genre from tags with proper null checks
+                                    genre: event.tags.find((t) => t[0] === 'genre')?.[1] || '',
+                                    imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
+                                    // Include new fields from radio-browser.info
+                                    countryCode: parsedStation.countryCode,
+                                    languageCodes: parsedStation.languageCodes,
+                                    pubkey: event.pubkey,
+                                    created_at: favorite.added_at,
+                                }
+
+                                newResolvedStations[favorite.event_id] = {
+                                    id: favorite.event_id,
+                                    station,
+                                    favorite,
+                                }
+                            } catch (parseError) {
+                                console.error(`Error parsing station data:`, parseError)
+                                newResolvedStations[favorite.event_id] = {
+                                    id: favorite.event_id,
+                                    station: null,
+                                    favorite,
+                                }
+                            }
+                        } else {
+                            console.warn(`No event found for station ${favorite.event_id}`)
                             newResolvedStations[favorite.event_id] = {
                                 id: favorite.event_id,
-                                station,
+                                station: null,
                                 favorite,
                             }
                         }
-                    } catch (error) {
-                        console.error(`Error resolving station ${favorite.event_id}:`, error)
+                    } catch (fetchError) {
+                        console.error(`Error fetching station ${favorite.event_id}:`, fetchError)
                         newResolvedStations[favorite.event_id] = {
                             id: favorite.event_id,
                             station: null,
@@ -222,7 +265,6 @@ export function FavoritesManager() {
                                                 key={favorite.event_id}
                                                 station={resolved.station}
                                                 currentListId={list.id}
-                                                favoritesLists={favoritesLists}
                                             />
                                         )
                                     })}
