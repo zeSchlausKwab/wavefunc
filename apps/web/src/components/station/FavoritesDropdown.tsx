@@ -18,10 +18,7 @@ interface FavoritesDropdownProps {
     currentListId?: string
 }
 
-export function FavoritesDropdown({
-    station,
-    currentListId,
-}: FavoritesDropdownProps) {
+export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownProps) {
     const [selectedListId, setSelectedListId] = useState<string>('')
     const [isLoading, setIsLoading] = useState(false)
     const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
@@ -132,13 +129,13 @@ export function FavoritesDropdown({
 
     if (currentListId) {
         return (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center">
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={handleRemoveFromFavorites}
                     title="Remove from list"
-                    className="text-destructive hover:text-destructive"
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-red-50"
                 >
                     <Trash2 className="h-4 w-4" />
                 </Button>
@@ -148,78 +145,85 @@ export function FavoritesDropdown({
 
     if (!ndk?.activeUser?.pubkey) {
         return (
-            <div className="flex items-center space-x-2">
-                <Select disabled>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Login to add to favorites" />
-                    </SelectTrigger>
-                </Select>
-                <Button variant="ghost" size="icon" disabled>
-                    <Plus className="h-4 w-4 text-primary" />
-                </Button>
+            <div className="flex flex-col w-full">
+                <div className="flex items-center space-x-1">
+                    <Select disabled>
+                        <SelectTrigger className="h-8 text-xs w-full max-w-[100px] px-2">
+                            <SelectValue placeholder="Login" />
+                        </SelectTrigger>
+                    </Select>
+                    <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0">
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
         )
     }
 
     if (isLoading) {
         return (
-            <div className="flex items-center space-x-2">
-                <Select disabled>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Loading lists..." />
-                    </SelectTrigger>
-                </Select>
-                <Button variant="ghost" size="icon" disabled>
-                    <Plus className="h-4 w-4 text-primary" />
-                </Button>
+            <div className="flex flex-col w-full">
+                <div className="flex items-center space-x-1">
+                    <Select disabled>
+                        <SelectTrigger className="h-8 text-xs w-full max-w-[100px] px-2">
+                            <SelectValue placeholder="Loading" />
+                        </SelectTrigger>
+                    </Select>
+                    <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0">
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
         )
     }
 
     if (!Array.isArray(favoritesLists) || favoritesLists.length === 0) {
         return (
-            <div className="flex items-center space-x-2">
-                <Select disabled>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="No lists available" />
-                    </SelectTrigger>
-                </Select>
-                <Button variant="ghost" size="icon" disabled>
-                    <Plus className="h-4 w-4 text-primary" />
-                </Button>
+            <div className="flex flex-col w-full">
+                <div className="flex items-center space-x-1">
+                    <Select disabled>
+                        <SelectTrigger className="h-8 text-xs w-full max-w-[100px] px-2">
+                            <SelectValue placeholder="No lists" />
+                        </SelectTrigger>
+                    </Select>
+                    <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0">
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
         )
     }
 
     return (
-        <div className="flex items-center space-x-2">
-            <Select value={selectedListId || undefined} onValueChange={setSelectedListId}>
-                <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select a list">
-                        {selectedListId
-                            ? favoritesLists.find((list) => list.id === selectedListId)?.name
-                            : 'Select a list'}
-                    </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                    {favoritesLists.map((list) => (
-                        list.id ? (
-                            <SelectItem key={list.id} value={list.id}>
-                                {list.name}
-                            </SelectItem>
-                        ) : null
-                    ))}
-                </SelectContent>
-            </Select>
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleAddToFavorites}
-                disabled={!selectedListId}
-                title="Add to selected list"
-            >
-                <Plus className="h-4 w-4 text-primary" />
-            </Button>
+        <div className="flex flex-col w-full">
+            <div className="flex items-center space-x-1">
+                <Select value={selectedListId || undefined} onValueChange={setSelectedListId}>
+                    <SelectTrigger className="h-8 text-xs w-full max-w-[100px] px-2">
+                        <SelectValue placeholder="List">
+                            {selectedListId ? favoritesLists.find((list) => list.id === selectedListId)?.name : 'List'}
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="start" className="min-w-[160px]">
+                        {favoritesLists.map((list) =>
+                            list.id ? (
+                                <SelectItem key={list.id} value={list.id} className="text-xs py-2">
+                                    {list.name}
+                                </SelectItem>
+                            ) : null,
+                        )}
+                    </SelectContent>
+                </Select>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddToFavorites}
+                    disabled={!selectedListId}
+                    title="Add to selected list"
+                    className="h-8 w-8 p-0"
+                >
+                    <Plus className="h-4 w-4 text-primary" />
+                </Button>
+            </div>
         </div>
     )
 }
