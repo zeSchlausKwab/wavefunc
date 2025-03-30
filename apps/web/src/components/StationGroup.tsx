@@ -1,6 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExpandableStationCard } from './station/ExpandableStationCard'
 import type { Station } from '@wavefunc/common/types/station'
+import { RadioCard } from './radio/RadioCard'
 
 interface StationGroupProps {
     name: string
@@ -18,7 +17,7 @@ export function StationGroup({ name, description, stations, onUpdateStation }: S
             </div>
             <div className="flex flex-col gap-4">
                 {stations.map((station) => (
-                    <ExpandableStationCard key={station.id} station={station} onUpdate={onUpdateStation} />
+                    <RadioCard key={station.id} station={station} />
                 ))}
             </div>
         </div>

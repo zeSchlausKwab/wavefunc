@@ -1,3 +1,4 @@
+import { RadioCard } from '@/components/radio/RadioCard'
 import { Button } from '@/components/ui/button'
 import { ndkActions } from '@/lib/store/ndk'
 import { cn } from '@/lib/utils'
@@ -7,8 +8,6 @@ import { parseRadioEvent, RADIO_EVENT_KINDS, subscribeToRadioStations, type Stat
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { RelayDebugger } from '../components/debug/RelayDebugger'
-import { ExpandableStationCard } from '../components/station/ExpandableStationCard'
-import { RadioCard } from '@/components/radio/RadioCard'
 
 export const Route = createFileRoute('/discover')({
     component: Discover,
