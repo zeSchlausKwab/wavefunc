@@ -1,21 +1,24 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useMedia } from 'react-use'
-import { useStore } from '@tanstack/react-store'
-import { Link as RouterLink } from '@tanstack/react-router'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { Link as RouterLink } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
+import { useEffect, useMemo, useState } from 'react'
+import { useMedia } from 'react-use'
 
 // UI Components
+import CommentsList from '@/components/comments'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { StreamSelector } from './StreamSelector'
-import CommentsList from '@/components/comments'
 import { FavoritesDropdown } from '../station/FavoritesDropdown'
+import { StreamSelector } from './StreamSelector'
 
 // Icons
 import {
     Calendar,
+    CheckCircle2,
     ChevronDown,
     ChevronUp,
+    CircleDashed,
+    ExternalLink,
     Heart,
     MessageCircle,
     Music,
@@ -27,21 +30,17 @@ import {
     Star,
     Users,
     Zap,
-    CircleDashed,
-    CheckCircle2,
-    ExternalLink,
 } from 'lucide-react'
 
 // Stores and utilities
-import { ndkActions, ndkStore, useNDK } from '@/lib/store/ndk'
-import { cn } from '@/lib/utils'
+import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
+import { cn } from '@/lib/utils'
+import { NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
-import type { FavoritesList } from '@wavefunc/common/nostr/favorites'
-import { NDKUser } from '@nostr-dev-kit/ndk'
 
 interface RadioCardProps {
     station: Station
@@ -49,41 +48,24 @@ interface RadioCardProps {
 }
 
 export function RadioCard({ station, currentListId }: RadioCardProps) {
-    // Debug logging
-    console.log('RadioCard received station:', {
-        id: station.id,
-        name: station.name,
-        genre: station.genre,
-        countryCode: station.countryCode,
-        languageCodes: station.languageCodes,
-        streams: station.streams,
-        tags: station.tags,
-    });
-    
-    // Responsive state
     const isMobile = useMedia('(max-width: 640px)')
 
-    // UI state
     const [isExpanded, setIsExpanded] = useState(false)
     const [showComments, setShowComments] = useState(false)
     const [commentsCount, setCommentsCount] = useState(0)
 
-    // Nostr state
     const [existsInNostr, setExistsInNostr] = useState(false)
     const [checkingNostr, setCheckingNostr] = useState(false)
     const [stationNaddr, setStationNaddr] = useState<string | null>(null)
     const [user, setUser] = useState<NDKUser | null>(null)
 
-    // Stream selection state
     const [selectedStreamId, setSelectedStreamId] = useState<number | undefined>(undefined)
 
-    // Global state from stores
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
     const currentStation = useStore(stationsStore, (state) => state.currentStation)
     const isCurrentlyPlaying = currentStation?.id === station.id && isPlaying
     const { isConnected, ndk } = useStore(ndkStore)
 
-    // AutoAnimate refs
     const [cardRef] = useAutoAnimate<HTMLDivElement>({
         duration: 300,
         easing: 'ease-in-out',
@@ -273,14 +255,16 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                 >
                                     {isCurrentlyPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                                 </Button>
-                                <Button
-                                    size="icon"
-                                    variant="secondary"
-                                    className="rounded-full w-7 h-7"
-                                    onClick={handleEdit}
-                                >
-                                    <Plus className="w-3 h-3" />
-                                </Button>
+                                {!existsInNostr && (
+                                    <Button
+                                        size="icon"
+                                        variant="secondary"
+                                        className="rounded-full w-7 h-7"
+                                        onClick={handleEdit}
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                    </Button>
+                                )}
                             </div>
                         )}
                     </div>

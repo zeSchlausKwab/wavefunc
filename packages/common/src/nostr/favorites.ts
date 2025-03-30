@@ -281,7 +281,6 @@ export function subscribeToFavoritesLists(
 
     if (onEvent) {
         subscription.on('event', (event: NDKEvent) => {
-            console.log('Favorites list event', event)
             try {
                 const favoritesList = parseFavoritesEvent(event)
                 onEvent(favoritesList)

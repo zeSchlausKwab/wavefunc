@@ -277,7 +277,11 @@ export function RadioPlayer() {
     }
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 md:p-8 flex flex-col z-50">
+        <div 
+            className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 md:p-8 flex flex-col z-50"
+            aria-label="Radio Player"
+            style={{ maxHeight: "160px" }}
+        >
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                 <div className="flex-1 overflow-hidden mb-2 md:mb-0">
                     {currentStation ? (
