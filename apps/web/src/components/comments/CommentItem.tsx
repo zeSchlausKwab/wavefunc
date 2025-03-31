@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { type NostrComment, fetchCommentReplies, subscribeToCommentReplies } from '@wavefunc/common'
@@ -8,6 +7,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { ReplyToComment } from './ReplyToComment'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ndkActions } from '@/lib/store/ndk'
+import { UserProfile } from '@/components/UserProfile'
+
 interface CommentItemProps {
     comment: NostrComment
     stationEvent: any // NDKEvent, but avoid direct import
@@ -126,14 +127,8 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
         <div className={`${shouldIndent ? 'pl-6 border-l border-gray-200 dark:border-gray-700' : ''}`}>
             <Card className="bg-card">
                 <CardHeader className="p-4 pb-2 flex flex-row items-center space-y-0">
-                    <Avatar className="h-8 w-8 mr-2">
-                        <AvatarFallback>{avatarText}</AvatarFallback>
-                        <AvatarImage src={`https://robohash.org/${comment.pubkey}?set=set4`} />
-                    </Avatar>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-medium truncate max-w-[150px]">
-                            {comment.pubkey.slice(0, 8)}...
-                        </span>
+                    <UserProfile pubkey={comment.pubkey} />
+                    <div className="flex flex-col ml-2">
                         <span className="text-xs text-muted-foreground">{timestamp}</span>
                     </div>
                 </CardHeader>

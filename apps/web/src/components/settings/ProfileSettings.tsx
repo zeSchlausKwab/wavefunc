@@ -128,7 +128,6 @@ export function ProfileSettings() {
 
                 if (fetchedProfile) {
                     setProfile(fetchedProfile)
-                    console.log('Sanitized profile:', fetchedProfile)
                 }
             } catch (error) {
                 console.error('Failed to fetch profile:', error)

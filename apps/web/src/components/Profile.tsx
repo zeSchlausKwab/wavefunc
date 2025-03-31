@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Loader2, UserCircle2, Shield, LogOut } from 'lucide-react'
+import { Loader2, UserCircle2, Shield, LogOut, Globe, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useStore } from '@tanstack/react-store'
 import { ndkActions, useNDK } from '@/lib/store/ndk'
 import { authActions, authStore } from '@/lib/store/auth'
+import { type NDKUserProfile } from '@nostr-dev-kit/ndk'
 
 interface ProfileProps {
     compact?: boolean
@@ -23,6 +25,8 @@ interface ProfileData {
     name?: string
     about?: string
     picture?: string
+    website?: string
+    lud16?: string
 }
 
 // Cache profiles for 5 minutes
@@ -122,12 +126,18 @@ export function Profile({ compact = false }: ProfileProps) {
                             <Button
                                 variant={isAnonymous ? 'ghost' : 'outline'}
                                 size={compact ? 'icon' : 'default'}
-                                className={cn('relative', isAnonymous && 'text-muted-foreground hover:text-foreground')}
+                                className={cn(
+                                    'relative flex items-center gap-2',
+                                    isAnonymous && 'text-muted-foreground hover:text-foreground',
+                                )}
                             >
                                 {isAnonymous ? (
-                                    <Shield className={cn('h-4 w-4', !compact && 'mr-2')} />
+                                    <Shield className="h-4 w-4" />
                                 ) : (
-                                    <UserCircle2 className={cn('h-4 w-4', !compact && 'mr-2')} />
+                                    <Avatar className="h-6 w-6">
+                                        <AvatarImage src={profile?.picture} alt={displayName} />
+                                        <AvatarFallback>{displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
                                 )}
                                 {!compact && displayName}
                             </Button>
@@ -137,11 +147,39 @@ export function Profile({ compact = false }: ProfileProps) {
                         {isAnonymous ? "You're browsing anonymously" : 'View profile options'}
                     </TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent className="w-56" align="end">
-                    <DropdownMenuLabel>
-                        {displayName}
-                        <span className="block text-xs text-muted-foreground truncate">{authState.user?.pubkey}</span>
+                <DropdownMenuContent className="w-72" align="end">
+                    <DropdownMenuLabel className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                            <AvatarImage src={profile?.picture} alt={displayName} />
+                            <AvatarFallback>{displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                            <span className="font-medium">{displayName}</span>
+                            {profile?.about && (
+                                <span className="text-xs text-muted-foreground line-clamp-2">{profile.about}</span>
+                            )}
+                        </div>
                     </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {profile?.website && (
+                        <DropdownMenuItem className="flex items-center gap-2 cursor-default">
+                            <Globe className="h-4 w-4" />
+                            <a
+                                href={profile.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm truncate hover:underline"
+                            >
+                                {profile.website}
+                            </a>
+                        </DropdownMenuItem>
+                    )}
+                    {profile?.lud16 && (
+                        <DropdownMenuItem className="flex items-center gap-2 cursor-default">
+                            <Zap className="h-4 w-4" />
+                            <span className="text-sm truncate">{profile.lud16}</span>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
