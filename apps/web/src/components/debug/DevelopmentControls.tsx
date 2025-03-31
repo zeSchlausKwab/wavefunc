@@ -1,8 +1,6 @@
-import { useToast } from '@/lib/hooks/use-toast'
 import config from '@wavefunc/common/config'
+import { toast } from 'sonner'
 export function DevelopmentControls() {
-    const { toast } = useToast()
-
     if (config.app.env !== 'development') {
         return null
     }
@@ -16,15 +14,16 @@ export function DevelopmentControls() {
                 },
             )
             const data = await response.json()
-            toast({
-                title: 'Success',
+            toast('Success', {
                 description: data.message,
             })
         } catch (error) {
             console.error('Error:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: 'Failed to call development endpoint',
+                style: {
+                    background: 'red',
+                },
             })
         }
     }

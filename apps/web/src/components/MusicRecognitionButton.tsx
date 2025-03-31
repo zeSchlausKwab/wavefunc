@@ -1,16 +1,15 @@
 import { Button } from '@/components/ui/button'
-import { Music2, ExternalLink } from 'lucide-react'
-import { useState, useRef } from 'react'
-import { mcpService } from '@/lib/services/mcp'
-import { NDKEvent, NDKKind, type NostrEvent } from '@nostr-dev-kit/ndk'
-import { useStore } from '@tanstack/react-store'
-import { stationsStore } from '@/lib/store/stations'
-import { useToast } from '@/lib/hooks/use-toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { mcpService } from '@/lib/services/mcp'
+import { ndkStore } from '@/lib/store/ndk'
+import { stationsStore } from '@/lib/store/stations'
 import { cn } from '@/lib/utils'
 import type { RecognitionResult } from '@/types/recognition'
-import { ndkActions, ndkStore } from '@/lib/store/ndk'
-
+import { NDKEvent, NDKKind, type NostrEvent } from '@nostr-dev-kit/ndk'
+import { useStore } from '@tanstack/react-store'
+import { ExternalLink, Music2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 const JOB_KIND = 5000 // Music recognition job request
 const RESULT_KIND = 6000 // Music recognition result (1000 higher than request)
 const FEEDBACK_KIND = 7000 // Job feedback
@@ -29,7 +28,6 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const audioChunksRef = useRef<Blob[]>([])
     const streamRef = useRef<MediaStream | null>(null)
-    const { toast } = useToast()
     const [recognitionMethod, setRecognitionMethod] = useState<'dvmcp' | 'dvm' | null>(null)
     const { ndk } = useStore(ndkStore)
 
@@ -198,9 +196,8 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
                 console.log('Attempting recognition via DVMCP...')
                 setRecognitionMethod('dvmcp')
 
-                toast({
-                    title: 'Processing',
-                    description: 'Recognizing song via DVMCP...',
+                toast('Processing', {
+                    description: 'Recognizing the song...',
                 })
 
                 const mcpResult = await mcpService.recognizeSong(blossomUrl)
@@ -210,8 +207,7 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
                 console.warn('DVMCP recognition failed, falling back to DVM:', mcpError)
                 setRecognitionMethod('dvm')
 
-                toast({
-                    title: 'DVMCP Failed',
+                toast('DVMCP Failed', {
                     description: 'Falling back to Direct DVM...',
                 })
 
@@ -219,10 +215,8 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
             }
         } catch (error) {
             console.error('Error processing recognition:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: error instanceof Error ? error.message : 'Failed to process recognition',
-                variant: 'destructive',
             })
             setIsLoading(false)
             setRecognitionMethod(null)

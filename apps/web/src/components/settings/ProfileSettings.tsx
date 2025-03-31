@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/lib/hooks/use-toast'
 import { authStore } from '@/lib/store/auth'
 import { ndkActions } from '@/lib/store/ndk'
 import { uiActions } from '@/lib/store/ui'
@@ -14,13 +13,13 @@ import { updateUserProfile } from '@wavefunc/common'
 import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 export function ProfileSettings() {
     const [isProfileLoading, setIsProfileLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
     const authState = useStore(authStore)
-    const { toast } = useToast()
 
     const [profile, setProfile] = useState<NDKUserProfile>({
         name: '',
@@ -57,10 +56,11 @@ export function ProfileSettings() {
 
         if (!authState.user?.pubkey) {
             console.error('Auth state:', authState.isAuthenticated, 'Pubkey available:', !!authState.user?.pubkey)
-            toast({
-                title: 'Authentication Required',
+            toast('Authentication Required', {
                 description: 'Please sign in to save your profile settings',
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
             uiActions.openAuthDialog()
             return
@@ -77,16 +77,16 @@ export function ProfileSettings() {
             setSaveSuccess(true)
             setTimeout(() => setSaveSuccess(false), 3000)
 
-            toast({
-                title: 'Profile Updated',
+            toast('Profile Updated', {
                 description: 'Your profile has been updated successfully',
             })
         } catch (error) {
             console.error('Failed to update profile:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: `Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
         } finally {
             setIsSubmitting(false)

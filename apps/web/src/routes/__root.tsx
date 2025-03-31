@@ -2,6 +2,7 @@ import { LoginDialog } from '@/components/auth/LoginDialog'
 import { EditStationDrawer } from '@/components/EditStationDrawer'
 import { Header } from '@/components/Header'
 import { RadioPlayer } from '@/components/RadioPlayer'
+import { Toaster } from '@/components/ui/sonner'
 import { uiStore } from '@/lib/store/ui'
 import { createRootRoute, HeadContent, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
@@ -16,6 +17,7 @@ function Providers({ children }: { children: React.ReactNode }) {
     return (
         <>
             {children}
+            <Toaster />
             <EditStationDrawer isOpen={isOpen} station={station} />
         </>
     )

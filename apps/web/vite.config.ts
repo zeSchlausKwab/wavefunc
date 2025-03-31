@@ -30,11 +30,6 @@ export default defineConfig({
     server: {
         port: WEB_PORT,
         host: API_HOST,
-        strictPort: true,
-        hmr: {
-            port: API_PORT,
-            host: API_HOST,
-        },
     },
     clearScreen: false,
     logLevel: 'info',

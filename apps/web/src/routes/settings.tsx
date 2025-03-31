@@ -11,7 +11,7 @@ export const Route = createFileRoute('/settings')({
     component: Settings,
 })
 
-export default function Settings() {
+function Settings() {
     const [activeTab, setActiveTab] = useState('profile')
     const authState = useStore(authStore)
 

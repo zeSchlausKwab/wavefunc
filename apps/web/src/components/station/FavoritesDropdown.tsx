@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useToast } from '@/lib/hooks/use-toast'
 import { useNDK } from '@/lib/store/ndk'
 import {
     addStationToFavorites,
@@ -12,6 +11,7 @@ import type { FavoritesList } from '@wavefunc/common/nostr/favorites'
 import type { Station } from '@wavefunc/common/types/station'
 import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface FavoritesDropdownProps {
     station: Station
@@ -22,7 +22,6 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
     const [selectedListId, setSelectedListId] = useState<string>('')
     const [isLoading, setIsLoading] = useState(false)
     const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
-    const { toast } = useToast()
     const { ndk } = useNDK()
 
     useEffect(() => {
@@ -94,8 +93,7 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
                 name: station.name,
                 naddr: station.naddr,
             })
-            toast({
-                title: 'Station added to favorites',
+            toast('Station added to favorites', {
                 description: 'Station added to favorites',
             })
         } catch (error) {

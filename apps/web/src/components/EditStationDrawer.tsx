@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/lib/hooks/use-toast'
 import { closeStationDrawer } from '@/lib/store/ui'
 import {
     createRadioEvent,
@@ -20,6 +19,7 @@ import { AlertCircle, ExternalLink, Import, Plus, Trash, Wand2, X } from 'lucide
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { ndkActions } from '@/lib/store/ndk'
+import { toast } from 'sonner'
 
 interface EditStationDrawerProps {
     station?: Station
@@ -155,7 +155,6 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [isImporting, setIsImporting] = React.useState(false)
     const [importName, setImportName] = React.useState('')
-    const { toast } = useToast()
     const handleClose = () => {
         closeStationDrawer()
     }
@@ -236,8 +235,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 })
 
                 handleClose()
-                toast({
-                    title: 'Station updated',
+                toast('Station updated', {
                     description: 'Your changes have been saved successfully.',
                 })
             } else {
@@ -286,8 +284,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
 
                 if (ndkEvent) {
                     await ndkEvent.publish()
-                    toast({
-                        title: 'Station created',
+                    toast('Station created', {
                         description: 'Station created successfully',
                     })
                     handleClose()
@@ -295,10 +292,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
         } catch (error) {
             console.error('Error creating/updating station:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: 'Failed to save the station. Please try again.',
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
         }
     }
@@ -346,26 +344,26 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         try {
             const parsedStream = await parseStreamUrl(url)
             setValue(`streams.${index}`, parsedStream)
-            toast({
-                title: 'Success',
+            toast('Stream details auto-detected!', {
                 description: 'Stream details auto-detected!',
             })
         } catch (error) {
             console.error('Error parsing stream URL:', error)
-            toast({
-                title: 'Error',
-                description: 'Could not auto-detect stream details',
-                variant: 'destructive',
+            toast('Could not auto-detect stream details', {
+                style: {
+                    background: 'red',
+                },
             })
         }
     }
 
     const handleImportFromRadioBrowser = async () => {
         if (!importName.trim()) {
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: 'Please enter a station name to import',
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
             return
         }
@@ -399,8 +397,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             // Set tags as an array
             setValue('tags', content.tags || [])
 
-            toast({
-                title: 'Success',
+            toast('Station imported from radio-browser.info!', {
                 description: 'Station imported from radio-browser.info!',
             })
 
@@ -409,10 +406,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             setImportName('')
         } catch (error) {
             console.error('Error importing from radio-browser.info:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: 'Failed to import station data. Please try again.',
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
         } finally {
             setIsImporting(false)
