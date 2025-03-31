@@ -8,6 +8,7 @@ import { useMedia } from 'react-use'
 import CommentsList from '@/components/comments'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { SocialInteractionBar } from '../social/SocialInteractionBar'
 import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
 
@@ -19,17 +20,12 @@ import {
     ChevronUp,
     CircleDashed,
     ExternalLink,
-    Heart,
-    MessageCircle,
     Music,
     Pause,
-    Pencil,
     Play,
     Plus,
-    Share2,
     Star,
     Users,
-    Zap,
 } from 'lucide-react'
 
 // Stores and utilities
@@ -447,49 +443,26 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                     isMobile ? 'p-3 pt-0' : 'p-4 pt-0 pb-2',
                                 )}
                             >
-                                <div className="flex space-x-1">
-                                    <Button variant="ghost" size="sm" aria-label="Flash" className="h-7 px-1">
-                                        <Zap className="h-3 w-3 mr-1" />
-                                        <span className="text-xs">0</span>
-                                    </Button>
-                                    <Button variant="ghost" size="sm" aria-label="Heart" className="h-7 px-1">
-                                        <Heart className="h-3 w-3 mr-1" />
-                                        <span className="text-xs">0</span>
-                                    </Button>
-                                    {existsInNostr && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            aria-label="Comment"
-                                            onClick={toggleComments}
-                                            className="h-7 px-1"
-                                        >
-                                            <MessageCircle className="h-3 w-3 mr-1" />
-                                            <span className="text-xs">{commentsCount}</span>
+                                <div className="flex items-center space-x-1">
+                                    {existsInNostr ? (
+                                        <SocialInteractionBar
+                                            naddr={stationNaddr || ''}
+                                            authorPubkey={station.pubkey}
+                                            commentsCount={commentsCount}
+                                            onCommentClick={toggleComments}
+                                            compact={true}
+                                        />
+                                    ) : (
+                                        <Button onClick={handleEdit} variant="ghost" size="sm" className="h-7 px-1">
+                                            <Plus className="h-3 w-3 mr-1" />
+                                            <span className="text-xs">Add to Nostr</span>
                                         </Button>
                                     )}
-                                    <Button variant="ghost" size="sm" aria-label="Share" className="h-7 px-1">
-                                        <Share2 className="h-3 w-3 mr-1" />
-                                        <span className="text-xs"></span>
-                                    </Button>
                                 </div>
 
                                 <div className="flex items-center space-x-2">
                                     {existsInNostr && station && station.id && (
                                         <FavoritesDropdown station={station} currentListId={currentListId} />
-                                    )}
-                                    {station.pubkey === user?.pubkey && (
-                                        <Button
-                                            onClick={handleEdit}
-                                            className={cn(
-                                                'bg-secondary hover:bg-secondary-foreground text-primary hover:text-white',
-                                                'h-7 px-2 text-[10px]',
-                                            )}
-                                            size="sm"
-                                        >
-                                            <Pencil className="h-3 w-3 mr-1" />
-                                            Edit
-                                        </Button>
                                     )}
                                 </div>
                             </CardFooter>
@@ -498,54 +471,20 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                         {/* Full footer only for expanded cards */}
                         {isFullWidth && (
                             <CardFooter className={cn('flex flex-row-reverse justify-between', isMobile && 'p-3')}>
-                                <div className="flex space-x-1">
-                                    <Button
-                                        variant="ghost"
-                                        size={isMobile ? 'sm' : 'icon'}
-                                        aria-label="Flash"
-                                        className="h-8 w-8"
-                                    >
-                                        <Zap className="h-4 w-4 text-primary" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size={isMobile ? 'sm' : 'icon'}
-                                        aria-label="Heart"
-                                        className="h-8 w-8"
-                                    >
-                                        <Heart className="h-4 w-4 text-primary" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size={isMobile ? 'sm' : 'icon'}
-                                        aria-label="Comment"
-                                        onClick={toggleComments}
-                                        className="h-8 w-8"
-                                    >
-                                        <MessageCircle className="h-4 w-4 text-primary" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size={isMobile ? 'sm' : 'icon'}
-                                        aria-label="Share"
-                                        className="h-8 w-8"
-                                    >
-                                        <Share2 className="h-4 w-4 text-primary" />
-                                    </Button>
+                                <div className="flex items-center space-x-1">
+                                    {existsInNostr ? (
+                                        <SocialInteractionBar
+                                            naddr={stationNaddr || ''}
+                                            authorPubkey={station.pubkey}
+                                            commentsCount={commentsCount}
+                                            onCommentClick={toggleComments}
+                                        />
+                                    ) : (
+                                        <Button onClick={handleEdit} variant="ghost" size="icon" className="h-8 w-8">
+                                            <Plus className="h-4 w-4 text-primary" />
+                                        </Button>
+                                    )}
                                 </div>
-                                {station.pubkey === user?.pubkey && (
-                                    <Button
-                                        onClick={handleEdit}
-                                        className={cn(
-                                            'bg-secondary hover:bg-secondary-foreground text-primary hover:text-white font-press-start-2p',
-                                            isMobile ? 'text-[10px] py-1 px-2 h-7' : 'text-xs',
-                                        )}
-                                        size="sm"
-                                    >
-                                        <Pencil className="h-3 w-3 mr-1" />
-                                        Edit
-                                    </Button>
-                                )}
                             </CardFooter>
                         )}
                     </div>

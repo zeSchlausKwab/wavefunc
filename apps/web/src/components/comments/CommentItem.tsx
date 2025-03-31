@@ -8,6 +8,7 @@ import { ReplyToComment } from './ReplyToComment'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ndkActions } from '@/lib/store/ndk'
 import { UserProfile } from '@/components/UserProfile'
+import { SocialInteractionBar } from '../social/SocialInteractionBar'
 
 interface CommentItemProps {
     comment: NostrComment
@@ -138,18 +139,14 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
                 </CardContent>
 
                 <CardFooter className="p-2 flex justify-between">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                            e.preventDefault()
+                    <SocialInteractionBar
+                        naddr={comment.id || ''}
+                        authorPubkey={comment.pubkey}
+                        onCommentClick={() => {
                             setIsReplyOpen(!isReplyOpen)
                         }}
-                        className="text-xs"
-                    >
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Reply
-                    </Button>
+                        compact={true}
+                    />
 
                     {replyCount > 0 && (
                         <Button
