@@ -37,6 +37,7 @@ import { NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
+import { NDKEvent } from '@nostr-dev-kit/ndk'
 
 interface RadioCardProps {
     station: Station
@@ -50,7 +51,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
     const [showComments, setShowComments] = useState(false)
     const [commentsCount, setCommentsCount] = useState(0)
 
-    const [existsInNostr, setExistsInNostr] = useState(false)
+    const [existsInNostr, setExistsInNostr] = useState<NDKEvent | null>(null)
     const [checkingNostr, setCheckingNostr] = useState(false)
     const [stationNaddr, setStationNaddr] = useState<string | null>(null)
     const [user, setUser] = useState<NDKUser | null>(null)
@@ -98,7 +99,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                 const nostrEvent = await findStationByNameInNostr(ndk, station.name)
                 if (!isMounted) return
 
-                setExistsInNostr(!!nostrEvent)
+                setExistsInNostr(nostrEvent)
 
                 if (nostrEvent) {
                     try {
@@ -446,7 +447,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                 <div className="flex items-center space-x-1">
                                     {existsInNostr ? (
                                         <SocialInteractionBar
-                                            naddr={stationNaddr || ''}
+                                            event={existsInNostr}
                                             authorPubkey={station.pubkey}
                                             commentsCount={commentsCount}
                                             onCommentClick={toggleComments}

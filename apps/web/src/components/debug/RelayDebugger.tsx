@@ -27,13 +27,13 @@ export function RelayDebugger() {
             isInitializedRef.current = true
 
             const filter: NDKFilter = {
-                // kinds: [5000, 6000 as NDKKind, 31337 as NDKKind],
                 kinds: [
                     RADIO_EVENT_KINDS.STREAM as NDKKind,
                     RADIO_EVENT_KINDS.FAVORITES as NDKKind,
                     5000,
                     6000 as NDKKind,
                     1111 as NDKKind,
+                    NDKKind.Reaction,
                 ],
             }
 
@@ -86,6 +86,7 @@ export function RelayDebugger() {
             [NDKKind.NostrConnect]: 'NostrConnect',
             [31337]: 'Radio Stream',
             [1111]: 'Comment',
+            [NDKKind.Reaction]: 'Reaction',
         }
         return kinds[kind] || `Kind ${kind}`
     }
