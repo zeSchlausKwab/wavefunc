@@ -257,7 +257,7 @@ export async function updateUserProfile(
     ndk: NDK,
     profile: NDKUserProfile,
     overwrite: boolean = false,
-): Promise<NDKEvent> {
+): Promise<NDKUserProfile | null> {
     if (!ndk.signer) {
         throw new Error('No signer available. You need to be signed in to update your profile.')
     }
@@ -284,18 +284,11 @@ export async function updateUserProfile(
         }
     }
 
-    const profileEvent = new NDKEvent(ndk, {
-        kind: 0,
-        pubkey,
-        created_at: Math.floor(Date.now() / 1000),
-        content: JSON.stringify(finalProfile),
-        tags: [],
-    })
+    user.profile = finalProfile
+    await user.publish()
 
-    await profileEvent.sign()
-    await profileEvent.publish()
-
-    return profileEvent
+    const updatedProfile = await user.fetchProfile()
+    return updatedProfile
 }
 
 export const nostrService = NostrService.getInstance()

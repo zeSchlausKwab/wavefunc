@@ -323,17 +323,17 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
 
             await deleteStation(ndk, station.id)
-            toast({
-                title: 'Station deleted',
+            toast('Station deleted', {
                 description: 'Station has been removed successfully',
             })
             handleClose()
         } catch (error) {
             console.error('Error deleting station:', error)
-            toast({
-                title: 'Error',
+            toast('Error', {
                 description: 'Failed to delete the station. Please try again.',
-                variant: 'destructive',
+                style: {
+                    background: 'red',
+                },
             })
         } finally {
             setIsDeleting(false)
@@ -373,10 +373,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             const stationData = await fetchFromRadioBrowser(importName)
 
             if (!stationData) {
-                toast({
-                    title: 'Not found',
+                toast('Not found', {
                     description: 'No station found with that name in radio-browser.info',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
                 return
             }

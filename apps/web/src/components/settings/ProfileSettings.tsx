@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { authStore } from '@/lib/store/auth'
 import { ndkActions } from '@/lib/store/ndk'
 import { uiActions } from '@/lib/store/ui'
-import type { NDKUserProfile } from '@nostr-dev-kit/ndk'
+import { NDKSubscriptionCacheUsage, type NDKUserProfile } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
 import { updateUserProfile } from '@wavefunc/common'
 import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
@@ -73,7 +73,26 @@ export function ProfileSettings() {
                 throw new Error('NDK not available')
             }
 
-            await updateUserProfile(ndk, profile)
+            if (!ndk.signer) {
+                throw new Error('No signer available')
+            }
+
+            const preparedProfile: NDKUserProfile = {
+                name: profile.name || '',
+                displayName: profile.name || '',
+                about: profile.about || '',
+                picture: profile.picture || profile.image || '',
+                image: profile.picture || profile.image || '',
+                banner: profile.banner || '',
+                website: profile.website || '',
+                nip05: profile.nip05 || '',
+                lud06: profile.lud06 || '',
+                lud16: profile.lud16 || '',
+            }
+
+            await updateUserProfile(ndk, preparedProfile, true)
+            setProfile(preparedProfile)
+
             setSaveSuccess(true)
             setTimeout(() => setSaveSuccess(false), 3000)
 
@@ -103,17 +122,21 @@ export function ProfileSettings() {
                 if (!ndk) return
 
                 const user = ndk.getUser({ pubkey: authState.user.pubkey })
-                const fetchedProfile = await user.fetchProfile()
+                const fetchedProfile = await user.fetchProfile({
+                    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+                })
 
                 if (fetchedProfile) {
                     setProfile(fetchedProfile)
+                    console.log('Sanitized profile:', fetchedProfile)
                 }
             } catch (error) {
                 console.error('Failed to fetch profile:', error)
-                toast({
-                    title: 'Error',
+                toast('Error', {
                     description: 'Failed to load profile data',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
             } finally {
                 setIsProfileLoading(false)
@@ -121,7 +144,7 @@ export function ProfileSettings() {
         }
 
         fetchUserProfile()
-    }, [authState.user?.pubkey, toast])
+    }, [authState.user?.pubkey])
 
     const resetProfile = () => {
         setProfile({
@@ -215,6 +238,25 @@ export function ProfileSettings() {
                                         <p className="text-xs text-muted-foreground mt-1">
                                             Optional banner image for your profile
                                         </p>
+                                        {profile.banner && (
+                                            <div
+                                                className="mt-2 relative rounded-md overflow-hidden"
+                                                style={{ height: '120px' }}
+                                            >
+                                                <img
+                                                    src={profile.banner}
+                                                    alt="Banner preview"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        ;(e.target as HTMLImageElement).style.display = 'none'
+                                                        toast('Error', {
+                                                            description: 'Failed to load banner image',
+                                                            style: { background: 'red' },
+                                                        })
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div>

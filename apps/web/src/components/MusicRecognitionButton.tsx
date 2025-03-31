@@ -253,10 +253,11 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
         // Timeout after 10 seconds
         setTimeout(() => {
             if (isLoading) {
-                toast({
-                    title: 'Timeout',
+                toast('Timeout', {
                     description: 'Recognition request timed out',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
                 setIsLoading(false)
                 sub.stop()
@@ -268,21 +269,22 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
         if (event.kind === FEEDBACK_KIND) {
             const status = event.tags.find((tag) => tag[0] === 'status')?.[1]
             if (status === 'payment-required') {
-                toast({
-                    title: 'Payment Required',
+                toast('Payment Required', {
                     description: 'Please complete the payment to continue recognition.',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
             } else if (status === 'processing') {
-                toast({
-                    title: 'Processing',
+                toast('Processing', {
                     description: 'Recognizing the song...',
                 })
             } else if (status === 'error') {
-                toast({
-                    title: 'Error',
+                toast('Error', {
                     description: event.content || 'Failed to recognize the song',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
                 setIsLoading(false)
                 sub.stop()
@@ -293,10 +295,11 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
                 handleRecognitionResult(content.result)
                 sub.stop()
             } else if (content.type === 'audd_error') {
-                toast({
-                    title: 'Recognition Error',
+                toast('Recognition Error', {
                     description: content.error || 'Failed to recognize the song',
-                    variant: 'destructive',
+                    style: {
+                        background: 'red',
+                    },
                 })
                 setIsLoading(false)
                 sub.stop()
@@ -307,8 +310,7 @@ export function MusicRecognitionButton({ audioElement }: MusicRecognitionButtonP
     const handleRecognitionResult = (result: RecognitionResult) => {
         setResult(result)
         setIsDialogOpen(true)
-        toast({
-            title: 'Song Recognized!',
+        toast('Song Recognized!', {
             description: `${result.title} by ${result.artist}`,
         })
         setIsLoading(false)
