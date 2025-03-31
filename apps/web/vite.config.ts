@@ -30,6 +30,7 @@ export default defineConfig({
     server: {
         port: WEB_PORT,
         host: API_HOST,
+        allowedHosts: ['wavefunc.live'],
     },
     clearScreen: false,
     logLevel: 'info',
