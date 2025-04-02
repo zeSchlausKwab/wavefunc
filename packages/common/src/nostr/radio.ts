@@ -18,6 +18,7 @@ type RadioEventContent = z.infer<typeof RadioEventContentSchema>
 /**
  * Creates a random 'd' tag value
  * @returns A random ID to use as d-tag value
+ * @deprecated Use station name as d-tag value instead
  */
 export function createStationDTagValue(): string {
     return Math.random().toString(36).substring(2, 14)
@@ -46,11 +47,11 @@ export function createRadioEvent(
         languageCodes?: string[] // ISO language codes
         tags?: string[]
         favicon?: string
-        // TODO: Implement proper UI for geo data in the future
-        // geo?: {
-        //     lat?: number
-        //     long?: number
-        // }
+        // Geo data for station location
+        geo?: {
+            lat?: number
+            long?: number
+        }
     },
     tags: string[][],
     existingTags?: string[][],
@@ -61,6 +62,12 @@ export function createRadioEvent(
     const hasNameTag = newTags.some((tag) => tag[0] === 'name')
     if (!hasNameTag) {
         newTags.push(['name', content.name])
+    }
+
+    // Add indexed identity tag for searchability
+    const hasIdentityTag = newTags.some((tag) => tag[0] === 'i')
+    if (!hasIdentityTag && content.name) {
+        newTags.push(['i', content.name.trim()])
     }
 
     const hasDescriptionTag = newTags.some((tag) => tag[0] === 'description')
@@ -107,8 +114,6 @@ export function createRadioEvent(
         newTags = newTags.filter((tag) => tag[0] !== 'd')
 
         if (existingDTag) {
-            newTags.push(existingDTag)
-        } else {
             const newDTag = ['d', createStationDTagValue()]
             newTags.push(newDTag)
         }
@@ -361,6 +366,12 @@ export function stationToNostrEvent(station: Station): NostrEvent {
         tags.push(['name', station.name])
     }
 
+    // Add indexed identity tag
+    const existingIdentityTag = tags.find((tag) => tag[0] === 'i')
+    if (!existingIdentityTag && station.name) {
+        tags.push(['i', station.name.trim()])
+    }
+
     const existingDescTag = tags.find((tag) => tag[0] === 'description')
     if (!existingDescTag) {
         tags.push(['description', station.description])
@@ -387,35 +398,48 @@ export function stationToNostrEvent(station: Station): NostrEvent {
  * @returns Promise<NDKEvent | null> - Returns the matching station event or null if not found
  */
 export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<NDKEvent | null> {
-    const filter = {
+    // Primary search: Use indexed 'i' (identity) tag
+    const identityFilter = {
+        kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
+        '#i': [name.trim()],
+    }
+    const identityEvents = await ndk.fetchEvents(identityFilter)
+    for (const event of identityEvents) {
+        return event
+    }
+
+    // Secondary search: Use standard 'name' tag
+    const nameFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
         '#name': [name], // Filter by exact name tag match
     }
-
-    const events = await ndk.fetchEvents(filter)
-
-    // Return the first matching event or null if none found
-    for (const event of events) {
-        return event // Since we're filtering by exact name, the first match is good
+    const nameEvents = await ndk.fetchEvents(nameFilter)
+    for (const event of nameEvents) {
+        return event
     }
 
-    // If no exact match found, try a case-insensitive search
+    // Fallback: Case-insensitive search on tags
     const fallbackFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
     }
-
-    const allEvents = await ndk.fetchEvents(fallbackFilter)
-
+    const allEvents = await ndk.fetchEvents(fallbackFilter, {
+        closeOnEose: false,
+        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+    })
     for (const event of allEvents) {
         try {
-            // Check for case-insensitive name tag match
+            // Check 'i' tag case-insensitively
+            const iTag = event.tags.find((tag) => tag[0] === 'i')
+            if (iTag && iTag[1].toLowerCase() === name.toLowerCase()) {
+                return event
+            }
+            // Check 'name' tag case-insensitively
             const nameTag = event.tags.find((tag) => tag[0] === 'name')
             if (nameTag && nameTag[1].toLowerCase() === name.toLowerCase()) {
                 return event
             }
         } catch {
-            // Skip invalid events
-            continue
+            continue // Skip invalid events
         }
     }
 

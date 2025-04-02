@@ -560,7 +560,11 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                 {showComments && isExpanded && existsInNostr && (
                     <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
                         {station.id ? (
-                            <CommentsList stationId={station.id} stationEvent={station} commentsCount={commentsCount} />
+                            <CommentsList
+                                stationId={station.id}
+                                stationEvent={existsInNostr}
+                                commentsCount={commentsCount}
+                            />
                         ) : (
                             <div className="text-center py-4 text-muted-foreground">
                                 Cannot load comments for this station.

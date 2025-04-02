@@ -23,6 +23,11 @@ export async function publishStation(ndk: NDK, event: NostrEvent): Promise<NDKEv
         if (!event.tags.some((tag) => tag[0] === 'description') && content.description) {
             event.tags.push(['description', content.description])
         }
+
+        // Check if indexed identity tag exists, otherwise add it
+        if (!event.tags.some((tag) => tag[0] === 'i') && content.name) {
+            event.tags.push(['i', content.name.trim()])
+        }
     } catch (error) {
         console.error('Failed to parse event content:', error)
     }
@@ -51,32 +56,33 @@ export async function updateStation(
         tags?: string[]
     },
 ): Promise<NDKEvent> {
-    // Create the basic tags array
+    // Create the basic tags array - put d-tag first to emphasize its importance
     const tags = [
         ['name', updatedData.name],
         ['description', updatedData.description],
         ['genre', updatedData.genre || ''],
         ['thumbnail', updatedData.imageUrl || ''],
         ['client', 'nostr_radio'],
+        ['i', updatedData.name.trim()], // Add indexed identity tag
     ]
-    
+
     // Add countryCode if provided
     if (updatedData.countryCode) {
         tags.push(['countryCode', updatedData.countryCode])
     }
-    
+
     // Add language codes as individual language tags
     if (updatedData.languageCodes && updatedData.languageCodes.length > 0) {
-        updatedData.languageCodes.forEach(code => {
+        updatedData.languageCodes.forEach((code) => {
             if (code.trim()) {
                 tags.push(['language', code.trim()])
             }
         })
     }
-    
+
     // Add tags as t tags
     if (updatedData.tags && updatedData.tags.length > 0) {
-        updatedData.tags.forEach(tag => {
+        updatedData.tags.forEach((tag) => {
             if (tag.trim()) {
                 tags.push(['t', tag.trim()])
             }
@@ -109,7 +115,23 @@ export async function updateStation(
  * Publish multiple radio stations
  */
 export async function publishStations(ndk: NDK, events: NostrEvent[]): Promise<NDKEvent[]> {
-    const publishPromises = events.map((event) => publishStation(ndk, event))
+    // Ensure each event has the station name as d-tag
+    const preparedEvents = events.map((event) => {
+        try {
+            const content = JSON.parse(event.content)
+            if (content.name) {
+                // Remove any existing d-tag
+                event.tags = event.tags.filter((tag) => tag[0] !== 'd')
+                // Add d-tag with station name
+                event.tags.push(['d', content.name.trim()])
+            }
+        } catch (e) {
+            console.error('Error preparing event for publishing:', e)
+        }
+        return event
+    })
+
+    const publishPromises = preparedEvents.map((event) => publishStation(ndk, event))
     return Promise.all(publishPromises)
 }
 
