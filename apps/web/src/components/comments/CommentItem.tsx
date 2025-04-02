@@ -1,19 +1,21 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { type NostrComment, fetchCommentReplies, subscribeToCommentReplies } from '@wavefunc/common'
-import { MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { ReplyToComment } from './ReplyToComment'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ndkActions } from '@/lib/store/ndk'
 import { UserProfile } from '@/components/UserProfile'
+import { ndkActions } from '@/lib/store/ndk'
+import { NDKEvent } from '@nostr-dev-kit/ndk'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchCommentReplies, subscribeToCommentReplies } from '@wavefunc/common'
+import { formatDistanceToNow } from 'date-fns'
+import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SocialInteractionBar } from '../social/SocialInteractionBar'
+import { ReplyToComment } from './ReplyToComment'
 
 interface CommentItemProps {
-    comment: NostrComment
-    stationEvent: any // NDKEvent, but avoid direct import
+    comment: NDKEvent
+    stationEvent: NDKEvent
     stationId: string
+    naddr: string
     depth?: number
 }
 
@@ -113,10 +115,10 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
     const avatarText = comment.pubkey.slice(0, 2).toUpperCase()
     let timestamp = ''
     try {
-        timestamp = formatDistanceToNow(new Date(comment.created_at * 1000), { addSuffix: true })
+        timestamp = formatDistanceToNow(new Date((comment.created_at || 0) * 1000), { addSuffix: true })
     } catch {
         // Fallback formatting if date-fns fails
-        timestamp = new Date(comment.created_at * 1000).toLocaleString()
+        timestamp = new Date((comment.created_at || 0) * 1000).toLocaleString()
     }
 
     // Compute reply count and indentation
@@ -140,6 +142,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
 
                 <CardFooter className="p-2 flex justify-between">
                     <SocialInteractionBar
+                        event={comment}
                         naddr={comment.id || ''}
                         authorPubkey={comment.pubkey}
                         onCommentClick={() => {

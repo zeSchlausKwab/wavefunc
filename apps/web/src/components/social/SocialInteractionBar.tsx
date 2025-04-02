@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 
 interface SocialInteractionBarProps {
     event: NDKEvent
+    naddr: string
     authorPubkey: string
     commentsCount?: number
     onCommentClick?: () => void
@@ -20,6 +21,7 @@ interface SocialInteractionBarProps {
 
 export function SocialInteractionBar({
     event,
+    naddr,
     commentsCount = 0,
     onCommentClick,
     className = '',
@@ -121,6 +123,7 @@ export function SocialInteractionBar({
                 stationId={event.id}
                 stationName={event.content}
                 className={cn(compact ? 'h-7 w-7' : 'h-8 w-8')}
+                naddr={naddr}
             />
         </div>
     )

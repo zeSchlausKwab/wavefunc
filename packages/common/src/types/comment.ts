@@ -1,5 +1,3 @@
-import type { NDKEvent } from '@nostr-dev-kit/ndk'
-
 export interface NostrComment {
     id: string // Event id
     pubkey: string // Author's pubkey
@@ -26,40 +24,6 @@ export interface NostrCommentWithReplies extends NostrComment {
 }
 
 export const COMMENT_KIND = 1111
-
-/**
- * Transform a Nostr event into a Comment object
- */
-export function eventToComment(event: NDKEvent): NostrComment {
-    // Find the root references using uppercase tags (NIP-22)
-    // This is the station being commented on
-    const rootIdTag = event.tags.find((tag) => tag[0] === 'E')
-    const rootKindTag = event.tags.find((tag) => tag[0] === 'K')
-    const rootPubkeyTag = event.tags.find((tag) => tag[0] === 'P')
-
-    // Find the parent references using lowercase tags (NIP-22)
-    // This is the comment being replied to (if any)
-    const parentIdTag = event.tags.find((tag) => tag[0] === 'e')
-    const parentKindTag = event.tags.find((tag) => tag[0] === 'k')
-    const parentPubkeyTag = event.tags.find((tag) => tag[0] === 'p')
-
-    return {
-        id: event.id,
-        pubkey: event.pubkey,
-        content: event.content,
-        created_at: event.created_at || Math.floor(Date.now() / 1000),
-        // If this comment has uppercase tags, it's referencing the station
-        rootId: rootIdTag?.[1],
-        rootKind: rootKindTag?.[1] ? parseInt(rootKindTag[1]) : undefined,
-        rootPubkey: rootPubkeyTag?.[1],
-        // If this comment has lowercase tags, it's a reply to another comment
-        parentId: parentIdTag?.[1],
-        parentKind: parentKindTag?.[1] ? parseInt(parentKindTag[1]) : undefined,
-        parentPubkey: parentPubkeyTag?.[1],
-        replies: [],
-        isReplyOpen: false,
-    }
-}
 
 /**
  * Build a tree of comments from a flat list

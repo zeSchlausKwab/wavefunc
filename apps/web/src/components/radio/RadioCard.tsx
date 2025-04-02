@@ -452,6 +452,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                             commentsCount={commentsCount}
                                             onCommentClick={toggleComments}
                                             compact={true}
+                                            naddr={stationNaddr || ''}
                                         />
                                     ) : (
                                         <Button onClick={handleEdit} variant="ghost" size="sm" className="h-7 px-1">
@@ -475,6 +476,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                 <div className="flex items-center space-x-1">
                                     {existsInNostr ? (
                                         <SocialInteractionBar
+                                            event={existsInNostr}
                                             naddr={stationNaddr || ''}
                                             authorPubkey={station.pubkey}
                                             commentsCount={commentsCount}

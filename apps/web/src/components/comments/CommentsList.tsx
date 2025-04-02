@@ -6,9 +6,10 @@ import { MessageSquare, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import CommentItem from './CommentItem'
 import CreateComment from './CreateComment'
+import { NDKEvent } from '@nostr-dev-kit/ndk'
 
 interface CommentsListProps {
-    stationEvent: any
+    stationEvent: NDKEvent
     stationId: string
     commentsCount: number
 }
@@ -146,7 +147,13 @@ export default function CommentsList({ stationEvent, stationId, commentsCount }:
 
             <div className="space-y-4 min-h-[100px]">
                 {rootComments?.map((comment) => (
-                    <CommentItem key={comment.id} comment={comment} stationEvent={stationEvent} stationId={stationId} />
+                    <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        stationEvent={stationEvent}
+                        stationId={stationId}
+                        naddr={stationEvent.id || ''}
+                    />
                 ))}
             </div>
         </div>

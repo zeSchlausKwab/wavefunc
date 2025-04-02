@@ -1,7 +1,7 @@
 import type NDK from '@nostr-dev-kit/ndk'
-import { NDKEvent, type NDKFilter, type NDKSubscription, type NostrEvent } from '@nostr-dev-kit/ndk'
+import { NDKEvent, type NDKFilter, type NDKSubscription } from '@nostr-dev-kit/ndk'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import { COMMENT_KIND, type NostrComment, eventToComment } from '../types/comment'
+import { COMMENT_KIND } from '../types/comment'
 import { RADIO_EVENT_KINDS } from './radio'
 
 /**
@@ -9,9 +9,9 @@ import { RADIO_EVENT_KINDS } from './radio'
  * @param content The comment text
  * @param stationEvent The station event being commented on
  * @param parentComment Optional parent comment if this is a reply
- * @returns Unsigned NostrEvent
+ * @returns Unsigned NDKEvent
  */
-export function createCommentEvent(content: string, stationEvent: NDKEvent, parentComment?: NostrComment): NostrEvent {
+export function createCommentEvent(content: string, stationEvent: NDKEvent, parentComment?: NDKEvent): NDKEvent {
     const tags: string[][] = []
 
     // Root event references use uppercase tags (E, K, P)
@@ -33,13 +33,13 @@ export function createCommentEvent(content: string, stationEvent: NDKEvent, pare
 
     tags.push(['client', 'nostr_radio'])
 
-    return {
+    return new NDKEvent(undefined, {
         kind: COMMENT_KIND,
         created_at: Math.floor(Date.now() / 1000),
         content,
         tags,
         pubkey: '',
-    }
+    })
 }
 
 /**
@@ -48,11 +48,11 @@ export function createCommentEvent(content: string, stationEvent: NDKEvent, pare
  * @param commentEvent Comment event to publish
  * @returns Promise<NDKEvent>
  */
-export async function publishComment(ndk: NDK, commentEvent: NostrEvent): Promise<NDKEvent> {
-    const ndkEvent = new NDKEvent(ndk, commentEvent)
-    await ndkEvent.sign()
-    await ndkEvent.publish()
-    return ndkEvent
+export async function publishComment(ndk: NDK, commentEvent: NDKEvent): Promise<NDKEvent> {
+    commentEvent.ndk = ndk
+    await commentEvent.sign()
+    await commentEvent.publish()
+    return commentEvent
 }
 
 /**
@@ -65,7 +65,7 @@ export async function publishComment(ndk: NDK, commentEvent: NostrEvent): Promis
 export function subscribeToStationComments(
     ndk: NDK,
     stationId: string,
-    onComment?: (comment: NostrComment) => void,
+    onComment?: (comment: NDKEvent) => void,
 ): NDKSubscription {
     const filter: NDKFilter = {
         kinds: [COMMENT_KIND],
@@ -80,8 +80,7 @@ export function subscribeToStationComments(
     if (onComment) {
         subscription.on('event', (event: NDKEvent) => {
             try {
-                const comment = eventToComment(event)
-                onComment(comment)
+                onComment(event)
             } catch (e) {
                 // Silent fail
             }
@@ -101,7 +100,7 @@ export function subscribeToStationComments(
 export function subscribeToRootComments(
     ndk: NDK,
     stationId: string,
-    onComment?: (comment: NostrComment) => void,
+    onComment?: (comment: NDKEvent) => void,
 ): NDKSubscription {
     const filter: NDKFilter = {
         kinds: [COMMENT_KIND],
@@ -128,9 +127,8 @@ export function subscribeToRootComments(
 
                 // Only process if it's not a reply to another comment
                 if (!isReplyToComment) {
-                    const comment = eventToComment(event)
                     processedIds.add(event.id)
-                    onComment(comment)
+                    onComment(event)
                 }
             } catch (e) {
                 // Silent fail
@@ -153,7 +151,7 @@ export function subscribeToCommentReplies(
     ndk: NDK,
     commentId: string,
     stationId: string,
-    onReply?: (reply: NostrComment) => void,
+    onReply?: (reply: NDKEvent) => void,
 ): NDKSubscription {
     if (!commentId || !stationId) return { stop: () => {} } as NDKSubscription
 
@@ -189,11 +187,8 @@ export function subscribeToCommentReplies(
                     ETag[1] === stationId
 
                 if (isDirectReply) {
-                    const reply = eventToComment(event)
-                    if (reply.id) {
-                        processedIds.add(event.id)
-                        onReply(reply)
-                    }
+                    processedIds.add(event.id)
+                    onReply(event)
                 }
             } catch (e) {
                 // Silent fail
@@ -208,9 +203,9 @@ export function subscribeToCommentReplies(
  * Fetch all comments for a station
  * @param ndk NDK instance
  * @param stationId Station event ID
- * @returns Promise<NostrComment[]>
+ * @returns Promise<NDKEvent[]>
  */
-export async function fetchStationComments(ndk: NDK, stationId: string): Promise<NostrComment[]> {
+export async function fetchStationComments(ndk: NDK, stationId: string): Promise<NDKEvent[]> {
     const filter: NDKFilter = {
         kinds: [COMMENT_KIND],
         '#E': [stationId],
@@ -219,14 +214,6 @@ export async function fetchStationComments(ndk: NDK, stationId: string): Promise
     try {
         const events = await ndk.fetchEvents(filter)
         return Array.from(events)
-            .map((event) => {
-                try {
-                    return eventToComment(event)
-                } catch (e) {
-                    return null
-                }
-            })
-            .filter((comment): comment is NostrComment => comment !== null)
     } catch {
         return []
     }
@@ -237,9 +224,9 @@ export async function fetchStationComments(ndk: NDK, stationId: string): Promise
  * @param ndk NDK instance
  * @param commentId Comment ID to fetch replies for
  * @param stationId Station ID to ensure replies belong to the right station
- * @returns Promise<NostrComment[]>
+ * @returns Promise<NDKEvent[]>
  */
-export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId: string): Promise<NostrComment[]> {
+export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId: string): Promise<NDKEvent[]> {
     if (!commentId || !stationId) return []
 
     const filter: NDKFilter = {
@@ -266,7 +253,7 @@ export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId
         })
 
         // Create a map to handle duplicates
-        const replyMap = new Map<string, NostrComment>()
+        const replyMap = new Map<string, NDKEvent>()
 
         // Process events with strict checks
         validEvents.forEach((event) => {
@@ -284,10 +271,7 @@ export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId
                     ETag[1] === stationId
 
                 if (isDirectReply) {
-                    const reply = eventToComment(event)
-                    if (reply.id && !replyMap.has(reply.id)) {
-                        replyMap.set(reply.id, reply)
-                    }
+                    replyMap.set(event.id, event)
                 }
             } catch {
                 // Silent fail
@@ -295,7 +279,7 @@ export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId
         })
 
         // Convert map to array and sort by timestamp (newest first)
-        return Array.from(replyMap.values()).sort((a, b) => b.created_at - a.created_at)
+        return Array.from(replyMap.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
     } catch {
         return []
     }
@@ -305,9 +289,9 @@ export async function fetchCommentReplies(ndk: NDK, commentId: string, stationId
  * Fetch ONLY root comments for a station
  * @param ndk NDK instance
  * @param stationId Station event ID
- * @returns Promise<NostrComment[]>
+ * @returns Promise<NDKEvent[]>
  */
-export async function fetchRootComments(ndk: NDK, stationId: string): Promise<NostrComment[]> {
+export async function fetchRootComments(ndk: NDK, stationId: string): Promise<NDKEvent[]> {
     if (!stationId) return []
 
     try {
@@ -344,7 +328,7 @@ export async function fetchRootComments(ndk: NDK, stationId: string): Promise<No
         })
 
         // Second pass - extract only root comments
-        const commentMap = new Map<string, NostrComment>()
+        const commentMap = new Map<string, NDKEvent>()
 
         validEvents.forEach((event) => {
             // Skip if this is a known reply
@@ -354,10 +338,7 @@ export async function fetchRootComments(ndk: NDK, stationId: string): Promise<No
                 const ETag = event.tags.find((tag) => tag[0] === 'E')
 
                 if (ETag && ETag[1] === stationId) {
-                    const comment = eventToComment(event)
-                    if (comment.id) {
-                        commentMap.set(comment.id, comment)
-                    }
+                    commentMap.set(event.id, event)
                 }
             } catch {
                 // Silent fail
@@ -365,7 +346,7 @@ export async function fetchRootComments(ndk: NDK, stationId: string): Promise<No
         })
 
         // Convert to array and sort by timestamp (newest first)
-        return Array.from(commentMap.values()).sort((a, b) => b.created_at - a.created_at)
+        return Array.from(commentMap.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
     } catch {
         return []
     }

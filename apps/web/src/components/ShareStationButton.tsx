@@ -7,9 +7,10 @@ interface ShareStationButtonProps {
     stationId: string
     stationName: string
     className?: string
+    naddr: string
 }
 
-export function ShareStationButton({ stationId, stationName, className = '' }: ShareStationButtonProps) {
+export function ShareStationButton({ stationId, stationName, className = '', naddr }: ShareStationButtonProps) {
     const [isSharing, setIsSharing] = useState(false)
 
     // Fallback function to copy text when Clipboard API is not available
@@ -44,7 +45,7 @@ export function ShareStationButton({ stationId, stationName, className = '' }: S
         setIsSharing(true)
         try {
             // Just use the current URL directly - no need for og=true anymore
-            const shareUrl = window.location.href
+            const shareUrl = window.location.href + 'station/' + naddr
 
             // Use Web Share API if available
             if (navigator.share) {
@@ -88,7 +89,7 @@ export function ShareStationButton({ stationId, stationName, className = '' }: S
 
     return (
         <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             aria-label="Share Station"
             onClick={handleShare}
