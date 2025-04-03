@@ -23,8 +23,9 @@ import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { Plus, Rocket } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { ndkActions, DEFAULT_RELAYS } from '@/lib/store/ndk'
+import { ndkActions } from '@/lib/store/ndk'
 import { toast } from 'sonner'
+import { DEFAULT_RELAYS } from '@wavefunc/common'
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
