@@ -30,5 +30,8 @@
     },
     "peerDependencies": {
         "typescript": "^5"
+    },
+    "dependencies": {
+        "@nostr-dev-kit/ndk-wallet": "^0.5.1"
     }
 }

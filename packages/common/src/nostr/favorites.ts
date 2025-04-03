@@ -42,6 +42,8 @@ export function createFavoritesEvent(content: FavoritesListContent, pubkey: stri
                 fav.name,
             ]),
             ['client', 'nostr_radio'],
+            ['a', 'nostr_radio'],
+            ['t', 'favorites'],
         ],
         content: JSON.stringify(content),
         pubkey,
@@ -59,7 +61,6 @@ export async function publishFavoritesList(ndk: NDK, content: FavoritesListConte
     const pubkey = await ndk.signer.user().then((user) => user.pubkey)
     const event = createFavoritesEvent(content, pubkey)
     const ndkEvent = new NDKEvent(ndk, event)
-    await ndkEvent.sign()
     await ndkEvent.publish()
     return ndkEvent
 }
@@ -92,7 +93,9 @@ export async function updateFavoritesList(
     const tags = [
         dTag || ['d', `favorites-${createStationDTagValue()}`],
         ...content.favorites.map((fav) => ['a', fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`, fav.name]),
-        ['client', 'nostr_radio'],
+        ['client', 'nostr_radio'], // Keep for backward compatibility
+        ['a', 'nostr_radio'], // Add indexed app tag
+        ['t', 'favorites'], // Topic tag for filtering
     ]
 
     const event: NostrEvent = {
@@ -104,7 +107,6 @@ export async function updateFavoritesList(
     }
 
     const ndkEvent = new NDKEvent(ndk, event)
-    await ndkEvent.sign()
     await ndkEvent.publish()
     return ndkEvent
 }
@@ -146,8 +148,6 @@ export async function addStationToFavorites(
             added_at: Math.floor(Date.now() / 1000),
         },
     ]
-
-    console.log('Adding to favorites', updatedFavorites)
 
     // Update the list with the new favorites
     return updateFavoritesList(ndk, favoritesList, {
@@ -250,7 +250,6 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
             tags: event.tags as string[][],
         }
     } catch (error) {
-        console.error('Error parsing favorites event:', error)
         throw new Error('Invalid favorites list format')
     }
 }
@@ -267,6 +266,8 @@ export function subscribeToFavoritesLists(
 ) {
     const filter: NDKFilter = {
         kinds: [RADIO_EVENT_KINDS.FAVORITES],
+        '#a': ['nostr_radio'], // Filter by indexed app tag
+        '#t': ['favorites'], // Filter by topic tag
     }
 
     // Add pubkey filter if specified
@@ -285,7 +286,7 @@ export function subscribeToFavoritesLists(
                 const favoritesList = parseFavoritesEvent(event)
                 onEvent(favoritesList)
             } catch (error) {
-                console.warn('Invalid favorites list event:', error)
+                // Silently skip invalid events
             }
         })
     }
@@ -305,6 +306,8 @@ export async function fetchFavoritesLists(
 ): Promise<FavoritesList[]> {
     const filter: NDKFilter = {
         kinds: [RADIO_EVENT_KINDS.FAVORITES],
+        '#a': ['nostr_radio'], // Filter by indexed app tag
+        '#t': ['favorites'], // Filter by topic tag
     }
 
     // Add pubkey filter if specified
@@ -326,8 +329,7 @@ export async function fetchFavoritesLists(
         .map((event) => {
             try {
                 return parseFavoritesEvent(event)
-            } catch (error) {
-                console.warn('Invalid favorites list event:', error)
+            } catch {
                 return null
             }
         })

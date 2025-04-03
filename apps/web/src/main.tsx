@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client'
 import { authActions } from './lib/store/auth'
 import { routeTree } from './routeTree.gen'
 import { ndkActions } from './lib/store/ndk'
+import { DEFAULT_RELAYS } from '@wavefunc/common'
 
 const connectToRelay = async () => {
     const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
@@ -14,7 +15,8 @@ const connectToRelay = async () => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     console.log(`Adding relay from config: ${relay}`)
-    ndkActions.initialize([relay])
+    ndkActions.initialize([...DEFAULT_RELAYS, relay])
+    // ndkActions.initialize([relay])
     ndkActions.connect()
     authActions.getAuthFromLocalStorageAndLogin()
 }

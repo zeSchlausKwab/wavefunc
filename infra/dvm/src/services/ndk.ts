@@ -1,6 +1,5 @@
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { config } from '@wavefunc/common'
-import path from 'path'
 import WebSocket from 'ws'
 ;(global as any).WebSocket = WebSocket
 

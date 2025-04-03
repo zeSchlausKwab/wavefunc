@@ -7,7 +7,7 @@ import type { Station } from '../types/station'
 import { nip19 } from 'nostr-tools'
 
 export const RADIO_EVENT_KINDS = {
-    STREAM: 31227,
+    STREAM: 31237,
     FAVORITES: 30078,
     // SONG_HISTORY: 31339,
     // SONG_LIBRARY: 31340,
@@ -103,11 +103,11 @@ export function createRadioEvent(
         newTags.push(['thumbnail', content.favicon])
     }
 
-    // Add geolocation
-    if (content.geo && content.geo.lat && content.geo.long) {
-        // TODO: Geolocation support is reserved for future implementation
-        newTags.push(['g', `${content.geo.lat},${content.geo.long}`])
-    }
+    // // Add geolocation
+    // if (content.geo && content.geo.lat && content.geo.long) {
+    //     // TODO: Geolocation support is reserved for future implementation
+    //     newTags.push(['g', `${content.geo.lat},${content.geo.long}`])
+    // }
 
     if (existingTags) {
         const existingDTag = existingTags.find((tag) => tag[0] === 'd')
@@ -131,6 +131,12 @@ export function createRadioEvent(
         newTags.push(['client', 'nostr_radio'])
     }
 
+    // Also add a proper app tag (using 'a')
+    const hasAppTag = newTags.some((tag) => tag[0] === 'a')
+    if (!hasAppTag) {
+        newTags.push(['a', 'nostr_radio'])
+    }
+
     return {
         kind: RADIO_EVENT_KINDS.STREAM,
         created_at: Math.floor(Date.now() / 1000),
@@ -148,6 +154,7 @@ export function parseRadioEvent(event: NDKEvent | NostrEvent) {
         throw new Error('Invalid event kind')
     }
 
+    // Parse the content
     const content = JSON.parse(event.content)
 
     // Extract tags
@@ -310,9 +317,11 @@ export function subscribeToRadioStations(ndk: NDK, onEvent?: (event: NDKEvent) =
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
     }
 
+    // Create a subscription with specific options to prevent duplicate processing
     const subscription = ndk.subscribe(filter, {
         closeOnEose: false,
         cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+        groupable: false, // Don't group similar subscriptions
     })
 
     if (onEvent) {
@@ -375,6 +384,12 @@ export function stationToNostrEvent(station: Station): NostrEvent {
     const existingDescTag = tags.find((tag) => tag[0] === 'description')
     if (!existingDescTag) {
         tags.push(['description', station.description])
+    }
+
+    // Add app tag (single-letter 'a' tag)
+    const existingAppTag = tags.find((tag) => tag[0] === 'a')
+    if (!existingAppTag) {
+        tags.push(['a', 'nostr_radio'])
     }
 
     return {
@@ -442,8 +457,6 @@ export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<
             continue // Skip invalid events
         }
     }
-
-    return null
 }
 
 /**

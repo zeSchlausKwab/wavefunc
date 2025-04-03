@@ -140,8 +140,11 @@ export async function publishStations(ndk: NDK, events: NostrEvent[]): Promise<N
  */
 export async function deleteStation(ndk: NDK, eventId: string): Promise<NDKEvent> {
     const deleteEvent = new NDKEvent(ndk, {
-        kind: 5,
-        tags: [['e', eventId]],
+        kind: 5, // Deletion event kind
+        tags: [
+            ['e', eventId], // Reference to the event being deleted
+            ['a', 'nostr_radio'], // Include app tag for tracking
+        ],
         content: 'Deleted radio station',
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '',
