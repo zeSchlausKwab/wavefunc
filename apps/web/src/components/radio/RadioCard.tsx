@@ -33,12 +33,10 @@ import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
 import { cn } from '@/lib/utils'
-import { NDKEvent, NDKKind, NDKUser } from '@nostr-dev-kit/ndk'
+import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
-import { decodeStationNaddr, findStationByNameInNostr, generateStationNaddr, RADIO_EVENT_KINDS } from '@wavefunc/common'
+import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
-import NDK from '@nostr-dev-kit/ndk'
-import { nip19 } from 'nostr-tools'
 import { UserProfile } from '../UserProfile'
 
 // Define sub-components to break down the complexity
@@ -275,12 +273,15 @@ interface ExpandButtonProps {
 
 const ExpandButton = ({ isExpanded, setIsExpanded, isMobile, isFullWidth }: ExpandButtonProps) => (
     <Button
-        variant="ghost"
-        size={isFullWidth && !isMobile ? 'icon' : 'sm'}
+        variant={isFullWidth ? 'default' : 'ghost'}
+        size={isFullWidth ? (isMobile ? 'sm' : 'icon') : 'sm'}
         onClick={() => setIsExpanded(!isExpanded)}
-        className={isFullWidth ? 'shrink-0' : cn('h-6 px-1', isMobile ? 'text-[10px]' : 'text-xs')}
+        className={cn(
+            isFullWidth ? (isMobile ? 'px-3 py-1 ml-1 h-8' : 'shrink-0') : 'h-6 px-1',
+            isMobile ? 'text-[10px]' : 'text-xs',
+        )}
     >
-        {isExpanded ? 'Less' : 'More'}
+        {(!isFullWidth || isMobile) && (isExpanded ? 'Less' : 'More')}
         {isExpanded ? (
             <ChevronUp className={cn(isMobile ? 'h-3 w-3 ml-1' : 'h-4 w-4')} />
         ) : (
@@ -315,6 +316,93 @@ const StationStats = ({ isMobile }: StationStatsProps) => (
     </div>
 )
 
+// Expanded content section with station stats
+interface ExpandedContentProps {
+    station: Station
+    existsInNostr: NDKEvent | null
+    stationNaddr: string | null
+    currentListId?: string
+    isMobile: boolean
+    isExistsInNostr: boolean
+    setIsExpanded: (expanded: boolean) => void
+    isExpanded: boolean
+    commentsCount: number
+    onCommentClick: () => void
+    isCurrentlyPlaying: boolean
+    handlePlay: () => void
+    hasStreams: boolean
+}
+
+const ExpandedContent = ({
+    station,
+    existsInNostr,
+    stationNaddr,
+    currentListId,
+    isMobile,
+    isExistsInNostr,
+    setIsExpanded,
+    isExpanded,
+    commentsCount,
+    onCommentClick,
+    isCurrentlyPlaying,
+    handlePlay,
+    hasStreams,
+}: ExpandedContentProps) => (
+    <div className={cn('bg-gray-100', isMobile ? 'p-3' : 'p-4')}>
+        <UserProfile pubkey={station.pubkey} compact={false} />
+
+        <div className="mt-4 mb-3 flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <PlayButton
+                        isCurrentlyPlaying={isCurrentlyPlaying}
+                        handlePlay={handlePlay}
+                        hasStreams={hasStreams}
+                        isMobile={isMobile}
+                        isFullWidth={true}
+                    />
+
+                    {isExistsInNostr && station && station.id && (
+                        <FavoritesDropdown station={station} currentListId={currentListId} />
+                    )}
+                </div>
+
+                {existsInNostr && (
+                    <div className="flex items-center gap-2">
+                        <SocialInteractionBar
+                            event={existsInNostr}
+                            naddr={stationNaddr || ''}
+                            authorPubkey={station.pubkey}
+                            commentsCount={commentsCount}
+                            onCommentClick={onCommentClick}
+                            compact={isMobile}
+                        />
+
+                        <Button
+                            variant="default"
+                            size={isMobile ? 'sm' : 'icon'}
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className={cn(isMobile ? 'px-3 py-1 ml-1 h-8' : 'h-9 w-9', 'shrink-0')}
+                        >
+                            <ChevronUp className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* Mobile-only full width collapse button for better UX */}
+        {isMobile && (
+            <div className="mt-4 flex justify-center">
+                <Button variant="default" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="w-full">
+                    {isExpanded ? 'Show Less' : 'Show More'}
+                    {isExpanded ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+                </Button>
+            </div>
+        )}
+    </div>
+)
+
 interface RadioCardProps {
     station: Station
     currentListId?: string
@@ -325,7 +413,6 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
-    const [showComments, setShowComments] = useState(false)
     const [commentsCount, setCommentsCount] = useState(0)
 
     const [existsInNostr, setExistsInNostr] = useState<NDKEvent | null>(null)
@@ -460,20 +547,12 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         openEditStationDrawer(station)
     }
 
-    // Comments visibility handler
+    // Comments visibility handler - now just expands the card
     const toggleComments = () => {
-        setShowComments(!showComments)
-        if (!showComments && !isExpanded) {
+        if (!isExpanded) {
             setIsExpanded(true)
         }
     }
-
-    // Reset comments when collapsing
-    useEffect(() => {
-        if (!isExpanded) {
-            setShowComments(false)
-        }
-    }, [isExpanded])
 
     // Extract tags from station
     const stationTags = useMemo(() => {
@@ -616,96 +695,43 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
                                 </div>
                             </CardFooter>
                         )}
-
-                        {/* Expanded card footer */}
-                        {isFullWidth && (
-                            <CardFooter className={cn('flex justify-between mt-auto', isMobile ? 'p-2' : 'p-4')}>
-                                <div className="flex items-center space-x-2">
-                                    <PlayButton
-                                        isCurrentlyPlaying={isCurrentlyPlaying}
-                                        handlePlay={handlePlay}
-                                        hasStreams={hasStreams}
-                                        isMobile={isMobile}
-                                        isFullWidth={true}
-                                    />
-
-                                    {isExistsInNostr && station && station.id && (
-                                        <FavoritesDropdown station={station} currentListId={currentListId} />
-                                    )}
-                                </div>
-
-                                <div className="flex items-center space-x-1">
-                                    {isExistsInNostr ? (
-                                        <SocialInteractionBar
-                                            event={existsInNostr}
-                                            naddr={stationNaddr || ''}
-                                            authorPubkey={station.pubkey}
-                                            commentsCount={commentsCount}
-                                            onCommentClick={toggleComments}
-                                            compact={isMobile}
-                                        />
-                                    ) : (
-                                        <Button
-                                            onClick={handleEdit}
-                                            variant="ghost"
-                                            size="icon"
-                                            className={cn(isMobile ? 'h-7 w-7' : 'h-8 w-8')}
-                                        >
-                                            <Plus className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
-                                        </Button>
-                                    )}
-
-                                    <Button
-                                        variant="ghost"
-                                        size={isMobile ? 'sm' : 'icon'}
-                                        onClick={() => setIsExpanded(!isExpanded)}
-                                        className="shrink-0"
-                                    >
-                                        {isExpanded ? (
-                                            <ChevronUp className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
-                                        ) : (
-                                            <ChevronDown className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
-                                        )}
-                                    </Button>
-                                </div>
-                            </CardFooter>
-                        )}
                     </div>
                 </div>
 
                 {/* Expanded content section */}
                 {isExpanded && isExistsInNostr && (
-                    <div className={cn('bg-gray-100', isMobile ? 'p-3' : 'p-4')}>
-                        <UserProfile pubkey={station.pubkey} compact={false} />
+                    <>
+                        <ExpandedContent
+                            station={station}
+                            existsInNostr={existsInNostr}
+                            stationNaddr={stationNaddr}
+                            currentListId={currentListId}
+                            isMobile={isMobile}
+                            isExistsInNostr={isExistsInNostr}
+                            setIsExpanded={setIsExpanded}
+                            isExpanded={isExpanded}
+                            commentsCount={commentsCount}
+                            onCommentClick={toggleComments}
+                            isCurrentlyPlaying={isCurrentlyPlaying}
+                            handlePlay={handlePlay}
+                            hasStreams={hasStreams}
+                        />
 
-                        <div className="mb-3">
-                            <h3 className={cn('font-semibold', isMobile ? 'text-[10px] mb-1' : 'text-xs mb-2')}>
-                                Add to Nostr Favorites
-                            </h3>
-                            {isExistsInNostr && station && station.id && (
-                                <FavoritesDropdown station={station} currentListId={currentListId} />
+                        {/* Comments section - Always visible when expanded */}
+                        <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
+                            {station.id ? (
+                                <CommentsList
+                                    stationId={station.id}
+                                    stationEvent={existsInNostr}
+                                    commentsCount={commentsCount}
+                                />
+                            ) : (
+                                <div className="text-center py-4 text-muted-foreground">
+                                    Cannot load comments for this station.
+                                </div>
                             )}
                         </div>
-
-                        <StationStats isMobile={isMobile} />
-                    </div>
-                )}
-
-                {/* Comments section */}
-                {showComments && isExpanded && isExistsInNostr && (
-                    <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
-                        {station.id ? (
-                            <CommentsList
-                                stationId={station.id}
-                                stationEvent={existsInNostr}
-                                commentsCount={commentsCount}
-                            />
-                        ) : (
-                            <div className="text-center py-4 text-muted-foreground">
-                                Cannot load comments for this station.
-                            </div>
-                        )}
-                    </div>
+                    </>
                 )}
             </div>
         </Card>
