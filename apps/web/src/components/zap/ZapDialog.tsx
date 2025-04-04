@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ndkActions } from '@/lib/store/ndk'
+import { walletStore } from '@/lib/store/wallet'
 import {
     NDKEvent,
     NDKSubscription,
@@ -21,10 +22,12 @@ import {
     type NDKPaymentConfirmationLN,
     type NDKZapDetails,
 } from '@nostr-dev-kit/ndk'
-import { Copy, Loader2, Wallet, Zap } from 'lucide-react'
+import { useStore } from '@tanstack/react-store'
+import { Copy, Loader2, Wallet, Zap, AlertTriangle } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface ZapDialogProps {
     isOpen: boolean
@@ -42,10 +45,14 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [paymentPending, setPaymentPending] = useState<boolean>(false)
     const [paymentComplete, setPaymentComplete] = useState<boolean>(false)
+    const [nwcZapStatus, setNwcZapStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+    const [nwcZapError, setNwcZapError] = useState<string | null>(null)
 
     const zapSubscriptionRef = useRef<NDKSubscription | null>(null)
     const startTimeRef = useRef<number>(0)
     const resolvePaymentRef = useRef<((value: NDKPaymentConfirmationLN) => void) | null>(null)
+
+    const walletState = useStore(walletStore)
 
     useEffect(() => {
         if (isOpen) {
@@ -64,6 +71,8 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         setPaymentPending(false)
         setPaymentComplete(false)
         setErrorMessage(null)
+        setNwcZapStatus('idle')
+        setNwcZapError(null)
         cleanupSubscription()
         resolvePaymentRef.current = null
     }
@@ -157,6 +166,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             if (isOurZap || isRecentZap) {
                 setPaymentComplete(true)
                 setPaymentPending(false)
+                setNwcZapStatus('success')
 
                 if (resolvePaymentRef.current) {
                     const confirmation: NDKPaymentConfirmationLN = {
@@ -214,6 +224,47 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             setErrorMessage('Failed to generate invoice: ' + (error instanceof Error ? error.message : 'Unknown error'))
             setLoading(false)
             setInvoice(null)
+            cleanupSubscription()
+        }
+    }
+
+    const sendNwcZap = async () => {
+        try {
+            // Reset states
+            setNwcZapStatus('sending')
+            setNwcZapError(null)
+            setErrorMessage(null)
+
+            // Make sure wallet is connected and is NWC type
+            if (!walletState.wallet || walletState.walletData?.type !== 'nwc') {
+                throw new Error('NWC wallet not connected')
+            }
+
+            const ndk = ndkActions.getNDK()
+            if (!ndk) throw new Error('NDK not available')
+
+            // Set up subscription to listen for zap confirmation
+            const sub = subscribeToZapReceipts()
+            zapSubscriptionRef.current = sub
+
+            // Configure NDK to use the wallet
+            ndk.wallet = walletState.wallet
+
+            // Create zapper to send zap through NWC
+            const zapper = new NDKZapper(event, amount * 1000, 'msats', {
+                comment: 'Zap from WaveFunc via NWC',
+            })
+
+            // Send the zap
+            await zapper.zap()
+
+            // If we get here, the zap was sent successfully through the wallet
+            // The zap receipt will be handled by the subscription
+            toast.success('Zap sent through wallet!')
+        } catch (error) {
+            console.error('Failed to send zap with NWC:', error)
+            setNwcZapStatus('error')
+            setNwcZapError(error instanceof Error ? error.message : 'Failed to send zap using wallet')
             cleanupSubscription()
         }
     }
@@ -314,6 +365,101 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         </div>
     )
 
+    const renderNWCWallet = () => {
+        // Check if wallet is connected
+        const isNwcWalletConnected = walletState.isConnected && walletState.walletData?.type === 'nwc'
+
+        if (!isNwcWalletConnected) {
+            return (
+                <div className="py-6 text-center">
+                    <div className="flex flex-col items-center space-y-4">
+                        <Wallet className="h-12 w-12 text-muted-foreground" />
+                        <div>
+                            <p className="text-muted-foreground">No NWC wallet connected</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Connect a Nostr Wallet in Settings to use this feature
+                            </p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                onOpenChange(false)
+                                window.location.href = '/settings?tab=nwc'
+                            }}
+                        >
+                            Connect Wallet
+                        </Button>
+                    </div>
+                </div>
+            )
+        }
+
+        return (
+            <div className="py-4 space-y-6">
+                <div className="bg-muted rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Connected Wallet</span>
+                        <span className="text-sm">
+                            {walletState.balance !== undefined ? `${walletState.balance} sats` : 'Unknown balance'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Amount to Zap</span>
+                            <span className="text-sm">{amount} sats</span>
+                        </div>
+                        <Input
+                            type="range"
+                            min="1"
+                            max="100"
+                            step="1"
+                            value={amount}
+                            onChange={(e) => setAmount(parseInt(e.target.value, 10))}
+                            className="w-full"
+                        />
+                    </div>
+
+                    {nwcZapStatus === 'error' && nwcZapError && (
+                        <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{nwcZapError}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {nwcZapStatus === 'success' && (
+                        <Alert className="bg-green-50 border-green-200">
+                            <Zap className="h-4 w-4 text-green-500" />
+                            <AlertTitle>Zap Successful</AlertTitle>
+                            <AlertDescription>Your zap was sent successfully!</AlertDescription>
+                        </Alert>
+                    )}
+
+                    <Button
+                        onClick={sendNwcZap}
+                        disabled={nwcZapStatus === 'sending' || !zapperReady}
+                        className="w-full"
+                    >
+                        {nwcZapStatus === 'sending' ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Sending zap...
+                            </>
+                        ) : (
+                            <>
+                                <Zap className="h-4 w-4 mr-2" />
+                                Send Zap with Wallet
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
@@ -355,11 +501,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                                 </TabsContent>
 
                                 <TabsContent value="nwc" className="py-4">
-                                    <div className="text-center py-8">
-                                        <p className="text-muted-foreground">
-                                            Nostr Wallet Connect support coming soon.
-                                        </p>
-                                    </div>
+                                    {renderNWCWallet()}
                                 </TabsContent>
 
                                 <TabsContent value="cashu" className="py-4">

@@ -2,9 +2,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authStore } from '@/lib/store/auth'
 import { ProfileSettings } from '@/components/settings/ProfileSettings'
 import { RelaysSettings } from '@/components/settings/RelaysSettings'
+import { NWCWalletSettings } from '@/components/settings/NWCWalletSettings'
+import { CashuWalletSettings } from '@/components/settings/CashuWalletSettings'
 import { createFileRoute } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
-import { Network, User } from 'lucide-react'
+import { Network, User, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/settings')({
@@ -44,7 +46,7 @@ function Settings() {
             {renderUserIdentity()}
 
             <Tabs defaultValue="profile" value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-8">
+                <TabsList className="grid grid-cols-4 w-full mb-8">
                     <TabsTrigger value="profile" className="flex items-center gap-2">
                         <User className="h-4 w-4" />
                         Profile
@@ -52,6 +54,14 @@ function Settings() {
                     <TabsTrigger value="relays" className="flex items-center gap-2">
                         <Network className="h-4 w-4" />
                         Relays
+                    </TabsTrigger>
+                    <TabsTrigger value="nwc" className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        NWC
+                    </TabsTrigger>
+                    <TabsTrigger value="cashu" className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        Cashu
                     </TabsTrigger>
                 </TabsList>
 
@@ -61,6 +71,14 @@ function Settings() {
 
                 <TabsContent value="relays">
                     <RelaysSettings />
+                </TabsContent>
+
+                <TabsContent value="nwc">
+                    <NWCWalletSettings />
+                </TabsContent>
+
+                <TabsContent value="cashu">
+                    <CashuWalletSettings />
                 </TabsContent>
             </Tabs>
         </div>

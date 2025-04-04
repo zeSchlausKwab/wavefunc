@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { DEFAULT_RELAYS } from '@wavefunc/common'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { authActions } from './lib/store/auth'
-import { routeTree } from './routeTree.gen'
 import { ndkActions } from './lib/store/ndk'
-import { DEFAULT_RELAYS } from '@wavefunc/common'
+import { walletActions } from './lib/store/wallet'
+import { routeTree } from './routeTree.gen'
 
 const connectToRelay = async () => {
     const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
@@ -15,9 +16,15 @@ const connectToRelay = async () => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     console.log(`Adding relay from config: ${relay}`)
-    ndkActions.initialize([...DEFAULT_RELAYS, relay])
+    const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
     // ndkActions.initialize([relay])
     await ndkActions.connect()
+
+    // Try to reconnect wallet if it exists
+    await walletActions.reconnectFromStorage(ndk).catch((err) => {
+        console.error('Failed to reconnect wallet', err)
+    })
+
     authActions.getAuthFromLocalStorageAndLogin()
 }
 
