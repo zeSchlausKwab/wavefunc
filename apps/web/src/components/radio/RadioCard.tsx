@@ -39,32 +39,21 @@ import { decodeStationNaddr, findStationByNameInNostr, generateStationNaddr, RAD
 import type { Stream } from '@wavefunc/common/types/stream'
 import NDK from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
+import { UserProfile } from '../UserProfile'
 
 // Define sub-components to break down the complexity
 // Station image with play controls
 interface StationImageProps {
     station: Station
     isFullWidth: boolean
-    isCurrentlyPlaying: boolean
-    existsInNostr: unknown
-    handlePlay: () => void
-    handleEdit: () => void
     isMobile: boolean
 }
 
-const StationImage = ({
-    station,
-    isFullWidth,
-    isCurrentlyPlaying,
-    existsInNostr,
-    handlePlay,
-    handleEdit,
-    isMobile,
-}: StationImageProps) => (
+const StationImage = ({ station, isFullWidth, isMobile }: StationImageProps) => (
     <div
         className={cn(
             'relative shrink-0',
-            isFullWidth ? (isMobile ? 'w-32 h-32' : 'w-64 h-64') : isMobile ? 'w-24 h-24' : 'w-32 h-32 m-2',
+            isFullWidth ? (isMobile ? 'w-28 h-28' : 'w-64 h-64') : isMobile ? 'w-20 h-20' : 'w-32 h-32 m-2',
         )}
     >
         <img
@@ -72,24 +61,6 @@ const StationImage = ({
             alt={station.name || 'Station'}
             className="w-full h-full object-cover rounded-md"
         />
-        {!isFullWidth && (
-            <div className="absolute bottom-0 right-0 flex gap-1 p-1">
-                <Button
-                    size="icon"
-                    variant="secondary"
-                    className="rounded-full w-7 h-7"
-                    onClick={handlePlay}
-                    disabled={!station.streams || !Array.isArray(station.streams) || station.streams.length === 0}
-                >
-                    {isCurrentlyPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                </Button>
-                {!existsInNostr && (
-                    <Button size="icon" variant="secondary" className="rounded-full w-7 h-7" onClick={handleEdit}>
-                        <Plus className="w-3 h-3" />
-                    </Button>
-                )}
-            </div>
-        )}
     </div>
 )
 
@@ -103,13 +74,13 @@ const StationTags = ({ tags, isMobile }: StationTagsProps) => {
     if (!tags || tags.length === 0) return null
 
     return (
-        <div className="mt-2 flex flex-wrap gap-1 overflow-hidden h-6">
+        <div className="mt-1 flex flex-wrap gap-1 overflow-hidden h-6">
             {tags.slice(0, isMobile ? 2 : 3).map((tag: string, index: number) => (
                 <span
                     key={index}
                     className={cn(
                         'inline-block bg-primary/10 text-primary rounded-full whitespace-nowrap overflow-hidden text-ellipsis',
-                        isMobile ? 'px-2 py-0.5 text-[8px] max-w-16' : 'px-2 py-0.5 text-xs max-w-24',
+                        isMobile ? 'px-2 py-0.5 text-[8px] max-w-14' : 'px-2 py-0.5 text-xs max-w-24',
                     )}
                 >
                     {tag}
@@ -128,6 +99,221 @@ const StationTags = ({ tags, isMobile }: StationTagsProps) => {
         </div>
     )
 }
+
+// Station header component
+interface StationHeaderProps {
+    station: Station
+    existsInNostr: NDKEvent | null
+    stationNaddr: string | null
+    checkingNostr: boolean
+    isMobile: boolean
+    isFullWidth: boolean
+    streams?: Stream[]
+    selectedStreamId?: number
+    handleStreamSelect: (stream: Stream) => void
+}
+
+const StationHeader = ({
+    station,
+    existsInNostr,
+    stationNaddr,
+    checkingNostr,
+    isMobile,
+    isFullWidth,
+    streams,
+    selectedStreamId,
+    handleStreamSelect,
+}: StationHeaderProps) => (
+    <CardHeader className={cn(isMobile ? 'p-2' : 'p-4 pb-2')}>
+        <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                    {existsInNostr && stationNaddr ? (
+                        <RouterLink
+                            to="/station/$naddr"
+                            params={{ naddr: stationNaddr }}
+                            className="hover:underline flex items-center gap-1"
+                        >
+                            <CardTitle
+                                className={cn(
+                                    'font-press-start-2p truncate text-primary',
+                                    isMobile ? 'text-xs' : 'text-sm',
+                                )}
+                            >
+                                {station.name}
+                            </CardTitle>
+                            <ExternalLink className="w-3 h-3 text-primary" />
+                        </RouterLink>
+                    ) : (
+                        <CardTitle
+                            className={cn(
+                                'font-press-start-2p truncate text-primary',
+                                isMobile ? 'text-xs' : 'text-sm',
+                            )}
+                        >
+                            {station.name}
+                        </CardTitle>
+                    )}
+                    {checkingNostr ? (
+                        <CircleDashed className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : existsInNostr ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    ) : null}
+                </div>
+                <CardDescription
+                    className={cn('font-press-start-2p mt-1 truncate', isMobile ? 'text-[8px]' : 'text-xs')}
+                >
+                    {station.genre}
+                </CardDescription>
+            </div>
+            {/* Only show stream selector in header on desktop */}
+            {!isFullWidth && !isMobile && streams && Array.isArray(streams) && streams.length > 1 && (
+                <div className="shrink-0 w-24">
+                    {station.id && !isNaN(Number(station.id)) ? (
+                        <StreamSelector
+                            stationId={Number(station.id)}
+                            onStreamSelect={handleStreamSelect}
+                            selectedStreamId={selectedStreamId}
+                            streams={streams}
+                        />
+                    ) : null}
+                </div>
+            )}
+        </div>
+    </CardHeader>
+)
+
+// Station main content component
+interface StationContentProps {
+    station: Station
+    stationTags: string[]
+    isMobile: boolean
+    isFullWidth: boolean
+    existsInNostr: NDKEvent | null
+    isExpanded: boolean
+    setIsExpanded: (expanded: boolean) => void
+}
+
+const StationContent = ({
+    station,
+    stationTags,
+    isMobile,
+    isFullWidth,
+    existsInNostr,
+    isExpanded,
+    setIsExpanded,
+}: StationContentProps) => (
+    <CardContent className={cn(isMobile ? 'p-2 pt-0' : 'p-4 pt-0 pb-2', 'flex-grow flex flex-col')}>
+        <div className="flex-grow">
+            <p className={cn('font-press-start-2p line-clamp-2', isMobile ? 'text-[8px]' : 'text-xs')}>
+                {station.description}
+            </p>
+
+            <StationTags tags={stationTags} isMobile={isMobile} />
+        </div>
+
+        {!isFullWidth && !isMobile && (
+            <div className="mt-auto pt-2 flex items-center justify-between">
+                {station.streams && Array.isArray(station.streams) && station.streams.length > 0 && (
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                        <span className="font-press-start-2p">
+                            {station.streams.find((s) => s.primary)?.quality?.bitrate ||
+                                station.streams[0]?.quality?.bitrate ||
+                                'Unknown'}{' '}
+                            kbps
+                        </span>
+                    </div>
+                )}
+                {existsInNostr && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="h-6 px-1 text-xs"
+                    >
+                        {isExpanded ? 'Less' : 'More'}
+                        {isExpanded ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
+                    </Button>
+                )}
+            </div>
+        )}
+    </CardContent>
+)
+
+// Play button component
+interface PlayButtonProps {
+    isCurrentlyPlaying: boolean
+    handlePlay: () => void
+    hasStreams: boolean
+    isMobile: boolean
+    isFullWidth: boolean
+}
+
+const PlayButton = ({ isCurrentlyPlaying, handlePlay, hasStreams, isMobile, isFullWidth }: PlayButtonProps) => (
+    <Button
+        size={isFullWidth && !isMobile ? 'default' : 'sm'}
+        variant="secondary"
+        className={cn('rounded-full', isFullWidth ? (isMobile ? 'w-7 h-7' : 'w-8 h-8') : 'w-7 h-7')}
+        onClick={handlePlay}
+        disabled={!hasStreams}
+    >
+        {isCurrentlyPlaying ? (
+            <Pause className={cn(isMobile ? 'w-3 h-3' : isFullWidth ? 'w-4 h-4' : 'w-3 h-3')} />
+        ) : (
+            <Play className={cn(isMobile ? 'w-3 h-3' : isFullWidth ? 'w-4 h-4' : 'w-3 h-3')} />
+        )}
+    </Button>
+)
+
+// Expand/collapse button component
+interface ExpandButtonProps {
+    isExpanded: boolean
+    setIsExpanded: (expanded: boolean) => void
+    isMobile: boolean
+    isFullWidth: boolean
+}
+
+const ExpandButton = ({ isExpanded, setIsExpanded, isMobile, isFullWidth }: ExpandButtonProps) => (
+    <Button
+        variant="ghost"
+        size={isFullWidth && !isMobile ? 'icon' : 'sm'}
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={isFullWidth ? 'shrink-0' : cn('h-6 px-1', isMobile ? 'text-[10px]' : 'text-xs')}
+    >
+        {isExpanded ? 'Less' : 'More'}
+        {isExpanded ? (
+            <ChevronUp className={cn(isMobile ? 'h-3 w-3 ml-1' : 'h-4 w-4')} />
+        ) : (
+            <ChevronDown className={cn(isMobile ? 'h-3 w-3 ml-1' : 'h-4 w-4')} />
+        )}
+    </Button>
+)
+
+// Station stats component for expanded view
+interface StationStatsProps {
+    isMobile: boolean
+}
+
+const StationStats = ({ isMobile }: StationStatsProps) => (
+    <div className={cn('grid gap-2 mb-3', isMobile ? 'grid-cols-1' : 'grid-cols-2 gap-4')}>
+        <div className="flex items-center">
+            <Music className="h-4 w-4 text-primary mr-2" />
+            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Tracks: 1000+</span>
+        </div>
+        <div className="flex items-center">
+            <Users className="h-4 w-4 text-primary mr-2" />
+            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Listeners: 5k</span>
+        </div>
+        <div className="flex items-center">
+            <Calendar className="h-4 w-4 text-primary mr-2" />
+            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Since: 2020</span>
+        </div>
+        <div className="flex items-center">
+            <Star className="h-4 w-4 text-primary mr-2" />
+            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Rating: 4.8</span>
+        </div>
+    </div>
+)
 
 interface RadioCardProps {
     station: Station
@@ -169,47 +355,33 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         easing: 'ease-in-out',
     })
 
-    // Check if station exists in Nostr - Updated to use naddr if available
+    // Check if station exists in Nostr
     useEffect(() => {
-        // Exit early if not connected
         if (!isConnected) return
-
-        // Flag to handle component unmount
         let isMounted = true
 
         const checkNostr = async () => {
             setCheckingNostr(true)
-
             try {
                 const ndk = ndkActions.getNDK()
                 if (!ndk) throw new Error('NDK not initialized')
 
-                // If naddr is provided, fetch the event directly
                 if (station.id) {
                     try {
                         const event = await ndk.fetchEvent(station.id)
                         if (!isMounted) return
-
-                        if (event) {
-                            setExistsInNostr(event)
-                        } else {
-                            setExistsInNostr(null)
-                        }
+                        setExistsInNostr(event || null)
                     } catch (error) {
                         console.error('Error fetching event by naddr:', error)
                         setExistsInNostr(null)
                     }
-                }
-                // Otherwise, search for the station by name
-                else if (station.name) {
+                } else if (station.name) {
                     try {
                         const nostrEvent = await (findStationByNameInNostr as any)(ndk, station.name)
-
                         if (!isMounted) return
 
                         if (nostrEvent) {
                             setExistsInNostr(nostrEvent)
-
                             try {
                                 const eventNaddr = (generateStationNaddr as any)(nostrEvent)
                                 setStationNaddr(eventNaddr)
@@ -234,16 +406,13 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
             }
         }
 
-        // Run the check
         checkNostr()
-
-        // Cleanup function
         return () => {
             isMounted = false
         }
-    }, [station.name, isConnected, naddr])
+    }, [station.name, station.id, isConnected, naddr])
 
-    // Get current user - simplified
+    // Get current user
     useEffect(() => {
         const getUser = async () => {
             const ndk = ndkActions.getNDK()
@@ -265,24 +434,21 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         setSelectedStreamId(stream.quality.bitrate)
     }
 
-    // Play/Pause handler - simplified
+    // Play/Pause handler
     const handlePlay = () => {
         if (!station.streams?.length) return
 
-        // Find the appropriate stream
         const selectedStream =
             station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
             station.streams.find((s) => s.primary) ||
             station.streams[0]
 
         if (selectedStream) {
-            // Set the station to play
             setCurrentStation({
                 ...station,
                 streams: [selectedStream],
             })
 
-            // If not currently playing this station, toggle playback
             if (currentStation?.id !== station.id || !isPlaying) {
                 togglePlayback()
             }
@@ -320,194 +486,66 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
             .filter(Boolean)
     }, [station.tags])
 
-    // Determine if card should be rendered as expanded (full width) when on Nostr
+    // Determine if card should be rendered as expanded (full width)
     const isFullWidth = isExpanded && existsInNostr !== null && Boolean(existsInNostr)
-
-    const isExistsInNostr =
-        existsInNostr !== null && Boolean(existsInNostr) !== false && typeof existsInNostr !== 'boolean'
+    const hasStreams = station.streams && Array.isArray(station.streams) && station.streams.length > 0
+    const isExistsInNostr = existsInNostr !== null && Boolean(existsInNostr)
 
     return (
         <Card
             ref={cardRef}
             className={cn(
                 'transition-all duration-300 bg-white bg-opacity-90 shadow-lg overflow-hidden flex flex-col',
-                existsInNostr ? 'border-green-500 border-2' : '',
+                isExistsInNostr ? 'border-green-500 border-2' : '',
                 isFullWidth ? 'col-span-full w-full' : 'h-full h-[240px]',
             )}
         >
             <div ref={contentRef} className="flex flex-col h-full">
-                {naddr}
-                <div
-                    className={cn(
-                        'flex h-full',
-                        isMobile ? 'flex-row' : isFullWidth ? 'flex-row' : 'flex-row items-start',
-                    )}
-                >
-                    {/* Station image section */}
-                    <StationImage
-                        station={station}
-                        isFullWidth={isFullWidth}
-                        isCurrentlyPlaying={isCurrentlyPlaying}
-                        existsInNostr={existsInNostr}
-                        handlePlay={handlePlay}
-                        handleEdit={handleEdit}
-                        isMobile={isMobile}
-                    />
+                <div className="flex flex-row justify-between flex-grow">
+                    {/* Station image */}
+                    <StationImage station={station} isFullWidth={isFullWidth} isMobile={isMobile} />
 
                     {/* Content section */}
                     <div className="grow min-w-0 flex flex-col h-full">
-                        <CardHeader className={cn(isMobile ? 'p-3' : 'p-4 pb-2')}>
-                            <div className="flex items-center justify-between">
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1">
-                                        {existsInNostr && stationNaddr ? (
-                                            <RouterLink
-                                                to="/station/$naddr"
-                                                params={{ naddr: stationNaddr }}
-                                                className="hover:underline flex items-center gap-1"
-                                            >
-                                                <CardTitle
-                                                    className={cn(
-                                                        'font-press-start-2p truncate text-primary',
-                                                        isMobile ? 'text-xs' : 'text-sm',
-                                                    )}
-                                                >
-                                                    {station.name}
-                                                </CardTitle>
-                                                <ExternalLink className="w-3 h-3 text-primary" />
-                                            </RouterLink>
-                                        ) : (
-                                            <CardTitle
-                                                className={cn(
-                                                    'font-press-start-2p truncate text-primary',
-                                                    isMobile ? 'text-xs' : 'text-sm',
-                                                )}
-                                            >
-                                                {station.name}
-                                            </CardTitle>
-                                        )}
-                                        {checkingNostr ? (
-                                            <CircleDashed className="w-4 h-4 animate-spin text-muted-foreground" />
-                                        ) : existsInNostr ? (
-                                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                        ) : null}
-                                    </div>
-                                    <CardDescription
-                                        className={cn(
-                                            'font-press-start-2p mt-1 truncate',
-                                            isMobile ? 'text-[10px]' : 'text-xs',
-                                        )}
-                                    >
-                                        {station.genre}
-                                    </CardDescription>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                    {!isFullWidth &&
-                                        station.streams &&
-                                        Array.isArray(station.streams) &&
-                                        station.streams.length > 1 && (
-                                            <div className={cn('shrink-0', isMobile ? 'w-16' : 'w-24')}>
-                                                {station.id && !isNaN(Number(station.id)) ? (
-                                                    <StreamSelector
-                                                        stationId={Number(station.id)}
-                                                        onStreamSelect={handleStreamSelect}
-                                                        selectedStreamId={selectedStreamId}
-                                                        streams={station.streams}
-                                                    />
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    {isFullWidth && (
-                                        <>
-                                            <Button
-                                                variant="ghost"
-                                                size={isMobile ? 'sm' : 'icon'}
-                                                onClick={handlePlay}
-                                                className="shrink-0"
-                                                disabled={
-                                                    !station.streams ||
-                                                    !Array.isArray(station.streams) ||
-                                                    station.streams.length === 0
-                                                }
-                                            >
-                                                {isCurrentlyPlaying ? (
-                                                    <Pause className="h-4 w-4 text-primary" />
-                                                ) : (
-                                                    <Play className="h-4 w-4 text-primary" />
-                                                )}
-                                            </Button>
+                        {/* Header with station name, genre and stream selector */}
+                        <StationHeader
+                            station={station}
+                            existsInNostr={existsInNostr}
+                            stationNaddr={stationNaddr}
+                            checkingNostr={checkingNostr}
+                            isMobile={isMobile}
+                            isFullWidth={isFullWidth}
+                            streams={station.streams}
+                            selectedStreamId={selectedStreamId}
+                            handleStreamSelect={handleStreamSelect}
+                        />
 
-                                            {existsInNostr && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size={isMobile ? 'sm' : 'icon'}
-                                                    onClick={() => setIsExpanded(!isExpanded)}
-                                                    className="shrink-0"
-                                                >
-                                                    {isExpanded ? (
-                                                        <ChevronUp className="h-4 w-4 text-primary" />
-                                                    ) : (
-                                                        <ChevronDown className="h-4 w-4 text-primary" />
-                                                    )}
-                                                </Button>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </CardHeader>
+                        {/* Main content with description and tags */}
+                        <StationContent
+                            station={station}
+                            stationTags={stationTags}
+                            isMobile={isMobile}
+                            isFullWidth={isFullWidth}
+                            existsInNostr={existsInNostr}
+                            isExpanded={isExpanded}
+                            setIsExpanded={setIsExpanded}
+                        />
 
-                        <CardContent className={cn(isMobile ? 'p-3 pt-0' : 'p-4 pt-0 pb-2', 'flex-grow')}>
-                            <p className={cn('font-press-start-2p line-clamp-3', isMobile ? 'text-[10px]' : 'text-xs')}>
-                                {station.description}
-                            </p>
-
-                            {/* Tag pills - using the StationTags component */}
-                            <StationTags tags={stationTags} isMobile={isMobile} />
-
-                            {!isFullWidth && !isMobile && (
-                                <div className="mt-2 flex items-center justify-between">
-                                    {station.streams &&
-                                        Array.isArray(station.streams) &&
-                                        station.streams.length > 0 && (
-                                            <div className="text-xs text-muted-foreground line-clamp-1">
-                                                <span className="font-press-start-2p">
-                                                    {station.streams.find((s) => s.primary)?.quality?.bitrate ||
-                                                        station.streams[0]?.quality?.bitrate ||
-                                                        'Unknown'}{' '}
-                                                    kbps
-                                                </span>
-                                            </div>
-                                        )}
-                                    {existsInNostr && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setIsExpanded(!isExpanded)}
-                                            className="h-6 px-1 text-xs"
-                                        >
-                                            {isExpanded ? 'Less' : 'More'}
-                                            {isExpanded ? (
-                                                <ChevronUp className="h-3 w-3 ml-1" />
-                                            ) : (
-                                                <ChevronDown className="h-3 w-3 ml-1" />
-                                            )}
-                                        </Button>
-                                    )}
-                                </div>
-                            )}
-                        </CardContent>
-
-                        {/* Compact footer for non-expanded cards - aligned at bottom */}
+                        {/* Compact footer for non-expanded cards */}
                         {!isFullWidth && (
                             <CardFooter
                                 className={cn(
-                                    'mt-auto flex flex-row-reverse justify-between gap-1',
-                                    isMobile ? 'p-3 pt-0' : 'p-4 pt-0 pb-2',
+                                    'flex justify-between gap-1 mt-auto',
+                                    isMobile ? 'p-2 pt-2 flex-col items-start' : 'p-4 pt-2 pb-2 flex-row-reverse',
                                 )}
                             >
-                                <div className="flex items-center space-x-1">
-                                    {existsInNostr ? (
+                                <div
+                                    className={cn(
+                                        'flex items-center',
+                                        isMobile ? 'w-full justify-between mt-1' : 'space-x-1',
+                                    )}
+                                >
+                                    {isExistsInNostr ? (
                                         <SocialInteractionBar
                                             event={existsInNostr}
                                             authorPubkey={station.pubkey}
@@ -517,109 +555,144 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
                                             naddr={stationNaddr || ''}
                                         />
                                     ) : (
-                                        <Button onClick={handleEdit} variant="ghost" size="sm" className="h-7 px-1">
+                                        <Button
+                                            onClick={handleEdit}
+                                            variant="ghost"
+                                            size="sm"
+                                            className={cn('h-7', isMobile ? 'px-2 text-[10px] w-full' : 'px-1')}
+                                        >
                                             <Plus className="h-3 w-3 mr-1" />
-                                            <span className="text-xs">Add to Nostr</span>
+                                            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>
+                                                Add to Nostr
+                                            </span>
                                         </Button>
                                     )}
                                 </div>
 
-                                <div className="flex items-center space-x-2">
-                                    {existsInNostr && station && station.id && (
-                                        <FavoritesDropdown station={station} currentListId={currentListId} />
+                                <div
+                                    className={cn(
+                                        'flex items-center',
+                                        isMobile ? 'w-full justify-between mt-1' : 'space-x-2',
+                                    )}
+                                >
+                                    {/* Stream quality selector (mobile only) */}
+                                    {isMobile && !isFullWidth && hasStreams && station.streams.length > 1 && (
+                                        <div className="shrink-0 w-20">
+                                            {station.id && !isNaN(Number(station.id)) && (
+                                                <StreamSelector
+                                                    stationId={Number(station.id)}
+                                                    onStreamSelect={handleStreamSelect}
+                                                    selectedStreamId={selectedStreamId}
+                                                    streams={station.streams}
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Play button and favorites */}
+                                    <div className="flex items-center space-x-1">
+                                        <PlayButton
+                                            isCurrentlyPlaying={isCurrentlyPlaying}
+                                            handlePlay={handlePlay}
+                                            hasStreams={hasStreams}
+                                            isMobile={isMobile}
+                                            isFullWidth={false}
+                                        />
+
+                                        {isExistsInNostr && station && station.id && (
+                                            <FavoritesDropdown station={station} currentListId={currentListId} />
+                                        )}
+                                    </div>
+
+                                    {/* Expand button (mobile only) */}
+                                    {isMobile && isExistsInNostr && (
+                                        <ExpandButton
+                                            isExpanded={isExpanded}
+                                            setIsExpanded={setIsExpanded}
+                                            isMobile={isMobile}
+                                            isFullWidth={false}
+                                        />
                                     )}
                                 </div>
                             </CardFooter>
                         )}
 
-                        {/* Full footer only for expanded cards */}
+                        {/* Expanded card footer */}
                         {isFullWidth && (
-                            <CardFooter className={cn('flex flex-row-reverse justify-between', isMobile && 'p-3')}>
+                            <CardFooter className={cn('flex justify-between mt-auto', isMobile ? 'p-2' : 'p-4')}>
+                                <div className="flex items-center space-x-2">
+                                    <PlayButton
+                                        isCurrentlyPlaying={isCurrentlyPlaying}
+                                        handlePlay={handlePlay}
+                                        hasStreams={hasStreams}
+                                        isMobile={isMobile}
+                                        isFullWidth={true}
+                                    />
+
+                                    {isExistsInNostr && station && station.id && (
+                                        <FavoritesDropdown station={station} currentListId={currentListId} />
+                                    )}
+                                </div>
+
                                 <div className="flex items-center space-x-1">
-                                    {existsInNostr ? (
+                                    {isExistsInNostr ? (
                                         <SocialInteractionBar
                                             event={existsInNostr}
                                             naddr={stationNaddr || ''}
                                             authorPubkey={station.pubkey}
                                             commentsCount={commentsCount}
                                             onCommentClick={toggleComments}
+                                            compact={isMobile}
                                         />
                                     ) : (
-                                        <Button onClick={handleEdit} variant="ghost" size="icon" className="h-8 w-8">
-                                            <Plus className="h-4 w-4 text-primary" />
+                                        <Button
+                                            onClick={handleEdit}
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(isMobile ? 'h-7 w-7' : 'h-8 w-8')}
+                                        >
+                                            <Plus className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
                                         </Button>
                                     )}
+
+                                    <Button
+                                        variant="ghost"
+                                        size={isMobile ? 'sm' : 'icon'}
+                                        onClick={() => setIsExpanded(!isExpanded)}
+                                        className="shrink-0"
+                                    >
+                                        {isExpanded ? (
+                                            <ChevronUp className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
+                                        ) : (
+                                            <ChevronDown className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4')} />
+                                        )}
+                                    </Button>
                                 </div>
                             </CardFooter>
                         )}
                     </div>
                 </div>
 
-                {/* Expanded content only shown when expanded and exists in nostr */}
-                {isExpanded && existsInNostr && (
+                {/* Expanded content section */}
+                {isExpanded && isExistsInNostr && (
                     <div className={cn('bg-gray-100', isMobile ? 'p-3' : 'p-4')}>
-                        <div className="flex items-center mb-3">
-                            <div className="w-8 h-8 rounded-full bg-primary mr-2"></div>
-                            <div>
-                                <p
-                                    className={cn(
-                                        'font-semibold font-press-start-2p',
-                                        isMobile ? 'text-[10px]' : 'text-sm',
-                                    )}
-                                >
-                                    {user?.profile?.name || 'Anonymous'}
-                                </p>
-                                <p
-                                    className={cn(
-                                        'text-gray-500 font-press-start-2p',
-                                        isMobile ? 'text-[8px]' : 'text-xs',
-                                    )}
-                                >
-                                    Station Creator
-                                </p>
-                            </div>
-                        </div>
+                        <UserProfile pubkey={station.pubkey} compact={false} />
 
                         <div className="mb-3">
                             <h3 className={cn('font-semibold', isMobile ? 'text-[10px] mb-1' : 'text-xs mb-2')}>
                                 Add to Nostr Favorites
                             </h3>
-                            {existsInNostr && station && station.id && (
+                            {isExistsInNostr && station && station.id && (
                                 <FavoritesDropdown station={station} currentListId={currentListId} />
                             )}
                         </div>
 
-                        <div className={cn('grid gap-2 mb-3', isMobile ? 'grid-cols-1' : 'grid-cols-2 gap-4')}>
-                            <div className="flex items-center">
-                                <Music className="h-4 w-4 text-primary mr-2" />
-                                <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>
-                                    Tracks: 1000+
-                                </span>
-                            </div>
-                            <div className="flex items-center">
-                                <Users className="h-4 w-4 text-primary mr-2" />
-                                <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>
-                                    Listeners: 5k
-                                </span>
-                            </div>
-                            <div className="flex items-center">
-                                <Calendar className="h-4 w-4 text-primary mr-2" />
-                                <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>
-                                    Since: 2020
-                                </span>
-                            </div>
-                            <div className="flex items-center">
-                                <Star className="h-4 w-4 text-primary mr-2" />
-                                <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>
-                                    Rating: 4.8
-                                </span>
-                            </div>
-                        </div>
+                        <StationStats isMobile={isMobile} />
                     </div>
                 )}
 
-                {/* Comments section - Only visible when both showComments is true and card is expanded */}
-                {showComments && isExpanded && existsInNostr && (
+                {/* Comments section */}
+                {showComments && isExpanded && isExistsInNostr && (
                     <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
                         {station.id ? (
                             <CommentsList

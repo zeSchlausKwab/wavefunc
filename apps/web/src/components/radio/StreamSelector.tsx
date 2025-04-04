@@ -35,15 +35,18 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                         }
                     }}
                 >
-                    <SelectTrigger className={cn(isMobile ? 'w-full h-7 text-xs px-2' : 'w-[180px]')}>
+                    <SelectTrigger className={cn(
+                        isMobile ? 'w-full h-6 text-[10px] px-2 min-w-[60px]' : 'w-[180px]',
+                        'truncate'
+                    )}>
                         <SelectValue placeholder={isMobile ? 'Quality' : 'Select quality'} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={isMobile ? 'min-w-[80px]' : ''}>
                         {streams.map((stream, index) => (
                             <SelectItem
                                 key={`${stream.quality.bitrate}-${stream.quality.codec}-${stream.url}-${index}`}
                                 value={stream.url}
-                                className={cn(isMobile && 'text-xs h-7')}
+                                className={cn(isMobile ? 'text-[10px] h-6 py-0' : 'text-xs h-7')}
                             >
                                 {stream.quality.bitrate
                                     ? `${Math.round(stream.quality.bitrate / 1000)} kbps`

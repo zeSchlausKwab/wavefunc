@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react'
-import { CheckCircle2, XCircle, Globe, Shield } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useQuery } from '@tanstack/react-query'
-import { ndkActions } from '@/lib/store/ndk'
 import { authStore } from '@/lib/store/auth'
+import { ndkActions } from '@/lib/store/ndk'
+import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
+import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
-import { NDKSubscriptionCacheUsage, type NDKUserProfile } from '@nostr-dev-kit/ndk'
+import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
 
 interface UserProfileProps {
     pubkey: string
