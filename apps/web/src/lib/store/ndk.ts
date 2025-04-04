@@ -89,6 +89,7 @@ export const ndkActions = {
                         }
                     }
                 }
+                console.log('Loaded relays:', state.ndk.pool.relays)
             } catch (error) {
                 console.error('Failed to load relays during connect:', error)
             }

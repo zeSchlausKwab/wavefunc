@@ -33,18 +33,109 @@ import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
 import { cn } from '@/lib/utils'
-import { NDKUser } from '@nostr-dev-kit/ndk'
+import { NDKEvent, NDKKind, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
-import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
+import { decodeStationNaddr, findStationByNameInNostr, generateStationNaddr, RADIO_EVENT_KINDS } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
-import { NDKEvent } from '@nostr-dev-kit/ndk'
+import NDK from '@nostr-dev-kit/ndk'
+import { nip19 } from 'nostr-tools'
+
+// Define sub-components to break down the complexity
+// Station image with play controls
+interface StationImageProps {
+    station: Station
+    isFullWidth: boolean
+    isCurrentlyPlaying: boolean
+    existsInNostr: unknown
+    handlePlay: () => void
+    handleEdit: () => void
+    isMobile: boolean
+}
+
+const StationImage = ({
+    station,
+    isFullWidth,
+    isCurrentlyPlaying,
+    existsInNostr,
+    handlePlay,
+    handleEdit,
+    isMobile,
+}: StationImageProps) => (
+    <div
+        className={cn(
+            'relative shrink-0',
+            isFullWidth ? (isMobile ? 'w-32 h-32' : 'w-64 h-64') : isMobile ? 'w-24 h-24' : 'w-32 h-32 m-2',
+        )}
+    >
+        <img
+            src={station.imageUrl || '/placeholder-station.png'}
+            alt={station.name || 'Station'}
+            className="w-full h-full object-cover rounded-md"
+        />
+        {!isFullWidth && (
+            <div className="absolute bottom-0 right-0 flex gap-1 p-1">
+                <Button
+                    size="icon"
+                    variant="secondary"
+                    className="rounded-full w-7 h-7"
+                    onClick={handlePlay}
+                    disabled={!station.streams || !Array.isArray(station.streams) || station.streams.length === 0}
+                >
+                    {isCurrentlyPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                </Button>
+                {!existsInNostr && (
+                    <Button size="icon" variant="secondary" className="rounded-full w-7 h-7" onClick={handleEdit}>
+                        <Plus className="w-3 h-3" />
+                    </Button>
+                )}
+            </div>
+        )}
+    </div>
+)
+
+// Component for station tags display
+interface StationTagsProps {
+    tags: string[]
+    isMobile: boolean
+}
+
+const StationTags = ({ tags, isMobile }: StationTagsProps) => {
+    if (!tags || tags.length === 0) return null
+
+    return (
+        <div className="mt-2 flex flex-wrap gap-1 overflow-hidden h-6">
+            {tags.slice(0, isMobile ? 2 : 3).map((tag: string, index: number) => (
+                <span
+                    key={index}
+                    className={cn(
+                        'inline-block bg-primary/10 text-primary rounded-full whitespace-nowrap overflow-hidden text-ellipsis',
+                        isMobile ? 'px-2 py-0.5 text-[8px] max-w-16' : 'px-2 py-0.5 text-xs max-w-24',
+                    )}
+                >
+                    {tag}
+                </span>
+            ))}
+            {tags.length > (isMobile ? 2 : 3) && (
+                <span
+                    className={cn(
+                        'inline-block bg-gray-100 text-gray-500 rounded-full',
+                        isMobile ? 'px-2 py-0.5 text-[8px]' : 'px-2 py-0.5 text-xs',
+                    )}
+                >
+                    +{tags.length - (isMobile ? 2 : 3)}
+                </span>
+            )}
+        </div>
+    )
+}
 
 interface RadioCardProps {
     station: Station
     currentListId?: string
+    naddr?: string
 }
 
-export function RadioCard({ station, currentListId }: RadioCardProps) {
+export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
@@ -61,7 +152,7 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
     const currentStation = useStore(stationsStore, (state) => state.currentStation)
     const isCurrentlyPlaying = currentStation?.id === station.id && isPlaying
-    const { isConnected, ndk } = useStore(ndkStore)
+    const { isConnected } = useStore(ndkStore)
 
     const [cardRef] = useAutoAnimate<HTMLDivElement>({
         duration: 300,
@@ -78,39 +169,64 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
         easing: 'ease-in-out',
     })
 
-    // Check if station exists in Nostr
+    // Check if station exists in Nostr - Updated to use naddr if available
     useEffect(() => {
-        let isMounted = true
-
+        // Exit early if not connected
         if (!isConnected) return
 
+        // Flag to handle component unmount
+        let isMounted = true
+
         const checkNostr = async () => {
-            if (!station.name) return
+            setCheckingNostr(true)
 
             try {
-                setCheckingNostr(true)
+                const ndk = ndkActions.getNDK()
+                if (!ndk) throw new Error('NDK not initialized')
 
-                if (!ndk) {
-                    throw new Error('NDK not initialized')
-                }
-
-                if (!isMounted) return
-
-                const nostrEvent = await findStationByNameInNostr(ndk, station.name)
-                if (!isMounted) return
-
-                setExistsInNostr(nostrEvent)
-
-                if (nostrEvent) {
+                // If naddr is provided, fetch the event directly
+                if (station.id) {
                     try {
-                        const naddr = generateStationNaddr(nostrEvent)
-                        setStationNaddr(naddr)
+                        const event = await ndk.fetchEvent(station.id)
+                        if (!isMounted) return
+
+                        if (event) {
+                            setExistsInNostr(event)
+                        } else {
+                            setExistsInNostr(null)
+                        }
                     } catch (error) {
-                        console.error('Error generating naddr:', error)
+                        console.error('Error fetching event by naddr:', error)
+                        setExistsInNostr(null)
+                    }
+                }
+                // Otherwise, search for the station by name
+                else if (station.name) {
+                    try {
+                        const nostrEvent = await (findStationByNameInNostr as any)(ndk, station.name)
+
+                        if (!isMounted) return
+
+                        if (nostrEvent) {
+                            setExistsInNostr(nostrEvent)
+
+                            try {
+                                const eventNaddr = (generateStationNaddr as any)(nostrEvent)
+                                setStationNaddr(eventNaddr)
+                            } catch (error) {
+                                console.error('Error generating naddr:', error)
+                            }
+                        } else {
+                            setExistsInNostr(null)
+                        }
+                    } catch (error) {
+                        console.error('Error finding station in Nostr:', error)
+                        setExistsInNostr(null)
                     }
                 }
             } catch (error) {
                 console.error('Error checking Nostr for station:', error)
+                setExistsInNostr(null)
             } finally {
                 if (isMounted) {
                     setCheckingNostr(false)
@@ -118,51 +234,55 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
             }
         }
 
+        // Run the check
         checkNostr()
 
+        // Cleanup function
         return () => {
             isMounted = false
         }
-    }, [station.name, isConnected, ndk])
+    }, [station.name, isConnected, naddr])
 
-    // Get current user
+    // Get current user - simplified
     useEffect(() => {
         const getUser = async () => {
             const ndk = ndkActions.getNDK()
-            if (!ndk) return
+            if (!ndk || !ndk.signer) return
 
-            const user = await ndk.signer?.user()
-            if (user) {
-                setUser(user)
+            try {
+                const currentUser = await ndk.signer.user()
+                setUser(currentUser)
+            } catch (error) {
+                console.error('Error getting user:', error)
             }
         }
+
         getUser()
-    }, [station.pubkey])
+    }, [])
 
     // Stream handler
     const handleStreamSelect = (stream: Stream) => {
         setSelectedStreamId(stream.quality.bitrate)
     }
 
-    // Play/Pause handler
+    // Play/Pause handler - simplified
     const handlePlay = () => {
-        if (!station.streams || !Array.isArray(station.streams) || station.streams.length === 0) {
-            return
-        }
+        if (!station.streams?.length) return
 
+        // Find the appropriate stream
         const selectedStream =
             station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
             station.streams.find((s) => s.primary) ||
             station.streams[0]
 
         if (selectedStream) {
-            const stationToPlay = {
+            // Set the station to play
+            setCurrentStation({
                 ...station,
                 streams: [selectedStream],
-            }
+            })
 
-            setCurrentStation(stationToPlay)
-
+            // If not currently playing this station, toggle playback
             if (currentStation?.id !== station.id || !isPlaying) {
                 togglePlayback()
             }
@@ -201,7 +321,10 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
     }, [station.tags])
 
     // Determine if card should be rendered as expanded (full width) when on Nostr
-    const isFullWidth = isExpanded && existsInNostr
+    const isFullWidth = isExpanded && existsInNostr !== null && Boolean(existsInNostr)
+
+    const isExistsInNostr =
+        existsInNostr !== null && Boolean(existsInNostr) !== false && typeof existsInNostr !== 'boolean'
 
     return (
         <Card
@@ -213,58 +336,23 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
             )}
         >
             <div ref={contentRef} className="flex flex-col h-full">
+                {naddr}
                 <div
                     className={cn(
                         'flex h-full',
                         isMobile ? 'flex-row' : isFullWidth ? 'flex-row' : 'flex-row items-start',
                     )}
                 >
-                    {/* Image section */}
-                    <div
-                        className={cn(
-                            'relative shrink-0',
-                            isFullWidth
-                                ? isMobile
-                                    ? 'w-32 h-32'
-                                    : 'w-64 h-64'
-                                : isMobile
-                                  ? 'w-24 h-24'
-                                  : 'w-32 h-32 m-2',
-                        )}
-                    >
-                        <img
-                            src={station.imageUrl || '/placeholder-station.png'}
-                            alt={station.name || 'Station'}
-                            className="w-full h-full object-cover rounded-md"
-                        />
-                        {!isFullWidth && (
-                            <div className="absolute bottom-0 right-0 flex gap-1 p-1">
-                                <Button
-                                    size="icon"
-                                    variant="secondary"
-                                    className="rounded-full w-7 h-7"
-                                    onClick={handlePlay}
-                                    disabled={
-                                        !station.streams ||
-                                        !Array.isArray(station.streams) ||
-                                        station.streams.length === 0
-                                    }
-                                >
-                                    {isCurrentlyPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                                </Button>
-                                {!existsInNostr && (
-                                    <Button
-                                        size="icon"
-                                        variant="secondary"
-                                        className="rounded-full w-7 h-7"
-                                        onClick={handleEdit}
-                                    >
-                                        <Plus className="w-3 h-3" />
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    {/* Station image section */}
+                    <StationImage
+                        station={station}
+                        isFullWidth={isFullWidth}
+                        isCurrentlyPlaying={isCurrentlyPlaying}
+                        existsInNostr={existsInNostr}
+                        handlePlay={handlePlay}
+                        handleEdit={handleEdit}
+                        isMobile={isMobile}
+                    />
 
                     {/* Content section */}
                     <div className="grow min-w-0 flex flex-col h-full">
@@ -374,34 +462,8 @@ export function RadioCard({ station, currentListId }: RadioCardProps) {
                                 {station.description}
                             </p>
 
-                            {/* Tag pills */}
-                            {stationTags.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1 overflow-hidden h-6">
-                                    {stationTags.slice(0, isMobile ? 2 : 3).map((tag, index) => (
-                                        <span
-                                            key={index}
-                                            className={cn(
-                                                'inline-block bg-primary/10 text-primary rounded-full whitespace-nowrap overflow-hidden text-ellipsis',
-                                                isMobile
-                                                    ? 'px-2 py-0.5 text-[8px] max-w-16'
-                                                    : 'px-2 py-0.5 text-xs max-w-24',
-                                            )}
-                                        >
-                                            {tag}
-                                        </span>
-                                    ))}
-                                    {stationTags.length > (isMobile ? 2 : 3) && (
-                                        <span
-                                            className={cn(
-                                                'inline-block bg-gray-100 text-gray-500 rounded-full',
-                                                isMobile ? 'px-2 py-0.5 text-[8px]' : 'px-2 py-0.5 text-xs',
-                                            )}
-                                        >
-                                            +{stationTags.length - (isMobile ? 2 : 3)}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
+                            {/* Tag pills - using the StationTags component */}
+                            <StationTags tags={stationTags} isMobile={isMobile} />
 
                             {!isFullWidth && !isMobile && (
                                 <div className="mt-2 flex items-center justify-between">

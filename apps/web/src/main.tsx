@@ -17,7 +17,7 @@ const connectToRelay = async () => {
     console.log(`Adding relay from config: ${relay}`)
     ndkActions.initialize([...DEFAULT_RELAYS, relay])
     // ndkActions.initialize([relay])
-    ndkActions.connect()
+    await ndkActions.connect()
     authActions.getAuthFromLocalStorageAndLogin()
 }
 
