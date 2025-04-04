@@ -20,6 +20,86 @@ interface SocialInteractionBarProps {
     compact?: boolean
 }
 
+/**
+ * Extracts and calculates the amount from a zap event
+ */
+function extractZapAmount(zapEvent: NDKEvent): number {
+    const amountTag = zapEvent.tags.find((tag) => tag[0] === 'amount')
+    if (amountTag && amountTag[1]) {
+        try {
+            return parseInt(amountTag[1], 10) / 1000 || 0
+        } catch (e) {
+            console.error(`Error parsing amount tag: ${amountTag[1]}`, e)
+        }
+    }
+
+    const bolt11Tag = zapEvent.tags.find((tag) => tag[0] === 'bolt11')
+    if (bolt11Tag && bolt11Tag[1]) {
+        const match = bolt11Tag[1].match(/^lnbc(\d+)([munp])?/)
+        if (match) {
+            let amount = parseInt(match[1], 10)
+
+            const unit = match[2]
+            if (unit === 'm')
+                amount *= 0.001 // milli
+            else if (unit === 'u')
+                amount *= 0.000001 // micro
+            else if (unit === 'n')
+                amount *= 0.000000001 // nano
+            else if (unit === 'p') amount *= 0.000000000001 // pico
+
+            return amount * 100000000 // Convert to sats
+        }
+    }
+
+    const descriptionTag = zapEvent.tags.find((tag) => tag[0] === 'description')?.[1]
+    if (descriptionTag) {
+        try {
+            const zapRequest = JSON.parse(descriptionTag)
+
+            const requestAmountTag = zapRequest.tags?.find((tag: string[]) => tag[0] === 'amount')?.[1]
+            if (requestAmountTag) {
+                return parseInt(requestAmountTag, 10) / 1000 || 0
+            }
+
+            const bolt11 = zapEvent.tags.find((tag) => tag[0] === 'bolt11')?.[1]
+            if (bolt11) {
+                const match = bolt11.match(/lnbc(\d+)([munp])?1/)
+                if (match) {
+                    let amount = parseInt(match[1], 10)
+
+                    const unit = match[2]
+                    if (unit === 'm')
+                        amount *= 0.001 // milli
+                    else if (unit === 'u')
+                        amount *= 0.000001 // micro
+                    else if (unit === 'n')
+                        amount *= 0.000000001 // nano
+                    else if (unit === 'p') amount *= 0.000000000001 // pico
+
+                    return amount * 100000000 // Convert to sats
+                }
+            }
+        } catch (error) {
+            console.error('Failed to parse zap request:', error)
+        }
+    }
+
+    return 1
+}
+
+/**
+ * Formats a number of sats into a human-readable string
+ */
+function formatSatsAmount(amount: number): string {
+    if (amount >= 1000000) {
+        return `${(amount / 1000000).toFixed(1)}M`
+    } else if (amount >= 1000) {
+        return `${(amount / 1000).toFixed(1)}K`
+    }
+    return Math.round(amount).toString()
+}
+
 export function SocialInteractionBar({
     event,
     naddr,
@@ -29,6 +109,7 @@ export function SocialInteractionBar({
     compact = false,
 }: SocialInteractionBarProps) {
     const queryClient = useQueryClient()
+
     const [userPubkey, setUserPubkey] = useState<string | undefined>()
     const [hasUserReacted, setHasUserReacted] = useState(false)
     const [hasUserZapped, setHasUserZapped] = useState(false)
@@ -38,10 +119,8 @@ export function SocialInteractionBar({
     const [recentlyZapped, setRecentlyZapped] = useState(false)
     const [localZaps, setLocalZaps] = useState<NDKEvent[]>([])
 
-    // Use a ref to track subscription and avoid cleanup issues
     const zapSubscriptionRef = useRef<NDKSubscription | null>(null)
 
-    // Fetch reactions (likes only)
     const { data: reactions = [] } = useQuery({
         queryKey: ['reactions', event.id],
         queryFn: async () => {
@@ -52,14 +131,12 @@ export function SocialInteractionBar({
         enabled: !!event.id,
     })
 
-    // Fetch zap events (kind 9735)
     const { data: zaps = [], isLoading: isLoadingZaps } = useQuery({
         queryKey: ['zaps', event.id],
         queryFn: async () => {
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            // Query for zap receipts (kind 9735) that reference this event
             const filter = {
                 kinds: [9735],
                 '#e': [event.id],
@@ -78,7 +155,6 @@ export function SocialInteractionBar({
         enabled: !!event.id,
     })
 
-    // Set up live subscription for new zaps
     useEffect(() => {
         if (!event?.id) return
 
@@ -103,7 +179,6 @@ export function SocialInteractionBar({
 
         sub.on('event', (zapEvent: NDKEvent) => {
             setLocalZaps((current) => {
-                // Avoid duplicates
                 if (current.some((e) => e.id === zapEvent.id)) return current
                 return [...current, zapEvent]
             })
@@ -111,22 +186,9 @@ export function SocialInteractionBar({
             queryClient.invalidateQueries({ queryKey: ['zaps', event.id] })
 
             if (userPubkey) {
-                const isFromUser = zapEvent.tags.some(
-                    (tag) => (tag[0] === 'P' || tag[0] === 'p') && tag[1] === userPubkey,
-                )
+                const isFromUser = checkIfZapIsFromUser(zapEvent, userPubkey)
 
-                let isFromUserDescription = false
-                const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
-                if (descriptionTag) {
-                    try {
-                        const zapRequest = JSON.parse(descriptionTag)
-                        isFromUserDescription = zapRequest.pubkey === userPubkey
-                    } catch (error) {
-                        // Ignore parsing errors
-                    }
-                }
-
-                if (isFromUser || isFromUserDescription) {
+                if (isFromUser) {
                     setHasUserZapped(true)
                     setRecentlyZapped(true)
                     setTimeout(() => setRecentlyZapped(false), 3000)
@@ -150,102 +212,11 @@ export function SocialInteractionBar({
     ]
 
     const totalZapAmount = allZaps.reduce((total, zapEvent) => {
-        let foundAmount = false
-        let eventAmount = 0
-
-        const amountTag = zapEvent.tags.find((tag) => tag[0] === 'amount')
-        if (amountTag && amountTag[1]) {
-            try {
-                eventAmount = parseInt(amountTag[1], 10) / 1000 || 0
-                foundAmount = true
-            } catch (e) {
-                console.error(`Error parsing amount tag: ${amountTag[1]}`, e)
-            }
-        }
-
-        if (!foundAmount) {
-            const bolt11Tag = zapEvent.tags.find((tag) => tag[0] === 'bolt11')
-            if (bolt11Tag && bolt11Tag[1]) {
-                const match = bolt11Tag[1].match(/^lnbc(\d+)([munp])?/)
-                if (match) {
-                    let amount = parseInt(match[1], 10)
-
-                    const unit = match[2]
-                    if (unit === 'm')
-                        amount *= 0.001 // milli
-                    else if (unit === 'u')
-                        amount *= 0.000001 // micro
-                    else if (unit === 'n')
-                        amount *= 0.000000001 // nano
-                    else if (unit === 'p') amount *= 0.000000000001 // pico
-
-                    eventAmount = amount * 100000000
-                    foundAmount = true
-                }
-            }
-        }
-
-        if (!foundAmount) {
-            const descriptionTag = zapEvent.tags.find((tag) => tag[0] === 'description')?.[1]
-            if (descriptionTag) {
-                try {
-                    const zapRequest = JSON.parse(descriptionTag)
-
-                    const requestAmountTag = zapRequest.tags?.find((tag: string[]) => tag[0] === 'amount')?.[1]
-                    if (requestAmountTag) {
-                        eventAmount = parseInt(requestAmountTag, 10) / 1000 || 0
-                        foundAmount = true
-                    }
-
-                    if (!foundAmount) {
-                        const bolt11 = zapEvent.tags.find((tag) => tag[0] === 'bolt11')?.[1]
-                        if (bolt11) {
-                            const match = bolt11.match(/lnbc(\d+)([munp])?1/)
-                            if (match) {
-                                let amount = parseInt(match[1], 10)
-
-                                // Handle units
-                                const unit = match[2]
-                                if (unit === 'm')
-                                    amount *= 0.001 // milli
-                                else if (unit === 'u')
-                                    amount *= 0.000001 // micro
-                                else if (unit === 'n')
-                                    amount *= 0.000000001 // nano
-                                else if (unit === 'p') amount *= 0.000000000001 // pico
-
-                                eventAmount = amount * 100000000
-                                foundAmount = true
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.error('Failed to parse zap request:', error)
-                }
-            }
-        }
-
-        // If we couldn't determine the amount, assume a minimum of 1 sat
-        if (!foundAmount || eventAmount <= 0) {
-            eventAmount = 1
-        }
-
-        return total + eventAmount
+        return total + extractZapAmount(zapEvent)
     }, 0)
 
-    // Format the total zap amount - make sure we always show a number when there are zaps
-    const formattedZapAmount =
-        totalZapAmount > 0
-            ? totalZapAmount >= 1000000
-                ? `${(totalZapAmount / 1000000).toFixed(1)}M`
-                : totalZapAmount >= 1000
-                  ? `${(totalZapAmount / 1000).toFixed(1)}K`
-                  : Math.round(totalZapAmount).toString()
-            : allZaps.length > 0
-              ? '?'
-              : '' // Show '?' if we have zaps but no amount
+    const formattedZapAmount = totalZapAmount > 0 ? formatSatsAmount(totalZapAmount) : allZaps.length > 0 ? '?' : ''
 
-    // Check if the author can receive zaps
     useEffect(() => {
         const checkZapCapability = async () => {
             if (!event?.pubkey) return
@@ -272,32 +243,9 @@ export function SocialInteractionBar({
     useEffect(() => {
         if (!userPubkey || allZaps.length === 0) return
 
-        const userHasZapped = allZaps.some((zapEvent) => {
-            const hasPTag = zapEvent.tags.some((tag) => (tag[0] === 'P' || tag[0] === 'p') && tag[1] === userPubkey)
+        const userHasZapped = allZaps.some((zapEvent) => checkIfZapIsFromUser(zapEvent, userPubkey))
 
-            if (hasPTag) {
-                return true
-            }
-
-            const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
-            if (descriptionTag) {
-                try {
-                    const zapRequest = JSON.parse(descriptionTag)
-                    const isUserZap = zapRequest.pubkey === userPubkey
-                    return isUserZap
-                } catch (error) {
-                    console.error('Failed to parse zap request:', error)
-                }
-            }
-
-            return false
-        })
-
-        if (userHasZapped) {
-            setHasUserZapped(true)
-        } else {
-            setHasUserZapped(false)
-        }
+        setHasUserZapped(userHasZapped)
     }, [allZaps, userPubkey])
 
     useEffect(() => {
@@ -308,12 +256,29 @@ export function SocialInteractionBar({
         }
         getUserPubkey()
 
-        // Check if user has liked the content
         if (userPubkey && reactions.length > 0) {
             const hasUserReacted = reactions.some((event) => event.pubkey === userPubkey && event.content === '❤️')
             setHasUserReacted(hasUserReacted)
         }
     }, [reactions, userPubkey])
+
+    const checkIfZapIsFromUser = (zapEvent: NDKEvent, userPk: string): boolean => {
+        const hasPTag = zapEvent.tags.some((tag) => (tag[0] === 'P' || tag[0] === 'p') && tag[1] === userPk)
+
+        if (hasPTag) return true
+
+        const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
+        if (descriptionTag) {
+            try {
+                const zapRequest = JSON.parse(descriptionTag)
+                return zapRequest.pubkey === userPk
+            } catch (error) {
+                // Ignore parsing errors
+            }
+        }
+
+        return false
+    }
 
     const likeCount = reactions.filter((event) => event.content === '❤️').length
 
@@ -345,10 +310,8 @@ export function SocialInteractionBar({
 
     const handleZapComplete = (zapEvent?: NDKEvent) => {
         setIsZapDialogOpen(false)
-
         setRecentlyZapped(true)
         setTimeout(() => setRecentlyZapped(false), 3000)
-
         setHasUserZapped(true)
 
         if (zapEvent) {
@@ -361,6 +324,7 @@ export function SocialInteractionBar({
         queryClient.invalidateQueries({ queryKey: ['zaps', event.id] })
     }
 
+    // CSS classes
     const zapButtonClassName = cn(
         compact ? 'h-3 w-3 mr-1' : 'h-4 w-4',
         recentlyZapped
@@ -369,6 +333,22 @@ export function SocialInteractionBar({
               ? 'fill-yellow-400 text-yellow-400'
               : 'text-primary',
     )
+
+    const getZapTooltip = () => {
+        if (canAuthorReceiveZaps === false) {
+            return 'User cannot receive zaps'
+        }
+
+        let tooltip = 'Send a zap'
+
+        if (totalZapAmount > 0) {
+            tooltip += ` (${Math.round(totalZapAmount)} sats from ${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
+        } else if (allZaps.length > 0) {
+            tooltip += ` (${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
+        }
+
+        return tooltip
+    }
 
     return (
         <>
@@ -379,17 +359,7 @@ export function SocialInteractionBar({
                     aria-label="Zap"
                     onClick={handleZap}
                     disabled={reactionMutation.isPending || checkingZapCapability || canAuthorReceiveZaps === false}
-                    title={
-                        canAuthorReceiveZaps === false
-                            ? 'User cannot receive zaps'
-                            : `Send a zap${
-                                  totalZapAmount > 0
-                                      ? ` (${Math.round(totalZapAmount)} sats from ${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
-                                      : allZaps.length > 0
-                                        ? ` (${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
-                                        : ''
-                              }`
-                    }
+                    title={getZapTooltip()}
                     className={cn(compact ? 'h-7 px-1' : 'h-8 w-8')}
                 >
                     <Zap className={zapButtonClassName} />

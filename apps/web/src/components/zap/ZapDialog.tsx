@@ -19,12 +19,11 @@ import {
     NDKZapper,
     type LnPaymentInfo,
     type NDKPaymentConfirmationLN,
-    type NDKUser,
     type NDKZapDetails,
 } from '@nostr-dev-kit/ndk'
 import { Copy, Loader2, Wallet, Zap } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import React, { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 interface ZapDialogProps {
@@ -38,38 +37,45 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
     const [amount, setAmount] = useState<number>(3)
     const [loading, setLoading] = useState<boolean>(false)
     const [invoice, setInvoice] = useState<string | null>(null)
-    const [recipientUser, setRecipientUser] = useState<NDKUser | null>(null)
     const [lightningAddress, setLightningAddress] = useState<string | null>(null)
     const [zapperReady, setZapperReady] = useState<boolean>(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [paymentPending, setPaymentPending] = useState<boolean>(false)
     const [paymentComplete, setPaymentComplete] = useState<boolean>(false)
-    const [zapSubscription, setZapSubscription] = useState<NDKSubscription | null>(null)
-    const [paidAt, setPaidAt] = useState<number | null>(null)
+
+    const zapSubscriptionRef = useRef<NDKSubscription | null>(null)
+    const startTimeRef = useRef<number>(0)
+    const resolvePaymentRef = useRef<((value: NDKPaymentConfirmationLN) => void) | null>(null)
 
     useEffect(() => {
         if (isOpen) {
             fetchRecipientDetails()
         } else {
-            setInvoice(null)
-            setPaymentPending(false)
-            setPaymentComplete(false)
-            setErrorMessage(null)
-
-            if (zapSubscription) {
-                zapSubscription.stop()
-                setZapSubscription(null)
-            }
+            resetState()
         }
 
         return () => {
-            if (zapSubscription) {
-                zapSubscription.stop()
-            }
+            cleanupSubscription()
         }
     }, [isOpen, event])
 
-    const fetchRecipientDetails = React.useCallback(async () => {
+    const resetState = () => {
+        setInvoice(null)
+        setPaymentPending(false)
+        setPaymentComplete(false)
+        setErrorMessage(null)
+        cleanupSubscription()
+        resolvePaymentRef.current = null
+    }
+
+    const cleanupSubscription = () => {
+        if (zapSubscriptionRef.current) {
+            zapSubscriptionRef.current.stop()
+            zapSubscriptionRef.current = null
+        }
+    }
+
+    const fetchRecipientDetails = useCallback(async () => {
         if (!event?.pubkey) return
 
         try {
@@ -80,7 +86,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             if (!ndk) throw new Error('NDK not available')
 
             const user = ndk.getUser({ pubkey: event.pubkey })
-            setRecipientUser(user)
 
             try {
                 const zapInfo = await user.getZapInfo()
@@ -114,17 +119,16 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }, [event])
 
-    const subscribeToZapReceipts = () => {
+    const subscribeToZapReceipts = useCallback(() => {
         const ndk = ndkActions.getNDK()
         if (!ndk || !event.id) return null
 
-        const startTime = Math.floor(Date.now() / 1000)
-        setPaidAt(startTime)
+        startTimeRef.current = Math.floor(Date.now() / 1000)
 
         const filter = {
             kinds: [9735],
             '#e': [event.id],
-            since: startTime - 5,
+            since: startTimeRef.current - 5,
         }
 
         const sub = ndk.subscribe(filter, {
@@ -148,18 +152,18 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 }
             }
 
-            const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTime - 10
+            const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTimeRef.current - 10
 
             if (isOurZap || isRecentZap) {
                 setPaymentComplete(true)
                 setPaymentPending(false)
 
-                if (window._zapResolver) {
+                if (resolvePaymentRef.current) {
                     const confirmation: NDKPaymentConfirmationLN = {
                         preimage: zapEvent.tags.find((t) => t[0] === 'preimage')?.[1] || 'unknown',
                     }
-                    window._zapResolver.resolve(confirmation)
-                    delete window._zapResolver
+                    resolvePaymentRef.current(confirmation)
+                    resolvePaymentRef.current = null
                 }
 
                 onZapComplete?.(zapEvent)
@@ -173,7 +177,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         })
 
         return sub
-    }
+    }, [event, onZapComplete, onOpenChange])
 
     const generateInvoice = async () => {
         try {
@@ -187,7 +191,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             if (!ndk) throw new Error('NDK not available')
 
             const sub = subscribeToZapReceipts()
-            setZapSubscription(sub)
+            zapSubscriptionRef.current = sub
 
             const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
                 setInvoice(payment.pr)
@@ -195,11 +199,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 setPaymentPending(true)
 
                 return new Promise<NDKPaymentConfirmationLN>((resolve) => {
-                    window._zapResolver = {
-                        resolve,
-                        event,
-                        amount,
-                    }
+                    resolvePaymentRef.current = resolve
                 })
             }
 
@@ -214,16 +214,12 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             setErrorMessage('Failed to generate invoice: ' + (error instanceof Error ? error.message : 'Unknown error'))
             setLoading(false)
             setInvoice(null)
-
-            if (zapSubscription) {
-                zapSubscription.stop()
-                setZapSubscription(null)
-            }
+            cleanupSubscription()
         }
     }
 
     const handlePaymentComplete = () => {
-        if (!window._zapResolver) return
+        if (!resolvePaymentRef.current) return
 
         setPaymentComplete(true)
         setPaymentPending(false)
@@ -231,20 +227,16 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         toast.success('Payment marked as complete! Waiting for confirmation...')
 
         setTimeout(() => {
-            if (window._zapResolver) {
+            if (resolvePaymentRef.current) {
                 const confirmation: NDKPaymentConfirmationLN = {
                     preimage: 'manual-confirm-' + Math.random().toString(36).substring(2, 8),
                 }
-                window._zapResolver.resolve(confirmation)
-                delete window._zapResolver
+                resolvePaymentRef.current(confirmation)
+                resolvePaymentRef.current = null
 
                 onZapComplete?.()
                 onOpenChange(false)
-
-                if (zapSubscription) {
-                    zapSubscription.stop()
-                    setZapSubscription(null)
-                }
+                cleanupSubscription()
             }
         }, 10000)
     }
@@ -261,6 +253,67 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }
 
+    const renderLoading = () => (
+        <div className="flex flex-col items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="mt-2 text-sm text-muted-foreground">Loading payment information...</p>
+        </div>
+    )
+
+    const renderError = () => (
+        <div className="py-6">
+            <p className="text-red-500">{errorMessage}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+                The creator needs to set up a Lightning address in their profile to receive zaps.
+            </p>
+        </div>
+    )
+
+    const renderInvoiceButton = () => (
+        <Button onClick={generateInvoice} className="w-full" disabled={loading || !zapperReady}>
+            {loading ? (
+                <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating invoice...
+                </>
+            ) : (
+                'Generate Invoice'
+            )}
+        </Button>
+    )
+
+    const renderInvoiceQR = () => (
+        <div className="flex flex-col items-center space-y-4">
+            <div className="bg-white p-6 rounded-lg">
+                <QRCodeSVG value={invoice || ''} size={240} level="H" includeMargin={true} className="mx-auto" />
+            </div>
+            <div className="flex flex-col w-full space-y-2">
+                <p className="text-center text-sm mb-2">Scan with your Lightning wallet</p>
+                <div className="flex items-center">
+                    <Input value={invoice || ''} readOnly className="font-mono text-xs" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => invoice && copyToClipboard(invoice)}
+                        className="ml-2"
+                        title="Copy to clipboard"
+                    >
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                </div>
+                {lightningAddress && (
+                    <p className="text-sm text-center text-muted-foreground mt-1">Zap to: {lightningAddress}</p>
+                )}
+                {paymentPending && !paymentComplete && (
+                    <p className="text-sm text-center text-amber-500 mt-2 animate-pulse">Waiting for payment...</p>
+                )}
+                {paymentComplete && (
+                    <p className="text-sm text-center text-green-500 mt-2">Payment detected! Processing zap...</p>
+                )}
+            </div>
+        </div>
+    )
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
@@ -270,17 +323,9 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 </DialogHeader>
 
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="mt-2 text-sm text-muted-foreground">Loading payment information...</p>
-                    </div>
+                    renderLoading()
                 ) : errorMessage ? (
-                    <div className="py-6">
-                        <p className="text-red-500">{errorMessage}</p>
-                        <p className="text-sm text-muted-foreground mt-2">
-                            The creator needs to set up a Lightning address in their profile to receive zaps.
-                        </p>
-                    </div>
+                    renderError()
                 ) : (
                     <>
                         <div className="space-y-4 py-4">
@@ -306,70 +351,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                                 </TabsList>
 
                                 <TabsContent value="lightning" className="space-y-4 py-4">
-                                    {!invoice ? (
-                                        <Button
-                                            onClick={generateInvoice}
-                                            className="w-full"
-                                            disabled={loading || !zapperReady}
-                                        >
-                                            {loading ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Generating invoice...
-                                                </>
-                                            ) : (
-                                                'Generate Invoice'
-                                            )}
-                                        </Button>
-                                    ) : (
-                                        <div className="flex flex-col items-center space-y-4">
-                                            <div className="bg-white p-6 rounded-lg">
-                                                <QRCodeSVG
-                                                    value={invoice || ''}
-                                                    size={240}
-                                                    level="H"
-                                                    includeMargin={true}
-                                                    className="mx-auto"
-                                                />
-                                            </div>
-                                            <div className="flex flex-col w-full space-y-2">
-                                                <p className="text-center text-sm mb-2">
-                                                    Scan with your Lightning wallet
-                                                </p>
-                                                <div className="flex items-center">
-                                                    <Input
-                                                        value={invoice || ''}
-                                                        readOnly
-                                                        className="font-mono text-xs"
-                                                    />
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => invoice && copyToClipboard(invoice)}
-                                                        className="ml-2"
-                                                        title="Copy to clipboard"
-                                                    >
-                                                        <Copy className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                                {lightningAddress && (
-                                                    <p className="text-sm text-center text-muted-foreground mt-1">
-                                                        Zap to: {lightningAddress}
-                                                    </p>
-                                                )}
-                                                {paymentPending && !paymentComplete && (
-                                                    <p className="text-sm text-center text-amber-500 mt-2 animate-pulse">
-                                                        Waiting for payment...
-                                                    </p>
-                                                )}
-                                                {paymentComplete && (
-                                                    <p className="text-sm text-center text-green-500 mt-2">
-                                                        Payment detected! Processing zap...
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
+                                    {!invoice ? renderInvoiceButton() : renderInvoiceQR()}
                                 </TabsContent>
 
                                 <TabsContent value="nwc" className="py-4">
@@ -405,15 +387,4 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             </DialogContent>
         </Dialog>
     )
-}
-
-// Add types to window
-declare global {
-    interface Window {
-        _zapResolver?: {
-            resolve: (value: NDKPaymentConfirmationLN) => void
-            event: NDKEvent
-            amount: number
-        }
-    }
 }
