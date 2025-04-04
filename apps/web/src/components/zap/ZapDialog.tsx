@@ -47,18 +47,15 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
     const [zapSubscription, setZapSubscription] = useState<NDKSubscription | null>(null)
     const [paidAt, setPaidAt] = useState<number | null>(null)
 
-    // Clear state when dialog opens/closes
     useEffect(() => {
         if (isOpen) {
             fetchRecipientDetails()
         } else {
-            // Reset state on close
             setInvoice(null)
             setPaymentPending(false)
             setPaymentComplete(false)
             setErrorMessage(null)
 
-            // Clean up any active subscription
             if (zapSubscription) {
                 zapSubscription.stop()
                 setZapSubscription(null)
@@ -66,38 +63,31 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
 
         return () => {
-            // Cleanup subscription on unmount
             if (zapSubscription) {
                 zapSubscription.stop()
             }
         }
     }, [isOpen, event])
 
-    // Fetch recipient details to prepare for zapping
     const fetchRecipientDetails = React.useCallback(async () => {
         if (!event?.pubkey) return
 
         try {
             setLoading(true)
             setErrorMessage(null)
-            console.log('Fetching author details for pubkey:', event.pubkey)
 
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            // Get user object for the event author
             const user = ndk.getUser({ pubkey: event.pubkey })
             setRecipientUser(user)
 
-            // Check if recipient can receive zaps
             try {
                 const zapInfo = await user.getZapInfo()
-                console.log('Zap info:', zapInfo)
 
                 if (zapInfo.size > 0) {
                     setZapperReady(true)
 
-                    // Get Lightning address if available
                     const nip57Info = zapInfo.get('nip57')
                     const nip61Info = zapInfo.get('nip61')
 
@@ -124,20 +114,17 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }, [event])
 
-    // Subscribe to zap receipts for our current event
     const subscribeToZapReceipts = () => {
         const ndk = ndkActions.getNDK()
         if (!ndk || !event.id) return null
 
-        // Set a timestamp to track new zap receipts
         const startTime = Math.floor(Date.now() / 1000)
         setPaidAt(startTime)
 
-        // Create a subscription for zap receipts that reference this event
         const filter = {
             kinds: [9735],
             '#e': [event.id],
-            since: startTime - 5, // Allow a small buffer for time synchronization
+            since: startTime - 5,
         }
 
         const sub = ndk.subscribe(filter, {
@@ -145,21 +132,28 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
         })
 
-        console.log('Subscribed to zap receipts for event:', event.id)
-
-        // Listen for incoming zap receipt events
         sub.on('event', (zapEvent: NDKEvent) => {
-            console.log('Zap receipt received:', zapEvent)
+            const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
+            let isOurZap = false
 
-            // Check if this is likely our zap
+            if (descriptionTag) {
+                try {
+                    const zapRequest = JSON.parse(descriptionTag)
+                    isOurZap = zapRequest.tags?.some(
+                        (tag: string[]) =>
+                            (tag[0] === 'e' && tag[1] === event.id) || (tag[0] === 'a' && tag[1]?.includes(event.id)),
+                    )
+                } catch (error) {
+                    console.error('Failed to parse zap request:', error)
+                }
+            }
+
             const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTime - 10
 
-            if (isRecentZap) {
-                // We found a zap receipt for our payment
+            if (isOurZap || isRecentZap) {
                 setPaymentComplete(true)
                 setPaymentPending(false)
 
-                // Resolve the payment promise if it exists
                 if (window._zapResolver) {
                     const confirmation: NDKPaymentConfirmationLN = {
                         preimage: zapEvent.tags.find((t) => t[0] === 'preimage')?.[1] || 'unknown',
@@ -168,13 +162,9 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                     delete window._zapResolver
                 }
 
-                // Call the completion callback
                 onZapComplete?.(zapEvent)
-
-                // Show success toast and close the dialog
                 toast.success('Zap successful! 🤙')
 
-                // Close dialog after a brief delay to show success state
                 setTimeout(() => {
                     onOpenChange(false)
                     sub.stop()
@@ -185,7 +175,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         return sub
     }
 
-    // Generate an invoice for the zap
     const generateInvoice = async () => {
         try {
             setLoading(true)
@@ -197,27 +186,15 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            console.log('Creating zapper for event:', event)
-
-            // Start subscription to listen for zap receipts
             const sub = subscribeToZapReceipts()
             setZapSubscription(sub)
 
-            // This function will be called by NDKZapper when a bolt11 invoice is generated
             const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
-                console.log('Invoice generated:', payment.pr)
-
-                // Display the invoice
                 setInvoice(payment.pr)
                 setLoading(false)
                 setPaymentPending(true)
 
-                // Return a promise that will be resolved when payment is confirmed
                 return new Promise<NDKPaymentConfirmationLN>((resolve) => {
-                    // We're not resolving this promise here
-                    // It will be resolved when we receive a zap receipt event
-
-                    // Store resolver for use when zap receipt is detected
                     window._zapResolver = {
                         resolve,
                         event,
@@ -226,22 +203,18 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 })
             }
 
-            // Create a zapper with the manual lnPay function
             const zapper = new NDKZapper(event, amount * 1000, 'msats', {
                 comment: 'Zap from WaveFunc',
                 lnPay,
             })
 
-            // Start the zap process - this should trigger lnPay with the invoice
             await zapper.zap()
-            console.log('Zap process initiated successfully')
         } catch (error) {
             console.error('Failed to generate invoice:', error)
             setErrorMessage('Failed to generate invoice: ' + (error instanceof Error ? error.message : 'Unknown error'))
             setLoading(false)
             setInvoice(null)
 
-            // Clean up the subscription if we failed
             if (zapSubscription) {
                 zapSubscription.stop()
                 setZapSubscription(null)
@@ -249,7 +222,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }
 
-    // Handle when the user clicks "I've Paid"
     const handlePaymentComplete = () => {
         if (!window._zapResolver) return
 
@@ -258,11 +230,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
 
         toast.success('Payment marked as complete! Waiting for confirmation...')
 
-        // We don't manually resolve here since we want to wait for the actual zap receipt
-        // The event subscription will handle resolving when the receipt comes in
-
-        // If we don't get a zap receipt within 10 seconds, assume it worked anyway
-        // (in case the relay is having issues or the receipt was sent to another relay)
         setTimeout(() => {
             if (window._zapResolver) {
                 const confirmation: NDKPaymentConfirmationLN = {
@@ -271,7 +238,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 window._zapResolver.resolve(confirmation)
                 delete window._zapResolver
 
-                // Call the completion callback with no event since we didn't receive one
                 onZapComplete?.()
                 onOpenChange(false)
 
