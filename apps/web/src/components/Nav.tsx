@@ -11,7 +11,6 @@ import { useMedia } from 'react-use'
 const routes = [
     { href: '/favourites', label: 'Favourites' },
     { href: '/discover', label: 'Discover' },
-    { href: '/browse', label: 'Browse' },
     { href: '/about', label: 'About' },
 ]
 

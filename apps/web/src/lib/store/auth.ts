@@ -75,30 +75,81 @@ export const authActions = {
     getAuthFromLocalStorageAndLogin: async () => {
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
-            const privateKey = localStorage.getItem(NOSTR_LOCAL_SIGNER_KEY)
+
+            // Check if we have both a bunker URL and a local signer key in localStorage
             const bunkerUrl = localStorage.getItem(NOSTR_CONNECT_KEY)
-            if (privateKey && bunkerUrl) {
-                await authActions.loginWithNip46(bunkerUrl, new NDKPrivateKeySigner(privateKey))
-                return
+            const privateKey = localStorage.getItem(NOSTR_LOCAL_SIGNER_KEY)
+
+            if (bunkerUrl && privateKey) {
+                console.log('Found NIP-46 credentials, attempting to reconnect...')
+
+                try {
+                    // Initialize NDK if it's not already
+                    const ndk = ndkActions.getNDK()
+                    if (!ndk) {
+                        console.error('NDK not initialized')
+                        throw new Error('NDK not initialized')
+                    }
+
+                    // Ensure NDK is connected - check if we have active relays
+                    if (ndk.pool?.relays.size === 0) {
+                        await ndkActions.connect()
+                    }
+
+                    // Create local signer from the stored key
+                    const localSigner = new NDKPrivateKeySigner(privateKey)
+                    await localSigner.blockUntilReady()
+
+                    // Initialize the NIP-46 signer
+                    const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
+
+                    // Wait for the signer to be ready before proceeding
+                    await signer.blockUntilReady()
+                    ndkActions.setSigner(signer)
+
+                    // Get the user and update auth state
+                    const user = await signer.user()
+                    authStore.setState((state) => ({
+                        ...state,
+                        user,
+                        isAuthenticated: true,
+                        isAuthenticating: false,
+                    }))
+
+                    console.log('NIP-46 reconnection successful')
+                    return
+                } catch (error) {
+                    console.error('NIP-46 reconnection failed:', error)
+                    // Clean up failed NIP-46 connection
+                    localStorage.removeItem(NOSTR_CONNECT_KEY)
+                    localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+                    authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+                    throw error
+                }
             }
 
+            // Check for encrypted private key
             const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
             if (encryptedPrivateKey) {
                 const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN)
                 if (autoLogin !== 'true') {
-                    authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                    authStore.setState((state) => ({
+                        ...state,
+                        needsDecryptionPassword: true,
+                        isAuthenticating: false,
+                    }))
                     return
                 }
 
                 // Even with auto login, we need the password for decryption
-                authStore.setState((state) => ({ ...state, needsDecryptionPassword: true }))
+                authStore.setState((state) => ({ ...state, needsDecryptionPassword: true, isAuthenticating: false }))
                 return
             }
 
+            // Try extension login as fallback
             await authActions.loginWithExtension()
         } catch (error) {
             console.error('Authentication failed:', error)
-        } finally {
             authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         }
     },
@@ -225,11 +276,18 @@ export const authActions = {
         const ndk = ndkActions.getNDK()
         if (!ndk) throw new Error('NDK not initialized')
 
+        // Store credentials for later reconnection
         localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
         localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
 
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
+
+            // Ensure NDK is connected - check if we have active relays
+            if (ndk.pool?.relays.size === 0) {
+                await ndkActions.connect()
+            }
+
             const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
             await signer.blockUntilReady()
             ndkActions.setSigner(signer)
@@ -243,6 +301,10 @@ export const authActions = {
 
             return user
         } catch (error) {
+            // Clean up stored credentials on error
+            localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+            localStorage.removeItem(NOSTR_CONNECT_KEY)
+
             authStore.setState((state) => ({
                 ...state,
                 isAuthenticated: false,
