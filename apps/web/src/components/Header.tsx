@@ -78,7 +78,7 @@ export function Header() {
                         </div>
                     )}
 
-                    {authState.status === 'authenticated' && (
+                    {authState.isAuthenticated && (
                         <Button
                             variant="outline"
                             size="icon"
@@ -95,7 +95,7 @@ export function Header() {
 
             {isMobile && isNavOpen && (
                 <div className="sm:hidden mt-2 border-t pt-2">
-                    <Nav />
+                    <Nav onNavigate={() => setIsNavOpen(false)} />
                 </div>
             )}
         </header>

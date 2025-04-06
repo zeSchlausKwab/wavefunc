@@ -9,14 +9,25 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { useMedia } from 'react-use'
 
 const routes = [
+    { href: '/', label: 'Home' },
     { href: '/favourites', label: 'Favourites' },
     { href: '/discover', label: 'Discover' },
     { href: '/about', label: 'About' },
 ]
 
-export function Nav() {
+interface NavProps {
+    onNavigate?: () => void
+}
+
+export function Nav({ onNavigate }: NavProps) {
     const router = useRouter()
     const isMobile = useMedia('(max-width: 640px)')
+
+    const handleNavClick = () => {
+        if (onNavigate && isMobile) {
+            onNavigate()
+        }
+    }
 
     return (
         <NavigationMenu className="w-full">
@@ -25,6 +36,7 @@ export function Nav() {
                     <NavigationMenuItem key={route.href} className={cn(isMobile && 'w-full')}>
                         <Link
                             to={route.href}
+                            onClick={handleNavClick}
                             className={cn(
                                 navigationMenuTriggerStyle(),
                                 'font-press-start-2p text-sm',
