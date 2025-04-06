@@ -1,20 +1,21 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { closeStationDrawer } from '@/lib/store/ui'
 import {
     createRadioEvent,
-    deleteStation,
+    deleteStation as commonDeleteStation,
     StationSchema,
-    updateStation,
+    updateStation as commonUpdateStation,
     type Station,
     type StationFormData,
     convertFromRadioBrowser,
 } from '@wavefunc/common'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
+import type NDK from '@nostr-dev-kit/ndk'
 import { AlertCircle, ExternalLink, Import, Plus, Trash, Wand2, X } from 'lucide-react'
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
@@ -38,6 +39,15 @@ const emptyStream = {
         sampleRate: 44100,
     },
     primary: true,
+}
+
+// Wrapper functions to handle NDK type compatibility
+const updateStation = (ndk: NDK, station: Station, data: any) => {
+    return commonUpdateStation(ndk as any, station, data)
+}
+
+const deleteStation = (ndk: NDK, stationId: string) => {
+    return commonDeleteStation(ndk as any, stationId)
 }
 
 // Helper functions for stream URL parsing
@@ -419,8 +429,24 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     }
 
     return (
-        <Sheet open={isOpen}>
+        <Sheet
+            open={isOpen}
+            onOpenChange={(open) => {
+                if (!open) handleClose()
+            }}
+        >
             <SheetContent className="w-[90vw] sm:max-w-[540px] overflow-y-auto">
+                <div className="absolute right-4 top-4">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClose}
+                        className="h-6 w-6 rounded-md"
+                        aria-label="Close"
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
                 <SheetHeader>
                     <SheetTitle className="text-primary text-lg font-press-start-2p">
                         {station ? 'Edit Station' : 'Create Station'}
