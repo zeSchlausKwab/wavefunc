@@ -4,6 +4,7 @@ import { authStore } from '@/lib/store/auth'
 import { ndkActions } from '@/lib/store/ndk'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
 
@@ -76,38 +77,45 @@ export function UserProfile({ pubkey, compact = true }: UserProfileProps) {
     const displayName = profile?.name || profile?.displayName || pubkey.slice(0, 8) + '...'
     const avatarText = (displayName || '').substring(0, 2).toUpperCase()
 
+    const profileContent = (
+        <div className="flex items-center gap-2 cursor-pointer">
+            <Avatar className="h-8 w-8">
+                <AvatarImage src={profile?.picture} alt={displayName} />
+                <AvatarFallback>{avatarText}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+                <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium">{displayName}</span>
+                    {isMe && <Shield className="h-3 w-3 text-primary" />}
+                    {profile?.nip05 &&
+                        (profile.nip05Verified ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                        ) : (
+                            <XCircle className="h-3 w-3 text-red-500" />
+                        ))}
+                </div>
+                {profile?.website && (
+                    <a
+                        href={profile.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()} // Prevent navigation to profile page when clicking the website link
+                    >
+                        <Globe className="h-3 w-3" />
+                        {profile.website}
+                    </a>
+                )}
+            </div>
+        </div>
+    )
+
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={profile?.picture} alt={displayName} />
-                            <AvatarFallback>{avatarText}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-1">
-                                <span className="text-xs font-medium">{displayName}</span>
-                                {isMe && <Shield className="h-3 w-3 text-primary" />}
-                                {profile?.nip05 &&
-                                    (profile.nip05Verified ? (
-                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                    ) : (
-                                        <XCircle className="h-3 w-3 text-red-500" />
-                                    ))}
-                            </div>
-                            {profile?.website && (
-                                <a
-                                    href={profile.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-                                >
-                                    <Globe className="h-3 w-3" />
-                                    {profile.website}
-                                </a>
-                            )}
-                        </div>
+                    <div onClick={() => (window.location.href = `/profile/${pubkey}`)} className="cursor-pointer">
+                        {profileContent}
                     </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="start" className="max-w-[200px]">

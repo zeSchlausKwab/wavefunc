@@ -188,34 +188,33 @@ function GenreSelector({
     isMobile: boolean
 }) {
     return (
-        <div className="mb-4 overflow-x-auto pb-1 scrollbar-hide">
-            <div className="flex flex-nowrap gap-1">
-                <Button
-                    variant={selectedGenre === null ? 'default' : 'outline'}
-                    size={isMobile ? 'sm' : 'default'}
-                    onClick={() => onSelectGenre(null)}
-                    className={cn(
-                        'rounded-md whitespace-nowrap min-w-max',
-                        isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3',
-                    )}
-                >
-                    All
-                </Button>
-
-                {genres.map((genre) => (
+        <div className="mb-4 max-w-full">
+            <div className="overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex flex-nowrap gap-1 w-max">
                     <Button
-                        key={genre}
-                        variant={selectedGenre === genre ? 'default' : 'outline'}
+                        variant={selectedGenre === null ? 'default' : 'outline'}
                         size={isMobile ? 'sm' : 'default'}
-                        onClick={() => onSelectGenre(genre)}
-                        className={cn(
-                            'rounded-md whitespace-nowrap min-w-max',
-                            isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3',
-                        )}
+                        onClick={() => onSelectGenre(null)}
+                        className={cn('rounded-md whitespace-nowrap', isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3')}
                     >
-                        {genre}
+                        All
                     </Button>
-                ))}
+
+                    {genres.map((genre) => (
+                        <Button
+                            key={genre}
+                            variant={selectedGenre === genre ? 'default' : 'outline'}
+                            size={isMobile ? 'sm' : 'default'}
+                            onClick={() => onSelectGenre(genre)}
+                            className={cn(
+                                'rounded-md whitespace-nowrap',
+                                isMobile ? 'text-xs py-1 px-2 h-7' : 'py-1 px-3',
+                            )}
+                        >
+                            {genre}
+                        </Button>
+                    ))}
+                </div>
             </div>
         </div>
     )
@@ -224,7 +223,7 @@ function GenreSelector({
 // Station grid component
 function StationGrid({ stations, isMobile }: { stations: Station[]; isMobile: boolean }) {
     return (
-        <div className={cn('grid md:grid-cols-1 lg:grid-cols-2', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
+        <div className={cn('grid md:grid-cols-1 lg:grid-cols-3', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
             {stations.map((station) => (
                 <RadioCard key={station.id} station={station} />
             ))}
@@ -280,10 +279,8 @@ function Discover() {
     }, [stations, selectedGenre])
 
     return (
-        <div className={cn('container mx-auto', isMobile ? 'px-2 py-2' : 'p-6')}>
-            <h1 className={cn('font-bold font-press-start-2p mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>
-                Discover
-            </h1>
+        <div className="w-full max-w-full">
+            <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover</h1>
 
             <GenreSelector
                 genres={genres}

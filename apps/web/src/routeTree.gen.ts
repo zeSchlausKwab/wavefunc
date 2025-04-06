@@ -17,6 +17,7 @@ import { Route as DiscoverImport } from './routes/discover'
 import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
 import { Route as StationNaddrImport } from './routes/station/$naddr'
+import { Route as ProfileProfileIdImport } from './routes/profile.$profileId'
 
 // Create/Update Routes
 
@@ -53,6 +54,12 @@ const IndexRoute = IndexImport.update({
 const StationNaddrRoute = StationNaddrImport.update({
   id: '/station/$naddr',
   path: '/station/$naddr',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ProfileProfileIdRoute = ProfileProfileIdImport.update({
+  id: '/profile/$profileId',
+  path: '/profile/$profileId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -95,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsImport
       parentRoute: typeof rootRoute
     }
+    '/profile/$profileId': {
+      id: '/profile/$profileId'
+      path: '/profile/$profileId'
+      fullPath: '/profile/$profileId'
+      preLoaderRoute: typeof ProfileProfileIdImport
+      parentRoute: typeof rootRoute
+    }
     '/station/$naddr': {
       id: '/station/$naddr'
       path: '/station/$naddr'
@@ -113,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/discover': typeof DiscoverRoute
   '/favourites': typeof FavouritesRoute
   '/settings': typeof SettingsRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
 
@@ -122,6 +137,7 @@ export interface FileRoutesByTo {
   '/discover': typeof DiscoverRoute
   '/favourites': typeof FavouritesRoute
   '/settings': typeof SettingsRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
 
@@ -132,6 +148,7 @@ export interface FileRoutesById {
   '/discover': typeof DiscoverRoute
   '/favourites': typeof FavouritesRoute
   '/settings': typeof SettingsRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
 
@@ -143,6 +160,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/favourites'
     | '/settings'
+    | '/profile/$profileId'
     | '/station/$naddr'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -151,6 +169,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/favourites'
     | '/settings'
+    | '/profile/$profileId'
     | '/station/$naddr'
   id:
     | '__root__'
@@ -159,6 +178,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/favourites'
     | '/settings'
+    | '/profile/$profileId'
     | '/station/$naddr'
   fileRoutesById: FileRoutesById
 }
@@ -169,6 +189,7 @@ export interface RootRouteChildren {
   DiscoverRoute: typeof DiscoverRoute
   FavouritesRoute: typeof FavouritesRoute
   SettingsRoute: typeof SettingsRoute
+  ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   StationNaddrRoute: typeof StationNaddrRoute
 }
 
@@ -178,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiscoverRoute: DiscoverRoute,
   FavouritesRoute: FavouritesRoute,
   SettingsRoute: SettingsRoute,
+  ProfileProfileIdRoute: ProfileProfileIdRoute,
   StationNaddrRoute: StationNaddrRoute,
 }
 
@@ -196,6 +218,7 @@ export const routeTree = rootRoute
         "/discover",
         "/favourites",
         "/settings",
+        "/profile/$profileId",
         "/station/$naddr"
       ]
     },
@@ -213,6 +236,9 @@ export const routeTree = rootRoute
     },
     "/settings": {
       "filePath": "settings.tsx"
+    },
+    "/profile/$profileId": {
+      "filePath": "profile.$profileId.tsx"
     },
     "/station/$naddr": {
       "filePath": "station/$naddr.tsx"

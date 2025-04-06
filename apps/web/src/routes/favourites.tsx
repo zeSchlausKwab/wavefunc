@@ -7,7 +7,7 @@ export const Route = createFileRoute('/favourites')({
 
 function Favourites() {
     return (
-        <div className="p-2">
+        <div>
             <h1 className="text-2xl font-bold">Favorites</h1>
             <FavoritesManager />
         </div>

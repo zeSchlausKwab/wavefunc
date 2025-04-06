@@ -1,8 +1,27 @@
-import { clsx, type ClassValue } from 'clsx'
+import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-
+import md5 from 'md5'
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
+}
+
+/**
+ * Truncates text to a specific length and adds ellipsis
+ */
+export function truncateText(text: string, maxLength: number): string {
+    if (!text) return ''
+    if (text.length <= maxLength) return text
+    return text.slice(0, maxLength) + '...'
+}
+
+/**
+ * Generates a consistent color from a hexadecimal string (like a pubkey)
+ */
+export function getHexColorFingerprintFromHexPubkey(pubkey: string): string {
+    if (!pubkey) return '#6665DD'
+    // Use just the first 6 chars of md5 hash as hex color
+    const hash = md5(pubkey)
+    return '#' + hash.substring(0, 6)
 }
 
 /**

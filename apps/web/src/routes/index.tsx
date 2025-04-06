@@ -8,6 +8,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import type { RadioBrowserParams, Station } from '@wavefunc/common/types'
+import { RadioCard } from '@/components/radio/RadioCard'
 
 interface SearchFilters {
     countrycode: string
@@ -106,7 +107,7 @@ function Index() {
     const isError = isSearchMode ? isSearchError : isTopError
 
     return (
-        <div className="space-y-6">
+        <div>
             <div className="flex flex-col gap-4 mb-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-semibold">{isSearchMode ? 'Search Results' : 'Top Radio Stations'}</h2>
@@ -244,9 +245,9 @@ function Index() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
             ) : (
-                <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {displayStations.map((station) => (
-                        <RadioStationCard key={station.id} station={station} />
+                        <RadioCard key={station.id} station={station} />
                     ))}
                 </div>
             )}

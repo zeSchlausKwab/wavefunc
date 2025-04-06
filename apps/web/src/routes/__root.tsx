@@ -32,7 +32,7 @@ export const Route = createRootRoute({
                     <Header />
                 </div>
 
-                <main className="flex-1 container mx-auto px-2 py-2 pb-40">
+                <main className="mx-auto w-full max-w-full pb-40 px-12">
                     <Outlet />
                 </main>
                 <LoginDialog />

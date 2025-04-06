@@ -256,7 +256,7 @@ export function FavoritesManager() {
     }
 
     return (
-        <div className="my-6">
+        <div>
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold font-press-start-2p text-primary">My Favorites Lists</h2>
                 <Button onClick={handleCreateNewList}>
