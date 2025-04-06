@@ -2,14 +2,15 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
+import type NDK from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common'
 import {
     type FavoritesList,
-    fetchFavoritesLists,
-    generateStationNaddr,
+    fetchFavoritesLists as commonFetchFavoritesLists,
+    generateStationNaddr as commonGenerateStationNaddr,
     parseRadioEvent,
-    subscribeToFavoritesLists,
+    subscribeToFavoritesLists as commonSubscribeToFavoritesLists,
 } from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -27,6 +28,26 @@ interface ResolvedStation {
     }
 }
 
+// Wrapper functions to handle type compatibility issues between NDK versions
+const fetchFavoritesLists = (ndk: NDK, options: { pubkey: string }) => {
+    // Cast to any to bypass the type mismatch
+    return commonFetchFavoritesLists(ndk as any, options)
+}
+
+const subscribeToFavoritesLists = (
+    ndk: NDK,
+    options: { pubkey: string },
+    callback: (favoritesList: FavoritesList) => void,
+) => {
+    // Cast to any to bypass the type mismatch
+    return commonSubscribeToFavoritesLists(ndk as any, options, callback)
+}
+
+const generateStationNaddr = (event: NDKEvent) => {
+    // Cast to any to bypass the type mismatch
+    return commonGenerateStationNaddr(event as any)
+}
+
 export function FavoritesManager() {
     const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -38,7 +59,8 @@ export function FavoritesManager() {
     useEffect(() => {
         const ndk = ndkActions.getNDK()
         if (!ndk) {
-            throw new Error('NDK not initialized')
+            console.error('NDK not initialized')
+            return
         }
         const pubkey = ndk?.activeUser?.pubkey
 
@@ -50,8 +72,10 @@ export function FavoritesManager() {
 
         setIsLoading(true)
 
+        // Use our wrapper function
         fetchFavoritesLists(ndk, { pubkey })
             .then((lists) => {
+                console.log('Fetched favorites lists:', lists)
                 setFavoritesLists(lists)
             })
             .catch((error) => {
@@ -61,7 +85,9 @@ export function FavoritesManager() {
                 setIsLoading(false)
             })
 
+        // Use our wrapper function
         const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
+            console.log('Favorites list updated:', favoritesList)
             setFavoritesLists((prev) => {
                 const index = prev.findIndex((list) => list.id === favoritesList.id)
                 if (index >= 0) {
@@ -78,13 +104,14 @@ export function FavoritesManager() {
             setFavoritesLists([])
             setResolvedStations({})
         }
-    }, [ndk?.activeUser?.pubkey, ndk]) // Depend on pubkey changes
+    }, [ndk?.activeUser?.pubkey]) // Depend on pubkey changes
 
     // Effect to resolve stations when favorites lists change
     useEffect(() => {
         const ndk = ndkActions.getNDK()
         if (!ndk) {
-            throw new Error('NDK not initialized')
+            console.error('NDK not initialized')
+            return
         }
         if (!ndk?.activeUser?.pubkey || favoritesLists.length === 0) {
             return
@@ -94,16 +121,41 @@ export function FavoritesManager() {
             const newResolvedStations: Record<string, ResolvedStation> = {}
 
             for (const list of favoritesLists) {
+                if (!list.favorites || list.favorites.length === 0) {
+                    continue
+                }
+
+                console.log(`Processing ${list.favorites.length} favorites from list ${list.name}`)
+
                 for (const favorite of list.favorites) {
+                    // Skip invalid favorites
+                    if (!favorite.event_id || favorite.event_id === 'nostr_radio') {
+                        console.warn('Skipping invalid favorite:', favorite)
+                        continue
+                    }
+
+                    // Skip already resolved stations
                     if (newResolvedStations[favorite.event_id]) continue
 
                     try {
                         let event: NDKEvent | null = null
 
                         if (favorite.naddr) {
-                            event = await ndk.fetchEvent(favorite.naddr)
-                        } else {
-                            event = await ndk.fetchEvent(favorite.event_id)
+                            console.log(`Fetching station using naddr: ${favorite.naddr}`)
+                            try {
+                                event = await ndk.fetchEvent(favorite.naddr)
+                            } catch (error) {
+                                console.error(`Failed to fetch by naddr (${favorite.naddr}):`, error)
+                            }
+                        }
+
+                        if (!event) {
+                            console.log(`Fetching station using event_id: ${favorite.event_id}`)
+                            try {
+                                event = await ndk.fetchEvent(favorite.event_id)
+                            } catch (error) {
+                                console.error(`Failed to fetch by event_id (${favorite.event_id}):`, error)
+                            }
                         }
 
                         if (event) {
@@ -114,7 +166,17 @@ export function FavoritesManager() {
                                 let naddr = favorite.naddr
                                 if (!naddr && event) {
                                     try {
-                                        naddr = generateStationNaddr(event)
+                                        // Using the event object directly, not passing through parameters
+                                        const localEvent = new NDKEvent(ndk)
+                                        localEvent.kind = event.kind
+                                        localEvent.content = event.content
+                                        localEvent.tags = event.tags
+                                        localEvent.pubkey = event.pubkey
+                                        localEvent.created_at = event.created_at
+                                        localEvent.id = event.id
+
+                                        // Use our wrapper function
+                                        naddr = generateStationNaddr(localEvent)
                                     } catch (error) {
                                         console.warn('Could not generate naddr for station:', error)
                                     }
@@ -144,6 +206,7 @@ export function FavoritesManager() {
                                     station,
                                     favorite,
                                 }
+                                console.log(`Successfully resolved station: ${station.name}`)
                             } catch (parseError) {
                                 console.error(`Error parsing station data:`, parseError)
                                 newResolvedStations[favorite.event_id] = {
@@ -238,37 +301,43 @@ export function FavoritesManager() {
                             </CardHeader>
                             <CardContent>
                                 <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {list.favorites.map((favorite) => {
-                                        const resolved = resolvedStations[favorite.event_id]
-                                        if (!resolved) {
+                                    {list.favorites && list.favorites.length > 0 ? (
+                                        list.favorites.map((favorite) => {
+                                            // Skip invalid favorites
+                                            if (!favorite.event_id || favorite.event_id === 'nostr_radio') {
+                                                return null
+                                            }
+
+                                            const resolved = resolvedStations[favorite.event_id]
+                                            if (!resolved) {
+                                                return (
+                                                    <div
+                                                        key={favorite.event_id}
+                                                        className="text-center py-4 text-muted-foreground"
+                                                    >
+                                                        Loading station...
+                                                    </div>
+                                                )
+                                            }
+                                            if (!resolved.station) {
+                                                return (
+                                                    <div
+                                                        key={favorite.event_id}
+                                                        className="text-center py-4 text-destructive"
+                                                    >
+                                                        Failed to load station: {favorite.name}
+                                                    </div>
+                                                )
+                                            }
                                             return (
-                                                <div
+                                                <RadioCard
                                                     key={favorite.event_id}
-                                                    className="text-center py-4 text-muted-foreground"
-                                                >
-                                                    Loading station...
-                                                </div>
+                                                    station={resolved.station}
+                                                    currentListId={list.id}
+                                                />
                                             )
-                                        }
-                                        if (!resolved.station) {
-                                            return (
-                                                <div
-                                                    key={favorite.event_id}
-                                                    className="text-center py-4 text-destructive"
-                                                >
-                                                    Failed to load station: {favorite.name}
-                                                </div>
-                                            )
-                                        }
-                                        return (
-                                            <RadioCard
-                                                key={favorite.event_id}
-                                                station={resolved.station}
-                                                currentListId={list.id}
-                                            />
-                                        )
-                                    })}
-                                    {list.favorites.length === 0 && (
+                                        })
+                                    ) : (
                                         <div className="text-center py-4 text-muted-foreground">
                                             No stations in this list yet
                                         </div>

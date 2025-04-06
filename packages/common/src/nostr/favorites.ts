@@ -214,30 +214,42 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
         // Extract favorites from content or tags
         let favorites = content.favorites || []
         if (favorites.length === 0) {
-            // Define our favorite item type
-            type FavoriteItem = {
-                event_id: string
-                name: string
-                naddr?: string
-                added_at: number
-            }
+            // Filter and process a-tags, excluding the app identifier tag
+            const aTags = event.tags.filter((tag) => tag[0] === 'a' && tag[1] !== 'nostr_radio')
 
-            // Use a-tags as the only source for favorites
-            const aTags = event.tags.filter((tag) => tag[0] === 'a')
+            // Process a-tags for actual station references
+            favorites = aTags
+                .map((tag) => {
+                    // Extract event_id from addressable reference (kind:pubkey:d-value)
+                    const parts = tag[1].split(':')
+                    // If it's a proper a-tag with kind:pubkey:d-tag format
+                    let event_id = ''
+                    let naddr = undefined
 
-            // Process a-tags
-            favorites = aTags.map((tag) => {
-                // Extract event_id from addressable reference (kind:pubkey:d-value)
-                const parts = tag[1].split(':')
-                const event_id = parts.length >= 3 ? parts[2] : tag[1]
+                    if (parts.length >= 3) {
+                        // It's a proper NIP-19 a-tag
+                        // For 30023:pubkey:d-tag format, we use the d-tag as event_id
+                        event_id = parts[2] || ''
+                        naddr = tag[1] // Store the full a-tag for later use
+                    } else {
+                        // It might be a simple event ID or malformed tag
+                        // Use the raw value, hoping it's a valid event ID
+                        event_id = tag[1]
+                    }
 
-                return {
-                    event_id: event_id || tag[1],
-                    name: tag[2] || 'Unknown Station',
-                    naddr: tag[1],
-                    added_at: Math.floor(Date.now() / 1000),
-                }
-            })
+                    // Skip if it's just "nostr_radio" which is an app tag, not an event ID
+                    if (event_id === 'nostr_radio' || event_id === '') {
+                        return null
+                    }
+
+                    return {
+                        event_id,
+                        name: tag[2] || 'Unknown Station',
+                        naddr: naddr,
+                        added_at: Math.floor(Date.now() / 1000),
+                    }
+                })
+                .filter(Boolean) as any[]
         }
 
         return {
@@ -250,6 +262,7 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
             tags: event.tags as string[][],
         }
     } catch (error) {
+        console.error('Error parsing favorites list:', error)
         throw new Error('Invalid favorites list format')
     }
 }
@@ -287,6 +300,7 @@ export function subscribeToFavoritesLists(
                 onEvent(favoritesList)
             } catch (error) {
                 // Silently skip invalid events
+                console.warn('Failed to parse favorites list event:', error)
             }
         })
     }
@@ -329,7 +343,8 @@ export async function fetchFavoritesLists(
         .map((event) => {
             try {
                 return parseFavoritesEvent(event)
-            } catch {
+            } catch (error) {
+                console.warn('Failed to parse favorites list event:', error)
                 return null
             }
         })
