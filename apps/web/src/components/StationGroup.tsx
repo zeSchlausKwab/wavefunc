@@ -12,8 +12,8 @@ export function StationGroup({ name, description, stations, onUpdateStation }: S
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="text-lg font-bold text-primary font-press-start-2p">{name}</h3>
-                <p className="text-sm text-muted-foreground font-press-start-2p">{description}</p>
+                <h3 className="text-lg font-bold text-primary font-heading">{name}</h3>
+                <p className="text-sm text-muted-foreground">{description}</p>
             </div>
             <div className="flex flex-col gap-4">
                 {stations.map((station) => (

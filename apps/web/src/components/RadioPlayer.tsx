@@ -277,10 +277,10 @@ export function RadioPlayer() {
     }
 
     return (
-        <div 
-            className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 md:p-8 flex flex-col z-50"
+        <div
+            className="border-t-3 border-gray-800 fixed bottom-0 left-0 right-0  p-4 md:p-8 flex flex-col z-50 bg-white/80 backdrop-blur-sm"
             aria-label="Radio Player"
-            style={{ maxHeight: "160px" }}
+            style={{ maxHeight: '160px' }}
         >
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                 <div className="flex-1 overflow-hidden mb-2 md:mb-0">
@@ -293,13 +293,13 @@ export function RadioPlayer() {
                             stationDescription={currentStation.description}
                         />
                     ) : (
-                        <p className="text-gray-400">No station selected</p>
+                        <p>No station selected</p>
                     )}
                 </div>
 
                 <div className="flex items-center space-x-2 justify-center md:justify-end">
                     <Button
-                        variant="ghost"
+                        variant="neobrutalism"
                         size="icon"
                         disabled={!hasPrevious}
                         onClick={() => {
@@ -310,7 +310,7 @@ export function RadioPlayer() {
                     </Button>
 
                     <Button
-                        variant="ghost"
+                        variant="neobrutalism"
                         size="icon"
                         disabled={!currentStation}
                         onClick={() => togglePlayback()}

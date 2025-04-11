@@ -34,11 +34,11 @@ export function Header() {
     }
 
     return (
-        <header className={cn('bg-white p-3')}>
+        <header className={cn('p-6 border-b-3 border-gray-800')}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-8">
-                    <Link to="/" className="text-xl font-bold font-press-start-2p">
-                        Wavef(u)nc
+                    <Link to="/" className="font-heading text-2xl">
+                        WaveFunc
                     </Link>
 
                     <div className="hidden sm:flex">
@@ -52,7 +52,7 @@ export function Header() {
 
                 <div className="flex items-center gap-3">
                     {!isMobile && (
-                        <div className="text-xs text-muted-foreground flex items-center">
+                        <div className="text-xs text-muted-foreground flex items-center font-sans">
                             <IconWrapper icon={AlertTriangle} className="h-3 w-3 mr-1 text-amber-500" />
                             <span>Limited relay - will be reset</span>
                         </div>
@@ -70,7 +70,7 @@ export function Header() {
                             </Button>
 
                             {showWarningTooltip && (
-                                <div className="absolute right-0 top-full mt-2 bg-background text-foreground text-xs p-2 rounded shadow-lg z-50 w-48 border">
+                                <div className="absolute right-0 top-full mt-2 bg-background text-foreground text-xs p-2 rounded shadow-lg z-50 w-48 border font-sans">
                                     Warning: Limited relay. Will be reset.
                                     <div className="absolute -top-1 right-3 w-2 h-2 bg-background transform rotate-45 border-t border-l"></div>
                                 </div>
@@ -80,7 +80,7 @@ export function Header() {
 
                     {authState.isAuthenticated && (
                         <Button
-                            variant="outline"
+                            variant="default"
                             size="icon"
                             className="bg-green-500 hover:bg-green-600 text-white h-8 w-8 p-0"
                             onClick={handleCreateStation}
@@ -89,7 +89,7 @@ export function Header() {
                         </Button>
                     )}
 
-                    <AuthButton variant="outline" compact={isMobile} />
+                    <AuthButton variant="secondary" compact={isMobile} />
                 </div>
             </div>
 

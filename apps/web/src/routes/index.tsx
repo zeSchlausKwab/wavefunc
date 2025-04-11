@@ -108,7 +108,7 @@ function Index() {
 
     return (
         <div>
-            <div className="flex flex-col gap-4 mb-6">
+            <div className="flex flex-col gap-12 my-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-semibold">{isSearchMode ? 'Search Results' : 'Top Radio Stations'}</h2>
                     <div className="flex gap-2">
@@ -245,7 +245,7 @@ function Index() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
             ) : (
-                <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-12">
                     {displayStations.map((station) => (
                         <RadioCard key={station.id} station={station} />
                     ))}

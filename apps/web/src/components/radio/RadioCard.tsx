@@ -134,8 +134,9 @@ const StationHeader = ({
                         >
                             <CardTitle
                                 className={cn(
-                                    'font-press-start-2p truncate text-primary',
+                                    'truncate text-primary',
                                     isMobile ? 'text-xs' : 'text-sm',
+                                    'font-heading',
                                 )}
                             >
                                 {station.name}
@@ -144,10 +145,7 @@ const StationHeader = ({
                         </RouterLink>
                     ) : (
                         <CardTitle
-                            className={cn(
-                                'font-press-start-2p truncate text-primary',
-                                isMobile ? 'text-xs' : 'text-sm',
-                            )}
+                            className={cn('truncate text-primary', isMobile ? 'text-xs' : 'text-sm', 'font-heading')}
                         >
                             {station.name}
                         </CardTitle>
@@ -158,9 +156,7 @@ const StationHeader = ({
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                     ) : null}
                 </div>
-                <CardDescription
-                    className={cn('font-press-start-2p mt-1 truncate', isMobile ? 'text-[8px]' : 'text-xs')}
-                >
+                <CardDescription className={cn('mt-1 truncate', isMobile ? 'text-[8px]' : 'text-xs')}>
                     {station.genre}
                 </CardDescription>
             </div>
@@ -203,9 +199,7 @@ const StationContent = ({
 }: StationContentProps) => (
     <CardContent className={cn(isMobile ? 'p-2 pt-0' : 'p-4 pt-0 pb-2', 'flex-grow flex flex-col')}>
         <div className="flex-grow">
-            <p className={cn('font-press-start-2p line-clamp-2', isMobile ? 'text-[8px]' : 'text-xs')}>
-                {station.description}
-            </p>
+            <p className={cn('line-clamp-2', isMobile ? 'text-[8px]' : 'text-xs')}>{station.description}</p>
 
             <StationTags tags={stationTags} isMobile={isMobile} />
         </div>
@@ -299,19 +293,19 @@ const StationStats = ({ isMobile }: StationStatsProps) => (
     <div className={cn('grid gap-2 mb-3', isMobile ? 'grid-cols-1' : 'grid-cols-2 gap-4')}>
         <div className="flex items-center">
             <Music className="h-4 w-4 text-primary mr-2" />
-            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Tracks: 1000+</span>
+            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>Tracks: 1000+</span>
         </div>
         <div className="flex items-center">
             <Users className="h-4 w-4 text-primary mr-2" />
-            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Listeners: 5k</span>
+            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>Listeners: 5k</span>
         </div>
         <div className="flex items-center">
             <Calendar className="h-4 w-4 text-primary mr-2" />
-            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Since: 2020</span>
+            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>Since: 2020</span>
         </div>
         <div className="flex items-center">
             <Star className="h-4 w-4 text-primary mr-2" />
-            <span className={cn('font-press-start-2p', isMobile ? 'text-[10px]' : 'text-xs')}>Rating: 4.8</span>
+            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>Rating: 4.8</span>
         </div>
     </div>
 )
@@ -574,11 +568,15 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         <Card
             ref={cardRef}
             className={cn(
-                'transition-all duration-300 bg-white bg-opacity-90 shadow-lg overflow-hidden flex flex-col',
-                isExistsInNostr ? 'border-green-500 border-2' : '',
+                'transition-all duration-300 shadow-lg overflow-hidden flex flex-col relative border-3 border-gray-800 p-2',
                 isFullWidth ? 'col-span-full w-full' : 'h-full h-[240px]',
             )}
         >
+            {isExistsInNostr && (
+                <div className="absolute top-1 right-1 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
+                    <CheckCircle2 className="w-4 h-4" />
+                </div>
+            )}
             <div ref={contentRef} className="flex flex-col h-full">
                 <div className="flex flex-row justify-between flex-grow">
                     {/* Station image */}

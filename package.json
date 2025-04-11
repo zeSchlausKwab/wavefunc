@@ -20,6 +20,7 @@
         "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\""
     },
     "devDependencies": {
+        "@playwright/test": "^1.51.1",
         "@types/bun": "^1.2.5",
         "@types/node": "^22.13.11",
         "@types/react": "^19.0.12",

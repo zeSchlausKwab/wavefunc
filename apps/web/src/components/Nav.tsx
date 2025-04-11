@@ -39,7 +39,7 @@ export function Nav({ onNavigate }: NavProps) {
                             onClick={handleNavClick}
                             className={cn(
                                 navigationMenuTriggerStyle(),
-                                'font-press-start-2p text-sm',
+                                'text-sm',
                                 isMobile ? 'w-full justify-center' : '',
                                 router.state.location.pathname === route.href
                                     ? 'text-primary font-medium bg-accent/30'

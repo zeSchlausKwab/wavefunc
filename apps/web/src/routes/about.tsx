@@ -7,7 +7,7 @@ export const Route = createFileRoute('/about')({
 function About() {
     return (
         <div>
-            <h1 className="text-3xl font-bold mb-6 font-press-start-2p text-center bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+            <h1 className="text-3xl font-bold mb-6 font-heading text-center bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
                 About Wavef(u)nc 🎵✨
             </h1>
 

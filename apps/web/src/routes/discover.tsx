@@ -223,7 +223,7 @@ function GenreSelector({
 // Station grid component
 function StationGrid({ stations, isMobile }: { stations: Station[]; isMobile: boolean }) {
     return (
-        <div className={cn('grid md:grid-cols-1 lg:grid-cols-3', isMobile ? 'gap-2' : 'gap-3 md:gap-6')}>
+        <div className={cn('grid md:grid-cols-1 lg:grid-cols-3', isMobile ? 'gap-2' : 'gap-3 md:gap-12')}>
             {stations.map((station) => (
                 <RadioCard key={station.id} station={station} />
             ))}
@@ -279,7 +279,7 @@ function Discover() {
     }, [stations, selectedGenre])
 
     return (
-        <div className="w-full max-w-full">
+        <div className="w-full flex flex-col gap-12 my-6 max-w-full">
             <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover</h1>
 
             <GenreSelector

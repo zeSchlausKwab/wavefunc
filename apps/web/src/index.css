@@ -2,6 +2,106 @@
 
 @plugin "tailwindcss-animate";
 
+/* Import font files */
+@font-face {
+    font-family: 'Doto';
+    src: url('./assets/fonts/Doto-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    font-synthesis: none;
+}
+
+@font-face {
+    font-family: 'Doto';
+    src: url('./assets/fonts/Doto-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Doto';
+    src: url('./assets/fonts/Doto-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Doto';
+    src: url('./assets/fonts/Doto-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Pixelify Sans';
+    src: url('../assets/fonts/PixelifySans-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Pixelify Sans';
+    src: url('../assets/fonts/PixelifySans-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Pixelify Sans';
+    src: url('../assets/fonts/PixelifySans-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Pixelify Sans';
+    src: url('../assets/fonts/PixelifySans-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Tiny5';
+    src: url('./assets/fonts/Tiny5-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@theme {
+    --font-sans: 'Pixelify Sans', sans-serif;
+    --font-heading: 'Doto', monospace;
+    --font-pixel: 'Tiny5', monospace;
+}
+
+/* Add specific styling for headings using the Doto font */
+.font-heading {
+    font-family: var(--font-heading);
+    letter-spacing: 0.05rem;
+    font-synthesis: none;
+}
+
+/* Add specific sizes for different heading levels */
+h1.font-heading {
+    font-size: 2.4rem;
+}
+
+h2.font-heading {
+    font-size: 2rem;
+}
+
+h3.font-heading {
+    font-size: 1.6rem;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

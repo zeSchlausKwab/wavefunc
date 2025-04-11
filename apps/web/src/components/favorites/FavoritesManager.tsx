@@ -300,7 +300,7 @@ export function FavoritesManager() {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-12">
                                     {list.favorites && list.favorites.length > 0 ? (
                                         list.favorites.map((favorite) => {
                                             // Skip invalid favorites
