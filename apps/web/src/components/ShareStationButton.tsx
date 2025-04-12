@@ -89,7 +89,7 @@ export function ShareStationButton({ stationId, stationName, className = '', nad
 
     return (
         <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             aria-label="Share Station"
             onClick={handleShare}

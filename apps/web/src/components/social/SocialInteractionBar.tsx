@@ -354,7 +354,7 @@ export function SocialInteractionBar({
         <>
             <div className={cn('flex space-x-1', className)}>
                 <Button
-                    variant="ghost"
+                    variant="outline"
                     size={compact ? 'sm' : 'icon'}
                     aria-label="Zap"
                     onClick={handleZap}
@@ -377,7 +377,7 @@ export function SocialInteractionBar({
                 </Button>
 
                 <Button
-                    variant="ghost"
+                    variant="outline"
                     size={compact ? 'sm' : 'icon'}
                     aria-label="Like"
                     onClick={hasUserReacted ? undefined : handleLike}
@@ -397,7 +397,7 @@ export function SocialInteractionBar({
                 </Button>
 
                 <Button
-                    variant="ghost"
+                    variant="outline"
                     size={compact ? 'sm' : 'icon'}
                     aria-label="Comment"
                     onClick={onCommentClick}

@@ -268,7 +268,7 @@ export function FavoritesManager() {
             {isLoading ? (
                 <div className="text-center py-8">Loading favorites lists...</div>
             ) : favoritesLists.length === 0 ? (
-                <Card className="border-dashed border-2 border-muted-foreground bg-muted/20">
+                <Card>
                     <CardContent className="flex flex-col items-center justify-center py-10 text-center">
                         <Heart className="h-12 w-12 text-muted-foreground mb-4" />
                         <h3 className="font-semibold text-lg mb-2">No Favorites Lists Yet</h3>
