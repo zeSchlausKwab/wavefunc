@@ -9,11 +9,14 @@ const buttonVariants = cva(
     {
         variants: {
             variant: {
-                default: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
+                default:
+                    'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
                 destructive:
-                    'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
-                outline: 'border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground',
-                secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
+                    'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                outline:
+                    'border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                secondary:
+                    'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
                 ghost: 'hover:bg-accent hover:text-accent-foreground',
                 link: 'text-primary underline-offset-4 hover:underline',
                 neobrutalism: 'bg-orange-400 text-black shadow-xs hover:bg-orange-400/90 border-2 border-black',
