@@ -1,22 +1,41 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { stationsStore, togglePlayback } from '@/lib/store/stations'
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { Slider } from '@/components/ui/slider'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+    nextStation,
+    previousStation,
+    stationsStore,
+    togglePlayback,
+    useHasNext,
+    useHasPrevious,
+} from '@/lib/store/stations'
+import { cn } from '@/lib/utils'
+import { type StreamMetadata, setupMetadataListeners } from '@/lib/utils/streamUtils'
+import { useStore } from '@tanstack/react-store'
+import {
+    Headphones,
+    Loader2,
+    PauseCircle,
+    PlayCircle,
+    Radio,
+    SkipBack,
+    SkipForward,
+    Volume1,
+    Volume2,
+    VolumeX,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MusicRecognitionButton } from './MusicRecognitionButton'
-import { useStore } from '@tanstack/react-store'
 import { StreamMetadataDisplay } from './radio/StreamMetadataDisplay'
 import { StreamTechnicalInfo } from './radio/StreamTechnicalInfo'
-import { type StreamMetadata, extractStreamMetadata, setupMetadataListeners } from '@/lib/utils/streamUtils'
-import { cn } from '@/lib/utils'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Headphones, Loader2, PauseCircle, PlayCircle, Radio, Volume1 } from 'lucide-react'
-import { Slider } from '@/components/ui/slider'
 
 export function RadioPlayer() {
     // Use the stationsStore directly
     const { isPlaying, currentStation } = useStore(stationsStore)
+    const hasNext = useHasNext()
+    const hasPrevious = useHasPrevious()
 
     // Local state for radio player features
     const [metadata, setMetadata] = useState<StreamMetadata | undefined>()
@@ -24,6 +43,7 @@ export function RadioPlayer() {
     const [isBuffering, setIsBuffering] = useState(false)
     const [error, setError] = useState<string | undefined>()
     const [showVolumeControl, setShowVolumeControl] = useState(false)
+    const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
     const audioRef = useRef<HTMLAudioElement>(null)
     const [audioVolume, setAudioVolume] = useState(1)
 
@@ -31,8 +51,86 @@ export function RadioPlayer() {
     useEffect(() => {
         if (currentStation && currentStation.streams && currentStation.streams.length > 0) {
             setStreamUrl(currentStation.streams[0].url)
+            setError(undefined)
         }
     }, [currentStation])
+
+    // Setup audio event listeners
+    useEffect(() => {
+        const audio = audioRef.current
+        if (!audio) return
+
+        const onPlay = () => {
+            console.log('Audio playing')
+            setIsBuffering(false)
+        }
+
+        const onPause = () => {
+            console.log('Audio paused')
+        }
+
+        const onWaiting = () => {
+            console.log('Audio buffering')
+            setIsBuffering(true)
+        }
+
+        const onPlaying = () => {
+            console.log('Audio playing after buffering')
+            setIsBuffering(false)
+        }
+
+        const onError = (e: ErrorEvent) => {
+            console.error('Audio error:', e)
+            setError('Failed to load stream')
+            setIsBuffering(false)
+        }
+
+        // Set up metadata listeners
+        let cleanupMetadata: (() => void) | undefined
+        if (currentStation) {
+            try {
+                cleanupMetadata = setupMetadataListeners(audio, (newMetadata) => {
+                    console.log('Received metadata:', newMetadata)
+                    setMetadata(newMetadata)
+                })
+            } catch (err) {
+                console.error('Error setting up metadata listeners:', err)
+            }
+        }
+
+        // Add event listeners
+        audio.addEventListener('play', onPlay)
+        audio.addEventListener('pause', onPause)
+        audio.addEventListener('waiting', onWaiting)
+        audio.addEventListener('playing', onPlaying)
+        audio.addEventListener('error', onError as EventListener)
+
+        // Update volume
+        audio.volume = audioVolume
+
+        // Play or pause based on isPlaying state
+        if (isPlaying) {
+            const playPromise = audio.play()
+            if (playPromise !== undefined) {
+                playPromise.catch((error) => {
+                    console.error('Error playing audio:', error)
+                    setError('Playback error: ' + error.message)
+                })
+            }
+        } else {
+            audio.pause()
+        }
+
+        // Cleanup
+        return () => {
+            audio.removeEventListener('play', onPlay)
+            audio.removeEventListener('pause', onPause)
+            audio.removeEventListener('waiting', onWaiting)
+            audio.removeEventListener('playing', onPlaying)
+            audio.removeEventListener('error', onError as EventListener)
+            if (cleanupMetadata) cleanupMetadata()
+        }
+    }, [isPlaying, currentStation, audioVolume, streamUrl])
 
     const handleVolumeChange = (value: number[]) => {
         const newVolume = value[0]
@@ -58,35 +156,73 @@ export function RadioPlayer() {
                 <audio ref={audioRef} src={streamUrl} autoPlay={isPlaying} className="hidden" />
 
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    onClick={() => togglePlayback()}
-                                    variant="outline"
-                                    size="icon"
-                                    disabled={isBuffering || !!error}
-                                    className={cn(
-                                        'h-10 w-10 min-w-10 border-2 border-black',
-                                        'shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]',
-                                        isPlaying
-                                            ? 'bg-red-500 hover:bg-red-600 text-white'
-                                            : 'bg-green-500 hover:bg-green-600 text-white',
-                                        'transition-transform hover:translate-y-[-2px]',
-                                    )}
-                                >
-                                    {isBuffering ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                    ) : isPlaying ? (
-                                        <PauseCircle className="h-5 w-5" />
-                                    ) : (
-                                        <PlayCircle className="h-5 w-5" />
-                                    )}
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{isPlaying ? 'Pause' : 'Play'}</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    <div className="flex items-center gap-2">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={previousStation}
+                                        variant="outline"
+                                        size="icon"
+                                        disabled={!hasPrevious || isBuffering}
+                                        className="h-8 w-8 min-w-8"
+                                    >
+                                        <SkipBack className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Previous Station</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={() => togglePlayback()}
+                                        variant="outline"
+                                        size="icon"
+                                        disabled={!!error}
+                                        className={cn(
+                                            'h-10 w-10 min-w-10 border-2 border-black',
+                                            'shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]',
+                                            isPlaying
+                                                ? 'bg-red-500 hover:bg-red-600 text-white'
+                                                : 'bg-green-500 hover:bg-green-600 text-white',
+                                            'transition-transform hover:translate-y-[-2px]',
+                                        )}
+                                    >
+                                        {isBuffering ? (
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                        ) : isPlaying ? (
+                                            <PauseCircle className="h-5 w-5" />
+                                        ) : (
+                                            <PlayCircle className="h-5 w-5" />
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {isBuffering ? 'Buffering...' : isPlaying ? 'Pause' : 'Play'}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={nextStation}
+                                        variant="outline"
+                                        size="icon"
+                                        disabled={!hasNext || isBuffering}
+                                        className="h-8 w-8 min-w-8"
+                                    >
+                                        <SkipForward className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Next Station</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
 
                     <div className="flex flex-col justify-center overflow-hidden">
                         <div className="flex items-center">
@@ -94,12 +230,20 @@ export function RadioPlayer() {
                             <span className="font-bold text-sm truncate">
                                 {currentStation?.name || 'Unknown Station'}
                             </span>
+                            {isBuffering && (
+                                <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded animate-pulse">
+                                    Buffering...
+                                </span>
+                            )}
                         </div>
+
                         <p className="text-xs text-muted-foreground truncate">
                             {metadata?.title ||
+                                metadata?.songTitle ||
+                                metadata?.artist ||
                                 (currentStation?.description
                                     ? `${currentStation.description.slice(0, 50)}...`
-                                    : 'Now Playing')}
+                                    : 'No metadata available')}
                         </p>
                     </div>
                 </div>
@@ -110,6 +254,8 @@ export function RadioPlayer() {
                             Error: {error}
                         </div>
                     )}
+
+                    {audioRef.current && <MusicRecognitionButton audioElement={audioRef.current} />}
 
                     <div className="relative">
                         <TooltipProvider>
@@ -158,15 +304,22 @@ export function RadioPlayer() {
                                         'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
                                         'transition-transform hover:translate-y-[-2px]',
                                     )}
+                                    onClick={() => setShowTechnicalInfo(!showTechnicalInfo)}
                                 >
                                     <Headphones className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Station Details</TooltipContent>
+                            <TooltipContent>Station Technical Info</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
             </div>
+
+            {showTechnicalInfo && metadata && (
+                <div className="mt-2 p-3 bg-gray-100 rounded-md border border-gray-300 text-xs animate-in slide-in-from-bottom-5">
+                    <StreamTechnicalInfo metadata={metadata} resolvedUrl={streamUrl} isLoading={isBuffering} />
+                </div>
+            )}
         </div>
     )
 }

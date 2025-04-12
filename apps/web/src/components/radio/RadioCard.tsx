@@ -12,7 +12,7 @@ import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
 
 // Icons
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 
 // Stores and utilities
 import { ndkActions, ndkStore } from '@/lib/store/ndk'
@@ -27,7 +27,7 @@ import { UserProfile } from '../UserProfile'
 import { ExpandButton } from './station-card/ExplandButton'
 import { PlayButton } from './station-card/PlayButton'
 import { StationHeader } from './station-card/StationHeader'
-import { StationImage } from './station-card/StationImage'
+import { StationImage } from './station-card/StationIMage'
 import { StationTags } from './station-card/StationTags'
 
 // Station main content component
@@ -284,22 +284,33 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
 
     // Play/Pause handler
     const handlePlay = () => {
-        if (!station.streams?.length) return
+        console.log('handlePlay', station.name, station.streams)
+        if (!station.streams?.length) {
+            console.log('No streams available for this station')
+            return
+        }
 
-        const selectedStream =
-            station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
-            station.streams.find((s) => s.primary) ||
-            station.streams[0]
+        try {
+            const selectedStream =
+                station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
+                station.streams.find((s) => s.primary) ||
+                station.streams[0]
 
-        if (selectedStream) {
-            setCurrentStation({
-                ...station,
-                streams: [selectedStream],
-            })
+            console.log('Selected stream:', selectedStream)
 
-            if (currentStation?.id !== station.id || !isPlaying) {
-                togglePlayback()
+            if (selectedStream) {
+                setCurrentStation({
+                    ...station,
+                    streams: [selectedStream],
+                })
+
+                if (currentStation?.id !== station.id || !isPlaying) {
+                    console.log('Toggling playback')
+                    togglePlayback()
+                }
             }
+        } catch (error) {
+            console.error('Error in handlePlay:', error)
         }
     }
 
@@ -341,18 +352,18 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
             style={{ backgroundColor: cardBackgroundColor }}
         >
             <PlayButton
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 z-30"
                 isCurrentlyPlaying={isCurrentlyPlaying}
                 handlePlay={handlePlay}
                 hasStreams={hasStreams}
                 isMobile={isMobile}
                 isFullWidth={isFullWidth}
             />
-            {/* {isExistsInNostr && (
-                <div className="absolute top-1 right-1 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
+            {isExistsInNostr && (
+                <div className="absolute bottom-2 left-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
                     <CheckCircle2 className="w-4 h-4" />
                 </div>
-            )} */}
+            )}
             <div ref={contentRef} className="flex flex-col h-full">
                 <div className="flex flex-row justify-between flex-grow">
                     {/* Station image */}
