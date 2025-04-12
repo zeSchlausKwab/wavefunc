@@ -568,7 +568,7 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         <Card
             ref={cardRef}
             className={cn(
-                'transition-all duration-300 shadow-lg overflow-hidden flex flex-col relative border-3 border-gray-800 p-2',
+                'transition-all duration-300 overflow-hidden flex flex-col relative p-2',
                 isFullWidth ? 'col-span-full w-full' : 'h-full h-[240px]',
             )}
         >
