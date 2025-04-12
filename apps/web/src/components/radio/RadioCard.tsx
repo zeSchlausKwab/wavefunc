@@ -18,7 +18,7 @@ import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { ndkActions, ndkStore } from '@/lib/store/ndk'
 import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
-import { cn } from '@/lib/utils'
+import { cn, getStationBackgroundColor } from '@/lib/utils'
 import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
@@ -200,6 +200,9 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
         easing: 'ease-in-out',
     })
 
+    // Generate background color based on station name
+    const cardBackgroundColor = useMemo(() => getStationBackgroundColor(station.name || '', 0.9), [station.name])
+
     // Check if station exists in Nostr
     useEffect(() => {
         if (!isConnected) return
@@ -333,8 +336,9 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
             ref={cardRef}
             className={cn(
                 'transition-all duration-300 overflow-hidden flex flex-col relative p-2',
-                isFullWidth ? 'col-span-full w-full' : 'h-full h-[240px]',
+                isFullWidth ? 'col-span-full w-full' : 'h-full h-[200px]',
             )}
+            style={{ backgroundColor: cardBackgroundColor }}
         >
             <PlayButton
                 className="absolute top-2 right-2"

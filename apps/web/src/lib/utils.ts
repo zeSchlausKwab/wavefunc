@@ -25,6 +25,32 @@ export function getHexColorFingerprintFromHexPubkey(pubkey: string): string {
 }
 
 /**
+ * Generates a consistent background color for a station based on its name
+ * Returns a lightened version of the color for better readability as a background
+ */
+export function getStationBackgroundColor(stationName: string, lightenFactor: number = 0.85): string {
+    if (!stationName) return '#f4f4f8'
+
+    // Generate a consistent base color using md5 hash
+    const hash = md5(stationName)
+    const baseColor = '#' + hash.substring(0, 6)
+
+    // Convert hex to RGB
+    const r = parseInt(baseColor.slice(1, 3), 16)
+    const g = parseInt(baseColor.slice(3, 5), 16)
+    const b = parseInt(baseColor.slice(5, 7), 16)
+
+    // Lighten the color by mixing with white based on the factor
+    // Higher factor means more white (lighter color)
+    const lr = Math.floor(r + (255 - r) * lightenFactor)
+    const lg = Math.floor(g + (255 - g) * lightenFactor)
+    const lb = Math.floor(b + (255 - b) * lightenFactor)
+
+    // Convert back to hex
+    return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`
+}
+
+/**
  * Generates a random secret token of specified length
  * @param length Length of the token to generate
  * @returns A random alphanumeric string
