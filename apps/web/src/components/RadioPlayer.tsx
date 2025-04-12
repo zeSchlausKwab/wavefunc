@@ -46,12 +46,18 @@ export function RadioPlayer() {
     const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
     const audioRef = useRef<HTMLAudioElement>(null)
     const [audioVolume, setAudioVolume] = useState(1)
+    const stationChangeRef = useRef(false)
 
     // Update stream URL when current station changes
     useEffect(() => {
         if (currentStation && currentStation.streams && currentStation.streams.length > 0) {
+            console.log('Station changed to:', currentStation.name)
             setStreamUrl(currentStation.streams[0].url)
             setError(undefined)
+            stationChangeRef.current = true
+
+            // Reset metadata when station changes
+            setMetadata(undefined)
         }
     }, [currentStation])
 
@@ -77,6 +83,7 @@ export function RadioPlayer() {
         const onPlaying = () => {
             console.log('Audio playing after buffering')
             setIsBuffering(false)
+            stationChangeRef.current = false
         }
 
         const onError = (e: ErrorEvent) => {
@@ -110,15 +117,21 @@ export function RadioPlayer() {
 
         // Play or pause based on isPlaying state
         if (isPlaying) {
-            const playPromise = audio.play()
-            if (playPromise !== undefined) {
-                playPromise.catch((error) => {
-                    console.error('Error playing audio:', error)
-                    setError('Playback error: ' + error.message)
-                })
+            // When URL changes, we need to load and play
+            if (audio.paused || stationChangeRef.current) {
+                console.log('Starting playback for', currentStation?.name)
+                const playPromise = audio.play()
+                if (playPromise !== undefined) {
+                    playPromise.catch((error) => {
+                        console.error('Error playing audio:', error)
+                        setError('Playback error: ' + error.message)
+                    })
+                }
             }
         } else {
-            audio.pause()
+            if (!audio.paused) {
+                audio.pause()
+            }
         }
 
         // Cleanup

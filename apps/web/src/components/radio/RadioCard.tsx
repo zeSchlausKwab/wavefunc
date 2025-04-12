@@ -16,7 +16,7 @@ import { CheckCircle2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 
 // Stores and utilities
 import { ndkActions, ndkStore } from '@/lib/store/ndk'
-import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
+import { playStation, stationsStore, togglePlayback } from '@/lib/store/stations'
 import { openEditStationDrawer } from '@/lib/store/ui'
 import { cn, getStationBackgroundColor } from '@/lib/utils'
 import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
@@ -299,14 +299,17 @@ export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
             console.log('Selected stream:', selectedStream)
 
             if (selectedStream) {
-                setCurrentStation({
-                    ...station,
-                    streams: [selectedStream],
-                })
-
-                if (currentStation?.id !== station.id || !isPlaying) {
-                    console.log('Toggling playback')
+                // If this is the current station, just toggle playback
+                if (currentStation?.id === station.id) {
+                    console.log('Toggling playback for current station')
                     togglePlayback()
+                } else {
+                    // If this is a new station, set it as current and ensure playback starts
+                    console.log('Playing new station')
+                    playStation({
+                        ...station,
+                        streams: [selectedStream],
+                    })
                 }
             }
         } catch (error) {

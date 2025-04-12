@@ -42,6 +42,22 @@ export const setCurrentStation = (station: Station | null) => {
     })
 }
 
+/**
+ * Sets the current station and ensures playback is started
+ */
+export const playStation = (station: Station) => {
+    console.log('Playing station:', station.name)
+    stationsStore.setState((state: StationsState) => {
+        const currentIndex = station ? state.stations.findIndex((s: Station) => s.id === station.id) : -1
+        return {
+            ...state,
+            currentStation: station,
+            currentIndex,
+            isPlaying: true, // Always set to playing
+        }
+    })
+}
+
 export const togglePlayback = () => {
     stationsStore.setState((state: StationsState) => ({ ...state, isPlaying: !state.isPlaying }))
 }
