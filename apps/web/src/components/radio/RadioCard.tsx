@@ -27,7 +27,7 @@ import { UserProfile } from '../UserProfile'
 import { ExpandButton } from './station-card/ExplandButton'
 import { PlayButton } from './station-card/PlayButton'
 import { StationHeader } from './station-card/StationHeader'
-import { StationImage } from './station-card/StationIMage'
+import { StationImage } from './station-card/StationImage'
 import { StationTags } from './station-card/StationTags'
 
 // Station main content component
