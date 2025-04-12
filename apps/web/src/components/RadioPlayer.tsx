@@ -255,7 +255,7 @@ export function RadioPlayer() {
                         </div>
                     )}
 
-                    {audioRef.current && <MusicRecognitionButton audioElement={audioRef.current} />}
+                    {/* {audioRef.current && <MusicRecognitionButton audioElement={audioRef.current} />} */}
 
                     <div className="relative">
                         <TooltipProvider>
