@@ -35,7 +35,7 @@ export const Route = createRootRoute({
                     <Header />
                 </div>
 
-                <main className="mx-auto w-full max-w-full pb-40 px-12">
+                <main className="mx-auto w-full max-w-full pb-40 px-2 lg:px-12">
                     <Outlet />
                 </main>
                 <LoginDialog />

@@ -279,7 +279,7 @@ function Discover() {
     }, [stations, selectedGenre])
 
     return (
-        <div className="w-full flex flex-col gap-12 my-6 max-w-full">
+        <div className="w-full flex flex-col gap-6 my-6 max-w-full">
             <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover</h1>
 
             <GenreSelector

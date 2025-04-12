@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider'
 export function RadioPlayer() {
     // Use the stationsStore directly
     const { isPlaying, currentStation } = useStore(stationsStore)
-    
+
     // Local state for radio player features
     const [metadata, setMetadata] = useState<StreamMetadata | undefined>()
     const [streamUrl, setStreamUrl] = useState<string | undefined>(currentStation?.streams?.[0]?.url)
@@ -30,9 +30,9 @@ export function RadioPlayer() {
     // Update stream URL when current station changes
     useEffect(() => {
         if (currentStation && currentStation.streams && currentStation.streams.length > 0) {
-            setStreamUrl(currentStation.streams[0].url);
+            setStreamUrl(currentStation.streams[0].url)
         }
-    }, [currentStation]);
+    }, [currentStation])
 
     const handleVolumeChange = (value: number[]) => {
         const newVolume = value[0]
@@ -53,13 +53,7 @@ export function RadioPlayer() {
     const VolumeIcon = getVolumeIcon()
 
     return (
-        <div
-            className={cn(
-                'fixed bottom-0 left-0 right-0 bg-background px-4 py-3 z-30',
-                'border-t-4 border-black',
-                'shadow-[0px_-4px_0px_0px_rgba(0,0,0,0.2)]',
-            )}
-        >
+        <div className={cn('fixed bottom-0 left-0 right-0 bg-background px-4 py-3 z-30', 'border-t-4 border-black')}>
             <div className="max-w-7xl mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-4">
                 <audio ref={audioRef} src={streamUrl} autoPlay={isPlaying} className="hidden" />
 

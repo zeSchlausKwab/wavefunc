@@ -132,7 +132,7 @@ function Index() {
     }).length
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="container mx-auto py-8 max-w-7xl">
             <div className="space-y-6">
                 <Card className="border-none shadow-md bg-gradient-to-r from-background to-muted/30">
                     <CardHeader className="pb-2">
@@ -286,7 +286,7 @@ function Index() {
                 </Card>
 
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'top' | 'search')}>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col lg:flex-row items-center justify-between mb-4">
                         <TabsList>
                             <TabsTrigger value="top" onClick={resetSearch}>
                                 <Headphones className="w-4 h-4 mr-2" />

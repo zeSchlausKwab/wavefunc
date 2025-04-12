@@ -35,33 +35,32 @@ export function Header() {
     }
 
     return (
-        <header 
-            className={cn(
-                'py-4 px-6 border-b-4 border-black bg-background relative z-40',
-                'shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
-            )}
-        >
+        <header className={cn('py-4 px-6 border-b-4 border-black bg-background relative z-40')}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-8">
-                    <Link 
-                        to="/" 
+                    <Link
+                        to="/"
                         className="font-heading text-2xl flex items-center gap-2 hover:text-green-500 transition-colors"
                     >
                         <Radio className="h-6 w-6" />
-                        <span className="font-bold tracking-tight">WaveFunc</span>
+                        {!isMobile ? (
+                            <span className="font-bold tracking-tight">WaveF(u)nc</span>
+                        ) : (
+                            <span className="font-bold tracking-tight">Wf()</span>
+                        )}
                     </Link>
 
                     <div className="hidden sm:flex">
                         <Nav />
                     </div>
 
-                    <Button 
-                        variant="outline" 
-                        size="icon" 
+                    <Button
+                        variant="outline"
+                        size="icon"
                         className={cn(
-                            "sm:hidden border-2 border-black",
-                            "hover:bg-green-500 hover:text-white transition-colors",
-                            "shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            'sm:hidden border-2 border-black',
+                            'hover:bg-green-500 hover:text-white transition-colors',
+                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
                         )}
                         onClick={() => setIsNavOpen(!isNavOpen)}
                     >
@@ -94,8 +93,8 @@ export function Header() {
                                         variant="outline"
                                         size="icon"
                                         className={cn(
-                                            "h-9 w-9 border-2 border-amber-500 bg-amber-100",
-                                            "shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                                            'h-9 w-9 border-2 border-amber-500 bg-amber-100',
+                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
                                         )}
                                     >
                                         <IconWrapper icon={AlertTriangle} className="h-4 w-4 text-amber-500" />
@@ -113,9 +112,9 @@ export function Header() {
                             variant="default"
                             size="icon"
                             className={cn(
-                                "bg-green-500 hover:bg-green-600 text-white h-9 w-9",
-                                "border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
-                                "transition-transform hover:translate-y-[-2px]"
+                                'bg-green-500 hover:bg-green-600 text-white h-9 w-9',
+                                'border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                'transition-transform hover:translate-y-[-2px]',
                             )}
                             onClick={handleCreateStation}
                         >
@@ -123,23 +122,23 @@ export function Header() {
                         </Button>
                     )}
 
-                    <AuthButton 
-                        variant="secondary" 
-                        compact={isMobile} 
+                    <AuthButton
+                        variant="secondary"
+                        compact={isMobile}
                         className={cn(
-                            "border-2 border-black",
-                            "shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
-                            "transition-transform hover:translate-y-[-2px]"
+                            'border-2 border-black',
+                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                            'transition-transform hover:translate-y-[-2px]',
                         )}
                     />
                 </div>
             </div>
 
             {isMobile && isNavOpen && (
-                <div 
+                <div
                     className={cn(
-                        "sm:hidden mt-4 border-t-2 border-black pt-4",
-                        "animate-in slide-in-from-top duration-300"
+                        'sm:hidden mt-4 border-t-2 border-black pt-4',
+                        'animate-in slide-in-from-top duration-300',
                     )}
                 >
                     <Nav onNavigate={() => setIsNavOpen(false)} />

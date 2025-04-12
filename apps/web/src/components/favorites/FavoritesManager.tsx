@@ -266,7 +266,7 @@ export function FavoritesManager() {
             </div>
 
             {isLoading ? (
-                <div className="text-center py-8">Loading favorites lists...</div>
+                <div className="text-center">Loading favorites lists...</div>
             ) : favoritesLists.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-10 text-center">
@@ -299,8 +299,8 @@ export function FavoritesManager() {
                                     </Button>
                                 </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-12">
+                            <CardContent className="p-2">
+                                <div className="flex flex-col gap-4">
                                     {list.favorites && list.favorites.length > 0 ? (
                                         list.favorites.map((favorite) => {
                                             // Skip invalid favorites
