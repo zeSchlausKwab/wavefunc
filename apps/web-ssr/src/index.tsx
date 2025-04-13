@@ -5,9 +5,16 @@ import index from './index.html'
 
 import.meta.hot.accept()
 
-config()
+config({
+    path: join(process.cwd(), '../../.env'),
+    override: true,
+})
 
 const VITE_PUBLIC_API_PORT = process.env.VITE_PUBLIC_API_PORT
+const VITE_PUBLIC_APP_ENV = process.env.VITE_PUBLIC_APP_ENV
+const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
+const VITE_PUBLIC_RELAY_PORT = process.env.VITE_PUBLIC_RELAY_PORT
+const VITE_PUBLIC_WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT
 
 // Handle static files from the public directory
 const serveStatic = async (path: string) => {
@@ -48,3 +55,4 @@ export const server = serve({
 })
 
 console.log(`🚀 Server running at ${server.url}`)
+console.log(`Environment: ${VITE_PUBLIC_APP_ENV || 'development'}`)

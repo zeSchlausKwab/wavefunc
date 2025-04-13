@@ -21,22 +21,19 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 
     // Handle browser environment (Vite uses import.meta.env)
     if (isBrowser) {
-        // For browser, try to get from import.meta.env
-        // Note: Vite prefixes env vars with VITE_
-        const viteKey = key.startsWith('VITE_') ? key : `VITE_${key}`
-
-        // @ts-ignore - import.meta.env exists in Vite but TypeScript doesn't know about it
-        value = import.meta.env[viteKey] || import.meta.env[key]
-
-        // For PUBLIC_ variables, also check without the prefix
-        if (!value && key.startsWith('PUBLIC_')) {
-            const unprefixedKey = key.replace('PUBLIC_', '')
-            // @ts-ignore
-            value = import.meta.env[`VITE_${unprefixedKey}`] || import.meta.env[unprefixedKey]
-        }
+        // // For browser, try to get from import.meta.env
+        // // Note: Vite prefixes env vars with VITE_
+        // const viteKey = key.startsWith('VITE_') ? key : `VITE_${key}`
+        // // @ts-ignore - import.meta.env exists in Vite but TypeScript doesn't know about it
+        // value = import.meta.env[viteKey] || import.meta.env[key]
+        // // For PUBLIC_ variables, also check without the prefix
+        // if (!value && key.startsWith('PUBLIC_')) {
+        //     const unprefixedKey = key.replace('PUBLIC_', '')
+        //     // @ts-ignore
+        //     value = import.meta.env[`VITE_${unprefixedKey}`] || import.meta.env[unprefixedKey]
+        // }
     } else {
         // Node.js environment
-        value = process.env[key] || (typeof Bun !== 'undefined' ? Bun.env[key] : undefined)
     }
 
     // Use default value if provided and value is undefined

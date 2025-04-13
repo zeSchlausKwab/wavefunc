@@ -5,77 +5,49 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-	'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border-2 border-black box hover:translated',
-	{
-		variants: {
-			variant: {
-				primary:
-					'bg-primary text-primary-foreground border-primary-border hover:bg-transparent hover:text-primary-foreground-hover hover:border-primary-border-hover active:ho',
-				secondary:
-					'bg-secondary text-secondary-foreground border-secondary-border hover:bg-transparent hover:text-secondary-foreground-hover hover:border-secondary-border-hover',
-				tertiary:
-					'bg-tertiary text-tertiary-foreground border-tertiary-border hover:bg-tertiary-hover hover:text-tertiary-foreground-hover hover:border-tertiary-border-hover',
-				focus:
-					'bg-focus text-focus-foreground border-focus-border hover:bg-transparent hover:text-focus-foreground-hover hover:border-focus-border-hover',
-				destructive: 'bg-destructive text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground',
-
-				outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-				ghost: 'hover:border-primary-border border-none',
-				link: 'text-secondary border-none underline-offset-4 hover:underline',
-				none: 'border-0 p-0 text-base justify-start',
-			},
-			size: {
-				default: 'h-10 px-4 py-2',
-				sm: 'h-9 px-3',
-				lg: 'h-11  px-8',
-				icon: 'h-10 aspect-square',
-				none: 'h-6 w-fit',
-			},
-		},
-		defaultVariants: {
-			variant: 'primary',
-			size: 'default',
-		},
-	},
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+    {
+        variants: {
+            variant: {
+                default:
+                    'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                destructive:
+                    'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                outline:
+                    'border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                secondary:
+                    'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] 9 border-2 border-black',
+                ghost: 'hover:bg-accent hover:text-accent-foreground',
+                link: 'text-primary underline-offset-4 hover:underline',
+                neobrutalism: 'bg-orange-400 text-black shadow-xs hover:bg-orange-400/90 border-2 border-black',
+            },
+            size: {
+                default: 'h-9 px-4 py-2 has-[>svg]:px-3',
+                sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
+                lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
+                icon: 'size-9',
+            },
+        },
+        defaultVariants: {
+            variant: 'default',
+            size: 'default',
+        },
+    },
 )
 
-type IconPosition = 'left' | 'right'
-
 function Button({
-	className,
-	variant,
-	size,
-	asChild = false,
-	icon,
-	iconPosition = 'left',
-	children,
-	...props
+    className,
+    variant,
+    size,
+    asChild = false,
+    ...props
 }: React.ComponentProps<'button'> &
-	VariantProps<typeof buttonVariants> & {
-		asChild?: boolean
-		icon?: React.ReactNode
-		iconPosition?: IconPosition
-	}) {
-	const Comp = asChild ? Slot : 'button'
+    VariantProps<typeof buttonVariants> & {
+        asChild?: boolean
+    }) {
+    const Comp = asChild ? Slot : 'button'
 
-	const hasIcon = !!icon
-	const buttonClasses = cn(buttonVariants({ variant, size, className }), hasIcon && 'inline-flex items-center gap-2')
-
-	return (
-		<Comp data-slot="button" className={buttonClasses} {...props}>
-			{hasIcon && iconPosition === 'right' ? (
-				<>
-					{children}
-					{icon}
-				</>
-			) : (
-				<>
-					{hasIcon && icon}
-					{children}
-				</>
-			)}
-		</Comp>
-	)
+    return <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />
 }
 
 export { Button, buttonVariants }

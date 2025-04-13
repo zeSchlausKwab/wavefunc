@@ -1,11 +1,41 @@
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { DEFAULT_RELAYS } from '@wavefunc/common'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../styles/index.css'
 import { createQueryClient } from './lib/queryClient'
-import { routeTree } from './routeTree.gen'
 import type { AppRouterContext } from './lib/router-utils'
+import { authActions } from './lib/store/auth'
+import { ndkActions } from './lib/store/ndk'
+import { walletActions } from './lib/store/wallet'
+import { routeTree } from './routeTree.gen'
+import { config } from 'dotenv'
+import { join } from 'path'
+
+config()
+
+const connectToRelay = async () => {
+    const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
+    const wsProtocol = process.env.DEV ? 'ws' : 'wss'
+    const relayPrefix = process.env.DEV ? '' : 'relay.'
+    const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+    const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
+
+    console.log(`Adding relay from config: ${relay}`)
+    const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
+    // ndkActions.initialize([relay])
+    await ndkActions.connect()
+
+    // Try to reconnect wallet if it exists
+    await walletActions.reconnectFromStorage(ndk).catch((err) => {
+        console.error('Failed to reconnect wallet', err)
+    })
+
+    authActions.getAuthFromLocalStorageAndLogin()
+}
+
+connectToRelay().catch(console.error)
 
 function createAppRouter(queryClient: QueryClient) {
     return createRouter({
