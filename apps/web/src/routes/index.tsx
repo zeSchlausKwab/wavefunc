@@ -132,7 +132,7 @@ function Index() {
     }).length
 
     return (
-        <div className="container mx-auto py-8 max-w-7xl">
+        <div className="container mx-auto py-8">
             <div className="space-y-6">
                 <Card className="border-none shadow-md bg-gradient-to-r from-background to-muted/30">
                     <CardHeader className="pb-2">
