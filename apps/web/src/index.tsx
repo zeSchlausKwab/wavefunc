@@ -10,11 +10,11 @@ config({
     override: true,
 })
 
-const VITE_PUBLIC_API_PORT = process.env.VITE_PUBLIC_API_PORT
+// const VITE_PUBLIC_API_PORT = process.env.VITE_PUBLIC_API_PORT
 const VITE_PUBLIC_APP_ENV = process.env.VITE_PUBLIC_APP_ENV
-const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
-const VITE_PUBLIC_RELAY_PORT = process.env.VITE_PUBLIC_RELAY_PORT
-const VITE_PUBLIC_WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT
+// const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
+// const VITE_PUBLIC_RELAY_PORT = process.env.VITE_PUBLIC_RELAY_PORT
+// const VITE_PUBLIC_WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT
 
 // Handle static files from the public directory
 const serveStatic = async (path: string) => {
@@ -50,6 +50,10 @@ export const server = serve({
     routes: {
         '/*': index,
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
+        '/envConfig': () =>
+            new Response(JSON.stringify(process.env), {
+                headers: { 'Content-Type': 'application/javascript' },
+            }),
     },
     development: process.env.NODE_ENV !== 'production',
 })

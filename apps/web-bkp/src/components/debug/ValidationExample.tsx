@@ -20,7 +20,7 @@ export function ValidationExample() {
         }
 
         const response = await fetch(
-            `http://${process.env.VITE_PUBLIC_HOST}:${process.env.VITE_PUBLIC_API_PORT}/api/validate`,
+            `http://${import.meta.env.VITE_PUBLIC_HOST}:${import.meta.env.VITE_PUBLIC_API_PORT}/api/validate`,
             {
                 method: 'POST',
                 headers: {

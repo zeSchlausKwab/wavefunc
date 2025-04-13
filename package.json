@@ -12,7 +12,6 @@
         "dev": "bun run dev:web & bun run dev:backend & bun run dev:relay",
         "dev:clean": "./scripts/dev.sh",
         "dev:web": "bun run --cwd apps/web dev",
-        "dev:web-ssr": "bun run --cwd apps/web-ssr dev",
         "dev:backend": "bun run --cwd apps/backend dev",
         "dev:relay": "bun run --cwd infra/relay dev",
         "dev:dvm": "bun run --cwd infra/dvm dev",

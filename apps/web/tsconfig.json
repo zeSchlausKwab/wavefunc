@@ -1,17 +1,18 @@
 {
-    "extends": "../../tsconfig.json",
-    "compilerOptions": {
-        "noEmit": true,
-        "jsx": "react-jsx",
-        "baseUrl": ".",
-        "paths": {
-            "@/*": ["./src/*"],
-            "react": ["./node_modules/@types/react"],
-            "@wavefunc/ui/*": ["../../packages/ui/src/*"],
-            "@wavefunc/common/*": ["../../packages/common/src/*"],
-            "@wavefunc/backend/*": ["../../apps/backend/src/*"]
-        }
-    },
-    "include": ["src/**/*", "../backend/src/**/*"],
-    "exclude": ["node_modules"]
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"allowJs": true,
+		"strict": true,
+		"strictNullChecks": true,
+		"moduleResolution": "bundler",
+		"module": "preserve",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["**/*.ts", "**/*.tsx", "scripts/**/*.ts"]
 }

@@ -104,10 +104,10 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const connectionUrl = useMemo(() => {
         if (!localPubkey) return null
 
-        const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
-        const wsProtocol = process.env.DEV ? 'ws' : 'wss'
-        const relayPrefix = process.env.DEV ? '' : 'relay.'
-        const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+        const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
+        const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
+        const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
+        const PORT_OR_DEFAULT = import.meta.env.DEV ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
         const host = location.protocol + '//' + localMachineIp
         const secret = Math.random().toString(36).substring(2, 15)
@@ -132,10 +132,10 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
 
     const constructBunkerUrl = (event: NDKEvent) => {
         const baseUrl = `bunker://${event.pubkey}?`
-        const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
-        const wsProtocol = process.env.DEV ? 'ws' : 'wss'
-        const relayPrefix = process.env.DEV ? '' : 'relay.'
-        const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+        const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
+        const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
+        const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
+        const PORT_OR_DEFAULT = import.meta.env.DEV ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
         const params = new URLSearchParams()

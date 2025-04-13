@@ -1,21 +1,11 @@
 {
-    "name": "@wavefunc/web-ssr",
+    "name": "@wavefunc/web",
     "version": "0.1.0",
-    "private": true,
     "type": "module",
-    "main": "src/index.tsx",
-    "module": "src/index.tsx",
     "scripts": {
-        "generate-routes": "tsr generate",
-        "watch-routes": "tsr watch",
-        "dev": "bun --hot src/index.tsx --host 0.0.0.0",
-        "start": "NODE_ENV=production bun run generate-routes && bun src/index.tsx",
-        "build": "bun run generate-routes && bun run build.ts",
-        "format": "prettier --write .",
-        "format:check": "prettier --check .",
-        "seed": "bun run scripts/seed.ts",
-        "startup": "bun run scripts/startup.ts",
-        "build-icons": "bun run scripts/build-icons.ts"
+        "dev": "bunx --bun vite --host 0.0.0.0",
+        "preview": "bunx --bun vite preview",
+        "test:env": "bun run src/env-test.ts"
     },
     "dependencies": {
         "@dvmcp/bridge": "^0.1.11",
@@ -71,15 +61,10 @@
         "zod": "^3.24.2"
     },
     "devDependencies": {
-        "@tanstack/react-router-devtools": "^1.114.27",
-        "@tanstack/router-cli": "^1.114.27",
         "@tanstack/router-plugin": "^1.114.27",
-        "@types/bun": "^1.2.6",
-        "@types/react": "^19.0.12",
-        "@types/react-dom": "^19.0.4",
-        "mini-svg-data-uri": "^1.4.4",
-        "svgo": "^3.3.2",
         "@types/qrcode": "^1.5.5",
+        "@types/react": "19.0.12",
+        "@types/react-dom": "19.0.4",
         "@types/react-router-dom": "5.3.3",
         "@vitejs/plugin-react": "4.3.4",
         "prettier": "3.5.3",

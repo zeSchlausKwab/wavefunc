@@ -10,16 +10,14 @@ import { authActions } from './lib/store/auth'
 import { ndkActions } from './lib/store/ndk'
 import { walletActions } from './lib/store/wallet'
 import { routeTree } from './routeTree.gen'
-import { config } from 'dotenv'
-import { join } from 'path'
 
-config()
+const loadEnvAndNdk = async () => {
+    const env = await fetch('/envConfig').then((res) => res.json())
 
-const connectToRelay = async () => {
-    const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
-    const wsProtocol = process.env.DEV ? 'ws' : 'wss'
-    const relayPrefix = process.env.DEV ? '' : 'relay.'
-    const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+    const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+    const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
+    const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
+    const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     console.log(`Adding relay from config: ${relay}`)
@@ -35,7 +33,7 @@ const connectToRelay = async () => {
     authActions.getAuthFromLocalStorageAndLogin()
 }
 
-connectToRelay().catch(console.error)
+// initialize().catch(console.error)
 
 function createAppRouter(queryClient: QueryClient) {
     return createRouter({
@@ -56,6 +54,8 @@ function App() {
 
     useEffect(() => {
         const initialize = async () => {
+            console.log('Initializing application...')
+            loadEnvAndNdk().catch(console.error)
             try {
                 setIsLoading(true)
 

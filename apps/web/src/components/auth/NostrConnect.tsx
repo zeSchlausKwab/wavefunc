@@ -57,10 +57,10 @@ export function NostrConnect({ onSuccess, onError, onCancel }: NostrConnectProps
                 icons: [],
             }
 
-            const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
-            const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
-            const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
-            const portOrDefault = import.meta.env.DEV ? ':3002' : ''
+            const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
+            const wsProtocol = process.env.DEV ? 'ws' : 'wss'
+            const relayPrefix = process.env.DEV ? '' : 'relay.'
+            const portOrDefault = process.env.DEV ? ':3002' : ''
             const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${portOrDefault}`
 
             const params = new URLSearchParams()
@@ -175,10 +175,10 @@ export function NostrConnect({ onSuccess, onError, onCancel }: NostrConnectProps
 
         const baseUrl = `bunker://${signerPubkey}?`
 
-        const localMachineIp = import.meta.env.VITE_PUBLIC_HOST || window.location.hostname
-        const wsProtocol = import.meta.env.DEV ? 'ws' : 'wss'
-        const relayPrefix = import.meta.env.DEV ? '' : 'relay.'
-        const portOrDefault = import.meta.env.DEV ? ':3002' : ''
+        const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
+        const wsProtocol = process.env.DEV ? 'ws' : 'wss'
+        const relayPrefix = process.env.DEV ? '' : 'relay.'
+        const portOrDefault = process.env.DEV ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${portOrDefault}`
 
         const params = new URLSearchParams()
