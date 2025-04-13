@@ -103,6 +103,25 @@
         "vite": "6.2.2",
       },
     },
+    "apps/web-ssr": {
+      "name": "@wavefunc/web-ssr",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tanstack/react-query": "^5.69.0",
+        "@tanstack/react-router": "^1.114.27",
+        "@wavefunc/common": "workspace:*",
+        "react": "19.0.0",
+        "react-dom": "19.0.0",
+      },
+      "devDependencies": {
+        "@tanstack/router-plugin": "^1.114.27",
+        "@types/react": "19.0.12",
+        "@types/react-dom": "19.0.4",
+        "bun-types": "^1.0.33",
+        "tailwindcss": "^4.0.15",
+        "typescript": "5.8.2",
+      },
+    },
     "infra/dvm": {
       "name": "@wavefunc/dvm",
       "version": "0.1.0",
@@ -645,6 +664,8 @@
     "@wavefunc/relay": ["@wavefunc/relay@workspace:infra/relay"],
 
     "@wavefunc/web": ["@wavefunc/web@workspace:apps/web"],
+
+    "@wavefunc/web-ssr": ["@wavefunc/web-ssr@workspace:apps/web-ssr"],
 
     "@web3-storage/multipart-parser": ["@web3-storage/multipart-parser@1.0.0", "", {}, "sha512-BEO6al7BYqcnfX15W2cnGR+Q566ACXAT9UQykORCWW80lmkpWsnEob6zJS1ZVBKsSJC8+7vJkHwlp+lXG1UCdw=="],
 

@@ -8,6 +8,7 @@ data
 out
 dist
 *.tgz
+**/public/build
 
 # code coverage
 coverage

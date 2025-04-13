@@ -1,0 +1,25 @@
+{
+  "name": "@wavefunc/web-ssr",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/server.tsx",
+    "build": "bun run src/build.ts",
+    "start": "bun run src/server.tsx"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.69.0",
+    "@tanstack/react-router": "^1.114.27",
+    "@wavefunc/common": "workspace:*",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "^1.114.27",
+    "@types/react": "19.0.12",
+    "@types/react-dom": "19.0.4",
+    "bun-types": "^1.0.33",
+    "tailwindcss": "^4.0.15",
+    "typescript": "5.8.2"
+  }
+} 
