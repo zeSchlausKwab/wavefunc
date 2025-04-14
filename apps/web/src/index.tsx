@@ -3,7 +3,7 @@ import { config } from 'dotenv'
 import { join } from 'path'
 import index from './index.html'
 
-import.meta.hot.accept()
+// import.meta.hot.accept()
 
 config({
     path: join(process.cwd(), '../../.env'),
