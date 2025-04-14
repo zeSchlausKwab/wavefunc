@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { build } from 'bun'
-import plugin from 'bun-plugin-tailwind'
+// import plugin from 'bun-plugin-tailwind'
 import { existsSync } from 'fs'
 import { rm } from 'fs/promises'
 import path from 'path'
@@ -22,7 +22,7 @@ async function main() {
 	const result = await build({
 		entrypoints: ['./src/index.tsx'],
 		outdir,
-		plugins: [plugin],
+		// plugins: [plugin],
 		minify: true,
 		target: 'bun',
 		sourcemap: 'linked',
