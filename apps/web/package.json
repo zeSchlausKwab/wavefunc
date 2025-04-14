@@ -13,10 +13,7 @@
         "build": "NODE_ENV=production bun run generate-routes && bun run build.ts",
         "preview": "NODE_ENV=production bun run dist/index.js",
         "format": "prettier --write .",
-        "format:check": "prettier --check .",
-        "seed": "bun run scripts/seed.ts",
-        "startup": "bun run scripts/startup.ts",
-        "build-icons": "bun run scripts/build-icons.ts"
+        "format:check": "prettier --check ."
     },
     "dependencies": {
         "@dvmcp/bridge": "^0.1.26",
