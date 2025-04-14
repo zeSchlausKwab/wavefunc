@@ -12,6 +12,7 @@ config({
 
 const VITE_PUBLIC_APP_ENV = process.env.VITE_PUBLIC_APP_ENV
 const VITE_PUBLIC_WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT
+const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
 
 // Handle static files from the public directory
 const serveStatic = async (path: string) => {
@@ -53,6 +54,7 @@ export const server = Bun.serve({
             }),
     },
     development: process.env.NODE_ENV !== 'production',
+    hostname: VITE_PUBLIC_HOST,
     port: VITE_PUBLIC_WEB_PORT ? parseInt(VITE_PUBLIC_WEB_PORT) : 8080,
 })
 
