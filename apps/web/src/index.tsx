@@ -25,14 +25,14 @@ const serveStatic = async (path: string) => {
         const contentType = path.endsWith('.svg')
             ? 'image/svg+xml'
             : path.endsWith('.png')
-                ? 'image/png'
-                : path.endsWith('.jpg') || path.endsWith('.jpeg')
-                    ? 'image/jpeg'
-                    : path.endsWith('.css')
-                        ? 'text/css'
-                        : path.endsWith('.js')
-                            ? 'application/javascript'
-                            : 'application/octet-stream'
+              ? 'image/png'
+              : path.endsWith('.jpg') || path.endsWith('.jpeg')
+                ? 'image/jpeg'
+                : path.endsWith('.css')
+                  ? 'text/css'
+                  : path.endsWith('.js')
+                    ? 'application/javascript'
+                    : 'application/octet-stream'
 
         return new Response(f, {
             headers: { 'Content-Type': contentType },
@@ -43,7 +43,7 @@ const serveStatic = async (path: string) => {
     }
 }
 
-export const server = Bun.serve({
+export const server = serve({
     routes: {
         '/*': index,
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
@@ -55,6 +55,10 @@ export const server = Bun.serve({
     development: process.env.NODE_ENV !== 'production',
     hostname: VITE_PUBLIC_HOST,
     port: VITE_PUBLIC_WEB_PORT ? parseInt(VITE_PUBLIC_WEB_PORT) : 8080,
+    // satisfy the bun serve type
+    fetch(request, server) {
+        return server.fetch(request)
+    },
 })
 
 console.log(`🚀 Server running at ${server.url}`)
