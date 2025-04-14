@@ -56,8 +56,8 @@ export const server = serve({
     hostname: VITE_PUBLIC_HOST,
     port: VITE_PUBLIC_WEB_PORT ? parseInt(VITE_PUBLIC_WEB_PORT) : 8080,
     // satisfy the bun serve type
-    fetch(request, server) {
-        return server.fetch(request)
+    async fetch(request, server) {
+        return new Response('Not Found', { status: 404 })
     },
 })
 
