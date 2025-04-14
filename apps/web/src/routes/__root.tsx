@@ -5,10 +5,11 @@ import { RadioPlayer } from '@/components/RadioPlayer'
 import { CheckerPattern } from '@/components/ui/CheckerPattern'
 import { Toaster } from '@/components/ui/sonner'
 import { uiStore } from '@/lib/store/ui'
-import { createRootRoute, HeadContent, Outlet } from '@tanstack/react-router'
+import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common/types/station'
+import type { AppRouterContext } from '@/lib/router-utils'
 
 function Providers({ children }: { children: React.ReactNode }) {
     const drawer = useStore(uiStore, (state) => state.stationDrawer)
@@ -24,7 +25,7 @@ function Providers({ children }: { children: React.ReactNode }) {
     )
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<AppRouterContext>()({
     component: () => (
         <Providers>
             <div className="relative min-h-screen flex flex-col bg-zinc-100">
@@ -42,7 +43,7 @@ export const Route = createRootRoute({
                 <RadioPlayer />
             </div>
 
-            {process.env.NODE_ENV === 'development' && <TanStackRouterDevtools />}
+            {/* {process.env.NODE_ENV === 'development' && <TanStackRouterDevtools />} */}
         </Providers>
     ),
 })

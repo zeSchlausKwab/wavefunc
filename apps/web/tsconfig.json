@@ -11,7 +11,8 @@
 		"noEmit": true,
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*"],
+			"@wavefunc/common/*": ["../common/src/*"]
 		}
 	},
 	"include": ["**/*.ts", "**/*.tsx", "scripts/**/*.ts"]

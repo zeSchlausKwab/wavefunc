@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { authActions, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@/lib/store/auth'
+import { useEnv } from '@/lib/store/env'
 import { ndkActions } from '@/lib/store/ndk'
 import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { CopyIcon, Loader2 } from 'lucide-react'
@@ -16,6 +17,7 @@ interface NostrConnectQRProps {
 let globalLoginInProgress = false
 
 export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
+    const { env, initialize } = useEnv()
     const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null)
     const [localPubkey, setLocalPubkey] = useState<string | null>(null)
     const [tempSecret, setTempSecret] = useState<string | null>(null)
@@ -28,6 +30,16 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const activeSubscriptionRef = useRef<any>(null)
     const isMountedRef = useRef(true)
     const hasTriggeredSuccessRef = useRef(false)
+
+    // Initialize env store if needed
+    useEffect(() => {
+        if (!env) {
+            initialize().catch((err) => {
+                console.error('Failed to initialize env:', err)
+                if (onError) onError('Failed to initialize environment')
+            })
+        }
+    }, [env, initialize, onError])
 
     // Ensure we clean up any previous login attempts on mount
     useEffect(() => {
@@ -102,12 +114,12 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     }, [])
 
     const connectionUrl = useMemo(() => {
-        if (!localPubkey) return null
+        if (!localPubkey || !env) return null
 
-        const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
-        const wsProtocol = process.env.DEV ? 'ws' : 'wss'
-        const relayPrefix = process.env.DEV ? '' : 'relay.'
-        const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+        const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+        const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
+        const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
+        const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
         const host = location.protocol + '//' + localMachineIp
         const secret = Math.random().toString(36).substring(2, 15)
@@ -128,14 +140,16 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         params.set('token', secret)
 
         return `nostrconnect://${localPubkey}?` + params.toString()
-    }, [localPubkey])
+    }, [localPubkey, env])
 
     const constructBunkerUrl = (event: NDKEvent) => {
+        if (!env) return null
+
         const baseUrl = `bunker://${event.pubkey}?`
-        const localMachineIp = process.env.VITE_PUBLIC_HOST || window.location.hostname
-        const wsProtocol = process.env.DEV ? 'ws' : 'wss'
-        const relayPrefix = process.env.DEV ? '' : 'relay.'
-        const PORT_OR_DEFAULT = process.env.DEV ? ':3002' : ''
+        const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+        const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
+        const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
+        const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
         const params = new URLSearchParams()
@@ -169,9 +183,10 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             globalLoginInProgress ||
             isLoggingInRef.current ||
             !isMountedRef.current ||
-            hasTriggeredSuccessRef.current
+            hasTriggeredSuccessRef.current ||
+            !env
         ) {
-            console.log('Login already in progress or component unmounted, skipping duplicate login attempt')
+            console.log('Login already in progress, component unmounted, or env not available')
             return
         }
 
@@ -181,6 +196,9 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             cleanup()
 
             const bunkerUrl = constructBunkerUrl(event)
+            if (!bunkerUrl) {
+                throw new Error('Failed to construct bunker URL')
+            }
             if (!localSigner) {
                 throw new Error('No local signer available')
             }
@@ -231,7 +249,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         ) {
             return
         }
-
+        
         setListening(true)
         setConnectionStatus('connecting')
 

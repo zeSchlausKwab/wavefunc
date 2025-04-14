@@ -3,8 +3,7 @@ import { config } from 'dotenv'
 import { join } from 'path'
 import index from './index.html'
 
-// import.meta.hot.accept()
-
+// Load environment variables
 config({
     path: join(process.cwd(), '../../.env'),
     override: true,
@@ -26,14 +25,14 @@ const serveStatic = async (path: string) => {
         const contentType = path.endsWith('.svg')
             ? 'image/svg+xml'
             : path.endsWith('.png')
-              ? 'image/png'
-              : path.endsWith('.jpg') || path.endsWith('.jpeg')
-                ? 'image/jpeg'
-                : path.endsWith('.css')
-                  ? 'text/css'
-                  : path.endsWith('.js')
-                    ? 'application/javascript'
-                    : 'application/octet-stream'
+                ? 'image/png'
+                : path.endsWith('.jpg') || path.endsWith('.jpeg')
+                    ? 'image/jpeg'
+                    : path.endsWith('.css')
+                        ? 'text/css'
+                        : path.endsWith('.js')
+                            ? 'application/javascript'
+                            : 'application/octet-stream'
 
         return new Response(f, {
             headers: { 'Content-Type': contentType },
