@@ -325,10 +325,7 @@ function Index() {
                         {isLoadingTop ? (
                             <StationGridSkeleton />
                         ) : (
-                            <div
-                                ref={gridRef}
-                                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-                            >
+                            <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {topStations.map((station, index) => (
                                     <RadioCard
                                         key={'id' in station ? station.id : `station-${index}`}
@@ -382,7 +379,7 @@ function Index() {
 
 function StationGridSkeleton() {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="flex flex-col space-y-3">
                     <Skeleton className="h-40 w-full rounded-lg" />
