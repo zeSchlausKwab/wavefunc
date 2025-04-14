@@ -43,7 +43,7 @@ const serveStatic = async (path: string) => {
     }
 }
 
-export const server = serve({
+export const server = Bun.serve({
     routes: {
         '/*': index,
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
