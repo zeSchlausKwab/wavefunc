@@ -53,8 +53,10 @@ export const server = serve({
             }),
     },
     development: process.env.NODE_ENV !== 'production',
-    hostname: VITE_PUBLIC_HOST,
-    port: VITE_PUBLIC_WEB_PORT ? parseInt(VITE_PUBLIC_WEB_PORT) : 8080,
+    // Use Railway's PORT env var, fallback to VITE_PUBLIC_WEB_PORT, then 8080
+    port: parseInt(process.env.PORT || VITE_PUBLIC_WEB_PORT || '8080'),
+    // In production, bind to all available network interfaces
+    hostname: process.env.NODE_ENV === 'production' ? '0.0.0.0' : VITE_PUBLIC_HOST || 'localhost',
     // satisfy the bun serve type
     async fetch(request, server) {
         return new Response('Not Found', { status: 404 })
@@ -63,3 +65,4 @@ export const server = serve({
 
 console.log(`🚀 Server running at ${server.url}`)
 console.log(`Environment: ${VITE_PUBLIC_APP_ENV || 'development'}`)
+console.log(`Port: ${server.port}, Hostname: ${server.hostname}`)
