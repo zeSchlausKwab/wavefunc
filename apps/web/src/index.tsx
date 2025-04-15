@@ -46,6 +46,7 @@ const serveStatic = async (path: string) => {
 export const server = serve({
     routes: {
         '/*': index,
+        '/.well-known/nostr.json': () => new Response(file(join(process.cwd(), 'public', '.well-known', 'nostr.json'))),
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
         '/envConfig': () =>
             new Response(JSON.stringify({ VITE_PUBLIC_APP_ENV, VITE_PUBLIC_WEB_PORT, VITE_PUBLIC_HOST }), {
