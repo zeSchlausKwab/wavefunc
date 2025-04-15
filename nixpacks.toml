@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["...", "bun_1"]  # This will install Bun 1.x series
+nixLibs = ["openssl"]  # Common dependency for Node.js/Bun applications
+nixpkgsArchive = "master"  # Use the latest nixpkgs to get the newest Bun version
+
+[variables]
+NODE_ENV = "production"
+
+[phases.install]
+cmds = ["bun install"]
+
+
