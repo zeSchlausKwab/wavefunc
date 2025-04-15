@@ -59,7 +59,10 @@ export const server = serve({
     hostname: process.env.NODE_ENV === 'production' ? '0.0.0.0' : VITE_PUBLIC_HOST || 'localhost',
     // satisfy the bun serve type
     async fetch(request, server) {
-        return new Response('Not Found', { status: 404 })
+        if (server.upgrade(request)) {
+            return new Response()
+        }
+        return new Response('Upgrade failed', { status: 500 })
     },
 })
 
