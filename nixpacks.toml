@@ -1,5 +1,4 @@
 [phases.setup]
-nixPkgs = ['...', 'bun@1.2.8']
 nixpkgsArchive = "master"  # Use the latest nixpkgs to get the newest Bun version
 
 [variables]

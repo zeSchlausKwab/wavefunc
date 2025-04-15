@@ -57,10 +57,6 @@ export const server = serve({
     port: parseInt(process.env.PORT || VITE_PUBLIC_WEB_PORT || '8080'),
     // In production, bind to all available network interfaces
     hostname: '0.0.0.0',
-    // satisfy the bun serve type
-    // async fetch(request, server) {
-    //     return new Response()
-    // },
 })
 
 console.log(`🚀 Server running at ${server.url}`)
