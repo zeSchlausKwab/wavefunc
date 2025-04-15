@@ -56,7 +56,7 @@ export const server = serve({
     // Use Railway's PORT env var, fallback to VITE_PUBLIC_WEB_PORT, then 8080
     port: parseInt(process.env.PORT || VITE_PUBLIC_WEB_PORT || '8080'),
     // In production, bind to all available network interfaces
-    hostname: VITE_PUBLIC_HOST,
+    hostname: 'localhost',
     // satisfy the bun serve type
     async fetch(request, server) {
         return new Response()
