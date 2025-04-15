@@ -48,7 +48,7 @@ export const server = serve({
         '/*': index,
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
         '/envConfig': () =>
-            new Response(JSON.stringify(process.env), {
+            new Response(JSON.stringify({ VITE_PUBLIC_APP_ENV, VITE_PUBLIC_WEB_PORT, VITE_PUBLIC_HOST }), {
                 headers: { 'Content-Type': 'application/javascript' },
             }),
     },
