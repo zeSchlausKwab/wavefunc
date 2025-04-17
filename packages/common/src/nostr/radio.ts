@@ -1,10 +1,7 @@
-import type { NDKKind, NostrEvent } from '@nostr-dev-kit/ndk'
-import { RadioEventContentSchema } from '../schemas/radio'
-import type { z } from 'zod'
+import type { NDKEvent, NDKKind, NostrEvent } from '@nostr-dev-kit/ndk'
 import NDK, { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import type { NDKEvent } from '@nostr-dev-kit/ndk'
-import type { Station } from '../types/station'
 import { nip19 } from 'nostr-tools'
+import type { Station } from '../types/station'
 
 export const RADIO_EVENT_KINDS = {
     STREAM: 31237,
@@ -13,7 +10,7 @@ export const RADIO_EVENT_KINDS = {
     // SONG_LIBRARY: 31340,
 } as const
 
-type RadioEventContent = z.infer<typeof RadioEventContentSchema>
+// type RadioEventContent = z.infer<typeof RadioEventContentSchema>
 
 /**
  * Creates a random 'd' tag value
@@ -327,7 +324,7 @@ export function subscribeToRadioStations(ndk: NDK, onEvent?: (event: NDKEvent) =
     if (onEvent) {
         subscription.on('event', (event: NDKEvent) => {
             try {
-                const parsed = parseRadioEvent(event)
+                // const parsed = parseRadioEvent(event)
                 onEvent(event)
             } catch (e) {
                 console.warn('Invalid radio event:', e)
@@ -457,6 +454,7 @@ export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<
             continue // Skip invalid events
         }
     }
+    return null
 }
 
 /**

@@ -24,8 +24,5 @@ export type { Group, Station } from './station'
 // Export from stream.ts
 export type * from './stream'
 
-// Export from comment.ts
-export type { Comment } from './comment'
-
 // Export from radioBrowser.ts
 export * from './radioBrowser'

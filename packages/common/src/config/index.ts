@@ -1,4 +1,4 @@
-import { getEnvVar, getEnvVarAsNumber, getEnvVarAsBoolean, isBrowser } from '../utils/env'
+import { getEnvVar, getEnvVarAsNumber, isBrowser } from '../utils/env'
 import path from 'path'
 import fs from 'fs'
 
@@ -36,33 +36,6 @@ function loadRootEnvFile() {
         const envPath = path.join(rootDir, '.env')
         if (fs.existsSync(envPath)) {
             console.log(`Loading environment from root .env file: ${envPath}`)
-            const envContent = fs.readFileSync(envPath, 'utf8')
-
-            // Parse and set environment variables
-            const envVars = envContent
-                .split('\n')
-                .filter((line) => line.trim() !== '' && !line.startsWith('#'))
-                .reduce<Record<string, string>>((acc, line) => {
-                    const match = line.match(/^([^=]+)=(.*)$/)
-                    if (match) {
-                        const key = match[1].trim()
-                        let value = match[2].trim()
-
-                        // Handle variable expansion ${VAR}
-                        value = value.replace(/\${([^}]+)}/g, (_, varName) => {
-                            const varNameStr = varName as string
-                            return process.env[varNameStr] || acc[varNameStr] || ''
-                        })
-
-                        acc[key] = value
-
-                        // Set in process.env if not already set
-                        if (!process.env[key]) {
-                            process.env[key] = value
-                        }
-                    }
-                    return acc
-                }, {})
 
             return true
         } else {
