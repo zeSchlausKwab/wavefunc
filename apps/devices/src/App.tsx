@@ -1,10 +1,10 @@
+import { invoke } from '@tauri-apps/api/core'
+import { subscribeToRadioStations } from '@wavefunc/common'
 import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
-import { invoke } from '@tauri-apps/api/core'
-import './App.css'
-import { subscribeToRadioStations } from '@wavefunc/common'
 
 import NDK, { NDKEvent } from '@nostr-dev-kit/ndk'
+// import { Button } from '@wavefunc/ui'
 
 function App() {
     const [greetMsg, setGreetMsg] = useState('')
@@ -51,9 +51,11 @@ function App() {
 
     return (
         <main className="container">
-            <h1>Welcome to Tauri + React + Nostr</h1>
+            <h1 className="text-2xl font-bold text-center">Welcome to Tauri + React + Nostr</h1>
+            {/* <Button>Click me</Button> */}
+            {/* <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" /> */}
 
-            <div className="row">
+            <div className="flex flex-row gap-4">
                 <a href="https://vitejs.dev" target="_blank">
                     <img src="/vite.svg" className="logo vite" alt="Vite logo" />
                 </a>
@@ -83,8 +85,8 @@ function App() {
             <p>{greetMsg}</p>
             {stations.map((station) => (
                 <div key={station.id}>
-                    <h2>{station.id}</h2>
-                    <p>{JSON.stringify(station.content)}</p>
+                    <h2 className="text-xl font-bold bg-red p-2 rounded-md">{station.id}</h2>
+                    <p className="text-sm text-muted-foreground">{JSON.stringify(station.content)}</p>
                 </div>
             ))}
         </main>

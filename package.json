@@ -9,7 +9,7 @@
         "packages/*"
     ],
     "scripts": {
-        "dev": "bun run dev:web & bun run dev:backend & bun run dev:relay",
+        "dev": "bun run dev:web & bun run dev:relay",
         "dev:clean": "./scripts/dev.sh",
         "dev:web": "bun run --cwd apps/web dev",
         "dev:backend": "bun run --cwd apps/backend dev",
@@ -21,12 +21,8 @@
         "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\""
     },
     "devDependencies": {
-        "@playwright/test": "^1.51.1",
         "@types/bun": "^1.2.5",
         "@types/node": "^22.13.11",
-        "@types/react": "^19.0.12",
-        "@types/react-dom": "^19.0.4",
-        "blossom-server-ts": "^5.1.2",
         "prettier": "3.5.3",
         "typescript": "^5.8.2"
     },
@@ -34,6 +30,12 @@
         "typescript": "^5"
     },
     "dependencies": {
-        "@nostr-dev-kit/ndk-wallet": "^0.5.1"
+        "@nostr-dev-kit/ndk-wallet": "^0.5.1",
+        "react": "19.1.0",
+        "react-dom": "19.1.0"
+    },
+    "resolutions": {
+        "react": "19.1.0",
+        "react-dom": "19.1.0"
     }
 }

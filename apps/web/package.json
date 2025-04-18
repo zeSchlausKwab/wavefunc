@@ -45,6 +45,7 @@
         "@tanstack/react-table": "^8.21.2",
         "@tanstack/store": "^0.7.0",
         "@wavefunc/common": "workspace:*",
+        "@wavefunc/ui": "workspace:*",
         "@yudiel/react-qr-scanner": "^2.2.1",
         "bun-plugin-tailwind": "^0.0.15",
         "class-variance-authority": "^0.7.1",

@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Calendar } from '@wavefunc/ui'
 
 interface SearchFilters {
     countrycode: string
@@ -118,6 +119,8 @@ function Index() {
     const isLoading = isSearchMode ? isSearchLoading : isLoadingTop
     const isError = isSearchMode ? isSearchError : isTopError
 
+    const [date, setDate] = useState<Date | undefined>(new Date())
+
     const activeFiltersCount = Object.entries(filters).filter(([key, value]) => {
         if (key === 'countrycode' || key === 'language' || key === 'codec') {
             return value !== 'all'
@@ -133,6 +136,7 @@ function Index() {
 
     return (
         <div className="container mx-auto py-8">
+            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />{' '}
             <div className="space-y-6">
                 <Card className="border-none shadow-md bg-gradient-to-r from-background to-muted/30">
                     <CardHeader className="pb-2">
