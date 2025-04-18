@@ -1,11 +1,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { authStore } from '@/lib/store/auth'
-import { ndkActions } from '@/lib/store/ndk'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import { authStore, ndkActions } from '@wavefunc/common'
 import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
 
 interface UserProfileProps {

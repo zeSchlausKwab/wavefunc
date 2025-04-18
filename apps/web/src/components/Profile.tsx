@@ -11,10 +11,10 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { cn } from '@wavefunc/common'
 import { useStore } from '@tanstack/react-store'
-import { ndkActions, useNDK } from '@/lib/store/ndk'
-import { authActions, authStore } from '@/lib/store/auth'
+import { ndkActions, useNDK } from '@wavefunc/common'
+import { authActions, authStore } from '@wavefunc/common'
 import { type NDKUserProfile } from '@nostr-dev-kit/ndk'
 
 interface ProfileProps {

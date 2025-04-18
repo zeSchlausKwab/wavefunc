@@ -1,11 +1,10 @@
 import { Button } from '@/components/ui/button'
-import { authActions, authStore } from '@/lib/store/auth'
 import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import { authStore, uiActions } from '@wavefunc/common'
 import { Loader2, LogIn, Settings, UserCircle2 } from 'lucide-react'
 import { type ComponentPropsWithoutRef } from 'react'
 import { Profile } from '../Profile'
-import { uiActions } from '@/lib/store/ui'
 
 interface AuthButtonProps extends Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> {
     compact?: boolean

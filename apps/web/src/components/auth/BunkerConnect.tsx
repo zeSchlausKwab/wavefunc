@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import { NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { Loader2 } from 'lucide-react'
-import { ndkActions } from '@/lib/store/ndk'
-import { authActions } from '@/lib/store/auth'
-import { uiActions } from '@/lib/store/ui'
+import { ndkActions } from '@wavefunc/common'
+import { authActions } from '@wavefunc/common'
+import { uiActions } from '@wavefunc/common'
 
 interface BunkerConnectProps {
     onError?: (error: string) => void

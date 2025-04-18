@@ -10,9 +10,9 @@ import {
     togglePlayback,
     useHasNext,
     useHasPrevious,
-} from '@/lib/store/stations'
-import { cn } from '@/lib/utils'
-import { type StreamMetadata, setupMetadataListeners } from '@/lib/utils/streamUtils'
+} from '@wavefunc/common'
+import { cn } from '@wavefunc/common'
+import { type StreamMetadata, setupMetadataListeners } from '@wavefunc/common'
 import { useStore } from '@tanstack/react-store'
 import {
     Headphones,

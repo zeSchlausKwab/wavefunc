@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, XCircle } from 'lucide-react'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 

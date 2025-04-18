@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createCommentEvent, publishComment, type NostrComment } from '@wavefunc/common'
 import { Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 
 interface ReplyToCommentProps {
     stationEvent: any // NDKEvent, avoiding direct import

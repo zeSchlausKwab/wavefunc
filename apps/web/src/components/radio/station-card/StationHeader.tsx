@@ -1,5 +1,5 @@
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { cn } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { Link as RouterLink } from '@tanstack/react-router'
 import type { Station } from '@wavefunc/common'

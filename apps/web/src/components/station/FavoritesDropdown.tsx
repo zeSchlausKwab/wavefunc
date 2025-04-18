@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useNDK } from '@/lib/store/ndk'
+import { useNDK } from '@wavefunc/common'
 import {
     addStationToFavorites,
     fetchFavoritesLists,

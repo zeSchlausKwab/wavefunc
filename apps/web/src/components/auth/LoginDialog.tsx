@@ -1,24 +1,23 @@
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+import { useStore } from '@tanstack/react-store'
 import {
     authActions,
     authStore,
-    NOSTR_AUTO_LOGIN,
     NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY,
-    NOSTR_LOCAL_SIGNER_KEY,
     NOSTR_STORED_PUBKEY,
-} from '@/lib/store/auth'
-import { uiActions, uiStore } from '@/lib/store/ui'
-import { useStore } from '@tanstack/react-store'
+    uiActions,
+    uiStore,
+} from '@wavefunc/common'
 import { generateSecretKey, nip19 } from 'nostr-tools'
 import { useEffect, useState } from 'react'
 import { BunkerConnect } from './BunkerConnect'
 import { NostrConnectQR } from './NostrConnectQR'
-import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { Checkbox } from '@/components/ui/checkbox'
 
 export function LoginDialog() {
     const authState = useStore(authStore)

@@ -1,6 +1,6 @@
 import { Nip05Badge } from '@/components/Nip05Badge'
 import { Button } from '@/components/ui/button'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'

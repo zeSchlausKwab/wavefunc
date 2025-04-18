@@ -11,8 +11,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ndkActions } from '@/lib/store/ndk'
-import { walletStore } from '@/lib/store/wallet'
+import { ndkActions } from '@wavefunc/common'
+import { walletStore } from '@wavefunc/common'
 import {
     NDKEvent,
     NDKSubscription,

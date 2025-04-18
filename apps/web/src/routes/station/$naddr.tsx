@@ -1,8 +1,8 @@
 import { StreamSelector } from '@/components/radio/StreamSelector'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { setCurrentStation, stationsStore, togglePlayback } from '@/lib/store/stations'
-import { openEditStationDrawer } from '@/lib/store/ui'
+import { setCurrentStation, stationsStore, togglePlayback } from '@wavefunc/common'
+import { openEditStationDrawer } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common'
 import { decodeStationNaddr } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
@@ -26,7 +26,7 @@ import {
 import React from 'react'
 import CommentsList from '@/components/comments/CommentsList'
 import { ShareStationButton } from '@/components/ShareStationButton'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 
 async function fetchStation(naddr: string): Promise<Station> {
     const ndk = ndkActions.getNDK()

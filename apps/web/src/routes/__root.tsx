@@ -4,12 +4,11 @@ import { Header } from '@/components/Header'
 import { RadioPlayer } from '@/components/RadioPlayer'
 import { CheckerPattern } from '@/components/ui/CheckerPattern'
 import { Toaster } from '@/components/ui/sonner'
-import { uiStore } from '@/lib/store/ui'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useStore } from '@tanstack/react-store'
+import type { AppRouterContext } from '@wavefunc/common'
+import { uiStore } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common/types/station'
-import type { AppRouterContext } from '@/lib/router-utils'
 
 function Providers({ children }: { children: React.ReactNode }) {
     const drawer = useStore(uiStore, (state) => state.stationDrawer)

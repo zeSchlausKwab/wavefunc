@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { RelayDataTable } from '../relays/data-table'
 import { columns, type Relay } from '../relays/columns'
 import { toast } from 'sonner'

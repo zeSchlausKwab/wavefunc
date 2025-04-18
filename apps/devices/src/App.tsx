@@ -6,10 +6,11 @@ import reactLogo from './assets/react.svg'
 import NDK, { NDKEvent } from '@nostr-dev-kit/ndk'
 
 import '@wavefunc/ui/index.css'
-// // import { Button, Calendar, Input } from '@wavefunc/ui'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { Calendar } from '@wavefunc/ui/components/ui/calendar'
+import { Calendar as CalendarUI } from '@wavefunc/ui/components/ui/calendar'
 import { Input } from '@wavefunc/ui/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@wavefunc/ui/components/ui/radio-group'
+import { Label } from '@wavefunc/ui/components/ui/label'
 
 function App() {
     const [greetMsg, setGreetMsg] = useState('')
@@ -58,9 +59,18 @@ function App() {
     return (
         <main className="container flex flex-col gap-4">
             <h1 className="text-2xl font-bold text-center">Welcome to Tauri + React + Nostr</h1>
+            <RadioGroup defaultValue="option-one">
+                <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="option-one" id="option-one" />
+                    <Label htmlFor="option-one">Option One</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="option-two" id="option-two" />
+                    <Label htmlFor="option-two">Option Two</Label>
+                </div>
+            </RadioGroup>
             <Button variant="secondary">Click me</Button>
-            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />
-
+            <CalendarUI mode="single" selected={date} onSelect={setDate} className="rounded-md border" />
             <div className="flex flex-row gap-4">
                 <a href="https://vitejs.dev" target="_blank">
                     <img src="/vite.svg" className="logo vite" alt="Vite logo" />

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ndkActions, ndkStore } from '@/lib/store/ndk'
+import { ndkActions, ndkStore } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import type NDK from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'

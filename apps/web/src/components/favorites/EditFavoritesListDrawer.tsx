@@ -15,7 +15,7 @@ import {
 } from '@wavefunc/common'
 import { Textarea } from '@/components/ui/textarea'
 import { z } from 'zod'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 
 const FavoritesListSchema = z.object({
     name: z.string().min(1, 'Name is required'),

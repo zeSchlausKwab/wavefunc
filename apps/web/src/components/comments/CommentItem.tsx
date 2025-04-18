@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { UserProfile } from '@/components/UserProfile'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCommentReplies, subscribeToCommentReplies } from '@wavefunc/common'

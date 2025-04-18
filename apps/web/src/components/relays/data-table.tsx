@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { Plus, Rocket } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { toast } from 'sonner'
 import { DEFAULT_RELAYS } from '@wavefunc/common'
 

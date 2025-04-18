@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { authStore } from '@/lib/store/auth'
+import { authStore } from '@wavefunc/common'
 import { ProfileSettings } from '@/components/settings/ProfileSettings'
 import { RelaysSettings } from '@/components/settings/RelaysSettings'
 import { NWCWalletSettings } from '@/components/settings/NWCWalletSettings'

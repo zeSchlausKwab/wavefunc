@@ -5,9 +5,9 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Wallet, AlertTriangle, CheckCircle2, Plus, X } from 'lucide-react'
-import { walletStore, walletActions } from '@/lib/store/wallet'
+import { walletStore, walletActions } from '@wavefunc/common'
 import { useStore } from '@tanstack/react-store'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 
 export function CashuWalletSettings() {
     const [mints, setMints] = useState<string[]>([])

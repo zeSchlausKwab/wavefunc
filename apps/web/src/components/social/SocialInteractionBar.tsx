@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
-import { ndkActions } from '@/lib/store/ndk'
-import { cn } from '@/lib/utils'
+import { ndkActions } from '@wavefunc/common'
+import { cn } from '@wavefunc/common'
 import { NDKEvent, NDKSubscription, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchReactions, publishReaction } from '@wavefunc/common'

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { ndkActions } from '@/lib/store/ndk'
+import { ndkActions } from '@wavefunc/common'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchRootComments, subscribeToRootComments } from '@wavefunc/common'
 import { MessageSquare, RefreshCw } from 'lucide-react'

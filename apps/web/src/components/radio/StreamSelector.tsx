@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+import { cn } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common'
 import * as React from 'react'
 import { useMedia } from 'react-use'
@@ -35,10 +35,9 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                         }
                     }}
                 >
-                    <SelectTrigger className={cn(
-                        isMobile ? 'w-full h-6 text-[10px] px-2 min-w-[60px]' : 'w-[180px]',
-                        'truncate'
-                    )}>
+                    <SelectTrigger
+                        className={cn(isMobile ? 'w-full h-6 text-[10px] px-2 min-w-[60px]' : 'w-[180px]', 'truncate')}
+                    >
                         <SelectValue placeholder={isMobile ? 'Quality' : 'Select quality'} />
                     </SelectTrigger>
                     <SelectContent className={isMobile ? 'min-w-[80px]' : ''}>
