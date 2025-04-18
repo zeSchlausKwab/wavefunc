@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
 
 import NDK, { NDKEvent } from '@nostr-dev-kit/ndk'
-// import { Button } from '@wavefunc/ui'
+
+import '@wavefunc/ui/index.css'
+// // import { Button, Calendar, Input } from '@wavefunc/ui'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Calendar } from '@wavefunc/ui/components/ui/calendar'
+import { Input } from '@wavefunc/ui/components/ui/input'
 
 function App() {
     const [greetMsg, setGreetMsg] = useState('')
     const [name, setName] = useState('')
     const [ndk, setNdk] = useState<NDK | null>(null)
     const [stations, setStations] = useState<NDKEvent[]>([])
+    const [date, setDate] = useState<Date | undefined>(new Date())
 
     useEffect(() => {
         const ndk = new NDK({
@@ -50,10 +56,10 @@ function App() {
     }
 
     return (
-        <main className="container">
+        <main className="container flex flex-col gap-4">
             <h1 className="text-2xl font-bold text-center">Welcome to Tauri + React + Nostr</h1>
-            {/* <Button>Click me</Button> */}
-            {/* <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" /> */}
+            <Button variant="secondary">Click me</Button>
+            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />
 
             <div className="flex flex-row gap-4">
                 <a href="https://vitejs.dev" target="_blank">
@@ -75,17 +81,19 @@ function App() {
                     greet()
                 }}
             >
-                <input
+                <Input
                     id="greet-input"
                     onChange={(e) => setName(e.currentTarget.value)}
                     placeholder="Enter a name..."
                 />
-                <button type="submit">Greet</button>
+                <Button variant="secondary" type="submit">
+                    Greet
+                </Button>
             </form>
             <p>{greetMsg}</p>
             {stations.map((station) => (
                 <div key={station.id}>
-                    <h2 className="text-xl font-bold bg-red p-2 rounded-md">{station.id}</h2>
+                    <h2 className="text-xl font-bold bg-red p-2 rounded-md bg-red-500">{station.id}</h2>
                     <p className="text-sm text-muted-foreground">{JSON.stringify(station.content)}</p>
                 </div>
             ))}
