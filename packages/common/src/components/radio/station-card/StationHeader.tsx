@@ -1,4 +1,4 @@
-import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { cn } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { Link as RouterLink } from '@tanstack/react-router'

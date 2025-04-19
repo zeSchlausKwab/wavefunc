@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { ndkActions } from '@wavefunc/common'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 
 interface Nip05BadgeProps {
     userId: string

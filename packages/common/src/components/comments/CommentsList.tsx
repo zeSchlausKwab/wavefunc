@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import { ndkActions } from '@wavefunc/common'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchRootComments, subscribeToRootComments } from '@wavefunc/common'

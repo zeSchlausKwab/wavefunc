@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { createCommentEvent, publishComment, type NostrComment } from '@wavefunc/common'
 import { Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,7 +12,7 @@ interface ReplyToCommentProps {
     onCommentPosted: () => void
 }
 
-export function ReplyToComment({ stationEvent, parentComment, onCommentPosted }: ReplyToCommentProps) {
+export default function ReplyToComment({ stationEvent, parentComment, onCommentPosted }: ReplyToCommentProps) {
     const [content, setContent] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 

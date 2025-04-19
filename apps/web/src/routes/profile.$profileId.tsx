@@ -1,5 +1,5 @@
-import { Nip05Badge } from '@/components/Nip05Badge'
-import { Button } from '@/components/ui/button'
+import { Nip05Badge } from '@wavefunc/common'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import { ndkActions } from '@wavefunc/common'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import { Share2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import { ndkActions } from '@wavefunc/common'
 import { cn } from '@wavefunc/common'
 import { NDKEvent, NDKSubscription, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'

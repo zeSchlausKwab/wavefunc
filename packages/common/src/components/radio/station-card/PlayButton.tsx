@@ -1,7 +1,7 @@
 import { Pause } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { cn } from '@wavefunc/common'
 import { Play } from 'lucide-react'
 
 // Play button component

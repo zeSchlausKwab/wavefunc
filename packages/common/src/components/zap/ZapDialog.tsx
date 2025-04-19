@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import {
     Dialog,
     DialogClose,
@@ -7,10 +7,10 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+} from '@wavefunc/ui/components/ui/dialog'
+import { Input } from '@wavefunc/ui/components/ui/input'
+import { Label } from '@wavefunc/ui/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
 import { ndkActions } from '@wavefunc/common'
 import { walletStore } from '@wavefunc/common'
 import {
@@ -27,7 +27,7 @@ import { Copy, Loader2, Wallet, Zap, AlertTriangle } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@wavefunc/ui/components/ui/alert'
 
 interface ZapDialogProps {
     isOpen: boolean

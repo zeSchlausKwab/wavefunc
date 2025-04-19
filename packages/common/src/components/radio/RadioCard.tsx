@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
 
 // UI Components
-import CommentsList from '@/components/comments'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardFooter } from '@wavefunc/ui/components/ui/card'
 import { SocialInteractionBar } from '../social/SocialInteractionBar'
 import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
@@ -15,13 +14,20 @@ import { StreamSelector } from './StreamSelector'
 import { CheckCircle2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 
 // Stores and utilities
-import { ndkActions, ndkStore } from '@wavefunc/common'
-import { playStation, stationsStore, togglePlayback } from '@wavefunc/common'
-import { openEditStationDrawer } from '@wavefunc/common'
-import { cn, getStationBackgroundColor } from '@wavefunc/common'
 import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
-import { findStationByNameInNostr, generateStationNaddr } from '@wavefunc/common'
+import {
+    cn,
+    findStationByNameInNostr,
+    generateStationNaddr,
+    getStationBackgroundColor,
+    ndkActions,
+    ndkStore,
+    openEditStationDrawer,
+    playStation,
+    stationsStore,
+    togglePlayback,
+} from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/types/stream'
 import { UserProfile } from '../UserProfile'
 import { ExpandButton } from './station-card/ExplandButton'
@@ -29,6 +35,7 @@ import { PlayButton } from './station-card/PlayButton'
 import { StationHeader } from './station-card/StationHeader'
 import { StationImage } from './station-card/StationImage'
 import { StationTags } from './station-card/StationTags'
+import CommentsList from '../comments/CommentsList'
 
 // Station main content component
 interface StationContentProps {
@@ -167,7 +174,7 @@ interface RadioCardProps {
     naddr?: string
 }
 
-export function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
+export default function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)

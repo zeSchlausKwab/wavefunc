@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
+import { cn } from '@wavefunc/common'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
 // Component for station tags display
 interface StationTagsProps {
     tags: string[]

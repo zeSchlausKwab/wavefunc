@@ -1,6 +1,6 @@
-import { StreamSelector } from '@/components/radio/StreamSelector'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { StreamSelector } from '@wavefunc/common'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { setCurrentStation, stationsStore, togglePlayback } from '@wavefunc/common'
 import { openEditStationDrawer } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common'
@@ -24,8 +24,8 @@ import {
     Zap,
 } from 'lucide-react'
 import React from 'react'
-import CommentsList from '@/components/comments/CommentsList'
-import { ShareStationButton } from '@/components/ShareStationButton'
+import CommentsList from '@wavefunc/common'
+import { ShareStationButton } from '@wavefunc/common'
 import { ndkActions } from '@wavefunc/common'
 
 async function fetchStation(naddr: string): Promise<Station> {

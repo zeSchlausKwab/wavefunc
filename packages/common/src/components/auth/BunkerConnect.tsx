@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Input } from '@wavefunc/ui/components/ui/input'
 import { useState } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
 import { NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'

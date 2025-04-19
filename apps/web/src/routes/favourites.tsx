@@ -1,4 +1,4 @@
-import { FavoritesManager } from '@/components/favorites/FavoritesManager'
+import { FavoritesManager } from '@wavefunc/common'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/favourites')({

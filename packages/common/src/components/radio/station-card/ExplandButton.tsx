@@ -1,8 +1,8 @@
 import { ChevronUp } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@wavefunc/ui/components/ui/button'
 import { ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@wavefunc/common'
 
 // Expand/collapse button component
 interface ExpandButtonProps {

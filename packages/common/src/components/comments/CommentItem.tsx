@@ -1,15 +1,14 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { UserProfile } from '@/components/UserProfile'
-import { ndkActions } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchCommentReplies, subscribeToCommentReplies } from '@wavefunc/common'
+import { fetchCommentReplies, ndkActions, subscribeToCommentReplies } from '@wavefunc/common'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader } from '@wavefunc/ui/components/ui/card'
 import { formatDistanceToNow } from 'date-fns'
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SocialInteractionBar } from '../social/SocialInteractionBar'
-import { ReplyToComment } from './ReplyToComment'
+import ReplyToComment from './ReplyToComment'
+import { UserProfile } from '../UserProfile'
 
 interface CommentItemProps {
     comment: NDKEvent

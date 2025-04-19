@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wavefunc/ui/components/ui/select'
 import { cn } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common'
 import * as React from 'react'

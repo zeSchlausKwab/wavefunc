@@ -1,10 +1,10 @@
 import React from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Input } from '@wavefunc/ui/components/ui/input'
+import { Label } from '@wavefunc/ui/components/ui/label'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
 import { Trash, X, AlertCircle } from 'lucide-react'
 import {
     type FavoritesList,
@@ -13,7 +13,7 @@ import {
     updateFavoritesList,
     deleteFavoritesList,
 } from '@wavefunc/common'
-import { Textarea } from '@/components/ui/textarea'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { z } from 'zod'
 import { ndkActions } from '@wavefunc/common'
 

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common/types/station'
 
 // Station image with play controls

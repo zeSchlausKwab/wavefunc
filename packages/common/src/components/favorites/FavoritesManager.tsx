@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { ndkActions, ndkStore } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import type NDK from '@nostr-dev-kit/ndk'
@@ -14,8 +14,8 @@ import {
 } from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { RadioCard } from '../radio/RadioCard'
 import { EditFavoritesListDrawer } from './EditFavoritesListDrawer'
+import RadioCard from '../radio/RadioCard'
 
 interface ResolvedStation {
     id: string

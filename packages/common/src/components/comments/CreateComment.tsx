@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { createCommentEvent, publishComment } from '@wavefunc/common'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'

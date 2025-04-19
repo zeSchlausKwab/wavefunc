@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@wavefunc/ui/components/ui/label'
 import { Input } from '@wavefunc/ui/components/ui/input'
 import { Button } from '@wavefunc/ui/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/avatar'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 
 export function ProfileSettings() {
     const [isProfileLoading, setIsProfileLoading] = useState(false)

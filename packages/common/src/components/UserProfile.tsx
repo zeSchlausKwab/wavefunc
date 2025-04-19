@@ -1,5 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/avatar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
