@@ -13,8 +13,10 @@
         "@nostr-dev-kit/ndk-cache-dexie": "2.5.15",
         "@types/md5": "^2.3.5",
         "@wavefunc/ui": "workspace:*",
+        "crypto": "1.0.1",
         "md5": "^2.3.0",
         "nostr-tools": "2.11.0",
+        "vite-plugin-node-polyfills": "^0.23.0",
         "zod": "3.24.2"
     },
     "devDependencies": {

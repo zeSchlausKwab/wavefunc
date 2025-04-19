@@ -28,6 +28,8 @@ async function main() {
 		sourcemap: 'linked',
 		define: {
 			'process.env.NODE_ENV': JSON.stringify('production'),
+			// Add global as a replacement for window to support Node.js modules
+			'global': 'window',
 		},
 	})
 
