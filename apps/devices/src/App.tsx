@@ -1,14 +1,18 @@
 import NDK, { NDKEvent, NDKSubscription } from '@nostr-dev-kit/ndk'
+import { HeadContent, Outlet } from '@tanstack/react-router'
 import {
     cn,
+    Header,
+    LoginDialog,
     parseRadioEvent,
     RADIO_EVENT_KINDS,
     RadioPlayer,
     subscribeToRadioStations,
     type Station,
 } from '@wavefunc/common'
-import StationGrid from '@wavefunc/common/src/components/station/StationGrid'
 import { Button } from '@wavefunc/ui/components/ui/button'
+
+import { CheckerPattern } from '@wavefunc/common'
 import '@wavefunc/ui/index.css' // Ensure styles are imported
 import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
@@ -219,24 +223,44 @@ function App() {
 
     return (
         // Use container and padding similar to web app if desired
-        <main className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6 my-6 max-w-full">
-            <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover Stations</h1>
+        <div className="relative min-h-screen flex flex-col bg-zinc-100">
+            <CheckerPattern className="[mask-image:radial-gradient(900px_circle_at_center,white,transparent)]" />
+            {/* <DotPattern className="[mask-image:radial-gradient(900px_circle_at_center,white,transparent)]" /> */}
+            <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+                <Header />
+            </div>
 
-            <GenreSelector
-                genres={genres}
-                selectedGenre={selectedGenre}
-                onSelectGenre={setSelectedGenre}
-                isMobile={isMobile}
-            />
-
-            {/* Render StationGrid only when stations data is available */}
-            {stations.length > 0 ? (
-                <StationGrid stations={filteredStations} isMobile={isMobile} />
-            ) : (
-                <p>Loading stations...</p> // Or some loading indicator
-            )}
+            <main className="mx-auto w-full max-w-full pb-40 px-2 lg:px-12">
+                <Outlet />
+            </main>
+            <LoginDialog />
             <RadioPlayer />
-        </main>
+        </div>
+        // <main className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6 my-6 max-w-full">
+
+        //     <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover Stations</h1>
+
+        //     <Card>
+        //         <CardHeader>
+        //             <CardTitle>Discover Stations</CardTitle>
+        //         </CardHeader>
+        //     </Card>
+
+        //     <GenreSelector
+        //         genres={genres}
+        //         selectedGenre={selectedGenre}
+        //         onSelectGenre={setSelectedGenre}
+        //         isMobile={isMobile}
+        //     />
+
+        //     {/* Render StationGrid only when stations data is available */}
+        //     {stations.length > 0 ? (
+        //         <StationGrid stations={filteredStations} isMobile={isMobile} />
+        //     ) : (
+        //         <p>Loading stations...</p> // Or some loading indicator
+        //     )}
+        //     <RadioPlayer />
+        // </main>
     )
 }
 

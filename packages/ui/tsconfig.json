@@ -7,6 +7,6 @@
             "@wavefunc/ui/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*", "../seed/test-users.ts"],
+    "include": ["src/**/*", "../seed/test-users.ts", "../common/src/components/CheckerPattern.tsx"],
     "exclude": ["node_modules"]
 }
