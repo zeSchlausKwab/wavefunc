@@ -10,6 +10,7 @@
     },
     "dependencies": {
         "@nostr-dev-kit/ndk": "2.13.0-rc2",
+        "@wavefunc/ui": "workspace:*",
         "@nostr-dev-kit/ndk-cache-dexie": "2.5.15",
         "nostr-tools": "2.11.0",
         "zod": "3.24.2"

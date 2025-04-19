@@ -11,8 +11,8 @@ import type { RadioBrowserParams, Station } from '@wavefunc/common/types'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
+import { Skeleton } from '@wavefunc/ui/components/ui/skeleton'
 import { Calendar } from '@wavefunc/ui/components/ui/calendar'
 
 interface SearchFilters {

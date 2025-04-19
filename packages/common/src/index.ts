@@ -36,3 +36,13 @@ export * from './lib/store/auth'
 export * from './lib/services/mcp'
 
 // Hooks directory is empty
+export * from './components/auth/AuthButton'
+export * from './components/auth/NostrConnectQR'
+export * from './components/settings/RelaysSettings'
+export * from './components/settings/CashuWalletSettings'
+export * from './components/settings/NWCWalletSettings'
+export * from './components/settings/ProfileSettings'
+export * from './components/Header'
+export * from './components/Nav'
+export * from './components/Profile'
+export * from './components/RadioPlayer'
