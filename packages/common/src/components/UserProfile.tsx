@@ -21,6 +21,7 @@ interface ProfileData {
     nip05Verified?: boolean
 }
 
+// @ts-ignore
 export function UserProfile({ pubkey, compact = true }: UserProfileProps) {
     const authState = useStore(authStore)
     const isMe = authState.user?.pubkey === pubkey

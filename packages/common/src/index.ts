@@ -32,9 +32,6 @@ export * from './lib/store/env'
 export * from './lib/store/ndk'
 export * from './lib/store/auth'
 
-// Files in lib/services
-export * from './lib/services/mcp'
-
 // Hooks directory is empty
 export * from './components/auth/AuthButton'
 export * from './components/auth/NostrConnectQR'

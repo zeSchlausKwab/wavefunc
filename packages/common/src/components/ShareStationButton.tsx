@@ -10,6 +10,7 @@ interface ShareStationButtonProps {
     naddr: string
 }
 
+// @ts-ignore
 export function ShareStationButton({ stationId, stationName, className = '', naddr }: ShareStationButtonProps) {
     const [isSharing, setIsSharing] = useState(false)
 

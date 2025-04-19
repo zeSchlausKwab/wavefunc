@@ -28,7 +28,7 @@ import {
     stationsStore,
     togglePlayback,
 } from '@wavefunc/common'
-import type { Stream } from '@wavefunc/common/types/stream'
+import type { Stream } from '@wavefunc/common/src/types/stream'
 import { UserProfile } from '../UserProfile'
 import { ExpandButton } from './station-card/ExplandButton'
 import { PlayButton } from './station-card/PlayButton'
@@ -178,11 +178,13 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
+    // @ts-ignore
     const [commentsCount, setCommentsCount] = useState(0)
 
     const [existsInNostr, setExistsInNostr] = useState<NDKEvent | null>(null)
     const [checkingNostr, setCheckingNostr] = useState(false)
     const [stationNaddr, setStationNaddr] = useState<string | null>(null)
+    // @ts-ignore
     const [user, setUser] = useState<NDKUser | null>(null)
 
     const [selectedStreamId, setSelectedStreamId] = useState<number | undefined>(undefined)

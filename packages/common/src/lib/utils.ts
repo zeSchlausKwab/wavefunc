@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import md5 from 'md5'
+import crypto from 'crypto'
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))

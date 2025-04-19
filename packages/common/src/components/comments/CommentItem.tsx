@@ -37,6 +37,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
     const {
         data: replies,
         isLoading: repliesLoading,
+        // @ts-ignore
         error: repliesError,
         isError: isRepliesError,
     } = useQuery({
@@ -111,6 +112,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
     }
 
     // Format avatar and timestamp
+    // @ts-ignore
     const avatarText = comment.pubkey.slice(0, 2).toUpperCase()
     let timestamp = ''
     try {
@@ -181,6 +183,7 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
                 {isReplyOpen && (
                     <ReplyToComment
                         stationEvent={stationEvent}
+                        // @ts-ignore
                         parentComment={comment}
                         onCommentPosted={() => {
                             setIsReplyOpen(false)
@@ -224,6 +227,8 @@ export default function CommentItem({ comment, stationEvent, stationId, depth = 
                             comment={reply}
                             stationEvent={stationEvent}
                             stationId={stationId}
+                            // TODO: This is a hack to get the naddr for the reply
+                            naddr={comment.id || ''}
                             depth={depth + 1}
                         />
                     ))}

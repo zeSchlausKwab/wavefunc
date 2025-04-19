@@ -1,12 +1,10 @@
+import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+import { authActions, ndkActions, uiActions } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Input } from '@wavefunc/ui/components/ui/input'
-import { useState } from 'react'
 import { Scanner } from '@yudiel/react-qr-scanner'
-import { NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { Loader2 } from 'lucide-react'
-import { ndkActions } from '@wavefunc/common'
-import { authActions } from '@wavefunc/common'
-import { uiActions } from '@wavefunc/common'
+import { useState } from 'react'
 
 interface BunkerConnectProps {
     onError?: (error: string) => void

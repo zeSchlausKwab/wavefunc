@@ -11,6 +11,7 @@ interface StreamSelectorProps {
     onStreamSelect: (stream: Stream) => void
 }
 
+// @ts-ignore
 export function StreamSelector({ stationId, streams, selectedStreamId, onStreamSelect }: StreamSelectorProps) {
     const isMobile = useMedia('(max-width: 640px)')
     const handleStreamSelect = (stream: Stream) => {

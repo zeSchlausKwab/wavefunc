@@ -2,8 +2,8 @@ import { CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/
 import { cn } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { Link as RouterLink } from '@tanstack/react-router'
-import type { Station } from '@wavefunc/common'
-import type { Stream } from '@wavefunc/common/types/stream'
+import type { Station } from '@wavefunc/common/src/types/station'
+import type { Stream } from '@wavefunc/common/src/types/stream'
 import { CheckCircle2, CircleDashed, ExternalLink } from 'lucide-react'
 import { StreamSelector } from '../StreamSelector'
 

@@ -27,8 +27,8 @@ import {
     VolumeX,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { MusicRecognitionButton } from './MusicRecognitionButton'
-import { StreamMetadataDisplay } from './radio/StreamMetadataDisplay'
+// import { MusicRecognitionButton } from './MusicRecognitionButton'
+// import { StreamMetadataDisplay } from './radio/StreamMetadataDisplay'
 import { StreamTechnicalInfo } from './radio/StreamTechnicalInfo'
 
 export function RadioPlayer() {

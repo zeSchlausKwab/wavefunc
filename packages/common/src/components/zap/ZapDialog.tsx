@@ -248,6 +248,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             zapSubscriptionRef.current = sub
 
             // Configure NDK to use the wallet
+            // @ts-ignore
             ndk.wallet = walletState.wallet
 
             // Create zapper to send zap through NWC

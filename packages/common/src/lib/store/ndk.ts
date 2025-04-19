@@ -284,7 +284,7 @@ export const ndkActions = {
 
         try {
             // Remove from NDK's pool if it exists
-            state.ndk.pool.relays.forEach((relay, relayUrl) => {
+            state.ndk.pool.relays.forEach((_, relayUrl) => {
                 if (relayUrl === url) {
                     state.ndk?.pool.relays.delete(relayUrl)
                 }

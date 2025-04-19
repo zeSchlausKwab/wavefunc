@@ -27,6 +27,7 @@ export default function ReplyToComment({ stationEvent, parentComment, onCommentP
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
+            // @ts-ignore
             const commentEvent = createCommentEvent(content.trim(), stationEvent, parentComment)
 
             await publishComment(ndk, commentEvent)

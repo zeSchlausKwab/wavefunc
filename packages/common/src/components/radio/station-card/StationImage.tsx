@@ -1,5 +1,5 @@
 import { cn } from '@wavefunc/common'
-import type { Station } from '@wavefunc/common/types/station'
+import type { Station } from '@wavefunc/common/src/types/station'
 
 // Station image with play controls
 interface StationImageProps {

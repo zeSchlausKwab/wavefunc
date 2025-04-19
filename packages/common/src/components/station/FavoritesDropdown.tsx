@@ -1,14 +1,14 @@
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wavefunc/ui/components/ui/select'
-import { useNDK } from '@wavefunc/common'
 import {
     addStationToFavorites,
     fetchFavoritesLists,
     subscribeToFavoritesLists,
     updateFavoritesList,
+    useNDK,
+    type FavoritesList,
 } from '@wavefunc/common'
-import type { FavoritesList } from '@wavefunc/common/nostr/favorites'
-import type { Station } from '@wavefunc/common/types/station'
+import type { Station } from '@wavefunc/common/src/types/station'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wavefunc/ui/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'

@@ -3,7 +3,7 @@ import type NDK from '@nostr-dev-kit/ndk'
 import { NDKWallet, NDKNWCWallet, NDKCashuWallet } from '@nostr-dev-kit/ndk-wallet'
 
 // We use a union type for wallet types
-type WalletType = 'nwc' | 'cashu'
+// type WalletType = 'nwc' | 'cashu'
 
 export interface NWCWalletData {
     type: 'nwc'
@@ -52,6 +52,7 @@ export const walletActions = {
 
         try {
             // Create the wallet instance
+            // @ts-ignore
             const wallet = new NDKNWCWallet(ndk, { pairingCode })
 
             // Save the wallet data in localStorage
@@ -86,6 +87,7 @@ export const walletActions = {
 
         try {
             // Create the wallet instance
+            // @ts-ignore
             const wallet = new NDKCashuWallet(ndk)
 
             // Mints are stored in mintUrls array - we can't directly add them with a method

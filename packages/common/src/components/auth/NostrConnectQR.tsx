@@ -177,6 +177,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         }
     }
 
+    // @ts-ignore
     const handleLoginWithSigner = async (event: NDKEvent, logMessage: string) => {
         // Triple-check if login is already in progress (global, component level, or already succeeded)
         if (

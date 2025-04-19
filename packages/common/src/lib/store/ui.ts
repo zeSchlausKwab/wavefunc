@@ -1,5 +1,5 @@
 import { Store } from '@tanstack/store'
-import type { Station } from '@wavefunc/common/types/station'
+import type { Station } from '@wavefunc/common/src/types/station'
 
 interface UIState {
     stationDrawer: {
