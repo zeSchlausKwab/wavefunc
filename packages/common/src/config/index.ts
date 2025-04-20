@@ -43,7 +43,7 @@ function loadRootEnvFile() {
             return false
         }
     } catch (error: unknown) {
-        const err = error as Error
+        // const err = error as Error
         // console.error(`Error loading root .env file: ${err.message}`)
         return false
     }

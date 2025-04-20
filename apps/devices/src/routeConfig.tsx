@@ -32,15 +32,21 @@ const indexRoute = createRoute({
     component: Index,
 })
 
+const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings',
+    component: StationView,
+})
+
 // Station route (detail)
 const stationRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/station/$id',
+    path: '/station/$naddr',
     component: StationView,
 })
 
 // Define the route tree
-const routeTree = rootRoute.addChildren([indexRoute, stationRoute])
+const routeTree = rootRoute.addChildren([indexRoute, stationRoute, settingsRoute])
 
 // Create and export the router
 export const router = createRouter({ routeTree })

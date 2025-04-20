@@ -1,7 +1,8 @@
 import { RouterProvider } from '@tanstack/react-router'
-import { authActions, DEFAULT_RELAYS, ndkActions, walletActions } from '@wavefunc/common'
-import { useEffect } from 'react'
+import { authActions, DEFAULT_RELAYS, ndkActions, walletActions, createQueryClient } from '@wavefunc/common'
+import { useEffect, useState } from 'react'
 import { router } from './routeConfig'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Import required styles
 import '@wavefunc/ui/index.css'
@@ -20,9 +21,17 @@ const loadEnvAndNdk = async () => {
 }
 
 function App() {
-    // Initialize NDK
+    const [queryClient, setQueryClient] = useState<QueryClient | null>(null)
+
+    // Initialize NDK and QueryClient
     useEffect(() => {
-        loadEnvAndNdk()
+        const initialize = async () => {
+            await loadEnvAndNdk()
+            const client = await createQueryClient()
+            setQueryClient(client)
+        }
+
+        initialize()
 
         return () => {
             // NDK cleanup on unmount
@@ -30,10 +39,17 @@ function App() {
         }
     }, [])
 
-    // The entire app is rendered inside RouterProvider
+    // Don't render until QueryClient is ready
+    if (!queryClient) {
+        return <div className="flex items-center justify-center h-screen">Loading...</div>
+    }
+
+    // The entire app is rendered inside QueryClientProvider and RouterProvider
     return (
         <div className="app">
-            <RouterProvider router={router} />
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>
         </div>
     )
 }

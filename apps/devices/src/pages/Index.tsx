@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Station, ndkActions, subscribeToRadioStations, parseRadioEvent, RADIO_EVENT_KINDS } from '@wavefunc/common'
-import { useMedia } from 'react-use'
+// import { useMedia } from 'react-use'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 
 export default function Index() {
     const [stations, setStations] = useState<Station[]>([])
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
-    const isMobile = useMedia('(max-width: 640px)')
+    // const isMobile = useMedia('(max-width: 640px)')
 
     useEffect(() => {
         // Get NDK instance
@@ -103,32 +103,6 @@ export default function Index() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredStations.map((station) => (
                     <RadioCard key={station.id} station={station} />
-                    // <div key={station.id} className="border rounded-lg p-4 bg-white shadow-sm">
-                    //     <div className="flex items-center gap-3">
-                    //         {station.imageUrl && (
-                    //             <img
-                    //                 src={station.imageUrl}
-                    //                 alt={station.name}
-                    //                 className="w-12 h-12 rounded-md object-cover"
-                    //             />
-                    //         )}
-                    //         <div>
-                    //             <h3 className="font-medium">{station.name}</h3>
-                    //             {station.genre && <div className="text-xs text-gray-500">{station.genre}</div>}
-                    //         </div>
-                    //     </div>
-                    //     {station.description && (
-                    //         <p className="mt-2 text-sm text-gray-700 line-clamp-2">{station.description}</p>
-                    //     )}
-                    //     <div className="mt-3 flex justify-end">
-                    //         <button
-                    //             className="px-3 py-1 bg-primary/90 hover:bg-primary text-white text-sm rounded-md"
-                    //             onClick={() => (window.location.href = `/station/${station.id}`)}
-                    //         >
-                    //             View Station
-                    //         </button>
-                    //     </div>
-                    // </div>
                 ))}
 
                 {filteredStations.length === 0 && (

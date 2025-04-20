@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { Station, ndkActions, parseRadioEvent, RADIO_EVENT_KINDS } from '@wavefunc/common'
+import { decodeStationNaddr } from '@wavefunc/common/src/nostr/radio'
 
 export default function StationView() {
-    const { id } = useParams({ from: '/station/$id' })
+    const { naddr } = useParams({ from: '/station/$naddr' })
     const [station, setStation] = useState<Station | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -17,8 +18,15 @@ export default function StationView() {
                     throw new Error('NDK not initialized')
                 }
 
-                // Find station by ID
-                const event = await ndk.fetchEvent({ ids: [id] } as any)
+                // Decode naddr to get event parameters
+                const decodedNaddr = decodeStationNaddr(naddr)
+
+                // Find station event using the decoded parameters
+                const event = await ndk.fetchEvent({
+                    kinds: [RADIO_EVENT_KINDS.STREAM as any],
+                    authors: [decodedNaddr.pubkey],
+                    '#d': [decodedNaddr.identifier],
+                })
 
                 if (!event) {
                     throw new Error('Station not found')
@@ -27,11 +35,12 @@ export default function StationView() {
                 const radioData = parseRadioEvent(event as any)
 
                 const pubkey = event.pubkey
-                const dTag = event.tags.find((t) => t[0] === 'd')?.[1] || ''
+                // TODO: Add dTag to station
+                // const dTag = event.tags.find((t) => t[0] === 'd')?.[1] || ''
 
                 const station: Station = {
-                    id,
-                    naddr: `${RADIO_EVENT_KINDS.STREAM}:${pubkey}:${dTag}`,
+                    id: event.id,
+                    naddr,
                     name: radioData.name,
                     description: radioData.description,
                     website: radioData.website,
@@ -55,7 +64,7 @@ export default function StationView() {
         }
 
         fetchStation()
-    }, [id])
+    }, [naddr])
 
     if (loading) {
         return <div className="flex justify-center items-center p-12">Loading station...</div>
