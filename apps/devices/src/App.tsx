@@ -1,11 +1,27 @@
-import { RouterProvider } from '@tanstack/react-router'
+import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { authActions, DEFAULT_RELAYS, ndkActions, walletActions, createQueryClient } from '@wavefunc/common'
 import { useEffect, useState } from 'react'
-import { router } from './routeConfig'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { routeTree } from './routeTree.gen'
 
 // Import required styles
 import '@wavefunc/ui/index.css'
+
+// Create router with type assertions to work around type issues
+const router = createRouter({
+    routeTree,
+    context: {
+        queryClient: null,
+        env: {},
+    } as any,
+})
+
+// Register router for type-safety
+declare module '@tanstack/react-router' {
+    interface Register {
+        router: typeof router
+    }
+}
 
 const loadEnvAndNdk = async () => {
     const ndk = ndkActions.initialize([...DEFAULT_RELAYS, 'ws://192.168.100.99:3002'])
@@ -43,13 +59,19 @@ function App() {
         return <div className="flex items-center justify-center h-screen">Loading...</div>
     }
 
-    // The entire app is rendered inside QueryClientProvider and RouterProvider
+    // Provide the router with the context values
     return (
-        <div className="app">
-            <QueryClientProvider client={queryClient}>
-                <RouterProvider router={router} />
-            </QueryClientProvider>
-        </div>
+        <QueryClientProvider client={queryClient}>
+            <RouterProvider
+                router={router}
+                context={
+                    {
+                        queryClient,
+                        env: import.meta.env,
+                    } as any
+                }
+            />
+        </QueryClientProvider>
     )
 }
 

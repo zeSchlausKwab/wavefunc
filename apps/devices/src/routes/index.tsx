@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Station, ndkActions, subscribeToRadioStations, parseRadioEvent, RADIO_EVENT_KINDS } from '@wavefunc/common'
-// import { useMedia } from 'react-use'
+import { createFileRoute } from '@tanstack/react-router'
+import { ndkActions, parseRadioEvent, RADIO_EVENT_KINDS, subscribeToRadioStations } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
+import type { Station } from '@wavefunc/common/types/station'
+import { useEffect, useState } from 'react'
+// import { useMedia } from 'react-use'
+export const Route = createFileRoute('/')({
+    component: Index,
+})
 
-export default function Index() {
+function Index() {
     const [stations, setStations] = useState<Station[]>([])
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
     // const isMobile = useMedia('(max-width: 640px)')
@@ -80,7 +85,7 @@ export default function Index() {
         <div className="container py-4">
             <h1 className="text-2xl font-bold mb-4">Radio Stations</h1>
 
-            {/* Genre filter */}
+            {/* Genre filter
             <div className="mb-4 flex flex-wrap gap-2">
                 <button
                     className={`px-3 py-1 rounded-md ${selectedGenre === null ? 'bg-primary text-white' : 'bg-gray-200'}`}
@@ -97,7 +102,7 @@ export default function Index() {
                         {genre}
                     </button>
                 ))}
-            </div>
+            </div> */}
 
             {/* Stations list */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
