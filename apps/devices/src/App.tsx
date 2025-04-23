@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Import required styles
 import '@wavefunc/ui/index.css'
-import './index.css'
 
 const loadEnvAndNdk = async () => {
     const ndk = ndkActions.initialize([...DEFAULT_RELAYS, 'ws://192.168.100.99:3002'])
