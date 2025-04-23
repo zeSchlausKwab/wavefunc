@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
+import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
 import { Route as StationNaddrImport } from './routes/station/$naddr'
 
@@ -20,6 +21,12 @@ import { Route as StationNaddrImport } from './routes/station/$naddr'
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AboutRoute = AboutImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -46,6 +53,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutImport
+      parentRoute: typeof rootRoute
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -67,12 +81,14 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/settings': typeof SettingsRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/settings': typeof SettingsRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -80,27 +96,30 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/settings': typeof SettingsRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/station/$naddr'
+  fullPaths: '/' | '/about' | '/settings' | '/station/$naddr'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/station/$naddr'
-  id: '__root__' | '/' | '/settings' | '/station/$naddr'
+  to: '/' | '/about' | '/settings' | '/station/$naddr'
+  id: '__root__' | '/' | '/about' | '/settings' | '/station/$naddr'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   SettingsRoute: typeof SettingsRoute
   StationNaddrRoute: typeof StationNaddrRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   SettingsRoute: SettingsRoute,
   StationNaddrRoute: StationNaddrRoute,
 }
@@ -116,12 +135,16 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/about",
         "/settings",
         "/station/$naddr"
       ]
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/about": {
+      "filePath": "about.tsx"
     },
     "/settings": {
       "filePath": "settings.tsx"
