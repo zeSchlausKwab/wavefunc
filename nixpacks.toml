@@ -1,5 +1,5 @@
 [phases.setup]
-nixpkgsArchive = "master"  # Use the latest nixpkgs to get the newest Bun version
+nixpkgsArchive = "nixos-24.11"  # Use a stable release of nixpkgs
 
 [variables]
 NODE_ENV = "production"
