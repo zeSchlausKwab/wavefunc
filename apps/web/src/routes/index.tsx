@@ -1,19 +1,18 @@
-import { useTopClickedStations, useSearchStations } from '@/hooks/useRadioBrowser'
+import { useSearchStations, useTopClickedStations } from '@/hooks/useRadioBrowser'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { createFileRoute } from '@tanstack/react-router'
+import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
+import type { RadioBrowserParams, Station } from '@wavefunc/common/types'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { Input } from '@wavefunc/ui/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wavefunc/ui/components/ui/select'
-import { Filter, Headphones, Radio, RefreshCw, Search, X } from 'lucide-react'
-import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
-import type { RadioBrowserParams, Station } from '@wavefunc/common/types'
 import { Separator } from '@wavefunc/ui/components/ui/separator'
-import { Badge } from '@wavefunc/ui/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { Skeleton } from '@wavefunc/ui/components/ui/skeleton'
-import { Calendar } from '@wavefunc/ui/components/ui/calendar'
-import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
+import { Filter, Headphones, Radio, RefreshCw, Search, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface SearchFilters {
     countrycode: string
@@ -136,7 +135,6 @@ function Index() {
 
     return (
         <div className="container mx-auto py-8">
-            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border" />{' '}
             <div className="space-y-6">
                 <Card className="border-none shadow-md bg-gradient-to-r from-background to-muted/30">
                     <CardHeader className="pb-2">
