@@ -1,17 +1,19 @@
-import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
+import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
+import type { NostrEvent } from '@nostr-dev-kit/ndk'
 import { createFileRoute } from '@tanstack/react-router'
 import {
     cn,
     ndkActions,
-    parseRadioEvent,
+    parseRadioEventWithSchema,
     RADIO_EVENT_KINDS,
-    subscribeToRadioStations,
     type Station,
+    mapNostrEventToStation,
 } from '@wavefunc/common'
 import StationGrid from '@wavefunc/common/src/components/station/StationGrid'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
+import { nip19 } from 'nostr-tools'
 
 function useRadioStations() {
     const [stations, setStations] = useState<Station[]>([])
@@ -29,19 +31,28 @@ function useRadioStations() {
             { closeOnEose: false },
         )
 
-        sub.on('event', (event: NDKEvent) => {
-            const deletedIds = event.tags.filter((tag) => tag[0] === 'e').map((tag) => tag[1])
+        // Use a more generic handler that works with any NDK version
+        sub.on('event', (event: any) => {
+            try {
+                // Work with raw event data to avoid version conflicts
+                const rawEvent = event.rawEvent ? event.rawEvent() : event
+                const deletedIds = rawEvent.tags
+                    .filter((tag: string[]) => tag[0] === 'e')
+                    .map((tag: string[]) => tag[1])
 
-            if (deletedIds.length > 0) {
-                // Update deleted IDs set
-                setDeletedStationIds((prev) => {
-                    const newSet = new Set(prev)
-                    deletedIds.forEach((id) => newSet.add(id))
-                    return newSet
-                })
+                if (deletedIds.length > 0) {
+                    // Update deleted IDs set
+                    setDeletedStationIds((prev) => {
+                        const newSet = new Set(prev)
+                        deletedIds.forEach((id: string) => newSet.add(id))
+                        return newSet
+                    })
 
-                // Remove deleted stations from the list
-                setStations((prev) => prev.filter((station) => !deletedIds.includes(station.id)))
+                    // Remove deleted stations from the list
+                    setStations((prev) => prev.filter((station) => !deletedIds.includes(station.id)))
+                }
+            } catch (error) {
+                console.error('Error processing deletion event:', error)
             }
         })
 
@@ -51,69 +62,20 @@ function useRadioStations() {
     }, [])
 
     // Process an incoming station event
-    const processStationEvent = (event: NDKEvent) => {
-        // Skip processing if the event is already deleted
-        if (deletedStationIds.has(event.id)) {
-            return
-        }
-
-        // Extract the d-tag which identifies the station
-        const dTag = event.tags.find((t) => t[0] === 'd')
-        if (!dTag) {
-            return
-        }
-
-        // Generate the naddr (Nostr address) for the station
-        let naddr = ''
+    const processNewStationEvent = (event: any) => {
         try {
-            naddr = `${RADIO_EVENT_KINDS.STREAM}:${event.pubkey}:${dTag[1]}`
-        } catch (e) {
-            return
-        }
+            // Use the mapNostrEventToStation function to get a complete Station object
+            const station = mapNostrEventToStation(event)
 
-        try {
-            // Parse the radio event data
-            const data = parseRadioEvent(event)
+            setStations((prevStations) => {
+                // Check if we already have this station
+                const exists = prevStations.some((s) => s.id === station.id)
+                if (exists) return prevStations
 
-            // Create a station object
-            const station: Station = {
-                id: event.id,
-                naddr,
-                name: data.name,
-                description: data.description,
-                website: data.website,
-                imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
-                pubkey: event.pubkey,
-                tags: event.tags,
-                streams: data.streams,
-                created_at: event.created_at || Math.floor(Date.now() / 1000),
-            }
-
-            // Update the stations list, replacing any existing station with the same ID
-            // or adding a new one
-            setStations((prev) => {
-                const existingIndex = prev.findIndex((s) => s.id === station.id)
-
-                // If we already have this station, check if the new one is newer
-                if (existingIndex >= 0) {
-                    const existingStation = prev[existingIndex]
-
-                    // Only update if the new station is newer
-                    if (existingStation.created_at < station.created_at) {
-                        const updated = [...prev]
-                        updated[existingIndex] = station
-                        return updated.sort((a, b) => b.created_at - a.created_at)
-                    }
-
-                    return prev
-                }
-
-                // Add the new station and re-sort
-                return [...prev, station].sort((a, b) => b.created_at - a.created_at)
+                return [...prevStations, station]
             })
-        } catch (error) {
-            // Ignore parsing errors
-            console.warn('Failed to parse station:', error)
+        } catch (e) {
+            console.error('Error processing station event:', e)
         }
     }
 
@@ -125,25 +87,37 @@ function useRadioStations() {
         // Use a Set to track processed event IDs within this component
         const processedEvents = new Set<string>()
 
-        // Use any type for the event to avoid version incompatibility issues
-        const handleEvent: any = (event: any) => {
+        // Subscribe to radio stations but handle the callback manually to avoid type issues
+        const filter = {
+            kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
+        }
+
+        // Create subscription without a callback
+        const subscription = ndk.subscribe(filter, {
+            closeOnEose: false,
+        })
+
+        // Add event handler separately to avoid the type mismatch in the function signature
+        subscription.on('event', (event: any) => {
+            // Get the raw event data which is compatible across NDK versions
+            const rawEvent = event.rawEvent ? event.rawEvent() : event
+
             // Skip processing if we've already handled this event
-            if (processedEvents.has(event.id)) {
+            if (rawEvent && rawEvent.id && processedEvents.has(rawEvent.id)) {
                 return
             }
 
-            // Mark the event as processed
-            processedEvents.add(event.id)
+            // Mark the event as processed if it has an ID
+            if (rawEvent && rawEvent.id) {
+                processedEvents.add(rawEvent.id)
 
-            // Process the station event
-            processStationEvent(event)
-        }
-
-        // Use type assertion to resolve the NDK version incompatibility
-        const sub = subscribeToRadioStations(ndk as any, handleEvent)
+                // Process using the raw event data
+                processNewStationEvent(event)
+            }
+        })
 
         return () => {
-            sub.stop()
+            subscription.stop()
         }
     }, []) // Empty dependency array - only run once
 
@@ -227,6 +201,8 @@ function Discover() {
     // Filter stations by selected genre
     const filteredStations = useMemo(() => {
         if (!selectedGenre) return stations
+
+        console.log('stations', stations)
 
         return stations.filter((station) => {
             // Check if the station has the selected genre in its t tags

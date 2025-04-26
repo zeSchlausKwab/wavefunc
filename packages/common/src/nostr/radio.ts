@@ -2,21 +2,7 @@ import NDK, { NDKEvent, NDKKind, NDKSubscriptionCacheUsage } from '@nostr-dev-ki
 import type { NostrEvent } from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
-
-export const RADIO_EVENT_KINDS = {
-    STREAM: 31237,
-    FAVORITES: 30078,
-    // SONG_HISTORY: 31339,
-    // SONG_LIBRARY: 31340,
-} as const
-
-// TODO: implement NIP-89 handler event
-
-// NIP-89 Event Kinds
-export const NIP89_EVENT_KINDS = {
-    HANDLER: 31990,
-    RECOMMENDATION: 31989,
-} as const
+import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS, NIP89_EVENT_KINDS } from '../schemas/events'
 
 // Mocked application pubkey for NIP-89 handler
 export const APP_PUBKEY = '000000000000000000000000000000000000000000000000000000000000radio'
@@ -55,11 +41,6 @@ export function createRadioEvent(
         languageCodes?: string[] // ISO language codes
         tags?: string[]
         favicon?: string
-        // Geo data for station location
-        geo?: {
-            lat?: number
-            long?: number
-        }
     },
     tags: string[][],
     existingTags?: string[][],
@@ -111,12 +92,6 @@ export function createRadioEvent(
         newTags.push(['thumbnail', content.favicon])
     }
 
-    // // Add geolocation
-    // if (content.geo && content.geo.lat && content.geo.long) {
-    //     // TODO: Geolocation support is reserved for future implementation
-    //     newTags.push(['g', `${content.geo.lat},${content.geo.long}`])
-    // }
-
     if (existingTags) {
         const existingDTag = existingTags.find((tag) => tag[0] === 'd')
         newTags = newTags.filter((tag) => tag[0] !== 'd')
@@ -144,45 +119,41 @@ export function createRadioEvent(
 }
 
 /**
- * Validates and parses a radio station event
+ * Validates and parses a radio station event using schema validation
+ * This is an improved version that uses our validation schemas
+ * @param event The event to validate and parse
+ * @returns The parsed radio station data
+ * @throws Error if the event is invalid
  */
-export function parseRadioEvent(event: NDKEvent | NostrEvent) {
-    if (event.kind !== RADIO_EVENT_KINDS.STREAM) {
-        throw new Error('Invalid event kind')
+export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
+    // Validate that this is a valid radio event
+    const isValid = validateRadioStationEvent(event)
+    if (!isValid) {
+        throw new Error('Invalid radio station event format')
     }
 
-    // Parse the content
-    const content = JSON.parse(event.content)
+    // Parse the content using our schema parser
+    const content = parseRadioContent(event.content)
+    if (!content) {
+        throw new Error('Invalid radio station content')
+    }
 
     // Extract tags
     const tags = event.tags as string[][]
-    const tagsArray = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
+    const genreTags = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
 
     // Extract country code and language codes from tags
     const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1]
-
-    // Get all language tags and collect their values
     const languageCodes = tags.filter((tag) => tag[0] === 'language').map((tag) => tag[1])
-
-    // Extract geolocation if available
-    const geoTag = tags.find((tag) => tag[0] === 'g')?.[1]
-    // TODO: Geolocation data is extracted but UI implementation is pending
-    const geo = geoTag
-        ? {
-              lat: parseFloat(geoTag.split(',')[0]),
-              long: parseFloat(geoTag.split(',')[1]),
-          }
-        : undefined
 
     return {
         name: content.name,
         description: content.description,
-        website: content.website,
+        website: content.website || '',
         streams: content.streams,
-        countryCode: countryCode || content.countryCode,
-        languageCodes: languageCodes.length > 0 ? languageCodes : content.languageCodes,
-        tags: tagsArray.length > 0 ? tagsArray : content.tags,
-        geo: geo || content.geo,
+        countryCode: countryCode || content.countryCode || '',
+        languageCodes: languageCodes.length > 0 ? languageCodes : content.languageCodes || [],
+        tags: genreTags.length > 0 ? genreTags : content.tags || [],
         eventTags: tags,
     }
 }
@@ -231,10 +202,6 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
         languageCodes: string[]
         tags: string[]
         favicon: string
-        geo?: {
-            lat: number
-            long: number
-        }
     } = {
         name: radioBrowserStation.name,
         description: radioBrowserStation.name, // API doesn't have a description, use name as fallback
@@ -283,18 +250,6 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
     // Add favicon as thumbnail
     if (content.favicon) {
         tagsArray.push(['thumbnail', content.favicon])
-    }
-
-    // Add geolocation if available
-    if (radioBrowserStation.geo_lat && radioBrowserStation.geo_long) {
-        // TODO: Geolocation data from radio-browser.info will be used in future UI enhancements
-        tagsArray.push(['g', `${radioBrowserStation.geo_lat},${radioBrowserStation.geo_long}`])
-
-        // Add to content as well
-        content.geo = {
-            lat: radioBrowserStation.geo_lat,
-            long: radioBrowserStation.geo_long,
-        }
     }
 
     return {
@@ -367,7 +322,7 @@ export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
     const events = await ndk.fetchEvents(filter)
     return Array.from(events).filter((event) => {
         try {
-            parseRadioEvent(event)
+            parseRadioEventWithSchema(event)
             return true
         } catch {
             return false
@@ -492,7 +447,7 @@ export function generateStationNaddr(event: NDKEvent): string {
 
 /**
  * Get the event parameters from an naddr
- * @param naddr The Nostr address (naddr) string
+ * @param naddr The Nostr address (naddr) string or raw format "kind:pubkey:identifier"
  * @returns The decoded naddr data
  */
 export function decodeStationNaddr(naddr: string): {
@@ -501,8 +456,19 @@ export function decodeStationNaddr(naddr: string): {
     kind: number
     relays?: string[]
 } {
+    // Handle raw naddr format (kind:pubkey:identifier)
     if (!naddr.startsWith('naddr')) {
-        throw new Error('Invalid naddr format, must start with "naddr"')
+        const parts = naddr.split(':')
+        if (parts.length < 3) {
+            throw new Error('Invalid naddr format: should be either bech32 encoded or "kind:pubkey:identifier"')
+        }
+
+        return {
+            kind: parseInt(parts[0]),
+            pubkey: parts[1],
+            identifier: parts[2],
+            relays: [],
+        }
     }
 
     try {
@@ -526,7 +492,7 @@ export function createHandlerEvent(): NostrEvent {
     const handlerId = Math.random().toString(36).substring(2, 14)
 
     return {
-        kind: NIP89_EVENT_KINDS.HANDLER,
+        kind: NDKKind.AppHandler,
         pubkey: APP_PUBKEY,
         created_at: Math.floor(Date.now() / 1000),
         content: JSON.stringify({
@@ -566,13 +532,54 @@ export async function publishHandlerEvent(ndk: NDK): Promise<NDKEvent> {
  * @returns The client tag to include when publishing events
  */
 export function createClientTag(handlerEvent: NDKEvent, relayUrl?: string): string[] {
-    const dTag = handlerEvent.tags.find(tag => tag[0] === 'd')?.[1] || ''
-    const clientId = `${NIP89_EVENT_KINDS.HANDLER}:${APP_PUBKEY}:${dTag}`
-    
-    return [
-        'client',
-        'NostrRadio',
-        clientId,
-        ...(relayUrl ? [relayUrl] : [])
-    ]
+    const dTag = handlerEvent.tags.find((tag) => tag[0] === 'd')?.[1] || ''
+    const clientId = `${NDKKind.AppHandler}:${APP_PUBKEY}:${dTag}`
+
+    return ['client', 'NostrRadio', clientId, ...(relayUrl ? [relayUrl] : [])]
+}
+
+/**
+ * Map a Nostr event to a properly formatted Station object with encoded naddr
+ * @param event The Nostr event to map
+ * @returns The formatted Station object with encoded naddr
+ */
+export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
+    try {
+        // Parse the event data
+        const stationData = parseRadioEventWithSchema(event)
+
+        // Get the d-tag value which is required for replaceable events
+        const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1]
+        if (!dTag) {
+            throw new Error('Station event missing required d-tag')
+        }
+
+        // Create the properly encoded naddr
+        const naddr = nip19.naddrEncode({
+            identifier: dTag,
+            pubkey: event.pubkey,
+            kind: RADIO_EVENT_KINDS.STREAM as number,
+            relays: [],
+        })
+
+        // Map to Station object with proper naddr
+        return {
+            id: typeof event.id === 'function' ? event.id : event.id || '',
+            name: stationData.name,
+            description: stationData.description,
+            website: stationData.website || '',
+            imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
+            pubkey: event.pubkey,
+            tags: event.tags as string[][],
+            streams: stationData.streams,
+            created_at: event.created_at || Math.floor(Date.now() / 1000),
+            countryCode: stationData.countryCode,
+            languageCodes: stationData.languageCodes,
+            naddr: naddr, // Include the properly encoded naddr
+            event: event as NDKEvent,
+        }
+    } catch (error) {
+        console.error('Error mapping event to station:', error)
+        throw error
+    }
 }

@@ -18,8 +18,7 @@ import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import {
     cn,
-    findStationByNameInNostr,
-    generateStationNaddr,
+    decodeStationNaddr,
     getStationBackgroundColor,
     ndkActions,
     ndkStore,
@@ -29,13 +28,13 @@ import {
     togglePlayback,
 } from '@wavefunc/common'
 import type { Stream } from '@wavefunc/common/src/types/stream'
+import CommentsList from '../comments/CommentsList'
 import { UserProfile } from '../UserProfile'
 import { ExpandButton } from './station-card/ExplandButton'
 import { PlayButton } from './station-card/PlayButton'
 import { StationHeader } from './station-card/StationHeader'
 import { StationImage } from './station-card/StationImage'
 import { StationTags } from './station-card/StationTags'
-import CommentsList from '../comments/CommentsList'
 
 // Station main content component
 interface StationContentProps {
@@ -214,60 +213,47 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
 
     // Check if station exists in Nostr
     useEffect(() => {
-        if (!isConnected) return
         let isMounted = true
 
-        const checkNostr = async () => {
-            setCheckingNostr(true)
+        const checkRadioExists = async () => {
+            const ndk = ndkActions.getNDK()
+            if (!ndk || !station.naddr || !isMounted) return
+
             try {
-                const ndk = ndkActions.getNDK()
-                if (!ndk) throw new Error('NDK not initialized')
+                setStationNaddr(station.naddr) // Store the naddr directly, it's already properly encoded
 
-                if (station.id) {
-                    try {
-                        const event = await ndk.fetchEvent(station.id)
-                        if (!isMounted) return
-                        setExistsInNostr(event || null)
-                    } catch (error) {
-                        console.error('Error fetching event by naddr:', error)
-                        setExistsInNostr(null)
-                    }
-                } else if (station.name) {
-                    try {
-                        const nostrEvent = await (findStationByNameInNostr as any)(ndk, station.name)
-                        if (!isMounted) return
+                // Decode it to get necessary data for fetching the event
+                const decodedData = decodeStationNaddr(station.naddr)
 
-                        if (nostrEvent) {
-                            setExistsInNostr(nostrEvent)
-                            try {
-                                const eventNaddr = (generateStationNaddr as any)(nostrEvent)
-                                setStationNaddr(eventNaddr)
-                            } catch (error) {
-                                console.error('Error generating naddr:', error)
-                            }
-                        } else {
-                            setExistsInNostr(null)
-                        }
-                    } catch (error) {
-                        console.error('Error finding station in Nostr:', error)
-                        setExistsInNostr(null)
-                    }
+                // Create a filter to find the exact event
+                const filter = {
+                    kinds: [decodedData.kind],
+                    authors: [decodedData.pubkey],
+                    '#d': [decodedData.identifier],
                 }
-            } catch (error) {
-                console.error('Error checking Nostr for station:', error)
+
+                const events = await ndk.fetchEvents(filter)
+                if (!isMounted) return
+
+                const foundEvent = Array.from(events)[0]
+                if (foundEvent) {
+                    setExistsInNostr(foundEvent)
+                    return
+                }
+
+                // No event found, set to null
                 setExistsInNostr(null)
-            } finally {
-                if (isMounted) {
-                    setCheckingNostr(false)
-                }
+            } catch (e) {
+                console.error('Error checking if radio exists:', e)
             }
         }
 
-        checkNostr()
+        checkRadioExists()
+
         return () => {
             isMounted = false
         }
-    }, [station.name, station.id, isConnected, naddr])
+    }, [station.naddr, ndkActions])
 
     // Get current user
     useEffect(() => {
