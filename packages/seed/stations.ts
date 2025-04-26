@@ -1,5 +1,6 @@
 import type { NostrEvent } from '@nostr-dev-kit/ndk'
-import { RADIO_EVENT_KINDS, NIP89_EVENT_KINDS, APP_PUBKEY } from '../../packages/common/src/nostr/radio'
+import { APP_PUBKEY } from '../../packages/common/src/nostr/radio'
+import { RADIO_EVENT_KINDS, NIP89_EVENT_KINDS } from '../../packages/common/src/schemas/events'
 
 // Fixed handler ID for seeding purposes
 const HANDLER_ID = 'seedhandler123'

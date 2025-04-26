@@ -7,7 +7,7 @@ export default function StationGrid({ stations, isMobile }: { stations: Station[
     return (
         <div className={cn('grid md:grid-cols-1 lg:grid-cols-3', isMobile ? 'gap-2' : 'gap-3 md:gap-12')}>
             {stations.map((station) => (
-                <RadioCard key={station.id} station={station} />
+                <RadioCard key={station.id} station={station} naddr={station.naddr} />
             ))}
 
             {stations.length === 0 && (

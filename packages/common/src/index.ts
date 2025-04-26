@@ -16,6 +16,9 @@ export * from './types'
 export * from './nostr/service'
 export * from './nostr/reactions'
 
+// Export constants
+export { RADIO_EVENT_KINDS, NIP89_EVENT_KINDS } from './schemas/events'
+
 // Lib files
 export * from './lib/utils'
 export * from './lib/queryClient'

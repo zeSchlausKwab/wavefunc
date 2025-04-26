@@ -248,9 +248,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     description: 'Your changes have been saved successfully.',
                 })
             } else {
-                const tags = [
-                    ['thumbnail', data.imageUrl],
-                ]
+                const tags = [['thumbnail', data.imageUrl]]
 
                 if (data.countryCode) {
                     tags.push(['countryCode', data.countryCode])

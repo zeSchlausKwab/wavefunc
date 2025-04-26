@@ -12,7 +12,7 @@ config({
 const VITE_PUBLIC_APP_ENV = process.env.VITE_PUBLIC_APP_ENV
 const VITE_PUBLIC_WEB_PORT = process.env.VITE_PUBLIC_WEB_PORT
 const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
-
+const APP_PUBKEY = process.env.APP_PUBKEY
 // Handle static files from the public directory
 const serveStatic = async (path: string) => {
     const filePath = join(process.cwd(), 'public', path)
@@ -49,7 +49,7 @@ export const server = serve({
         '/.well-known/nostr.json': () => new Response(file(join(process.cwd(), 'public', '.well-known', 'nostr.json'))),
         '/images/:file': ({ params }) => serveStatic(`images/${params.file}`),
         '/envConfig': () =>
-            new Response(JSON.stringify({ VITE_PUBLIC_APP_ENV, VITE_PUBLIC_WEB_PORT, VITE_PUBLIC_HOST }), {
+            new Response(JSON.stringify({ VITE_PUBLIC_APP_ENV, VITE_PUBLIC_WEB_PORT, VITE_PUBLIC_HOST, APP_PUBKEY }), {
                 headers: { 'Content-Type': 'application/javascript' },
             }),
     },
