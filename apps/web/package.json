@@ -10,7 +10,7 @@
         "watch-routes": "tsr watch",
         "dev": "bun --hot src/index.tsx --host 0.0.0.0",
         "start": "NODE_ENV=production bun run src/index.tsx",
-        "build": "NODE_ENV=production bun run generate-routes && bun run build.ts",
+        "build": "NODE_ENV=production bun run build.ts",
         "preview": "NODE_ENV=production bun run dist/index.js",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
