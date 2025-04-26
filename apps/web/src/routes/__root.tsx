@@ -7,7 +7,7 @@ import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react
 import { useStore } from '@tanstack/react-store'
 import type { AppRouterContext } from '@wavefunc/common'
 import { uiStore } from '@wavefunc/common'
-import type { Station } from '@wavefunc/common/types/station'
+import type { Station } from '@wavefunc/common/src/types/station'
 import { CheckerPattern } from '@wavefunc/common'
 
 function Providers({ children }: { children: React.ReactNode }) {
