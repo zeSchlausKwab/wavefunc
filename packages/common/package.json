@@ -9,8 +9,8 @@
         "dev": "echo 'No build needed with Bun'"
     },
     "dependencies": {
-        "@nostr-dev-kit/ndk": "2.13.0-rc2",
-        "@nostr-dev-kit/ndk-cache-dexie": "2.5.15",
+        "@nostr-dev-kit/ndk": "2.14.2",
+        "@nostr-dev-kit/ndk-cache-dexie": "2.6.4",
         "@types/md5": "^2.3.5",
         "@wavefunc/ui": "workspace:*",
         "crypto": "1.0.1",

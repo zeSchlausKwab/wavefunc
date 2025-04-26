@@ -14,8 +14,8 @@
     "dependencies": {
         "@formkit/auto-animate": "^0.8.2",
         "@hookform/resolvers": "^5.0.1",
-        "@nostr-dev-kit/ndk": "2.13.3",
-        "@nostr-dev-kit/ndk-cache-dexie": "^2.6.1-rc2",
+        "@nostr-dev-kit/ndk": "2.14.2",
+        "@nostr-dev-kit/ndk-cache-dexie": "2.6.4",
         "@nostr-dev-kit/ndk-wallet": "0.5.3-1",
         "@radix-ui/react-slot": "^1.2.0",
         "@tailwindcss/vite": "^4.1.4",

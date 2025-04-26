@@ -233,9 +233,6 @@ function Discover() {
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
     const isMobile = useMedia('(max-width: 640px)')
 
-    // Get the current user
-    const currentUser = useCurrentUser()
-
     // Get all radio stations
     const { stations } = useRadioStations()
 
