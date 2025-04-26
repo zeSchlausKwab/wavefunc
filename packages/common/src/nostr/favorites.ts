@@ -1,5 +1,13 @@
-import NDK, { NDKEvent, type NostrEvent, NDKSubscriptionCacheUsage, type NDKFilter } from '@nostr-dev-kit/ndk'
-import { createStationDTagValue, RADIO_EVENT_KINDS } from './radio'
+import NDK, { NDKEvent, type NostrEvent, NDKSubscriptionCacheUsage, type NDKFilter, NDKKind } from '@nostr-dev-kit/ndk'
+import { createStationDTagValue } from './radio'
+import { RADIO_EVENT_KINDS } from '../schemas/events'
+import { envStore } from '../lib/store/env'
+
+/**
+ * Favorites list types following NIP-78 app-specific data
+ */
+// The 'l' tag value for radio favorites
+export const FAVORITES_LIST_TYPE = 'radio_favorites'
 
 export interface FavoritesList {
     id: string
@@ -28,20 +36,26 @@ export interface FavoritesListContent {
 }
 
 /**
- * Creates an unsigned favorites list event
+ * Creates an unsigned favorites list event using NIP-78
  */
 export function createFavoritesEvent(content: FavoritesListContent, pubkey: string): NostrEvent {
+    // Get app pubkey from env if available
+    const appPubkey = envStore.state.env?.VITE_APP_PUBKEY || ''
+    
     return {
-        kind: RADIO_EVENT_KINDS.FAVORITES,
+        kind: NDKKind.AppSpecificData,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
             ['d', `favorites-${createStationDTagValue()}`],
+            ['l', FAVORITES_LIST_TYPE], // Add 'l' tag to identify this as radio favorites
             ...content.favorites.map((fav) => [
                 'a',
                 fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`,
                 fav.name,
             ]),
             ['t', 'favorites'],
+            // Add app reference if available
+            ...(appPubkey ? [['p', appPubkey]] : []),
         ],
         content: JSON.stringify(content),
         pubkey,
@@ -76,6 +90,7 @@ export async function updateFavoritesList(
     }
 
     const pubkey = await ndk.signer.user().then((user) => user.pubkey)
+    const appPubkey = envStore.state.env?.VITE_APP_PUBKEY || ''
 
     // Get the existing d-tag to preserve it
     const dTag = favoritesList.tags.find((tag) => tag[0] === 'd')
@@ -90,12 +105,15 @@ export async function updateFavoritesList(
     // Create tag array with preserved d-tag
     const tags = [
         dTag || ['d', `favorites-${createStationDTagValue()}`],
+        ['l', FAVORITES_LIST_TYPE], // Add 'l' tag to identify this as radio favorites
         ...content.favorites.map((fav) => ['a', fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`, fav.name]),
         ['t', 'favorites'],
+        // Add app reference if available
+        ...(appPubkey ? [['p', appPubkey]] : []),
     ]
 
     const event: NostrEvent = {
-        kind: RADIO_EVENT_KINDS.FAVORITES,
+        kind: NDKKind.AppSpecificData,
         created_at: Math.floor(Date.now() / 1000),
         tags,
         content: JSON.stringify(content),
@@ -125,7 +143,7 @@ export async function addStationToFavorites(
     if (isAlreadyFavorite) {
         // If it's already a favorite, just return the unmodified list
         const ndkEvent = new NDKEvent(ndk, {
-            kind: RADIO_EVENT_KINDS.FAVORITES,
+            kind: NDKKind.AppSpecificData,
             content: JSON.stringify(favoritesList),
             tags: favoritesList.tags,
             created_at: Math.floor(Date.now() / 1000),
@@ -165,7 +183,7 @@ export async function removeStationFromFavorites(
     // If nothing changed, return early
     if (updatedFavorites.length === favoritesList.favorites.length) {
         const ndkEvent = new NDKEvent(ndk, {
-            kind: RADIO_EVENT_KINDS.FAVORITES,
+            kind: NDKKind.AppSpecificData,
             content: JSON.stringify(favoritesList),
             tags: favoritesList.tags,
             created_at: Math.floor(Date.now() / 1000),
@@ -200,8 +218,14 @@ export async function deleteFavoritesList(ndk: NDK, favoritesListId: string): Pr
  * Parse a favorites list event
  */
 export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList {
-    if (event.kind !== RADIO_EVENT_KINDS.FAVORITES) {
+    if (event.kind !== NDKKind.AppSpecificData) {
         throw new Error('Invalid event kind for favorites list')
+    }
+
+    // Validate that this is a radio favorites list using the 'l' tag
+    const lTag = event.tags.find(tag => tag[0] === 'l' && tag[1] === FAVORITES_LIST_TYPE)
+    if (!lTag) {
+        throw new Error('Not a valid radio favorites list')
     }
 
     try {
@@ -210,8 +234,8 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
         // Extract favorites from content or tags
         let favorites = content.favorites || []
         if (favorites.length === 0) {
-            // Filter and process a-tags, excluding the app identifier tag
-            const aTags = event.tags.filter((tag) => tag[0] === 'a' && tag[1] !== 'nostr_radio')
+            // Filter and process a-tags
+            const aTags = event.tags.filter((tag) => tag[0] === 'a')
 
             // Process a-tags for actual station references
             favorites = aTags
@@ -224,7 +248,7 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
 
                     if (parts.length >= 3) {
                         // It's a proper NIP-19 a-tag
-                        // For 30023:pubkey:d-tag format, we use the d-tag as event_id
+                        // For station reference format, we use the d-tag as event_id
                         event_id = parts[2] || ''
                         naddr = tag[1] // Store the full a-tag for later use
                     } else {
@@ -233,8 +257,8 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
                         event_id = tag[1]
                     }
 
-                    // Skip if it's just "nostr_radio" which is an app tag, not an event ID
-                    if (event_id === 'nostr_radio' || event_id === '') {
+                    // Skip if the event_id is empty
+                    if (!event_id) {
                         return null
                     }
 
@@ -274,9 +298,8 @@ export function subscribeToFavoritesLists(
     onEvent?: (event: FavoritesList) => void,
 ) {
     const filter: NDKFilter = {
-        kinds: [RADIO_EVENT_KINDS.FAVORITES],
-        '#a': ['nostr_radio'], // Filter by indexed app tag
-        '#t': ['favorites'], // Filter by topic tag
+        kinds: [NDKKind.AppSpecificData],
+        '#l': [FAVORITES_LIST_TYPE] // Filter by our radio favorites type
     }
 
     // Add pubkey filter if specified
@@ -315,8 +338,8 @@ export async function fetchFavoritesLists(
     },
 ): Promise<FavoritesList[]> {
     const filter: NDKFilter = {
-        kinds: [RADIO_EVENT_KINDS.FAVORITES],
-        '#a': ['nostr_radio'], // Filter by indexed app tag
+        kinds: [NDKKind.AppSpecificData],
+        '#l': [FAVORITES_LIST_TYPE], // Filter by our radio favorites type
         '#t': ['favorites'], // Filter by topic tag
     }
 

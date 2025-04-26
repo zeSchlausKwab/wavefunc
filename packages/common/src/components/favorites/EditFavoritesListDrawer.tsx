@@ -28,11 +28,11 @@ interface EditFavoritesListDrawerProps {
     favoritesList?: FavoritesList
     isOpen: boolean
     onClose: () => void
-    onSave?: (favoritesList: FavoritesList) => void
 }
 
 export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: EditFavoritesListDrawerProps) {
     const [isDeleting, setIsDeleting] = React.useState(false)
+    const [isSaving, setIsSaving] = React.useState(false)
 
     const {
         register,
@@ -68,6 +68,7 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
 
     const onSubmit = async (data: FavoritesListFormData) => {
         try {
+            setIsSaving(true)
             const ndk = ndkActions.getNDK()
             if (!ndk) {
                 throw new Error('NDK not initialized')
@@ -94,6 +95,8 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
             onClose()
         } catch (error) {
             console.error('Error saving favorites list:', error)
+        } finally {
+            setIsSaving(false)
         }
     }
 
@@ -101,6 +104,7 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
         if (!favoritesList) return
 
         try {
+            setIsDeleting(true)
             const ndk = ndkActions.getNDK()
             if (!ndk) {
                 throw new Error('NDK not initialized')
@@ -138,9 +142,14 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                             This action cannot be undone. The favorites list will be permanently deleted.
                         </p>
                         <div className="flex space-x-2 mt-6">
-                            <Button variant="destructive" onClick={handleDeleteFavoritesList} className="mr-2">
+                            <Button
+                                variant="destructive"
+                                onClick={handleDeleteFavoritesList}
+                                className="mr-2"
+                                disabled={isDeleting}
+                            >
                                 <Trash className="h-4 w-4 mr-2" />
-                                Yes, Delete List
+                                {isDeleting ? 'Deleting...' : 'Yes, Delete List'}
                             </Button>
                             <Button variant="outline" onClick={() => setIsDeleting(false)}>
                                 Cancel
@@ -176,8 +185,8 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                         )}
 
                         <div className="flex justify-between space-x-2">
-                            <Button type="submit" className="bg-primary text-white">
-                                {favoritesList ? 'Save Changes' : 'Create List'}
+                            <Button type="submit" className="bg-primary text-white" disabled={isSaving}>
+                                {isSaving ? 'Saving...' : favoritesList ? 'Save Changes' : 'Create List'}
                             </Button>
                             <div className="flex space-x-2">
                                 {favoritesList && (

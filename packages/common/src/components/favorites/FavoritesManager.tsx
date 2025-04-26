@@ -2,15 +2,13 @@ import { Button } from '@wavefunc/ui/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { ndkActions, ndkStore } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
-import type NDK from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
 import type { Station } from '@wavefunc/common'
 import {
     type FavoritesList,
-    fetchFavoritesLists as commonFetchFavoritesLists,
-    generateStationNaddr as commonGenerateStationNaddr,
-    parseRadioEvent,
-    subscribeToFavoritesLists as commonSubscribeToFavoritesLists,
+    fetchFavoritesLists,
+    subscribeToFavoritesLists,
+    parseRadioEventWithSchema,
 } from '@wavefunc/common'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -26,26 +24,6 @@ interface ResolvedStation {
         added_at: number
         naddr?: string
     }
-}
-
-// Wrapper functions to handle type compatibility issues between NDK versions
-const fetchFavoritesLists = (ndk: NDK, options: { pubkey: string }) => {
-    // Cast to any to bypass the type mismatch
-    return commonFetchFavoritesLists(ndk as any, options)
-}
-
-const subscribeToFavoritesLists = (
-    ndk: NDK,
-    options: { pubkey: string },
-    callback: (favoritesList: FavoritesList) => void,
-) => {
-    // Cast to any to bypass the type mismatch
-    return commonSubscribeToFavoritesLists(ndk as any, options, callback)
-}
-
-const generateStationNaddr = (event: NDKEvent) => {
-    // Cast to any to bypass the type mismatch
-    return commonGenerateStationNaddr(event as any)
 }
 
 export function FavoritesManager() {
@@ -72,7 +50,7 @@ export function FavoritesManager() {
 
         setIsLoading(true)
 
-        // Use our wrapper function
+        // Fetch all favorites lists for the user
         fetchFavoritesLists(ndk, { pubkey })
             .then((lists) => {
                 console.log('Fetched favorites lists:', lists)
@@ -85,7 +63,7 @@ export function FavoritesManager() {
                 setIsLoading(false)
             })
 
-        // Use our wrapper function
+        // Subscribe to updates to favorites lists
         const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
             console.log('Favorites list updated:', favoritesList)
             setFavoritesLists((prev) => {
@@ -129,7 +107,7 @@ export function FavoritesManager() {
 
                 for (const favorite of list.favorites) {
                     // Skip invalid favorites
-                    if (!favorite.event_id || favorite.event_id === 'nostr_radio') {
+                    if (!favorite.event_id) {
                         console.warn('Skipping invalid favorite:', favorite)
                         continue
                     }
@@ -160,45 +138,25 @@ export function FavoritesManager() {
 
                         if (event) {
                             try {
-                                const parsedStation = parseRadioEvent(event)
+                                const parsedStation = parseRadioEventWithSchema(event)
 
-                                // Make sure to get the naddr if available
-                                let naddr = favorite.naddr
-                                if (!naddr && event) {
-                                    try {
-                                        // Using the event object directly, not passing through parameters
-                                        const localEvent = new NDKEvent(ndk)
-                                        localEvent.kind = event.kind
-                                        localEvent.content = event.content
-                                        localEvent.tags = event.tags
-                                        localEvent.pubkey = event.pubkey
-                                        localEvent.created_at = event.created_at
-                                        localEvent.id = event.id
-
-                                        // Use our wrapper function
-                                        naddr = generateStationNaddr(localEvent)
-                                    } catch (error) {
-                                        console.warn('Could not generate naddr for station:', error)
-                                    }
-                                }
-
+                                // Create the Station object
                                 const station: Station = {
                                     id: favorite.event_id,
-                                    naddr, // Use the generated naddr or the one from the favorite
+                                    naddr: favorite.naddr,
                                     name: parsedStation.name,
                                     description: parsedStation.description,
                                     website: parsedStation.website,
                                     streams: parsedStation.streams,
                                     // Properly map tags - Station.tags expects string[][]
                                     tags: parsedStation.eventTags || event.tags,
-                                    // Extract genre from tags with proper null checks
-                                    genre: event.tags.find((t) => t[0] === 'genre')?.[1] || '',
+                                    // Extract image from thumbnail tag
                                     imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
-                                    // Include new fields from radio-browser.info
+                                    // Include new fields
                                     countryCode: parsedStation.countryCode,
                                     languageCodes: parsedStation.languageCodes,
                                     pubkey: event.pubkey,
-                                    created_at: favorite.added_at,
+                                    created_at: event.created_at || Math.floor(Date.now() / 1000),
                                 }
 
                                 newResolvedStations[favorite.event_id] = {
@@ -304,7 +262,7 @@ export function FavoritesManager() {
                                     {list.favorites && list.favorites.length > 0 ? (
                                         list.favorites.map((favorite) => {
                                             // Skip invalid favorites
-                                            if (!favorite.event_id || favorite.event_id === 'nostr_radio') {
+                                            if (!favorite.event_id) {
                                                 return null
                                             }
 
