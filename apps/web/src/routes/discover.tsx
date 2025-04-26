@@ -13,32 +13,6 @@ import { Button } from '@wavefunc/ui/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
 
-// Custom hook to fetch the current user
-function useCurrentUser() {
-    const [currentUser, setCurrentUser] = useState<NDKUser | null>(null)
-
-    useEffect(() => {
-        const fetchUser = async () => {
-            try {
-                const ndk = ndkActions.getNDK()
-                if (!ndk) return
-
-                const user = await ndk.signer?.user()
-                if (user) {
-                    setCurrentUser(user)
-                }
-            } catch (error) {
-                console.error('Error fetching user:', error)
-            }
-        }
-
-        fetchUser()
-    }, [])
-
-    return currentUser
-}
-
-// Custom hook to manage radio stations
 function useRadioStations() {
     const [stations, setStations] = useState<Station[]>([])
     const [deletedStationIds, setDeletedStationIds] = useState<Set<string>>(new Set())
