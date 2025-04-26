@@ -1,10 +1,3 @@
-export interface LegacyComment {
-    id: number
-    user: string
-    text: string
-    date: string
-}
-
 export interface Station {
     id: string
     naddr?: string
