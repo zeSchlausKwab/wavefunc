@@ -14,7 +14,7 @@
         "dev:web": "bun run --cwd apps/web dev",
         "dev:relay": "bun run --cwd infra/relay dev",
         "start:web": "bun run --cwd apps/web start",
-        "build:web": "bun run --cwd apps/web build",
+        "build": "bun run --cwd apps/web build",
         "test": "bun test",
         "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
         "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\""
