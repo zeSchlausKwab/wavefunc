@@ -1,16 +1,24 @@
-import { StreamSelector } from '@wavefunc/common'
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
-import { setCurrentStation, stationsStore, togglePlayback } from '@wavefunc/common'
-import { openEditStationDrawer } from '@wavefunc/common'
-import type { Station } from '@wavefunc/common'
-import { decodeStationNaddr } from '@wavefunc/common'
-import type { Stream } from '@wavefunc/common/types/stream'
 import type { NDKEvent } from '@nostr-dev-kit/ndk'
 import { NDKUser } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
+import {
+    decodeStationNaddr,
+    mapNostrEventToStation,
+    ndkActions,
+    openEditStationDrawer,
+    setCurrentStation,
+    stationsStore,
+    togglePlayback,
+    type Station,
+} from '@wavefunc/common'
+import CommentsList from '@wavefunc/common/src/components/comments/CommentsList'
+import { StreamSelector } from '@wavefunc/common/src/components/radio/StreamSelector'
+import { ShareStationButton } from '@wavefunc/common/src/components/ShareStationButton'
+import type { Stream } from '@wavefunc/common/src/types/stream'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import {
     AlertCircle,
     Calendar,
@@ -24,9 +32,6 @@ import {
     Zap,
 } from 'lucide-react'
 import React from 'react'
-import CommentsList from '@wavefunc/common'
-import { ShareStationButton } from '@wavefunc/common'
-import { ndkActions } from '@wavefunc/common'
 
 async function fetchStation(naddr: string): Promise<Station> {
     const ndk = ndkActions.getNDK()
@@ -71,24 +76,7 @@ async function fetchStation(naddr: string): Promise<Station> {
             throw new Error('Station not found')
         }
 
-        const content = JSON.parse(event.content)
-        const nameTag = event.tags.find((tag) => tag[0] === 'name')
-        const descriptionTag = event.tags.find((tag) => tag[0] === 'description')
-        const genreTag = event.tags.find((tag) => tag[0] === 'genre')
-        const thumbnailTag = event.tags.find((tag) => tag[0] === 'thumbnail')
-
-        return {
-            id: event.id,
-            name: nameTag?.[1] || content.name,
-            description: descriptionTag?.[1] || content.description,
-            genre: genreTag?.[1] || '',
-            website: content.website || '',
-            imageUrl: thumbnailTag?.[1] || '',
-            streams: content.streams || [],
-            tags: event.tags,
-            pubkey: event.pubkey,
-            created_at: event.created_at || Math.floor(Date.now() / 1000),
-        }
+        return mapNostrEventToStation(event)
     } catch (error) {
         console.error('[Station] Error:', error)
         throw error
@@ -163,7 +151,7 @@ function StationPage() {
                 }
                 const userObj = await ndk.signer?.user()
                 if (userObj) {
-                    setUser(userObj as NDKUser)
+                    setUser(userObj as unknown as NDKUser)
                 }
             }
         }
@@ -278,7 +266,11 @@ function StationPage() {
                             <Button variant="outline" size="icon" aria-label="Comment">
                                 <MessageCircle className="h-4 w-4 text-primary" />
                             </Button>
-                            <ShareStationButton stationId={station.id} stationName={station.name} />
+                            <ShareStationButton
+                                stationId={station.id}
+                                stationName={station.name}
+                                naddr={station.naddr || naddr}
+                            />
                         </div>
 
                         {station.pubkey === user?.pubkey && (
@@ -298,9 +290,7 @@ function StationPage() {
                     <Card className="w-full bg-white bg-opacity-90 shadow-lg">
                         <CardHeader>
                             <CardTitle className="text-2xl font-press-start-2p text-primary">{station.name}</CardTitle>
-                            <CardDescription className="text-sm font-press-start-2p mt-1">
-                                {station.genre}
-                            </CardDescription>
+                            <CardDescription className="text-sm font-press-start-2p mt-1"></CardDescription>
                         </CardHeader>
 
                         <CardContent>
@@ -396,8 +386,8 @@ function StationPage() {
             </div>
 
             <div className="mt-12 mb-8">
-                {station.id ? (
-                    <CommentsList stationId={station.id} stationEvent={station} commentsCount={0} />
+                {station.event ? (
+                    <CommentsList stationId={station.id} stationEvent={station.event} commentsCount={0} />
                 ) : (
                     <div className="text-center py-4 text-muted-foreground">Cannot load comments for this station.</div>
                 )}

@@ -1,3 +1,5 @@
+import type { NDKEvent } from '@nostr-dev-kit/ndk'
+
 export interface Station {
     id: string
     naddr?: string
@@ -20,6 +22,7 @@ export interface Station {
         primary?: boolean
     }[]
     created_at: number
+    event?: NDKEvent
 }
 
 export interface Group {

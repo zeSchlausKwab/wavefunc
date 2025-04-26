@@ -1,5 +1,6 @@
 import NDK, { NDKEvent, type NostrEvent } from '@nostr-dev-kit/ndk'
-import { RADIO_EVENT_KINDS, createRadioEvent } from './radio'
+import { createRadioEvent } from './radio'
+import { RADIO_EVENT_KINDS } from '../schemas/events'
 import type { Station } from '../types/station'
 
 /**

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ndkActions, parseRadioEvent, RADIO_EVENT_KINDS, subscribeToRadioStations } from '@wavefunc/common'
+import { ndkActions, parseRadioEventWithSchema, RADIO_EVENT_KINDS, subscribeToRadioStations } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
-import type { Station } from '@wavefunc/common/types/station'
+import type { Station } from '@wavefunc/common/src/types/station'
 import { useEffect, useState } from 'react'
 // import { useMedia } from 'react-use'
 export const Route = createFileRoute('/')({
@@ -22,7 +22,7 @@ function Index() {
         const subscription = subscribeToRadioStations(ndk, (event) => {
             console.log('event', event)
             try {
-                const radioData = parseRadioEvent(event)
+                const radioData = parseRadioEventWithSchema(event)
 
                 const dTag = event.tags.find((t) => t[0] === 'd')?.[1] || ''
 
@@ -32,7 +32,6 @@ function Index() {
                     name: radioData.name,
                     description: radioData.description,
                     website: radioData.website,
-                    genre: event.tags.find((t) => t[0] === 'genre')?.[1] || '',
                     imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
                     countryCode: radioData.countryCode,
                     languageCodes: radioData.languageCodes,
@@ -57,29 +56,6 @@ function Index() {
             subscription.stop()
         }
     }, [])
-
-    // Extract unique genres from stations
-    const genres = Array.from(
-        new Set(
-            stations.flatMap((station) =>
-                station.genre
-                    ? station.genre
-                          .split(',')
-                          .map((g) => g.trim())
-                          .filter(Boolean)
-                    : [],
-            ),
-        ),
-    ).sort((a, b) => a.localeCompare(b))
-
-    // Filter stations by selected genre
-    const filteredStations = selectedGenre
-        ? stations.filter((station) => {
-              if (!station.genre) return false
-              const stationGenres = station.genre.split(',').map((g) => g.trim())
-              return stationGenres.includes(selectedGenre)
-          })
-        : stations
 
     return (
         <div className="container py-4">
