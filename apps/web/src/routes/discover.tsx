@@ -82,7 +82,6 @@ function useRadioStations() {
                 name: data.name,
                 description: data.description,
                 website: data.website,
-                genre: event.tags.find((t) => t[0] === 'genre')?.[1] || '',
                 imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
                 pubkey: event.pubkey,
                 tags: event.tags,
@@ -212,15 +211,14 @@ function Discover() {
 
     // Extract unique genres from stations
     const genres = useMemo(() => {
+        // Collect all t tags from all stations
         return Array.from(
             new Set(
                 stations.flatMap((station) =>
-                    station.genre
-                        ? station.genre
-                              .split(',')
-                              .map((g) => g.trim())
-                              .filter(Boolean)
-                        : [],
+                    station.tags
+                        .filter((tag) => tag[0] === 't')
+                        .map((tag) => tag[1])
+                        .filter(Boolean),
                 ),
             ),
         ).sort((a, b) => a.localeCompare(b))
@@ -231,9 +229,8 @@ function Discover() {
         if (!selectedGenre) return stations
 
         return stations.filter((station) => {
-            if (!station.genre) return false
-            const stationGenres = station.genre.split(',').map((g) => g.trim())
-            return stationGenres.includes(selectedGenre)
+            // Check if the station has the selected genre in its t tags
+            return station.tags.some((tag) => tag[0] === 't' && tag[1] === selectedGenre)
         })
     }, [stations, selectedGenre])
 

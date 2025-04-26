@@ -5,7 +5,7 @@ import type { Station } from '../types/station'
 /**
  * Publish a new radio station event
  */
-export async function publishStation(ndk: NDK, event: NostrEvent): Promise<NDKEvent> {
+export async function publishStation(ndk: NDK, event: NostrEvent, clientTag?: string[]): Promise<NDKEvent> {
     if (event.kind !== RADIO_EVENT_KINDS.STREAM) {
         throw new Error('Invalid event kind. Expected radio stream event.')
     }
@@ -28,6 +28,11 @@ export async function publishStation(ndk: NDK, event: NostrEvent): Promise<NDKEv
         if (!event.tags.some((tag) => tag[0] === 'i') && content.name) {
             event.tags.push(['i', content.name.trim()])
         }
+
+        // Add client tag if provided
+        if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {
+            event.tags.push(clientTag)
+        }
     } catch (error) {
         console.error('Failed to parse event content:', error)
     }
@@ -49,20 +54,18 @@ export async function updateStation(
         description: string
         website: string
         streams: any[]
-        genre?: string
         imageUrl?: string
         countryCode?: string
         languageCodes?: string[]
         tags?: string[]
     },
+    clientTag?: string[],
 ): Promise<NDKEvent> {
     // Create the basic tags array - put d-tag first to emphasize its importance
     const tags = [
         ['name', updatedData.name],
         ['description', updatedData.description],
-        ['genre', updatedData.genre || ''],
         ['thumbnail', updatedData.imageUrl || ''],
-        ['client', 'nostr_radio'],
         ['i', updatedData.name.trim()], // Add indexed identity tag
     ]
 
@@ -87,6 +90,11 @@ export async function updateStation(
                 tags.push(['t', tag.trim()])
             }
         })
+    }
+
+    // Add client tag if provided
+    if (clientTag) {
+        tags.push(clientTag)
     }
 
     // Create a radio event that preserves the existing tags (including d-tag)
@@ -114,7 +122,7 @@ export async function updateStation(
 /**
  * Publish multiple radio stations
  */
-export async function publishStations(ndk: NDK, events: NostrEvent[]): Promise<NDKEvent[]> {
+export async function publishStations(ndk: NDK, events: NostrEvent[], clientTag?: string[]): Promise<NDKEvent[]> {
     // Ensure each event has the station name as d-tag
     const preparedEvents = events.map((event) => {
         try {
@@ -124,6 +132,11 @@ export async function publishStations(ndk: NDK, events: NostrEvent[]): Promise<N
                 event.tags = event.tags.filter((tag) => tag[0] !== 'd')
                 // Add d-tag with station name
                 event.tags.push(['d', content.name.trim()])
+            }
+
+            // Add client tag if provided
+            if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {
+                event.tags.push(clientTag)
             }
         } catch (e) {
             console.error('Error preparing event for publishing:', e)
@@ -143,7 +156,6 @@ export async function deleteStation(ndk: NDK, eventId: string): Promise<NDKEvent
         kind: 5, // Deletion event kind
         tags: [
             ['e', eventId], // Reference to the event being deleted
-            ['a', 'nostr_radio'], // Include app tag for tracking
         ],
         content: 'Deleted radio station',
         created_at: Math.floor(Date.now() / 1000),

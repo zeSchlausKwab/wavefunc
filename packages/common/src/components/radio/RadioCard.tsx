@@ -344,8 +344,8 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
             return []
         }
         return station.tags
-            .filter((tag) => tag[0] !== 'd' && tag[0] !== 'genre' && tag[0] !== 'thumbnail')
-            .map((tag) => tag[1] || tag[0])
+            .filter((tag) => tag[0] === 't') // Only keep 't' tags which are actual content/genre tags
+            .map((tag) => tag[1])
             .filter(Boolean)
     }, [station.tags])
 

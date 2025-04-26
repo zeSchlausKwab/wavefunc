@@ -4,12 +4,11 @@ export interface Station {
     name: string
     description: string
     website: string
-    genre: string
     imageUrl: string
     countryCode?: string
     languageCodes?: string[]
     pubkey: string
-    tags: string[][]
+    tags: string[][] // Format: [["t", "jazz"], ["t", "rock"], ["a", "nostr_radio"]]
     streams: {
         url: string
         format: string

@@ -1,5 +1,5 @@
-import type { NDKEvent, NDKKind, NostrEvent } from '@nostr-dev-kit/ndk'
-import NDK, { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
+import NDK, { NDKEvent, NDKKind, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
+import type { NostrEvent } from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
 
@@ -9,6 +9,17 @@ export const RADIO_EVENT_KINDS = {
     // SONG_HISTORY: 31339,
     // SONG_LIBRARY: 31340,
 } as const
+
+// TODO: implement NIP-89 handler event
+
+// NIP-89 Event Kinds
+export const NIP89_EVENT_KINDS = {
+    HANDLER: 31990,
+    RECOMMENDATION: 31989,
+} as const
+
+// Mocked application pubkey for NIP-89 handler
+export const APP_PUBKEY = '000000000000000000000000000000000000000000000000000000000000radio'
 
 // type RadioEventContent = z.infer<typeof RadioEventContentSchema>
 
@@ -121,17 +132,6 @@ export function createRadioEvent(
             const newDTag = ['d', createStationDTagValue()]
             newTags.push(newDTag)
         }
-    }
-
-    const hasClientTag = newTags.some((tag) => tag[0] === 'client')
-    if (!hasClientTag) {
-        newTags.push(['client', 'nostr_radio'])
-    }
-
-    // Also add a proper app tag (using 'a')
-    const hasAppTag = newTags.some((tag) => tag[0] === 'a')
-    if (!hasAppTag) {
-        newTags.push(['a', 'nostr_radio'])
     }
 
     return {
@@ -303,6 +303,23 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
     }
 }
 
+function safeStringify(obj: any, space = 2) {
+    const seen = new WeakSet()
+    return JSON.stringify(
+        obj,
+        (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                    return '[Circular]'
+                }
+                seen.add(value)
+            }
+            return value
+        },
+        space,
+    )
+}
+
 /**
  * Subscribe to radio station events
  * @param ndk NDK instance
@@ -318,13 +335,14 @@ export function subscribeToRadioStations(ndk: NDK, onEvent?: (event: NDKEvent) =
     const subscription = ndk.subscribe(filter, {
         closeOnEose: false,
         cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-        groupable: false, // Don't group similar subscriptions
     })
 
     if (onEvent) {
         subscription.on('event', (event: NDKEvent) => {
             try {
                 // const parsed = parseRadioEvent(event)
+                // console.dir(safeStringify(event), { depth: 2 })
+                console.log(event)
                 onEvent(event)
             } catch (e) {
                 console.warn('Invalid radio event:', e)
@@ -381,12 +399,6 @@ export function stationToNostrEvent(station: Station): NostrEvent {
     const existingDescTag = tags.find((tag) => tag[0] === 'description')
     if (!existingDescTag) {
         tags.push(['description', station.description])
-    }
-
-    // Add app tag (single-letter 'a' tag)
-    const existingAppTag = tags.find((tag) => tag[0] === 'a')
-    if (!existingAppTag) {
-        tags.push(['a', 'nostr_radio'])
     }
 
     return {
@@ -504,4 +516,63 @@ export function decodeStationNaddr(naddr: string): {
     } catch (error) {
         throw new Error(`Failed to decode naddr: ${error}`)
     }
+}
+
+/**
+ * Create a NIP-89 handler event for our radio app
+ * This declares our app as a handler for radio station events
+ */
+export function createHandlerEvent(): NostrEvent {
+    const handlerId = Math.random().toString(36).substring(2, 14)
+
+    return {
+        kind: NIP89_EVENT_KINDS.HANDLER,
+        pubkey: APP_PUBKEY,
+        created_at: Math.floor(Date.now() / 1000),
+        content: JSON.stringify({
+            name: 'NostrRadio',
+            display_name: 'Nostr Radio',
+            picture: 'https://wavefunc.io/icons/logo.png',
+            about: 'A radio station directory and player built on Nostr',
+            nip90: {
+                content: ['text/plain'],
+            },
+        }),
+        tags: [
+            ['d', handlerId],
+            ['k', RADIO_EVENT_KINDS.STREAM.toString()],
+            ['web', 'https://wavefunc.io/station/<bech32>', 'nevent'],
+            ['web', 'https://wavefunc.io/stations', 'naddr'],
+        ],
+    }
+}
+
+/**
+ * Publish a NIP-89 handler event
+ * @param ndk NDK instance
+ * @returns Promise<NDKEvent>
+ */
+export async function publishHandlerEvent(ndk: NDK): Promise<NDKEvent> {
+    const event = createHandlerEvent()
+    const ndkEvent = new NDKEvent(ndk, event)
+    await ndkEvent.publish()
+    return ndkEvent
+}
+
+/**
+ * Create a client tag for identifying events published by this app
+ * @param handlerEvent The handler event previously published
+ * @param relayUrl Optional relay URL hint for finding the handler event
+ * @returns The client tag to include when publishing events
+ */
+export function createClientTag(handlerEvent: NDKEvent, relayUrl?: string): string[] {
+    const dTag = handlerEvent.tags.find(tag => tag[0] === 'd')?.[1] || ''
+    const clientId = `${NIP89_EVENT_KINDS.HANDLER}:${APP_PUBKEY}:${dTag}`
+    
+    return [
+        'client',
+        'NostrRadio',
+        clientId,
+        ...(relayUrl ? [relayUrl] : [])
+    ]
 }

@@ -31,8 +31,6 @@ export function createCommentEvent(content: string, stationEvent: NDKEvent, pare
         tags.push(['p', stationEvent.pubkey])
     }
 
-    tags.push(['client', 'nostr_radio'])
-
     return new NDKEvent(undefined, {
         kind: COMMENT_KIND,
         created_at: Math.floor(Date.now() / 1000),

@@ -41,8 +41,6 @@ export function createFavoritesEvent(content: FavoritesListContent, pubkey: stri
                 fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`,
                 fav.name,
             ]),
-            ['client', 'nostr_radio'],
-            ['a', 'nostr_radio'],
             ['t', 'favorites'],
         ],
         content: JSON.stringify(content),
@@ -93,9 +91,7 @@ export async function updateFavoritesList(
     const tags = [
         dTag || ['d', `favorites-${createStationDTagValue()}`],
         ...content.favorites.map((fav) => ['a', fav.naddr || `${RADIO_EVENT_KINDS.STREAM}:${fav.event_id}:`, fav.name]),
-        ['client', 'nostr_radio'], // Keep for backward compatibility
-        ['a', 'nostr_radio'], // Add indexed app tag
-        ['t', 'favorites'], // Topic tag for filtering
+        ['t', 'favorites'],
     ]
 
     const event: NostrEvent = {

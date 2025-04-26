@@ -183,7 +183,6 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             name: '',
             description: '',
             website: '',
-            genre: '',
             imageUrl: '',
             countryCode: '',
             languageCodes: [],
@@ -206,7 +205,6 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 name: station.name,
                 description: station.description,
                 website: station.website,
-                genre: station.genre,
                 imageUrl: station.imageUrl,
                 countryCode: station.countryCode,
                 languageCodes: languageCodes,
@@ -239,7 +237,6 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     description: data.description,
                     website: data.website,
                     streams: data.streams,
-                    genre: data.genre,
                     imageUrl: data.imageUrl,
                     countryCode: data.countryCode,
                     languageCodes: data.languageCodes,
@@ -252,9 +249,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 })
             } else {
                 const tags = [
-                    ['genre', data.genre],
                     ['thumbnail', data.imageUrl],
-                    ['client', 'nostr_radio'],
                 ]
 
                 if (data.countryCode) {
@@ -402,13 +397,18 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             setValue('description', content.description)
             setValue('website', content.website)
             setValue('streams', content.streams)
-            setValue('genre', stationData.tags?.split(',')[0] || '')
             setValue('imageUrl', content.favicon)
             setValue('countryCode', content.countryCode)
             setValue('languageCodes', content.languageCodes || [])
 
-            // Set tags as an array
-            setValue('tags', content.tags || [])
+            // Set tags from radio browser genres
+            if (stationData.tags) {
+                const genreTags = stationData.tags
+                    .split(',')
+                    .map((tag: string) => tag.trim())
+                    .filter(Boolean)
+                setValue('tags', genreTags)
+            }
 
             toast('Station imported from radio-browser.info!', {
                 description: 'Station imported from radio-browser.info!',
@@ -558,20 +558,21 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                             {errors.website && <p className="text-sm text-destructive">{errors.website.message}</p>}
                         </div>
 
+                        <div className="space-y-2">
+                            <Label htmlFor="imageUrl">Thumbnail URL</Label>
+                            <Input
+                                id="imageUrl"
+                                type="url"
+                                value={watch('imageUrl') || ''}
+                                onChange={(e) => setValue('imageUrl', e.target.value)}
+                                required
+                            />
+                            {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message}</p>}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="genre">Genre</Label>
-                                <Input
-                                    id="genre"
-                                    value={watch('genre') || ''}
-                                    onChange={(e) => setValue('genre', e.target.value)}
-                                    required
-                                />
-                                {errors.genre && <p className="text-sm text-destructive">{errors.genre.message}</p>}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="tags">Tags (comma separated)</Label>
+                                <Label htmlFor="tags">Genres/Tags (comma separated)</Label>
                                 <Input
                                     id="tags"
                                     value={watch('tags')?.join(', ') || ''}
@@ -582,13 +583,12 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                                             .filter(Boolean)
                                         setValue('tags', tagsArray)
                                     }}
-                                    placeholder="jazz, pop, rock"
+                                    placeholder="jazz, pop, rock, classical"
+                                    required
                                 />
                                 {errors.tags && <p className="text-sm text-destructive">{errors.tags.message}</p>}
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="countryCode">Country Code (ISO 3166-2)</Label>
                                 <Input
@@ -602,37 +602,25 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                                     <p className="text-sm text-destructive">{errors.countryCode.message}</p>
                                 )}
                             </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="languageCodes">Language Codes (comma separated)</Label>
-                                <Input
-                                    id="languageCodes"
-                                    value={watch('languageCodes')?.join(', ') || ''}
-                                    onChange={(e) => {
-                                        const codesArray = e.target.value
-                                            .split(',')
-                                            .map((code) => code.trim())
-                                            .filter(Boolean)
-                                        setValue('languageCodes', codesArray)
-                                    }}
-                                    placeholder="en, es, fr"
-                                />
-                                {errors.languageCodes && (
-                                    <p className="text-sm text-destructive">{errors.languageCodes.message}</p>
-                                )}
-                            </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="imageUrl">Thumbnail URL</Label>
+                            <Label htmlFor="languageCodes">Language Codes (comma separated)</Label>
                             <Input
-                                id="imageUrl"
-                                type="url"
-                                value={watch('imageUrl') || ''}
-                                onChange={(e) => setValue('imageUrl', e.target.value)}
-                                required
+                                id="languageCodes"
+                                value={watch('languageCodes')?.join(', ') || ''}
+                                onChange={(e) => {
+                                    const codesArray = e.target.value
+                                        .split(',')
+                                        .map((code) => code.trim())
+                                        .filter(Boolean)
+                                    setValue('languageCodes', codesArray)
+                                }}
+                                placeholder="en, es, fr"
                             />
-                            {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message}</p>}
+                            {errors.languageCodes && (
+                                <p className="text-sm text-destructive">{errors.languageCodes.message}</p>
+                            )}
                         </div>
 
                         <div className="space-y-4">

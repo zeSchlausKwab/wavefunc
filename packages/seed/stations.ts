@@ -1,5 +1,16 @@
 import type { NostrEvent } from '@nostr-dev-kit/ndk'
-import { RADIO_EVENT_KINDS } from '../../packages/common/src/nostr/radio'
+import { RADIO_EVENT_KINDS, NIP89_EVENT_KINDS, APP_PUBKEY } from '../../packages/common/src/nostr/radio'
+
+// Fixed handler ID for seeding purposes
+const HANDLER_ID = 'seedhandler123'
+
+// Create a client tag for the seed stations
+const seedClientTag = [
+    'client',
+    'NostrRadio',
+    `${NIP89_EVENT_KINDS.HANDLER}:${APP_PUBKEY}:${HANDLER_ID}`,
+    // No relay hint for seeding
+]
 
 // Keys for different radio organizations
 export const seedStationKeys = {
@@ -25,7 +36,42 @@ const VAPORWAVES_DTAG = 'soma02'
 const CLIQHOP_DTAG = 'soma03'
 const IWAYHIGH_DTAG = 'iway01'
 
-export const seedStations: NostrEvent[] = [
+// Function to add client tag to all stations
+function addClientTagToStations(stations: NostrEvent[]): NostrEvent[] {
+    return stations.map((station) => {
+        // Create a new station object with all the same properties
+        return {
+            ...station,
+            // Add client tag if not already present
+            tags: station.tags.some((tag) => tag[0] === 'client') ? station.tags : [...station.tags, seedClientTag],
+        }
+    })
+}
+
+// Create a handler event for seeding
+export const seedHandlerEvent: NostrEvent = {
+    kind: NIP89_EVENT_KINDS.HANDLER,
+    pubkey: APP_PUBKEY,
+    created_at: Math.floor(Date.now() / 1000),
+    content: JSON.stringify({
+        name: 'NostrRadio',
+        display_name: 'Nostr Radio',
+        picture: 'https://wavefunc.io/icons/logo.png',
+        about: 'A radio station directory and player built on Nostr',
+        nip90: {
+            content: ['text/plain'],
+        },
+    }),
+    tags: [
+        ['d', HANDLER_ID],
+        ['k', RADIO_EVENT_KINDS.STREAM.toString()],
+        ['web', 'https://wavefunc.io/station/<bech32>', 'nevent'],
+        ['web', 'https://wavefunc.io/stations', 'naddr'],
+    ],
+}
+
+// Our raw seed stations
+const rawSeedStations: NostrEvent[] = [
     // FIP Radio Stations
     {
         kind: RADIO_EVENT_KINDS.STREAM,
@@ -69,12 +115,8 @@ export const seedStations: NostrEvent[] = [
             ['t', 'world'],
             ['t', 'electronic'],
             ['l', 'fr'],
-            ['genre', 'jazz'],
-            ['genre', 'world'],
-            ['genre', 'electronic'],
             ['location', 'Paris, FR'],
             ['thumbnail', 'https://picsum.photos/seed/fip/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
     {
@@ -105,11 +147,8 @@ export const seedStations: NostrEvent[] = [
             ['t', 'rock'],
             ['t', 'pop'],
             ['l', 'fr'],
-            ['genre', 'rock'],
-            ['genre', 'pop'],
             ['location', 'Paris, FR'],
             ['thumbnail', 'https://picsum.photos/seed/fiprock/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
 
@@ -155,11 +194,8 @@ export const seedStations: NostrEvent[] = [
             ['t', 'electronic'],
             ['t', 'space'],
             ['l', 'en'],
-            ['genre', 'ambient'],
-            ['genre', 'electronic'],
             ['location', 'San Francisco, US'],
             ['thumbnail', 'https://picsum.photos/seed/dronezone/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
     {
@@ -193,11 +229,8 @@ export const seedStations: NostrEvent[] = [
             ['t', 'vaporwave'],
             ['t', 'electronic'],
             ['l', 'en'],
-            ['genre', 'vaporwave'],
-            ['genre', 'electronic'],
             ['location', 'San Francisco, US'],
             ['thumbnail', 'https://picsum.photos/seed/vaporwaves/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
     {
@@ -238,11 +271,8 @@ export const seedStations: NostrEvent[] = [
             ['t', 'electronic'],
             ['t', 'experimental'],
             ['l', 'en'],
-            ['genre', 'idm'],
-            ['genre', 'electronic'],
             ['location', 'San Francisco, US'],
             ['thumbnail', 'https://picsum.photos/seed/cliqhop/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
 
@@ -276,12 +306,11 @@ export const seedStations: NostrEvent[] = [
             ['t', 'electronic'],
             ['t', 'chill'],
             ['l', 'en'],
-            ['genre', 'dub'],
-            ['genre', 'electronic'],
-            ['genre', 'chill'],
             ['location', 'Unknown'],
             ['thumbnail', 'https://picsum.photos/seed/iwayhigh/400/400'],
-            ['client', 'nostr_radio'],
         ],
     },
 ]
+
+// Our final seed stations
+export const seedStations: NostrEvent[] = addClientTagToStations(rawSeedStations)
