@@ -49,6 +49,7 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${req.url}" />
     <meta property="og:image" content="${image}" />
+    <meta property="og:logo" content="${new URL('/images/logo.png', req.url).href}" />
     <meta property="og:site_name" content="Wavefunc" />
     
     <!-- Twitter / Telegram -->
