@@ -47,12 +47,10 @@ async function startServer() {
             }
 
             let htmlContent = indexHtml
-            const isBotRequest = isBot(req)
-
-            // Only log bot detections, not normal requests
+            // const isBotRequest = isBot(req)
+            const isBotRequest = true
             if (isBotRequest) {
                 console.log(`Bot detected for ${path} - injecting OpenGraph metadata`)
-                // Only process OpenGraph data for bot requests
                 htmlContent = await injectOpenGraphMetadata(htmlContent, req)
             }
 
@@ -70,10 +68,8 @@ async function startServer() {
     return server
 }
 
-// Start the server
 let server: ReturnType<typeof serve>
 
-// Initialize and then export
 startServer().then((s) => {
     server = s
 })

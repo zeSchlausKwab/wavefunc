@@ -2,7 +2,7 @@ import NDK, { NDKEvent, NDKKind, NDKSubscriptionCacheUsage } from '@nostr-dev-ki
 import type { NostrEvent } from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
-import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS, NIP89_EVENT_KINDS } from '../schemas/events'
+import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS } from '../schemas/events'
 
 // Mocked application pubkey for NIP-89 handler
 export const APP_PUBKEY = '000000000000000000000000000000000000000000000000000000000000radio'
@@ -339,13 +339,11 @@ export function stationToNostrEvent(station: Station): NostrEvent {
         tags.push(newDTag)
     }
 
-    // Add or update name and description tags
     const existingNameTag = tags.find((tag) => tag[0] === 'name')
     if (!existingNameTag) {
         tags.push(['name', station.name])
     }
 
-    // Add indexed identity tag
     const existingIdentityTag = tags.find((tag) => tag[0] === 'i')
     if (!existingIdentityTag && station.name) {
         tags.push(['i', station.name.trim()])
@@ -377,7 +375,6 @@ export function stationToNostrEvent(station: Station): NostrEvent {
  * @returns Promise<NDKEvent | null> - Returns the matching station event or null if not found
  */
 export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<NDKEvent | null> {
-    // Primary search: Use indexed 'i' (identity) tag
     const identityFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
         '#i': [name.trim()],
@@ -387,17 +384,15 @@ export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<
         return event
     }
 
-    // Secondary search: Use standard 'name' tag
     const nameFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-        '#name': [name], // Filter by exact name tag match
+        '#name': [name],
     }
     const nameEvents = await ndk.fetchEvents(nameFilter)
     for (const event of nameEvents) {
         return event
     }
 
-    // Fallback: Case-insensitive search on tags
     const fallbackFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
     }
@@ -456,7 +451,6 @@ export function decodeStationNaddr(naddr: string): {
     kind: number
     relays?: string[]
 } {
-    // Handle raw naddr format (kind:pubkey:identifier)
     if (!naddr.startsWith('naddr')) {
         const parts = naddr.split(':')
         if (parts.length < 3) {
@@ -545,16 +539,13 @@ export function createClientTag(handlerEvent: NDKEvent, relayUrl?: string): stri
  */
 export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
     try {
-        // Parse the event data
         const stationData = parseRadioEventWithSchema(event)
 
-        // Get the d-tag value which is required for replaceable events
         const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1]
         if (!dTag) {
             throw new Error('Station event missing required d-tag')
         }
 
-        // Create the properly encoded naddr
         const naddr = nip19.naddrEncode({
             identifier: dTag,
             pubkey: event.pubkey,
@@ -562,7 +553,6 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
             relays: [],
         })
 
-        // Map to Station object with proper naddr
         return {
             id: typeof event.id === 'function' ? event.id : event.id || '',
             name: stationData.name,
@@ -575,11 +565,40 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
             created_at: event.created_at || Math.floor(Date.now() / 1000),
             countryCode: stationData.countryCode,
             languageCodes: stationData.languageCodes,
-            naddr: naddr, // Include the properly encoded naddr
+            naddr: naddr,
             event: event as NDKEvent,
         }
     } catch (error) {
         console.error('Error mapping event to station:', error)
         throw error
+    }
+}
+
+/**
+ * Fetch a radio station by its naddr
+ * @param ndk NDK instance
+ * @param naddr The naddr string for the station
+ * @returns Promise<Station | null> The station if found, null otherwise
+ */
+export async function fetchStationByNaddr(ndk: NDK, naddr: string): Promise<Station | null> {
+    try {
+        const decodedData = decodeStationNaddr(naddr)
+
+        const filter = {
+            kinds: [decodedData.kind as NDKKind],
+            authors: [decodedData.pubkey],
+            '#d': [decodedData.identifier],
+        }
+
+        const event = await ndk.fetchEvent(filter)
+
+        if (!event) {
+            return null
+        }
+
+        return mapNostrEventToStation(event)
+    } catch (error) {
+        console.error('Error fetching station by naddr:', error)
+        return null
     }
 }

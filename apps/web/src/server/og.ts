@@ -1,3 +1,23 @@
+import NDK from '@nostr-dev-kit/ndk'
+import { fetchProfileByPubkey, getDisplayName, getProfileDescription } from '@wavefunc/common/src/nostr/profile'
+import { fetchStationByNaddr } from '@wavefunc/common/src/nostr/radio'
+
+/**
+ * Get NDK instance
+ * This is a simple function to create an NDK instance for use in the server
+ */
+function getNDK() {
+    return new NDK({
+        explicitRelayUrls: [
+            'wss://relay.damus.io',
+            'wss://nos.lol',
+            'wss://relay.nostr.band',
+            'wss://relay.wavefunc.live',
+            // 'ws://192.168.0.188:3002',
+        ],
+    })
+}
+
 /**
  * Generate OpenGraph meta tags based on the route
  * Returns only the meta tags to be injected into the HTML
@@ -9,35 +29,73 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
     let description = 'A decentralized nostr app'
     let image = `${new URL('/images/og-image.png', req.url).href}`
 
-    // Extract route parameters
+    console.log(`Generating OG tags for: ${path}`)
+
     const stationMatch = path.match(/^\/station\/([^\/]+)/)
     const profileMatch = path.match(/^\/profile\/([^\/]+)/)
 
-    // Handle specific routes
     if (stationMatch) {
         const stationId = stationMatch[1]
-        title = `Station ${stationId} | Wavefunc`
-        description = `Listen to Station ${stationId} on Wavefunc - a decentralized nostr app`
-        // You might want to generate station-specific images or fetch metadata
 
-        // For now we'll use the main OG image
-        // TODO: Fetch station metadata if available
+        title = `Station | Wavefunc`
+        description = `Listen to this station on Wavefunc`
+
+        try {
+            const ndk = getNDK()
+            await ndk.connect()
+            console.log(`Connected to relays`, ndk)
+            const station = await fetchStationByNaddr(ndk, stationId)
+
+            if (station) {
+                title = `${station.name} | Wavefunc Radio`
+                description = station.description || `Listen to ${station.name} on Wavefunc`
+
+                if (station.imageUrl) {
+                    image = station.imageUrl
+                }
+
+                console.log(`Enhanced OG metadata with station data: ${station.name}`)
+            } else {
+                console.log(`Station not found for naddr: ${stationId}`)
+                title = `Station ${stationId.substring(0, 6)}... | Wavefunc`
+            }
+        } catch (error) {
+            console.error(`Error fetching station metadata:`, error)
+        }
     } else if (profileMatch) {
         const profileId = profileMatch[1]
-        title = `${profileId}'s Profile | Wavefunc`
-        description = `Check out ${profileId}'s profile on Wavefunc - a decentralized nostr app`
-        // You might want to generate profile-specific images or fetch metadata
 
-        // For now we'll use the main OG image
-        // TODO: Fetch profile metadata if available
+        title = `Nostr Profile | Wavefunc`
+        description = `Check out this profile on Wavefunc`
+
+        try {
+            const ndk = getNDK()
+            await ndk.connect()
+            const profile = await fetchProfileByPubkey(ndk, profileId)
+
+            if (profile) {
+                const displayName = getDisplayName(profile)
+                title = `${displayName} | Wavefunc`
+                description = getProfileDescription(profile)
+
+                if (profile.picture) {
+                    image = profile.picture
+                }
+
+                console.log(`Enhanced OG metadata with profile data: ${displayName}`)
+            } else {
+                console.log(`Profile not found for pubkey: ${profileId}`)
+                title = `Profile ${profileId.substring(0, 8)}... | Wavefunc`
+            }
+        } catch (error) {
+            console.error(`Error fetching profile metadata:`, error)
+        }
     }
 
-    // Ensure the image URL is absolute
     if (!image.startsWith('http')) {
         image = new URL(image, req.url).href
     }
 
-    // Generate the OpenGraph meta tags to be injected
     return `
     <!-- Primary Meta Tags -->
     <meta name="title" content="${title}">
@@ -72,6 +130,5 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
 export async function injectOpenGraphMetadata(html: string, req: Request): Promise<string> {
     const openGraphTags = await generateOpenGraphTags(req)
 
-    // Inject the OpenGraph tags right before the closing head tag
     return html.replace('</head>', `${openGraphTags}</head>`)
 }
