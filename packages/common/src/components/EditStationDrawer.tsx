@@ -3,6 +3,7 @@ import { Input } from '@wavefunc/ui/components/ui/input'
 import { Label } from '@wavefunc/ui/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
 import { Textarea } from '@wavefunc/ui/components/ui/textarea'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type NDK from '@nostr-dev-kit/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
@@ -21,6 +22,70 @@ import { AlertCircle, ExternalLink, Import, Plus, Trash, Wand2, X } from 'lucide
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+
+// TagInput component for adding and removing tags
+const TagInput = ({
+    tags,
+    setTags,
+    placeholder = 'Add a tag...',
+    className = '',
+}: {
+    tags: string[]
+    setTags: (tags: string[]) => void
+    placeholder?: string
+    className?: string
+}) => {
+    const [inputValue, setInputValue] = React.useState('')
+
+    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault()
+            addTag()
+        }
+    }
+
+    const addTag = () => {
+        const trimmedInput = inputValue.trim()
+        if (trimmedInput && !tags.includes(trimmedInput)) {
+            setTags([...tags, trimmedInput])
+            setInputValue('')
+        }
+    }
+
+    const removeTag = (tagToRemove: string) => {
+        setTags(tags.filter((tag) => tag !== tagToRemove))
+    }
+
+    const handleInputBlur = () => {
+        addTag()
+    }
+
+    return (
+        <div className={`flex flex-wrap gap-2 p-2 border rounded-md ${className}`}>
+            {tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="h-4 w-4 rounded-full flex items-center justify-center hover:bg-destructive/20"
+                    >
+                        <X className="h-3 w-3" />
+                    </button>
+                </Badge>
+            ))}
+            <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                onBlur={handleInputBlur}
+                placeholder={tags.length === 0 ? placeholder : ''}
+                className="flex-grow outline-none bg-transparent min-w-[80px]"
+            />
+        </div>
+    )
+}
 
 interface EditStationDrawerProps {
     station?: Station
@@ -571,18 +636,10 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="tags">Genres/Tags (comma separated)</Label>
-                                <Input
-                                    id="tags"
-                                    value={watch('tags')?.join(', ') || ''}
-                                    onChange={(e) => {
-                                        const tagsArray = e.target.value
-                                            .split(',')
-                                            .map((tag) => tag.trim())
-                                            .filter(Boolean)
-                                        setValue('tags', tagsArray)
-                                    }}
+                                <TagInput
+                                    tags={watch('tags') || []}
+                                    setTags={(tags) => setValue('tags', tags)}
                                     placeholder="jazz, pop, rock, classical"
-                                    required
                                 />
                                 {errors.tags && <p className="text-sm text-destructive">{errors.tags.message}</p>}
                             </div>
@@ -604,16 +661,9 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
 
                         <div className="space-y-2">
                             <Label htmlFor="languageCodes">Language Codes (comma separated)</Label>
-                            <Input
-                                id="languageCodes"
-                                value={watch('languageCodes')?.join(', ') || ''}
-                                onChange={(e) => {
-                                    const codesArray = e.target.value
-                                        .split(',')
-                                        .map((code) => code.trim())
-                                        .filter(Boolean)
-                                    setValue('languageCodes', codesArray)
-                                }}
+                            <TagInput
+                                tags={watch('languageCodes') || []}
+                                setTags={(codes) => setValue('languageCodes', codes)}
                                 placeholder="en, es, fr"
                             />
                             {errors.languageCodes && (
