@@ -24,6 +24,8 @@ export function isBot(req: Request): boolean {
         /discordbot/i,
         /whatsapp/i,
         /telegrambot/i,
+        /telegram/i,
+        /tg_bot/i,
         /slackbot/i,
         /linkedinbot/i,
         /pinterest/i,
@@ -32,34 +34,45 @@ export function isBot(req: Request): boolean {
         /prerender/i,
         /embedly/i,
         /quora link preview/i,
-
-        // Generic crawlers
-        /bot/i,
-        /spider/i,
-        /crawler/i,
-        /http.?client/i,
-        /crawl/i,
-
-        // Monitoring services
-        /pingdom/i,
-        /uptimerobot/i,
-        /statuspage/i,
     ]
 
-    // Additional signals for bot detection
-    const acceptHeader = req.headers.get('accept') || ''
-    const isXmlHttpRequest = req.headers.get('x-requested-with') === 'XMLHttpRequest'
-
-    // Bots often accept text/html but not application/json
-    const preferredFormat = acceptHeader.includes('text/html') && !acceptHeader.includes('application/json')
-
-    // Check user agent against known bot patterns
+    // Direct bot detection - only use explicit user agent patterns
+    // This is more efficient and less aggressive
     const matchesKnownBot = botPatterns.some((pattern) => pattern.test(userAgent))
 
-    // Bots typically don't make XHR requests
-    const behavesLikeBot = preferredFormat && !isXmlHttpRequest
+    // Only use behavioral analysis for ambiguous cases
+    let behavesLikeBot = false
 
-    console.log(`Bot detection: ${userAgent} - ${matchesKnownBot} - ${behavesLikeBot}`)
+    // Only perform additional checks if we haven't already identified a bot
+    if (!matchesKnownBot) {
+        // Check for generic bot indicators only if not already matched
+        const genericBotPatterns = [
+            /bot/i,
+            /spider/i,
+            /crawler/i,
+            /http.?client/i,
+            /crawl/i,
+            /pingdom/i,
+            /uptimerobot/i,
+            /statuspage/i,
+        ]
+
+        const mightBeGenericBot = genericBotPatterns.some((pattern) => pattern.test(userAgent))
+
+        // Only apply behavioral analysis for potential generic bots
+        if (mightBeGenericBot) {
+            const acceptHeader = req.headers.get('accept') || ''
+            const isXmlHttpRequest = req.headers.get('x-requested-with') === 'XMLHttpRequest'
+            // Bots often accept text/html but not application/json
+            const preferredFormat = acceptHeader.includes('text/html') && !acceptHeader.includes('application/json')
+            behavesLikeBot = preferredFormat && !isXmlHttpRequest
+        }
+    }
+
+    // Reduce logging to only capture actual bot detections
+    if (matchesKnownBot || behavesLikeBot) {
+        console.log(`Bot detected: ${userAgent} - Known: ${matchesKnownBot} - Behavior: ${behavesLikeBot}`)
+    }
 
     return matchesKnownBot || behavesLikeBot
 }

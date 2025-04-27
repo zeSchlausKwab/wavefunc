@@ -32,18 +32,36 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
         // TODO: Fetch profile metadata if available
     }
 
+    // Ensure the image URL is absolute
+    if (!image.startsWith('http')) {
+        image = new URL(image, req.url).href
+    }
+
     // Generate the OpenGraph meta tags to be injected
     return `
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="${title}">
+    <meta name="description" content="${description}">
+    
+    <!-- Open Graph / Facebook -->
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${req.url}" />
     <meta property="og:image" content="${image}" />
     <meta property="og:site_name" content="Wavefunc" />
+    
+    <!-- Twitter / Telegram -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${title}" />
     <meta name="twitter:description" content="${description}" />
     <meta name="twitter:image" content="${image}" />
+    <meta name="twitter:image:alt" content="${title}" />
+    
+    <!-- Additional Telegram-friendly tags -->
+    <meta name="telegram:title" content="${title}" />
+    <meta name="telegram:description" content="${description}" />
+    <meta name="telegram:image" content="${image}" />
 `
 }
 
