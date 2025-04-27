@@ -1,17 +1,14 @@
-import type { NDKEvent } from '@nostr-dev-kit/ndk'
 import { NDKUser } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import {
-    decodeStationNaddr,
-    mapNostrEventToStation,
+    fetchStation,
     ndkActions,
     openEditStationDrawer,
     setCurrentStation,
     stationsStore,
     togglePlayback,
-    type Station,
 } from '@wavefunc/common'
 import CommentsList from '@wavefunc/common/src/components/comments/CommentsList'
 import { StreamSelector } from '@wavefunc/common/src/components/radio/StreamSelector'
@@ -32,56 +29,6 @@ import {
     Zap,
 } from 'lucide-react'
 import React from 'react'
-
-async function fetchStation(naddr: string): Promise<Station> {
-    const ndk = ndkActions.getNDK()
-    if (!ndk) {
-        throw new Error('NDK instance not available')
-    }
-
-    try {
-        const nadrData = decodeStationNaddr(naddr)
-        const filter = {
-            kinds: [nadrData.kind],
-            authors: [nadrData.pubkey],
-            '#d': [nadrData.identifier],
-        }
-
-        let attempts = 0
-        let events
-
-        while (attempts < 3) {
-            try {
-                const timeout = attempts === 0 ? 3000 : 8000
-                const fetchPromise = ndk.fetchEvents(filter)
-                const fetchTimeoutPromise = new Promise<Set<NDKEvent>>((_, reject) =>
-                    setTimeout(() => reject(new Error('Fetch events timeout')), timeout),
-                )
-
-                events = await Promise.race([fetchPromise, fetchTimeoutPromise])
-                break
-            } catch (err) {
-                attempts++
-                if (attempts >= 3) throw err
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-            }
-        }
-
-        if (!events || events.size === 0) {
-            throw new Error('No events found for this station')
-        }
-
-        let event = events.values().next().value as NDKEvent
-        if (!event) {
-            throw new Error('Station not found')
-        }
-
-        return mapNostrEventToStation(event)
-    } catch (error) {
-        console.error('[Station] Error:', error)
-        throw error
-    }
-}
 
 // Define the loader data type
 interface StationLoaderData {
@@ -129,6 +76,7 @@ function StationPage() {
     const [user, setUser] = React.useState<NDKUser | null>(null)
     const [selectedStreamId, setSelectedStreamId] = React.useState<number | undefined>(undefined)
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
+    const ndk = ndkActions.getNDK()
 
     const {
         data: station,
@@ -136,7 +84,7 @@ function StationPage() {
         error,
     } = useQuery({
         queryKey: ['station', naddr],
-        queryFn: () => fetchStation(naddr),
+        queryFn: () => fetchStation(ndk, naddr),
         staleTime: 1000 * 60 * 5,
         retry: 3,
         retryDelay: 1000,

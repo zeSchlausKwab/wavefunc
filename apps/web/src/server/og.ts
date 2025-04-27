@@ -1,6 +1,6 @@
 import NDK from '@nostr-dev-kit/ndk'
 import { fetchProfileByPubkey, getDisplayName, getProfileDescription } from '@wavefunc/common/src/nostr/profile'
-import { fetchStationByNaddr } from '@wavefunc/common/src/nostr/radio'
+import { fetchStation } from '@wavefunc/common/src/nostr/radio'
 
 /**
  * Get NDK instance
@@ -13,7 +13,7 @@ function getNDK() {
             'wss://nos.lol',
             'wss://relay.nostr.band',
             'wss://relay.wavefunc.live',
-            // 'ws://192.168.0.188:3002',
+            'ws://192.168.0.188:3002',
         ],
     })
 }
@@ -29,8 +29,6 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
     let description = 'A decentralized nostr app'
     let image = `${new URL('/images/og-image.png', req.url).href}`
 
-    console.log(`Generating OG tags for: ${path}`)
-
     const stationMatch = path.match(/^\/station\/([^\/]+)/)
     const profileMatch = path.match(/^\/profile\/([^\/]+)/)
 
@@ -43,8 +41,8 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
         try {
             const ndk = getNDK()
             await ndk.connect()
-            console.log(`Connected to relays`, ndk)
-            const station = await fetchStationByNaddr(ndk, stationId)
+
+            const station = await fetchStation(ndk, stationId)
 
             if (station) {
                 title = `${station.name} | Wavefunc Radio`
@@ -53,10 +51,7 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
                 if (station.imageUrl) {
                     image = station.imageUrl
                 }
-
-                console.log(`Enhanced OG metadata with station data: ${station.name}`)
             } else {
-                console.log(`Station not found for naddr: ${stationId}`)
                 title = `Station ${stationId.substring(0, 6)}... | Wavefunc`
             }
         } catch (error) {
@@ -64,13 +59,13 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
         }
     } else if (profileMatch) {
         const profileId = profileMatch[1]
-
         title = `Nostr Profile | Wavefunc`
         description = `Check out this profile on Wavefunc`
 
         try {
             const ndk = getNDK()
             await ndk.connect()
+
             const profile = await fetchProfileByPubkey(ndk, profileId)
 
             if (profile) {
@@ -81,10 +76,7 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
                 if (profile.picture) {
                     image = profile.picture
                 }
-
-                console.log(`Enhanced OG metadata with profile data: ${displayName}`)
             } else {
-                console.log(`Profile not found for pubkey: ${profileId}`)
                 title = `Profile ${profileId.substring(0, 8)}... | Wavefunc`
             }
         } catch (error) {

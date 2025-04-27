@@ -47,11 +47,18 @@ async function startServer() {
             }
 
             let htmlContent = indexHtml
-            // const isBotRequest = isBot(req)
-            const isBotRequest = true
-            if (isBotRequest) {
-                console.log(`Bot detected for ${path} - injecting OpenGraph metadata`)
-                htmlContent = await injectOpenGraphMetadata(htmlContent, req)
+
+            const stationMatch = path.match(/^\/station\/([^\/]+)/)
+            const profileMatch = path.match(/^\/profile\/([^\/]+)/)
+
+            if (stationMatch || profileMatch) {
+                // const isBotRequest = isBot(req)
+                const isBotRequest = true
+
+                if (isBotRequest) {
+                    console.log(`Bot detected for ${path} - injecting OpenGraph metadata`)
+                    htmlContent = await injectOpenGraphMetadata(htmlContent, req)
+                }
             }
 
             return new Response(htmlContent, { headers: { 'Content-Type': 'text/html' } })

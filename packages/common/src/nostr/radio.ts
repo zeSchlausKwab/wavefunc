@@ -297,7 +297,6 @@ export function subscribeToRadioStations(ndk: NDK, onEvent?: (event: NDKEvent) =
             try {
                 // const parsed = parseRadioEvent(event)
                 // console.dir(safeStringify(event), { depth: 2 })
-                console.log(event)
                 onEvent(event)
             } catch (e) {
                 console.warn('Invalid radio event:', e)
@@ -574,31 +573,27 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
     }
 }
 
-/**
- * Fetch a radio station by its naddr
- * @param ndk NDK instance
- * @param naddr The naddr string for the station
- * @returns Promise<Station | null> The station if found, null otherwise
- */
-export async function fetchStationByNaddr(ndk: NDK, naddr: string): Promise<Station | null> {
-    try {
-        const decodedData = decodeStationNaddr(naddr)
+export async function fetchStation(ndk: NDK, naddr: string): Promise<Station | null> {
+    if (!ndk) {
+        throw new Error('NDK instance not available')
+    }
 
+    try {
+        const nadrData = decodeStationNaddr(naddr)
         const filter = {
-            kinds: [decodedData.kind as NDKKind],
-            authors: [decodedData.pubkey],
-            '#d': [decodedData.identifier],
+            kinds: [nadrData.kind],
+            authors: [nadrData.pubkey],
+            '#d': [nadrData.identifier],
         }
 
         const event = await ndk.fetchEvent(filter)
-
         if (!event) {
             return null
         }
 
         return mapNostrEventToStation(event)
     } catch (error) {
-        console.error('Error fetching station by naddr:', error)
-        return null
+        console.error('[Station] Error:', error)
+        throw error
     }
 }
