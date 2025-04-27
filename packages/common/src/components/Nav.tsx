@@ -24,11 +24,30 @@ export function Nav({ onNavigate }: NavProps) {
         opacity: 0,
     })
     const navRef = useRef<HTMLDivElement>(null)
+    const activeItemRef = useRef<HTMLAnchorElement>(null)
+    const currentPath = router.state.location.pathname
 
-    // Reset hover effect when route changes
+    // Update highlight for active route when component mounts or route changes
     useEffect(() => {
-        setHoverPosition((prev) => ({ ...prev, opacity: 0 }))
-    }, [router.state.location.pathname])
+        if (!isMobile && activeItemRef.current) {
+            const activeItem = activeItemRef.current
+            const { width } = activeItem.getBoundingClientRect()
+            const left = activeItem.offsetLeft
+
+            // First reset, then set with a small delay to ensure smooth transition
+            setHoverPosition({ left: 0, width: 0, opacity: 0 })
+
+            const timer = setTimeout(() => {
+                setHoverPosition({
+                    width,
+                    left,
+                    opacity: 1,
+                })
+            }, 100)
+
+            return () => clearTimeout(timer)
+        }
+    }, [currentPath, isMobile, navRef.current])
 
     const handleNavClick = () => {
         if (onNavigate && isMobile) {
@@ -40,7 +59,22 @@ export function Nav({ onNavigate }: NavProps) {
         <div
             ref={navRef}
             className={cn('relative w-full', isMobile ? 'px-2' : 'px-4')}
-            onMouseLeave={() => setHoverPosition((prev) => ({ ...prev, opacity: 0 }))}
+            onMouseLeave={() => {
+                if (!isMobile && activeItemRef.current) {
+                    // When mouse leaves, highlight active item
+                    const activeItem = activeItemRef.current
+                    const { width } = activeItem.getBoundingClientRect()
+                    const left = activeItem.offsetLeft
+
+                    setHoverPosition({
+                        width,
+                        left,
+                        opacity: 1,
+                    })
+                } else {
+                    setHoverPosition((prev) => ({ ...prev, opacity: 0 }))
+                }
+            }}
         >
             <NavigationMenu className="w-full">
                 <NavigationMenuList
@@ -57,34 +91,45 @@ export function Nav({ onNavigate }: NavProps) {
                                 position: 'absolute',
                                 left: `${hoverPosition.left}px`,
                                 width: `${hoverPosition.width}px`,
-                                opacity: hoverPosition.opacity,
-                                height: '36px',
+                                height: '34px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
                                 zIndex: 0,
                                 borderRadius: '9999px',
-                                backgroundColor: 'var(--primary)',
+                                backgroundColor: 'var(--primary-foreground, rgba(0, 0, 0, 0.1))',
+                                boxShadow: '0 0 5px 0 rgba(0, 0, 0, 0.05)',
+                                opacity: hoverPosition.opacity * 0.7,
                                 transition: 'all 0.3s ease',
                             }}
                         />
                     )}
 
                     {routes.map((route) => {
-                        const isActive = router.state.location.pathname === route.href
+                        const isActive = currentPath === route.href
                         return (
                             <NavigationMenuItem key={route.href} className={cn(isMobile && 'w-full', 'relative')}>
                                 <Link
                                     to={route.href}
+                                    ref={isActive ? activeItemRef : undefined}
                                     onClick={handleNavClick}
                                     onMouseEnter={(e) => {
                                         if (isMobile) return
-                                        const target = e.currentTarget
-                                        const { width } = target.getBoundingClientRect()
-                                        const left = target.offsetLeft
 
-                                        setHoverPosition({
-                                            width,
-                                            opacity: 1,
-                                            left,
-                                        })
+                                        // Use getBoundingClientRect for more accurate measurements
+                                        const target = e.currentTarget
+                                        const navRect = navRef.current?.getBoundingClientRect()
+                                        const targetRect = target.getBoundingClientRect()
+
+                                        if (navRect) {
+                                            // Calculate position relative to the navigation container
+                                            const left = targetRect.left - navRect.left + 1 // +1px adjustment for better alignment
+
+                                            setHoverPosition({
+                                                width: targetRect.width - 2, // -2px for better fit
+                                                opacity: 1,
+                                                left,
+                                            })
+                                        }
                                     }}
                                     className={cn(
                                         'relative z-10 flex items-center justify-center',
@@ -96,10 +141,10 @@ export function Nav({ onNavigate }: NavProps) {
                                         isActive
                                             ? isMobile
                                                 ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'text-background mix-blend-difference'
+                                                : 'text-primary font-bold'
                                             : isMobile
                                               ? 'bg-background text-foreground hover:bg-accent/50'
-                                              : 'text-foreground hover:text-background',
+                                              : 'text-foreground hover:text-primary',
                                     )}
                                 >
                                     {route.icon}
