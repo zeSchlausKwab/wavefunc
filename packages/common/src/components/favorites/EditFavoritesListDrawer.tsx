@@ -32,7 +32,9 @@ interface EditFavoritesListDrawerProps {
 
 export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: EditFavoritesListDrawerProps) {
     const [isDeleting, setIsDeleting] = React.useState(false)
+    const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false)
     const [isSaving, setIsSaving] = React.useState(false)
+    const [deleteError, setDeleteError] = React.useState<string | null>(null)
 
     const {
         register,
@@ -64,6 +66,11 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                 description: '',
             })
         }
+
+        // Reset states when drawer opens/closes
+        setDeleteError(null)
+        setIsConfirmingDelete(false)
+        setIsDeleting(false)
     }, [favoritesList, reset, isOpen])
 
     const onSubmit = async (data: FavoritesListFormData) => {
@@ -108,17 +115,31 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
 
         try {
             setIsDeleting(true)
+            setDeleteError(null)
+
             const ndk = ndkActions.getNDK()
             if (!ndk) {
                 throw new Error('NDK not initialized')
             }
+
+            console.log('Deleting favorites list with ID:', favoritesList.id)
             await deleteFavoritesList(ndk, favoritesList.id)
+            console.log('Favorites list deleted successfully')
             onClose()
         } catch (error) {
             console.error('Error deleting favorites list:', error)
-        } finally {
-            setIsDeleting(false)
+            setDeleteError(error instanceof Error ? error.message : 'Failed to delete the favorites list')
+            setIsDeleting(false) // Reset the deleting state on error
         }
+    }
+
+    const showDeleteConfirmation = () => {
+        setIsConfirmingDelete(true)
+    }
+
+    const cancelDeleteConfirmation = () => {
+        setIsConfirmingDelete(false)
+        setDeleteError(null)
     }
 
     return (
@@ -135,7 +156,7 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                     </SheetDescription>
                 </SheetHeader>
 
-                {isDeleting ? (
+                {isConfirmingDelete ? (
                     <div className="mt-6 space-y-4">
                         <div className="flex items-center space-x-2 text-destructive">
                             <AlertCircle className="h-5 w-5" />
@@ -144,6 +165,11 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                         <p className="text-sm text-muted-foreground">
                             This action cannot be undone. The favorites list will be permanently deleted.
                         </p>
+
+                        {deleteError && (
+                            <div className="p-3 bg-destructive/10 text-destructive rounded-md">{deleteError}</div>
+                        )}
+
                         <div className="flex space-x-2 mt-6">
                             <Button
                                 variant="destructive"
@@ -154,7 +180,7 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                                 <Trash className="h-4 w-4 mr-2" />
                                 {isDeleting ? 'Deleting...' : 'Yes, Delete List'}
                             </Button>
-                            <Button variant="outline" onClick={() => setIsDeleting(false)}>
+                            <Button variant="outline" onClick={cancelDeleteConfirmation} disabled={isDeleting}>
                                 Cancel
                             </Button>
                         </div>
@@ -193,13 +219,19 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                             </Button>
                             <div className="flex space-x-2">
                                 {favoritesList && (
-                                    <Button type="button" onClick={() => setIsDeleting(true)} variant="destructive">
-                                        <Trash className="mr-2 h-4 w-4" />
+                                    <Button
+                                        type="button"
+                                        onClick={showDeleteConfirmation}
+                                        variant="destructive"
+                                        className="flex items-center"
+                                        disabled={isSaving}
+                                    >
+                                        <Trash className="h-4 w-4 mr-2" />
                                         Delete
                                     </Button>
                                 )}
                                 <Button type="button" onClick={onClose} variant="outline">
-                                    <X className="mr-2 h-4 w-4" />
+                                    <X className="h-4 w-4 mr-2" />
                                     Cancel
                                 </Button>
                             </div>

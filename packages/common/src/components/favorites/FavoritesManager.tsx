@@ -132,35 +132,26 @@ export function FavoritesManager() {
                         if (favorite.naddr) {
                             console.log(`Fetching station using naddr: ${favorite.naddr}`)
                             try {
-                                // Check if it's a coordinate format (kind:pubkey:d-tag)
                                 const parts = favorite.naddr.split(':')
                                 if (parts.length >= 3 && parts[0] === String(RADIO_EVENT_KINDS.STREAM)) {
-                                    // Extract the pubkey and d-tag
                                     const [kind, pubkey, identifier] = parts
-                                    
-                                    // Use direct filter to fetch the event
+
                                     const filter = {
                                         kinds: [Number(kind)],
                                         authors: [pubkey],
                                         '#d': [identifier],
                                     }
-                                    
+
                                     console.log(`Fetching with coordinate filter:`, filter)
                                     const events = await ndk.fetchEvents(filter)
                                     const foundEvent = Array.from(events)[0]
-                                    
+
                                     if (foundEvent) {
                                         event = foundEvent
-                                        console.log(`Successfully fetched event using coordinates`)
                                     }
                                 } else if (favorite.naddr.startsWith('naddr')) {
-                                    // It's a proper NIP-19 naddr
                                     event = await ndk.fetchEvent(favorite.naddr)
-                                    if (event) {
-                                        console.log(`Successfully fetched event using naddr`)
-                                    }
                                 } else {
-                                    // Try as a direct event ID
                                     event = await ndk.fetchEvent(favorite.naddr)
                                     if (event) {
                                         console.log(`Successfully fetched event using ID`)

@@ -331,16 +331,25 @@ export async function removeStationFromFavorites(
  * Delete a favorites list
  */
 export async function deleteFavoritesList(ndk: NDK, favoritesListId: string): Promise<NDKEvent> {
+    if (!ndk.signer) {
+        throw new Error('No signer available')
+    }
+
     const deleteEvent = new NDKEvent(ndk, {
         kind: 5, // Deletion event kind
         tags: [['e', favoritesListId]],
         content: 'Deleted favorites list',
         created_at: Math.floor(Date.now() / 1000),
-        pubkey: '',
     })
 
-    await deleteEvent.publish()
-    return deleteEvent
+    try {
+        await deleteEvent.publish()
+        console.log('Successfully deleted favorites list with ID:', favoritesListId)
+        return deleteEvent
+    } catch (error) {
+        console.error('Error deleting favorites list:', error)
+        throw error
+    }
 }
 
 /**
@@ -377,7 +386,6 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
         // Process a-tags for favorites
         const aTags = event.tags.filter((tag) => tag[0] === 'a')
 
-        // Format: ['a', "kind:pubkey:d-tag", relay_url?, petname?, added_at?]
         const favorites = aTags
             .map((tag) => {
                 if (tag.length < 2) return null
@@ -394,11 +402,8 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
                 // Parse the address parts if it follows the "kind:pubkey:d-tag" format
                 const parts = addressRef.split(':')
                 if (parts.length >= 3) {
-                    // It's in the format "kind:pubkey:d-tag"
-                    // Use the full address as is for indexing
                     event_id = addressRef
                 } else {
-                    // It might be a simple event ID or some other format
                     event_id = addressRef
                 }
 
