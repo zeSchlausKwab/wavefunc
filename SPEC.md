@@ -68,15 +68,15 @@ The content field must be a JSON string with the following structure:
 
 ### Recommended Tags
 
-| Tag Name    | Description                        | Format                                |
-| ----------- | ---------------------------------- | ------------------------------------- |
-| t           | Station genre/category             | String (can have multiple)            |
-| thumbnail   | Station logo/image URL             | URL                                   |
-| l           | Station language                   | ISO language code (can have multiple) |
-| countryCode | Station country                    | ISO 3166-2 country code               |
-| location    | Physical location of the station   | String (e.g., "Paris, FR")            |
-| website     | Station's website                  | URL                                   |
-| client      | Client that published the event    | [Format specification](#client-tag)   |
+| Tag Name    | Description                      | Format                                |
+| ----------- | -------------------------------- | ------------------------------------- |
+| t           | Station genre/category           | String (can have multiple)            |
+| thumbnail   | Station logo/image URL           | URL                                   |
+| l           | Station language                 | ISO language code (can have multiple) |
+| countryCode | Station country                  | ISO 3166-2 country code               |
+| location    | Physical location of the station | String (e.g., "Paris, FR")            |
+| website     | Station's website                | URL                                   |
+| client      | Client that published the event  | [Format specification](#client-tag)   |
 
 ### Example Event
 
