@@ -36,32 +36,22 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
     }
 
     // Unauthenticated state
-    if (!authState.isAuthenticated) {
-        return (
-            <div className="flex items-center gap-2">
-                <Link to="/settings">
-                    <Button variant="ghost" size="icon" title="Settings">
-                        <Settings className="h-4 w-4" />
-                    </Button>
-                </Link>
-                <Button
-                    variant="outline"
-                    size={compact ? 'sm' : 'default'}
-                    onClick={() => uiActions.openAuthDialog()}
-                    {...props}
-                >
-                    <LogIn className="h-4 w-4 mr-2" />
-                    {!compact && <span>Sign In</span>}
-                </Button>
-            </div>
-        )
-    }
-
-    // Error or any other state - show basic login button
     return (
-        <Button variant="outline" onClick={() => uiActions.openAuthDialog()} {...props}>
-            <UserCircle2 className="h-4 w-4 mr-2" />
-            <span>Sign In</span>
-        </Button>
+        <div className="flex items-center gap-2">
+            <Link to="/settings">
+                <Button variant="ghost" size="icon" title="Settings">
+                    <Settings className="h-4 w-4" />
+                </Button>
+            </Link>
+            <Button
+                variant="outline"
+                size={compact ? 'sm' : 'default'}
+                onClick={() => uiActions.openAuthDialog()}
+                {...props}
+            >
+                <LogIn className="h-4 w-4 mr-2" />
+                {!compact && <span>Sign In</span>}
+            </Button>
+        </div>
     )
 }

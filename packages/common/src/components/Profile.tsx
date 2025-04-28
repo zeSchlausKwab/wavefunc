@@ -96,8 +96,8 @@ export function Profile({ compact = false }: ProfileProps) {
         fetchProfile()
     }, [authState.user?.pubkey])
 
-    const displayName = profile?.name || 'Local User'
-    const isAnonymous = authState.isAuthenticated === false
+    const displayName = profile?.name || (authState.user?.pubkey ? authState.user.pubkey.slice(0, 8) : '')
+    const isAnonymous = !authState.isAuthenticated
 
     // Show a quick loading state for the first 500ms
     if (isLoading && Date.now() - performance.now() < 500) {

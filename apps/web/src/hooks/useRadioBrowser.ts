@@ -157,8 +157,6 @@ export function useRadioBrowser(config: UseRadioBrowserConfig = {}) {
 
             const data = (await response.json()) as RadioStation[]
 
-            console.log('Radio Browser response:', data)
-
             return transformResponse ? transformToStation(data) : data
         },
         enabled,

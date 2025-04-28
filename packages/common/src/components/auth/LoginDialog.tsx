@@ -89,9 +89,13 @@ export function LoginDialog() {
         }
     }, [uiState.authDialog.isOpen])
 
-    const resetAuthState = () => {
-        // Remove any additional state that's not in the original authStore
-    }
+    // useEffect(() => {
+    //     if (authState.needsDecryptionPassword && !uiState.authDialog.isOpen) {
+    //         uiActions.openAuthDialog()
+    //     }
+    // }, [authState.needsDecryptionPassword, uiState.authDialog.isOpen])
+
+    const resetAuthState = () => {}
 
     const handleDialogChange = (open: boolean) => {
         if (open) {

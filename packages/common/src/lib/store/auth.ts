@@ -9,6 +9,8 @@ export const NOSTR_LOCAL_SIGNER_KEY = 'nostr_local_signer_key'
 export const NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY = 'nostr_local_encrypted_signer_key'
 export const NOSTR_AUTO_LOGIN = 'nostr_auto_login'
 export const NOSTR_STORED_PUBKEY = 'nostr_stored_pubkey'
+export const NOSTR_CONNECTION_ATTEMPT = 'nostr_connection_attempt'
+export const NOSTR_MAX_RETRIES = 2
 
 interface AuthState {
     user: NDKUser | null
@@ -83,6 +85,30 @@ export const authActions = {
             if (bunkerUrl && privateKey) {
                 console.log('Found NIP-46 credentials, attempting to reconnect...')
 
+                // Track connection attempts for the same credentials
+                const storedUrl = localStorage.getItem(NOSTR_CONNECT_KEY)
+                const storedAttempts = parseInt(localStorage.getItem(NOSTR_CONNECTION_ATTEMPT) || '0')
+
+                // If we're trying with the same credentials, increment the counter
+                if (storedUrl === bunkerUrl) {
+                    const attempts = storedAttempts + 1
+                    localStorage.setItem(NOSTR_CONNECTION_ATTEMPT, attempts.toString())
+
+                    // If we've tried too many times, clear the credentials
+                    if (attempts > NOSTR_MAX_RETRIES) {
+                        console.warn(`NIP-46 reconnection failed ${attempts} times, clearing credentials`)
+                        localStorage.removeItem(NOSTR_CONNECT_KEY)
+                        localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+                        localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+                        authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+                        // Continue to other auth methods
+                        return
+                    }
+                } else {
+                    // New URL, reset counter
+                    localStorage.setItem(NOSTR_CONNECTION_ATTEMPT, '1')
+                }
+
                 try {
                     // Initialize NDK if it's not already
                     const ndk = ndkActions.getNDK()
@@ -103,8 +129,32 @@ export const authActions = {
                     // Initialize the NIP-46 signer
                     const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
 
-                    // Wait for the signer to be ready before proceeding
-                    await signer.blockUntilReady()
+                    // Add timeout protection for blockUntilReady
+                    let signerReady = false
+                    const signerReadyPromise = signer.blockUntilReady().then(() => {
+                        signerReady = true
+                        console.log('NIP-46 signer ready')
+                        return true
+                    })
+
+                    const timeoutPromise = new Promise<boolean>((resolve) => {
+                        setTimeout(() => {
+                            if (!signerReady) {
+                                console.error('NIP-46 signer timeout after 10 seconds')
+                                resolve(false)
+                            } else {
+                                resolve(true)
+                            }
+                        }, 10000) // 10 second timeout
+                    })
+
+                    // Race between ready and timeout
+                    const isReady = await Promise.race([signerReadyPromise, timeoutPromise])
+
+                    if (!isReady) {
+                        throw new Error('NIP-46 connection timeout')
+                    }
+
                     ndkActions.setSigner(signer)
 
                     // Get the user and update auth state
@@ -116,15 +166,21 @@ export const authActions = {
                         isAuthenticating: false,
                     }))
 
+                    // Reset connection attempts on success
+                    localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
                     console.log('NIP-46 reconnection successful')
                     return
                 } catch (error) {
                     console.error('NIP-46 reconnection failed:', error)
-                    // Clean up failed NIP-46 connection
-                    localStorage.removeItem(NOSTR_CONNECT_KEY)
-                    localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+                    // Clean up failed NIP-46 connection if we've reached max retries
+                    if (parseInt(localStorage.getItem(NOSTR_CONNECTION_ATTEMPT) || '0') >= NOSTR_MAX_RETRIES) {
+                        console.warn('Removing failed NIP-46 connection credentials after max retries')
+                        localStorage.removeItem(NOSTR_CONNECT_KEY)
+                        localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+                        localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+                    }
                     authStore.setState((state) => ({ ...state, isAuthenticating: false }))
-                    throw error
+                    // Continue to other auth methods instead of throwing
                 }
             }
 
@@ -142,12 +198,22 @@ export const authActions = {
                 }
 
                 // Even with auto login, we need the password for decryption
-                authStore.setState((state) => ({ ...state, needsDecryptionPassword: true, isAuthenticating: false }))
+                // But we can't auto-login without user intervention to provide the password
+                authStore.setState((state) => ({
+                    ...state,
+                    needsDecryptionPassword: true,
+                    isAuthenticating: false,
+                }))
                 return
             }
 
             // Try extension login as fallback
-            await authActions.loginWithExtension()
+            try {
+                await authActions.loginWithExtension()
+            } catch (error) {
+                console.error('Extension login fallback failed:', error)
+                authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+            }
         } catch (error) {
             console.error('Authentication failed:', error)
             authStore.setState((state) => ({ ...state, isAuthenticating: false }))
@@ -326,7 +392,10 @@ export const authActions = {
         localStorage.removeItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
         localStorage.removeItem(NOSTR_AUTO_LOGIN)
         localStorage.removeItem(NOSTR_STORED_PUBKEY)
-        authStore.setState(() => initialState)
+        localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+
+        // Reset to initial state
+        authStore.setState(() => ({ ...initialState }))
     },
 }
 
