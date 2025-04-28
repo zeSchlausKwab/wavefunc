@@ -1,5 +1,4 @@
 import NDK, { NDKEvent, type NostrEvent } from '@nostr-dev-kit/ndk'
-import { createRadioEvent } from './radio'
 import { RADIO_EVENT_KINDS } from '../schemas/events'
 import type { Station } from '../types/station'
 
@@ -11,31 +10,45 @@ export async function publishStation(ndk: NDK, event: NostrEvent, clientTag?: st
         throw new Error('Invalid event kind. Expected radio stream event.')
     }
 
-    // Ensure station content has name and description in tags
+    // Ensure required tags are present
     try {
-        const content = JSON.parse(event.content)
-
-        // Check if name tag exists, otherwise add it
-        if (!event.tags.some((tag) => tag[0] === 'name') && content.name) {
-            event.tags.push(['name', content.name])
+        // Ensure name tag exists
+        if (!event.tags.some((tag) => tag[0] === 'name')) {
+            throw new Error('Missing required name tag')
         }
 
-        // Check if description tag exists, otherwise add it
-        if (!event.tags.some((tag) => tag[0] === 'description') && content.description) {
-            event.tags.push(['description', content.description])
-        }
-
-        // Check if indexed identity tag exists, otherwise add it
-        if (!event.tags.some((tag) => tag[0] === 'i') && content.name) {
-            event.tags.push(['i', content.name.trim()])
+        // Ensure d-tag exists, add based on name tag if missing
+        if (!event.tags.some((tag) => tag[0] === 'd')) {
+            const nameTag = event.tags.find((tag) => tag[0] === 'name')
+            if (nameTag) {
+                event.tags.push(['d', nameTag[1].trim()])
+            } else {
+                throw new Error('Cannot create d-tag: name tag missing')
+            }
         }
 
         // Add client tag if provided
         if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {
             event.tags.push(clientTag)
         }
+
+        // Validate content structure
+        try {
+            const content = JSON.parse(event.content)
+            if (
+                !content.description ||
+                !content.streams ||
+                !Array.isArray(content.streams) ||
+                content.streams.length === 0
+            ) {
+                throw new Error('Invalid content structure: missing description or streams')
+            }
+        } catch (error: any) {
+            throw new Error(`Invalid content JSON: ${error.message}`)
+        }
     } catch (error) {
-        console.error('Failed to parse event content:', error)
+        console.error('Failed to prepare event:', error)
+        throw error
     }
 
     const ndkEvent = new NDKEvent(ndk, event)
@@ -55,31 +68,46 @@ export async function updateStation(
         description: string
         website: string
         streams: any[]
-        imageUrl?: string
+        thumbnail?: string
         countryCode?: string
         languageCodes?: string[]
         tags?: string[]
+        location?: string
     },
     clientTag?: string[],
 ): Promise<NDKEvent> {
-    // Create the basic tags array - put d-tag first to emphasize its importance
+    // Create the tags array - required tags first
     const tags = [
+        ['d', station.tags.find((tag) => tag[0] === 'd')?.[1] || updatedData.name.trim()], // Preserve existing d-tag if possible
         ['name', updatedData.name],
-        ['description', updatedData.description],
-        ['thumbnail', updatedData.imageUrl || ''],
-        ['i', updatedData.name.trim()], // Add indexed identity tag
     ]
+
+    // Add recommended tags
+    // Add thumbnail if provided
+    if (updatedData.thumbnail) {
+        tags.push(['thumbnail', updatedData.thumbnail])
+    }
+
+    // Add website if provided
+    if (updatedData.website) {
+        tags.push(['website', updatedData.website])
+    }
+
+    // Add location if provided
+    if (updatedData.location) {
+        tags.push(['location', updatedData.location])
+    }
 
     // Add countryCode if provided
     if (updatedData.countryCode) {
         tags.push(['countryCode', updatedData.countryCode])
     }
 
-    // Add language codes as individual language tags
+    // Add language codes as individual 'l' tags
     if (updatedData.languageCodes && updatedData.languageCodes.length > 0) {
         updatedData.languageCodes.forEach((code) => {
             if (code.trim()) {
-                tags.push(['language', code.trim()])
+                tags.push(['l', code.trim()])
             }
         })
     }
@@ -98,25 +126,21 @@ export async function updateStation(
         tags.push(clientTag)
     }
 
-    // Create a radio event that preserves the existing tags (including d-tag)
-    const event = createRadioEvent(
-        {
-            name: updatedData.name,
-            description: updatedData.description,
-            website: updatedData.website,
-            streams: updatedData.streams,
-            countryCode: updatedData.countryCode,
-            languageCodes: updatedData.languageCodes,
-            tags: updatedData.tags,
-        },
-        tags,
-        station.tags, // Pass existing tags to preserve 'd' tag
-    )
+    // Create the content object according to SPEC.md
+    const content = {
+        description: updatedData.description,
+        streams: updatedData.streams,
+    }
 
-    // Create and publish the NDK event
-    const ndkEvent = new NDKEvent(ndk, event)
+    // Create an NDK event and publish it
+    const ndkEvent = new NDKEvent(ndk, {
+        kind: RADIO_EVENT_KINDS.STREAM,
+        tags: tags,
+        content: JSON.stringify(content),
+        created_at: Math.floor(Date.now() / 1000),
+    })
+
     await ndkEvent.publish()
-
     return ndkEvent
 }
 
@@ -124,24 +148,27 @@ export async function updateStation(
  * Publish multiple radio stations
  */
 export async function publishStations(ndk: NDK, events: NostrEvent[], clientTag?: string[]): Promise<NDKEvent[]> {
-    // Ensure each event has the station name as d-tag
+    // Prepare events according to SPEC.md
     const preparedEvents = events.map((event) => {
-        try {
-            const content = JSON.parse(event.content)
-            if (content.name) {
-                // Remove any existing d-tag
-                event.tags = event.tags.filter((tag) => tag[0] !== 'd')
-                // Add d-tag with station name
-                event.tags.push(['d', content.name.trim()])
-            }
-
-            // Add client tag if provided
-            if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {
-                event.tags.push(clientTag)
-            }
-        } catch (e) {
-            console.error('Error preparing event for publishing:', e)
+        // Check for required tags
+        if (!event.tags.some((tag) => tag[0] === 'name')) {
+            throw new Error('Missing required name tag')
         }
+
+        // Set d-tag based on name tag
+        const nameTag = event.tags.find((tag) => tag[0] === 'name')
+        if (nameTag) {
+            // Remove any existing d-tag
+            event.tags = event.tags.filter((tag) => tag[0] !== 'd')
+            // Add d-tag with station name
+            event.tags.push(['d', nameTag[1].trim()])
+        }
+
+        // Add client tag if provided
+        if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {
+            event.tags.push(clientTag)
+        }
+
         return event
     })
 

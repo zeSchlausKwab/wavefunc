@@ -19,13 +19,11 @@ export function createStationDTagValue(): string {
 }
 
 /**
- * Creates an unsigned radio station event
+ * Creates an unsigned radio station event following the SPEC.md format
  */
 export function createRadioEvent(
     content: {
-        name: string
         description: string
-        website: string
         streams: {
             url: string
             format: string
@@ -36,76 +34,34 @@ export function createRadioEvent(
             }
             primary?: boolean
         }[]
-        // New fields from radio-browser.info
-        countryCode?: string // ISO 3166-2 country code
-        languageCodes?: string[] // ISO language codes
-        tags?: string[]
-        favicon?: string
     },
     tags: string[][],
     existingTags?: string[][],
 ): NostrEvent {
     let newTags = [...tags]
 
-    // Add name and description tags if not already present
-    const hasNameTag = newTags.some((tag) => tag[0] === 'name')
-    if (!hasNameTag) {
-        newTags.push(['name', content.name])
-    }
-
-    // Add indexed identity tag for searchability
-    const hasIdentityTag = newTags.some((tag) => tag[0] === 'i')
-    if (!hasIdentityTag && content.name) {
-        newTags.push(['i', content.name.trim()])
-    }
-
-    const hasDescriptionTag = newTags.some((tag) => tag[0] === 'description')
-    if (!hasDescriptionTag) {
-        newTags.push(['description', content.description])
-    }
-
-    // Add new tags for additional metadata
-    if (content.countryCode && !newTags.some((tag) => tag[0] === 'countryCode')) {
-        newTags.push(['countryCode', content.countryCode])
-    }
-
-    // Add language codes as individual language tags
-    if (content.languageCodes && content.languageCodes.length > 0) {
-        content.languageCodes.forEach((code) => {
-            if (code.trim()) {
-                newTags.push(['language', code.trim()])
-            }
-        })
-    }
-
-    // Add tags as individual t tags
-    if (content.tags && content.tags.length > 0) {
-        content.tags.forEach((tag) => {
-            if (tag.trim()) {
-                newTags.push(['t', tag.trim()])
-            }
-        })
-    }
-
-    // Add favicon as thumbnail if not already present
-    if (content.favicon && !newTags.some((tag) => tag[0] === 'thumbnail')) {
-        newTags.push(['thumbnail', content.favicon])
-    }
-
+    // Preserve the d-tag from existing tags if available
     if (existingTags) {
         const existingDTag = existingTags.find((tag) => tag[0] === 'd')
         newTags = newTags.filter((tag) => tag[0] !== 'd')
 
         if (existingDTag) {
-            const newDTag = ['d', createStationDTagValue()]
-            newTags.push(newDTag)
+            newTags.push(existingDTag)
+        } else {
+            // If no d-tag in existing tags, create a new one
+            // For new events, try to use the name tag value or create a random value
+            const nameTag = newTags.find((tag) => tag[0] === 'name')
+            const dValue = nameTag ? nameTag[1].trim() : createStationDTagValue()
+            newTags.push(['d', dValue])
         }
     } else {
+        // For new events, we need to ensure there's a d-tag
         const hasDTag = newTags.some((tag) => tag[0] === 'd')
-
         if (!hasDTag) {
-            const newDTag = ['d', createStationDTagValue()]
-            newTags.push(newDTag)
+            // Try to use the name tag value or create a random value
+            const nameTag = newTags.find((tag) => tag[0] === 'name')
+            const dValue = nameTag ? nameTag[1].trim() : createStationDTagValue()
+            newTags.push(['d', dValue])
         }
     }
 
@@ -140,20 +96,31 @@ export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
 
     // Extract tags
     const tags = event.tags as string[][]
-    const genreTags = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
 
-    // Extract country code and language codes from tags
-    const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1]
-    const languageCodes = tags.filter((tag) => tag[0] === 'language').map((tag) => tag[1])
+    // Extract required metadata from tags
+    const nameTag = tags.find((tag) => tag[0] === 'name')
+    if (!nameTag) {
+        throw new Error('Missing required name tag')
+    }
+
+    // Get various metadata from tags
+    const genreTags = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
+    const websiteTag = tags.find((tag) => tag[0] === 'website')?.[1] || ''
+    const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1] || ''
+    const languageCodes = tags.filter((tag) => tag[0] === 'l').map((tag) => tag[1])
+    const location = tags.find((tag) => tag[0] === 'location')?.[1] || ''
+    const thumbnail = tags.find((tag) => tag[0] === 'thumbnail')?.[1] || ''
 
     return {
-        name: content.name,
+        name: nameTag[1],
         description: content.description,
-        website: content.website || '',
+        website: websiteTag,
         streams: content.streams,
-        countryCode: countryCode || content.countryCode || '',
-        languageCodes: languageCodes.length > 0 ? languageCodes : content.languageCodes || [],
-        tags: genreTags.length > 0 ? genreTags : content.tags || [],
+        countryCode: countryCode,
+        languageCodes: languageCodes,
+        tags: genreTags,
+        location: location,
+        thumbnail: thumbnail,
         eventTags: tags,
     }
 }
@@ -183,11 +150,9 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
               .filter(Boolean)
         : []
 
-    // Prepare content object
+    // Prepare content object following SPEC.md
     const content: {
-        name: string
         description: string
-        website: string
         streams: {
             url: string
             format: string
@@ -198,14 +163,8 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
             }
             primary: boolean
         }[]
-        countryCode: string
-        languageCodes: string[]
-        tags: string[]
-        favicon: string
     } = {
-        name: radioBrowserStation.name,
         description: radioBrowserStation.name, // API doesn't have a description, use name as fallback
-        website: radioBrowserStation.homepage || '',
         streams: [
             {
                 url: radioBrowserStation.url_resolved || radioBrowserStation.url,
@@ -218,17 +177,13 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
                 primary: true,
             },
         ],
-        countryCode: radioBrowserStation.countrycode || '',
-        languageCodes,
-        tags,
-        favicon: radioBrowserStation.favicon || '',
     }
 
     // Prepare tags array
-    const tagsArray: string[][] = [['name', content.name]]
-
-    // Add description tag (using name as fallback)
-    tagsArray.push(['description', content.description])
+    const tagsArray: string[][] = [
+        ['name', radioBrowserStation.name],
+        ['d', radioBrowserStation.name.trim()], // Use name as d-tag value
+    ]
 
     // Add genre/tags as t tags
     tags.forEach((tag: string) => {
@@ -236,20 +191,23 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
     })
 
     // Add country code
-    if (content.countryCode) {
-        tagsArray.push(['countryCode', content.countryCode])
+    if (radioBrowserStation.countrycode) {
+        tagsArray.push(['countryCode', radioBrowserStation.countrycode])
     }
 
-    // Add language codes as individual language tags
-    if (languageCodes.length > 0) {
-        languageCodes.forEach((code: string) => {
-            tagsArray.push(['language', code])
-        })
-    }
+    // Add language codes as individual l tags (not language)
+    languageCodes.forEach((code: string) => {
+        tagsArray.push(['l', code])
+    })
 
     // Add favicon as thumbnail
-    if (content.favicon) {
-        tagsArray.push(['thumbnail', content.favicon])
+    if (radioBrowserStation.favicon) {
+        tagsArray.push(['thumbnail', radioBrowserStation.favicon])
+    }
+
+    // Add website
+    if (radioBrowserStation.homepage) {
+        tagsArray.push(['website', radioBrowserStation.homepage])
     }
 
     return {
@@ -332,10 +290,10 @@ export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
 export function stationToNostrEvent(station: Station): NostrEvent {
     let tags = [...station.tags]
 
+    // Ensure required tags are present
     const existingDTag = tags.find((tag) => tag[0] === 'd')
     if (!existingDTag) {
-        const newDTag = ['d', createStationDTagValue()]
-        tags.push(newDTag)
+        tags.push(['d', station.name.trim()])
     }
 
     const existingNameTag = tags.find((tag) => tag[0] === 'name')
@@ -343,22 +301,20 @@ export function stationToNostrEvent(station: Station): NostrEvent {
         tags.push(['name', station.name])
     }
 
-    const existingIdentityTag = tags.find((tag) => tag[0] === 'i')
-    if (!existingIdentityTag && station.name) {
-        tags.push(['i', station.name.trim()])
+    // Website tag
+    if (station.website && !tags.some((tag) => tag[0] === 'website')) {
+        tags.push(['website', station.website])
     }
 
-    const existingDescTag = tags.find((tag) => tag[0] === 'description')
-    if (!existingDescTag) {
-        tags.push(['description', station.description])
+    // Thumbnail tag
+    if (station.imageUrl && !tags.some((tag) => tag[0] === 'thumbnail')) {
+        tags.push(['thumbnail', station.imageUrl])
     }
 
     return {
         kind: RADIO_EVENT_KINDS.STREAM,
         content: JSON.stringify({
-            name: station.name,
             description: station.description,
-            website: station.website,
             streams: station.streams,
         }),
         created_at: station.created_at,
@@ -374,15 +330,7 @@ export function stationToNostrEvent(station: Station): NostrEvent {
  * @returns Promise<NDKEvent | null> - Returns the matching station event or null if not found
  */
 export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<NDKEvent | null> {
-    const identityFilter = {
-        kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-        '#i': [name.trim()],
-    }
-    const identityEvents = await ndk.fetchEvents(identityFilter)
-    for (const event of identityEvents) {
-        return event
-    }
-
+    // Search by name tag directly
     const nameFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
         '#name': [name],
@@ -392,6 +340,7 @@ export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<
         return event
     }
 
+    // Fall back to more general search
     const fallbackFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
     }
@@ -401,11 +350,6 @@ export async function findStationByNameInNostr(ndk: NDK, name: string): Promise<
     })
     for (const event of allEvents) {
         try {
-            // Check 'i' tag case-insensitively
-            const iTag = event.tags.find((tag) => tag[0] === 'i')
-            if (iTag && iTag[1].toLowerCase() === name.toLowerCase()) {
-                return event
-            }
             // Check 'name' tag case-insensitively
             const nameTag = event.tags.find((tag) => tag[0] === 'name')
             if (nameTag && nameTag[1].toLowerCase() === name.toLowerCase()) {
