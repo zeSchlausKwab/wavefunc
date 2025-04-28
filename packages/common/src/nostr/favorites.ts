@@ -1,4 +1,11 @@
-import NDK, { NDKEvent, type NostrEvent, NDKSubscriptionCacheUsage, type NDKFilter, NDKKind } from '@nostr-dev-kit/ndk'
+import NDK, {
+    NDKEvent,
+    type NostrEvent,
+    NDKSubscriptionCacheUsage,
+    type NDKFilter,
+    NDKKind,
+    type NDKTag,
+} from '@nostr-dev-kit/ndk'
 import { createStationDTagValue } from './radio'
 import { RADIO_EVENT_KINDS } from '../schemas/events'
 import { envStore } from '../lib/store/env'
@@ -9,19 +16,22 @@ import { envStore } from '../lib/store/env'
 // The 'l' tag value for radio favorites
 export const FAVORITES_LIST_TYPE = 'radio_favorites'
 
+// Type for a station reference in favorites
+export interface FavoriteStation {
+    event_id: string
+    name: string
+    added_at: number
+    naddr?: string
+    relay_url?: string
+    pubkey?: string
+    tags?: string[][]
+}
+
 export interface FavoritesList {
     id: string
     name: string
     description: string
-    favorites: {
-        event_id: string
-        name: string
-        added_at: number
-        naddr?: string
-        relay_url?: string
-        pubkey?: string
-        tags?: string[][]
-    }[]
+    favorites: FavoriteStation[]
     created_at: number
     pubkey: string
     tags: string[][]
@@ -33,9 +43,8 @@ export interface FavoritesListContent {
 }
 
 /**
- * Creates a proper station naddr reference for use in 'a' tags
- * Format should be: 31237:pubkey:d-tag
- * According to SPEC.md, we should use the format "kind:pubkey:d-tag" instead of naddr
+ * Creates a proper station reference for use in 'a' tags
+ * Format: "kind:pubkey:d-tag" - SPEC.md preferred format
  */
 export function createStationAddrReference(station: {
     id?: string
@@ -43,70 +52,37 @@ export function createStationAddrReference(station: {
     naddr?: string
     tags?: string[][]
 }): string {
-    // Check if we have pubkey and a d-tag, which is the preferred format according to SPEC.md
+    // First try to create the reference using pubkey and d-tag
     const dTag = station.tags?.find((tag) => tag[0] === 'd')
 
     if (station.pubkey && dTag?.[1]) {
-        // Generate reference in format "kind:pubkey:d-tag" - using only the d-tag value as identifier
-        // The d-tag value should be the unique identifier, not the station name
         return `${RADIO_EVENT_KINDS.STREAM}:${station.pubkey}:${dTag[1]}`
     }
 
-    // If we have a valid naddr but can't construct the proper reference, use it as fallback
-    if (station.naddr) {
-        return station.naddr
-    }
-
-    // Last resort: use the ID if no better option is available
-    return station.id || ''
+    // Fallback to naddr or id
+    return station.naddr || station.id || ''
 }
 
 /**
- * Creates an unsigned favorites list event using NIP-78
+ * Creates a favorites list event
  */
 export function createFavoritesEvent(
     content: FavoritesListContent,
-    favorites: {
-        event_id: string
-        name: string
-        added_at: number
-        naddr?: string
-        relay_url?: string
-        pubkey?: string
-        tags?: string[][]
-    }[],
+    favorites: FavoriteStation[],
     pubkey: string,
 ): NostrEvent {
-    // Get app pubkey from env if available
     const appPubkey = envStore.state.env?.VITE_APP_PUBKEY || ''
+    const timestamp = Math.floor(Date.now() / 1000)
 
     return {
         kind: NDKKind.AppSpecificData,
-        created_at: Math.floor(Date.now() / 1000),
+        created_at: timestamp,
         tags: [
-            ['d', `favorites-${createStationDTagValue()}`],
-            ['l', FAVORITES_LIST_TYPE], // Add 'l' tag to identify this as radio favorites
+            ['d', createStationDTagValue()],
+            ['l', FAVORITES_LIST_TYPE],
             ['name', content.name],
             ['description', content.description],
-            ...favorites.map((fav) => {
-                // Generate proper 'a' tag reference in format "kind:pubkey:d-tag" if possible
-                let addressRef = ''
-
-                // If we have the data to construct a proper reference, do it
-                if (fav.pubkey && fav.tags) {
-                    const dTag = fav.tags.find((tag: string[]) => tag[0] === 'd')
-                    if (dTag?.[1]) {
-                        addressRef = `${RADIO_EVENT_KINDS.STREAM}:${fav.pubkey}:${dTag[1]}`
-                    }
-                }
-
-                // Otherwise fall back to supplied naddr or empty string
-                if (!addressRef) {
-                    addressRef = fav.naddr || ''
-                }
-
-                return ['a', addressRef, fav.relay_url || '', fav.name, fav.added_at.toString()]
-            }),
+            ...createFavoritesTags(favorites),
             ['t', 'favorites'],
             // Add app reference if available
             ...(appPubkey ? [['p', appPubkey]] : []),
@@ -117,20 +93,35 @@ export function createFavoritesEvent(
 }
 
 /**
+ * Helper function to create 'a' tags for favorites
+ */
+function createFavoritesTags(favorites: FavoriteStation[]): string[][] {
+    return favorites.map((fav) => {
+        // Generate proper address reference
+        let addressRef = ''
+
+        if (fav.pubkey && fav.tags) {
+            const dTag = fav.tags.find((tag) => tag[0] === 'd')
+            if (dTag?.[1]) {
+                addressRef = `${RADIO_EVENT_KINDS.STREAM}:${fav.pubkey}:${dTag[1]}`
+            }
+        }
+
+        if (!addressRef) {
+            addressRef = fav.naddr || fav.event_id || ''
+        }
+
+        return ['a', addressRef, fav.relay_url || '', fav.name, fav.added_at.toString()]
+    })
+}
+
+/**
  * Publish a new favorites list
  */
 export async function publishFavoritesList(
     ndk: NDK,
     content: FavoritesListContent,
-    favorites: {
-        event_id: string
-        name: string
-        added_at: number
-        naddr?: string
-        relay_url?: string
-        pubkey?: string
-        tags?: string[][]
-    }[] = [],
+    favorites: FavoriteStation[] = [],
 ): Promise<NDKEvent> {
     if (!ndk.signer) {
         throw new Error('No signer available')
@@ -150,15 +141,7 @@ export async function updateFavoritesList(
     ndk: NDK,
     favoritesList: FavoritesList,
     updatedContent: Partial<FavoritesListContent>,
-    updatedFavorites?: {
-        event_id: string
-        name: string
-        added_at: number
-        naddr?: string
-        relay_url?: string
-        pubkey?: string
-        tags?: string[][]
-    }[],
+    updatedFavorites?: FavoriteStation[],
 ): Promise<NDKEvent> {
     if (!ndk.signer) {
         throw new Error('No signer available')
@@ -166,53 +149,29 @@ export async function updateFavoritesList(
 
     const pubkey = await ndk.signer.user().then((user) => user.pubkey)
     const appPubkey = envStore.state.env?.VITE_APP_PUBKEY || ''
-
-    // Get the existing d-tag to preserve it
     const dTag = favoritesList.tags.find((tag) => tag[0] === 'd')
 
-    // Create updated content by merging existing with updates
+    // Merge content
     const content: FavoritesListContent = {
         name: updatedContent.name ?? favoritesList.name,
         description: updatedContent.description ?? favoritesList.description,
     }
 
-    // Use the updated favorites list or the existing one
+    // Use updated favorites or existing ones
     const favorites = updatedFavorites ?? favoritesList.favorites
-
-    // Create tag array with preserved d-tag
-    const tags = [
-        dTag || ['d', `favorites-${createStationDTagValue()}`],
-        ['l', FAVORITES_LIST_TYPE], // Add 'l' tag to identify this as radio favorites
-        ['name', content.name],
-        ['description', content.description],
-        ...favorites.map((fav) => {
-            // Generate proper 'a' tag reference in format "kind:pubkey:d-tag" if possible
-            let addressRef = ''
-
-            // If we have the data to construct a proper reference, do it
-            if (fav.pubkey && fav.tags) {
-                const dTag = fav.tags.find((tag: string[]) => tag[0] === 'd')
-                if (dTag?.[1]) {
-                    addressRef = `${RADIO_EVENT_KINDS.STREAM}:${fav.pubkey}:${dTag[1]}`
-                }
-            }
-
-            // Otherwise fall back to supplied naddr or empty string
-            if (!addressRef) {
-                addressRef = fav.naddr || ''
-            }
-
-            return ['a', addressRef, fav.relay_url || '', fav.name, fav.added_at.toString()]
-        }),
-        ['t', 'favorites'],
-        // Add app reference if available
-        ...(appPubkey ? [['p', appPubkey]] : []),
-    ]
 
     const event: NostrEvent = {
         kind: NDKKind.AppSpecificData,
         created_at: Math.floor(Date.now() / 1000),
-        tags,
+        tags: [
+            dTag as NDKTag,
+            ['l', FAVORITES_LIST_TYPE],
+            ['name', content.name],
+            ['description', content.description],
+            ...createFavoritesTags(favorites),
+            ['t', 'favorites'],
+            ...(appPubkey ? [['p', appPubkey]] : []),
+        ],
         content: JSON.stringify(content),
         pubkey,
     }
@@ -237,47 +196,29 @@ export async function addStationToFavorites(
         tags?: string[][]
     },
 ): Promise<NDKEvent> {
-    // Check if the station is already in favorites
-    const isAlreadyFavorite = favoritesList.favorites.some((fav) => fav.event_id === station.id)
-
-    if (isAlreadyFavorite) {
-        // If it's already a favorite, just return the unmodified list
-        const ndkEvent = new NDKEvent(ndk, {
-            kind: NDKKind.AppSpecificData,
-            content: JSON.stringify({
-                name: favoritesList.name,
-                description: favoritesList.description,
-            }),
-            tags: favoritesList.tags,
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: '',
-        })
-        return ndkEvent
+    // Check if already a favorite
+    if (favoritesList.favorites.some((fav) => fav.event_id === station.id)) {
+        return createUnmodifiedEvent(ndk, favoritesList)
     }
 
-    console.log('station', station)
-
-    // Generate address reference using decoded coordinates (kind:pubkey:d-tag)
-    // based on SPEC.md rather than using naddr directly
+    // Generate address reference
     const stationAddr = createStationAddrReference(station)
 
-    console.log('stationAddr', stationAddr)
-
-    // Add the station to favorites
+    // Add to favorites
     const updatedFavorites = [
         ...favoritesList.favorites,
         {
             event_id: station.id,
             name: station.name,
-            naddr: stationAddr, // Use the decoded coordinates format here
+            naddr: stationAddr,
             relay_url: station.relay_url || '',
-            pubkey: station.pubkey, // Include pubkey for proper reference creation
-            tags: station.tags, // Include tags for proper reference creation
+            pubkey: station.pubkey,
+            tags: station.tags,
             added_at: Math.floor(Date.now() / 1000),
         },
     ]
 
-    // Update the list with the new favorites
+    // Update list
     return updateFavoritesList(
         ndk,
         favoritesList,
@@ -297,25 +238,15 @@ export async function removeStationFromFavorites(
     favoritesList: FavoritesList,
     stationId: string,
 ): Promise<NDKEvent> {
-    // Filter out the station to remove
+    // Filter out the station
     const updatedFavorites = favoritesList.favorites.filter((fav) => fav.event_id !== stationId)
 
     // If nothing changed, return early
     if (updatedFavorites.length === favoritesList.favorites.length) {
-        const ndkEvent = new NDKEvent(ndk, {
-            kind: NDKKind.AppSpecificData,
-            content: JSON.stringify({
-                name: favoritesList.name,
-                description: favoritesList.description,
-            }),
-            tags: favoritesList.tags,
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: '',
-        })
-        return ndkEvent
+        return createUnmodifiedEvent(ndk, favoritesList)
     }
 
-    // Update the list with the station removed
+    // Update the list
     return updateFavoritesList(
         ndk,
         favoritesList,
@@ -325,6 +256,22 @@ export async function removeStationFromFavorites(
         },
         updatedFavorites,
     )
+}
+
+/**
+ * Helper function to create an unmodified event
+ */
+function createUnmodifiedEvent(ndk: NDK, favoritesList: FavoritesList): NDKEvent {
+    return new NDKEvent(ndk, {
+        kind: NDKKind.AppSpecificData,
+        content: JSON.stringify({
+            name: favoritesList.name,
+            description: favoritesList.description,
+        }),
+        tags: favoritesList.tags,
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: favoritesList.pubkey,
+    })
 }
 
 /**
@@ -360,67 +307,18 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
         throw new Error('Invalid event kind for favorites list')
     }
 
-    // Validate that this is a radio favorites list using the 'l' tag
+    // Validate that this is a radio favorites list
     const lTag = event.tags.find((tag) => tag[0] === 'l' && tag[1] === FAVORITES_LIST_TYPE)
     if (!lTag) {
         throw new Error('Not a valid radio favorites list')
     }
 
     try {
-        // Parse basic content (name and description) from content or tags
-        let name = ''
-        let description = ''
+        // Parse name and description
+        const { name, description } = parseListContent(event)
 
-        try {
-            const content = JSON.parse(event.content)
-            name = content.name || ''
-            description = content.description || ''
-        } catch (e) {
-            // If content parsing fails, try to get from tags
-            const nameTag = event.tags.find((tag) => tag[0] === 'name')
-            const descTag = event.tags.find((tag) => tag[0] === 'description')
-            name = nameTag?.[1] || 'Untitled Favorites List'
-            description = descTag?.[1] || ''
-        }
-
-        // Process a-tags for favorites
-        const aTags = event.tags.filter((tag) => tag[0] === 'a')
-
-        const favorites = aTags
-            .map((tag) => {
-                if (tag.length < 2) return null
-
-                const addressRef = tag[1]
-
-                // Skip if the addressRef is empty
-                if (!addressRef) return null
-
-                // Extract information from the address reference (kind:pubkey:d-tag)
-                let event_id = ''
-                let naddr = addressRef
-
-                // Parse the address parts if it follows the "kind:pubkey:d-tag" format
-                const parts = addressRef.split(':')
-                if (parts.length >= 3) {
-                    event_id = addressRef
-                } else {
-                    event_id = addressRef
-                }
-
-                // Get optional fields
-                const relay_url = tag[2] || undefined
-                const petname = tag[3] || 'Unknown Station'
-                const added_at = tag[4] ? parseInt(tag[4], 10) : Math.floor(Date.now() / 1000)
-
-                return {
-                    event_id,
-                    name: petname,
-                    naddr,
-                    relay_url,
-                    added_at,
-                }
-            })
-            .filter(Boolean) as any[]
+        // Parse favorites from a-tags
+        const favorites = parseFavorites(event)
 
         return {
             id: (event as NDKEvent).id || '',
@@ -438,6 +336,58 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
 }
 
 /**
+ * Helper to parse list content
+ */
+function parseListContent(event: NDKEvent | NostrEvent): { name: string; description: string } {
+    let name = ''
+    let description = ''
+
+    try {
+        // Try JSON content first
+        const content = JSON.parse(event.content)
+        name = content.name || ''
+        description = content.description || ''
+    } catch (e) {
+        // Fallback to tags
+        const nameTag = event.tags.find((tag) => tag[0] === 'name')
+        const descTag = event.tags.find((tag) => tag[0] === 'description')
+        name = nameTag?.[1] || 'Untitled Favorites List'
+        description = descTag?.[1] || ''
+    }
+
+    return { name, description }
+}
+
+/**
+ * Helper to parse favorites from a-tags
+ */
+function parseFavorites(event: NDKEvent | NostrEvent): FavoriteStation[] {
+    const aTags = event.tags.filter((tag) => tag[0] === 'a')
+
+    return aTags
+        .map((tag) => {
+            if (tag.length < 2) return null
+
+            const addressRef = tag[1]
+            if (!addressRef) return null
+
+            // Format: ['a', addressRef, relay_url?, petname?, added_at?]
+            const relay_url = tag[2] || undefined
+            const petname = tag[3] || 'Unknown Station'
+            const added_at = tag[4] ? parseInt(tag[4], 10) : Math.floor(Date.now() / 1000)
+
+            return {
+                event_id: addressRef,
+                name: petname,
+                naddr: addressRef,
+                relay_url,
+                added_at,
+            }
+        })
+        .filter(Boolean) as FavoriteStation[]
+}
+
+/**
  * Subscribe to favorites lists
  */
 export function subscribeToFavoritesLists(
@@ -449,7 +399,7 @@ export function subscribeToFavoritesLists(
 ) {
     const filter: NDKFilter = {
         kinds: [NDKKind.AppSpecificData],
-        '#l': [FAVORITES_LIST_TYPE], // Filter by our radio favorites type
+        '#l': [FAVORITES_LIST_TYPE],
     }
 
     // Add pubkey filter if specified
@@ -468,7 +418,6 @@ export function subscribeToFavoritesLists(
                 const favoritesList = parseFavoritesEvent(event)
                 onEvent(favoritesList)
             } catch (error) {
-                // Silently skip invalid events
                 console.warn('Failed to parse favorites list event:', error)
             }
         })
@@ -483,22 +432,20 @@ export function subscribeToFavoritesLists(
 export async function fetchFavoritesLists(
     ndk: NDK,
     options?: {
-        pubkey?: string // Optional: only fetch lists by this pubkey
-        since?: number // Optional: only fetch lists since this timestamp
+        pubkey?: string // Only fetch lists by this pubkey
+        since?: number // Only fetch lists since this timestamp
     },
 ): Promise<FavoritesList[]> {
     const filter: NDKFilter = {
         kinds: [NDKKind.AppSpecificData],
-        '#l': [FAVORITES_LIST_TYPE], // Filter by our radio favorites type
-        '#t': ['favorites'], // Filter by topic tag
+        '#l': [FAVORITES_LIST_TYPE],
+        '#t': ['favorites'],
     }
 
-    // Add pubkey filter if specified
     if (options?.pubkey) {
         filter.authors = [options.pubkey]
     }
 
-    // Add time filter if specified
     if (options?.since) {
         filter.since = options.since
     } else {
