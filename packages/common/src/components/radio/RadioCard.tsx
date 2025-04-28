@@ -11,7 +11,7 @@ import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
 
 // Icons
-import { CheckCircle2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Edit, Plus } from 'lucide-react'
 
 // Stores and utilities
 import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
@@ -106,6 +106,8 @@ interface ExpandedContentProps {
     isCurrentlyPlaying: boolean
     handlePlay: () => void
     hasStreams: boolean
+    isAuthor: boolean
+    handleEdit: () => void
 }
 
 const ExpandedContent = ({
@@ -119,6 +121,8 @@ const ExpandedContent = ({
     isExpanded,
     commentsCount,
     onCommentClick,
+    isAuthor,
+    handleEdit,
 }: ExpandedContentProps) => (
     <div className={cn('bg-gray-100', isMobile ? 'p-3' : 'p-4')}>
         <UserProfile pubkey={station.pubkey} compact={false} />
@@ -126,7 +130,21 @@ const ExpandedContent = ({
         <div className="mt-4 mb-3 flex flex-col gap-2">
             <div className="flex justify-between items-center">
                 {isExistsInNostr && station && station.id && (
-                    <FavoritesDropdown station={station} currentListId={currentListId} />
+                    <div className="flex items-center space-x-2">
+                        <FavoritesDropdown station={station} currentListId={currentListId} />
+                        {isAuthor && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleEdit}
+                                className="h-8"
+                                title="Edit Station"
+                            >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                            </Button>
+                        )}
+                    </div>
                 )}
 
                 {existsInNostr && (
@@ -183,15 +201,14 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
     const [existsInNostr, setExistsInNostr] = useState<NDKEvent | null>(null)
     const [checkingNostr, setCheckingNostr] = useState(false)
     const [stationNaddr, setStationNaddr] = useState<string | null>(null)
-    // @ts-ignore
     const [user, setUser] = useState<NDKUser | null>(null)
+    const [isAuthor, setIsAuthor] = useState(false)
 
     const [selectedStreamId, setSelectedStreamId] = useState<number | undefined>(undefined)
 
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
     const currentStation = useStore(stationsStore, (state) => state.currentStation)
     const isCurrentlyPlaying = currentStation?.id === station.id && isPlaying
-    const { isConnected } = useStore(ndkStore)
 
     const [cardRef] = useAutoAnimate<HTMLDivElement>({
         duration: 300,
@@ -264,13 +281,17 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
             try {
                 const currentUser = await ndk.signer.user()
                 setUser(currentUser)
+
+                if (currentUser && station.pubkey) {
+                    setIsAuthor(currentUser.pubkey === station.pubkey)
+                }
             } catch (error) {
                 console.error('Error getting user:', error)
             }
         }
 
         getUser()
-    }, [])
+    }, [station.pubkey])
 
     // Stream handler
     const handleStreamSelect = (stream: Stream) => {
@@ -357,6 +378,7 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                 isMobile={isMobile}
                 isFullWidth={isFullWidth}
             />
+
             {isExistsInNostr && (
                 <div className="absolute bottom-2 left-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
                     <CheckCircle2 className="w-4 h-4" />
@@ -487,6 +509,8 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                             isCurrentlyPlaying={isCurrentlyPlaying}
                             handlePlay={handlePlay}
                             hasStreams={hasStreams}
+                            isAuthor={isAuthor}
+                            handleEdit={handleEdit}
                         />
 
                         {/* Comments section - Always visible when expanded */}

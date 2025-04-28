@@ -48,7 +48,7 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
         // Parse language codes
         const languageCodes = (baseStation.languagecodes || '')
             .split(',')
-            .map(code => code.trim())
+            .map((code) => code.trim())
             .filter(Boolean)
 
         // Build streams array from the different URLs
@@ -70,7 +70,7 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
         }, [] as any[])
 
         // Ensure at least one stream is primary
-        if (uniqueStreams.length > 0 && !uniqueStreams.some(stream => stream.primary)) {
+        if (uniqueStreams.length > 0 && !uniqueStreams.some((stream) => stream.primary)) {
             uniqueStreams[0].primary = true
         }
 
@@ -87,8 +87,8 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
             tags: [
                 ['name', baseStation.name],
                 ...(baseStation.countrycode ? [['countryCode', baseStation.countrycode]] : []),
-                ...uniqueTags.map(tag => ['t', tag]),
-                ...languageCodes.map(code => ['l', code]),
+                ...uniqueTags.map((tag) => ['t', tag]),
+                ...languageCodes.map((code) => ['l', code]),
                 ...(baseStation.homepage ? [['website', baseStation.homepage]] : []),
                 ...(baseStation.favicon ? [['thumbnail', baseStation.favicon]] : []),
             ],

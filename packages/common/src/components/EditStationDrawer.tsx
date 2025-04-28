@@ -261,11 +261,18 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     React.useEffect(() => {
         if (station) {
             // Convert station.tags (string[][]) to string[] for form tags
-            const formTags = station.tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
+            const formTags = station.tags
+                .filter((tag) => tag[0] === 't')
+                .map((tag) => tag[1])
+                .filter(Boolean)
 
-            // Extract language codes
+            // Extract language codes - try languageCodes first, then fall back to 'l' tags
             const languageCodes =
-                station.languageCodes || station.tags.filter((tag) => tag[0] === 'language').map((tag) => tag[1])
+                station.languageCodes ||
+                station.tags
+                    .filter((tag) => tag[0] === 'l')
+                    .map((tag) => tag[1])
+                    .filter(Boolean)
 
             // Create a properly typed StationFormData object
             const formData: StationFormData = {
@@ -273,16 +280,15 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 description: station.description,
                 website: station.website,
                 thumbnail: station.imageUrl,
-                countryCode: station.countryCode,
+                countryCode: station.countryCode || station.tags.find((tag) => tag[0] === 'countryCode')?.[1] || '',
                 languageCodes: languageCodes,
                 tags: formTags,
                 streams: station.streams.map((stream) => ({
                     ...stream,
-                    primary: stream.primary ?? false, // Default to false if undefined
+                    primary: stream.primary ?? false,
                 })),
             }
 
-            // Reset with proper type conversion for form
             reset(formData)
         }
     }, [station, reset])
@@ -290,6 +296,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const streams = watch('streams')
 
     const onSubmit = async (data: StationFormData) => {
+        // TODO: wrap everything in react-query, this is not reactive
         try {
             setSubmitError(null)
             const ndk = ndkActions.getNDK()
@@ -299,6 +306,8 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
 
             if (station?.naddr) {
+                console.log('Updating existing station:', station.id)
+
                 // @ts-ignore
                 const ndkEvent = await updateStation(ndk, station, {
                     name: data.name,
@@ -311,11 +320,15 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     tags: data.tags,
                 })
 
+                console.log('Station updated successfully:', ndkEvent)
+
                 handleClose()
                 toast('Station updated', {
                     description: 'Your changes have been saved successfully.',
                 })
             } else {
+                console.log('Creating new station')
+
                 const event = createRadioEvent(
                     {
                         description: data.description,
@@ -335,6 +348,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
 
                 if (ndkEvent) {
                     await ndkEvent.publish()
+                    console.log('Station created successfully:', ndkEvent)
                     toast('Station created', {
                         description: 'Station created successfully',
                     })

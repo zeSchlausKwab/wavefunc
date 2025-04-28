@@ -1,19 +1,10 @@
-import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
-import type { NostrEvent } from '@nostr-dev-kit/ndk'
+import { NDKKind } from '@nostr-dev-kit/ndk'
 import { createFileRoute } from '@tanstack/react-router'
-import {
-    cn,
-    ndkActions,
-    parseRadioEventWithSchema,
-    RADIO_EVENT_KINDS,
-    type Station,
-    mapNostrEventToStation,
-} from '@wavefunc/common'
+import { cn, mapNostrEventToStation, ndkActions, RADIO_EVENT_KINDS, type Station } from '@wavefunc/common'
 import StationGrid from '@wavefunc/common/src/components/station/StationGrid'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
-import { nip19 } from 'nostr-tools'
 
 function useRadioStations() {
     const [stations, setStations] = useState<Station[]>([])
@@ -213,14 +204,12 @@ function Discover() {
     return (
         <div className="w-full flex flex-col gap-6 my-6 max-w-full">
             <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover</h1>
-
             <GenreSelector
                 genres={genres}
                 selectedGenre={selectedGenre}
                 onSelectGenre={setSelectedGenre}
                 isMobile={isMobile}
             />
-
             <StationGrid stations={filteredStations} isMobile={isMobile} />
         </div>
     )
