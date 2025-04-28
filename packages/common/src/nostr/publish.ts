@@ -1,6 +1,7 @@
 import NDK, { NDKEvent, type NostrEvent } from '@nostr-dev-kit/ndk'
 import { RADIO_EVENT_KINDS } from '../schemas/events'
 import type { Station } from '../types/station'
+import { createStationDTagValue } from './radio'
 
 /**
  * Publish a new radio station event
@@ -17,14 +18,11 @@ export async function publishStation(ndk: NDK, event: NostrEvent, clientTag?: st
             throw new Error('Missing required name tag')
         }
 
-        // Ensure d-tag exists, add based on name tag if missing
+        // Ensure d-tag exists, create a UUID-like value if missing
         if (!event.tags.some((tag) => tag[0] === 'd')) {
-            const nameTag = event.tags.find((tag) => tag[0] === 'name')
-            if (nameTag) {
-                event.tags.push(['d', nameTag[1].trim()])
-            } else {
-                throw new Error('Cannot create d-tag: name tag missing')
-            }
+            // Generate a UUID-like value for the d-tag, completely independent of the name
+            const dValue = createStationDTagValue()
+            event.tags.push(['d', dValue])
         }
 
         // Add client tag if provided
@@ -76,9 +74,21 @@ export async function updateStation(
     },
     clientTag?: string[],
 ): Promise<NDKEvent> {
+    // Get existing d-tag or create a new UUID-like one
+    let dTagValue: string
+    const existingDTag = station.tags.find((tag) => tag[0] === 'd')?.[1]
+
+    if (existingDTag) {
+        // Always use existing d-tag if it exists to maintain replaceability
+        dTagValue = existingDTag
+    } else {
+        // Create a new UUID-like d-tag if none exists
+        dTagValue = createStationDTagValue()
+    }
+
     // Create the tags array - required tags first
     const tags = [
-        ['d', station.tags.find((tag) => tag[0] === 'd')?.[1] || updatedData.name.trim()], // Preserve existing d-tag if possible
+        ['d', dTagValue], // Use UUID-like d-tag
         ['name', updatedData.name],
     ]
 
@@ -155,14 +165,12 @@ export async function publishStations(ndk: NDK, events: NostrEvent[], clientTag?
             throw new Error('Missing required name tag')
         }
 
-        // Set d-tag based on name tag
-        const nameTag = event.tags.find((tag) => tag[0] === 'name')
-        if (nameTag) {
-            // Remove any existing d-tag
-            event.tags = event.tags.filter((tag) => tag[0] !== 'd')
-            // Add d-tag with station name
-            event.tags.push(['d', nameTag[1].trim()])
-        }
+        // Create a UUID-like d-tag, completely independent of the name
+        // Remove any existing d-tag
+        event.tags = event.tags.filter((tag) => tag[0] !== 'd')
+        // Add new UUID-like d-tag
+        const dValue = createStationDTagValue()
+        event.tags.push(['d', dValue])
 
         // Add client tag if provided
         if (clientTag && !event.tags.some((tag) => tag[0] === 'client')) {

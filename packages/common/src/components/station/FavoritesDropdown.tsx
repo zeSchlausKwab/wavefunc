@@ -92,6 +92,8 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
                 id: station.id,
                 name: station.name,
                 naddr: station.naddr,
+                pubkey: station.pubkey,
+                tags: station.tags,
             })
             toast('Station added to favorites', {
                 description: 'Station added to favorites',
@@ -115,11 +117,15 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
 
             const updatedFavorites = currentList.favorites.filter((f) => f.event_id !== station.id)
 
-            await updateFavoritesList(ndk, currentList, {
-                name: currentList.name,
-                description: currentList.description,
-                favorites: updatedFavorites,
-            })
+            await updateFavoritesList(
+                ndk,
+                currentList,
+                {
+                    name: currentList.name,
+                    description: currentList.description,
+                },
+                updatedFavorites,
+            )
         } catch (error) {
             console.error('Error removing station from favorites:', error)
         }

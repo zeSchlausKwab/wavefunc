@@ -42,6 +42,7 @@
         "md5": "^2.3.0",
         "nostr-tools": "^2.12.0",
         "qrcode.react": "^4.2.0",
+        "uuid": "11.1.0",
         "react": "19.1.0",
         "react-dom": "19.1.0",
         "react-hook-form": "^7.55.0",

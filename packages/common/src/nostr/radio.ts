@@ -3,6 +3,7 @@ import type { NostrEvent } from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
 import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS } from '../schemas/events'
+import { v4 as uuidv4 } from 'uuid'
 
 // Mocked application pubkey for NIP-89 handler
 export const APP_PUBKEY = '000000000000000000000000000000000000000000000000000000000000radio'
@@ -12,10 +13,9 @@ export const APP_PUBKEY = '00000000000000000000000000000000000000000000000000000
 /**
  * Creates a random 'd' tag value
  * @returns A random ID to use as d-tag value
- * @deprecated Use station name as d-tag value instead
  */
 export function createStationDTagValue(): string {
-    return Math.random().toString(36).substring(2, 14)
+    return uuidv4()
 }
 
 /**
@@ -46,21 +46,19 @@ export function createRadioEvent(
         newTags = newTags.filter((tag) => tag[0] !== 'd')
 
         if (existingDTag) {
+            // Always keep the existing d-tag for replaceability
             newTags.push(existingDTag)
         } else {
-            // If no d-tag in existing tags, create a new one
-            // For new events, try to use the name tag value or create a random value
-            const nameTag = newTags.find((tag) => tag[0] === 'name')
-            const dValue = nameTag ? nameTag[1].trim() : createStationDTagValue()
+            // If no existing d-tag, create a new UUID-like value
+            const dValue = createStationDTagValue()
             newTags.push(['d', dValue])
         }
     } else {
         // For new events, we need to ensure there's a d-tag
         const hasDTag = newTags.some((tag) => tag[0] === 'd')
         if (!hasDTag) {
-            // Try to use the name tag value or create a random value
-            const nameTag = newTags.find((tag) => tag[0] === 'name')
-            const dValue = nameTag ? nameTag[1].trim() : createStationDTagValue()
+            // Always use a UUID-like value for new d-tags
+            const dValue = createStationDTagValue()
             newTags.push(['d', dValue])
         }
     }
@@ -179,10 +177,13 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
         ],
     }
 
+    // Generate a UUID-like d-tag value
+    const dTagValue = createStationDTagValue()
+
     // Prepare tags array
     const tagsArray: string[][] = [
         ['name', radioBrowserStation.name],
-        ['d', radioBrowserStation.name.trim()], // Use name as d-tag value
+        ['d', dTagValue], // Use UUID-like d-tag instead of name
     ]
 
     // Add genre/tags as t tags
@@ -293,7 +294,9 @@ export function stationToNostrEvent(station: Station): NostrEvent {
     // Ensure required tags are present
     const existingDTag = tags.find((tag) => tag[0] === 'd')
     if (!existingDTag) {
-        tags.push(['d', station.name.trim()])
+        // Use a UUID-like value for the d-tag instead of station name
+        const dValue = createStationDTagValue()
+        tags.push(['d', dValue])
     }
 
     const existingNameTag = tags.find((tag) => tag[0] === 'name')
