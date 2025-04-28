@@ -91,7 +91,6 @@ The content field must be a JSON string with the following structure:
     "tags": [
         ["d", "fip01"],
         ["name", "FIP Radio"],
-        ["i", "FIP Radio"],
         ["website", "https://www.radio.net/s/fip"],
         ["t", "jazz"],
         ["t", "world"],
@@ -171,8 +170,8 @@ Favorite stations are stored using 'a' tags with the following format:
         ["d", "favorite_stations_001"],
         ["name", "My Favorite Stations"],
         ["description", "Stations I listen to every day"],
-        ["a", "event_id_of_station_1", "", "FIP Radio", "1690000000"],
-        ["a", "event_id_of_station_2", "", "Soma FM Drone Zone", "1690000001"],
+        ["a", "31237:<pubkey>:<d-tag>", "", "FIP Radio", "1690000000"],
+        ["a", "31237:<pubkey>:<d-tag>", "", "Soma FM Drone Zone", "1690000001"],
         [
             "client",
             "NostrRadio",
