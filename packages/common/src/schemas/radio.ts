@@ -15,24 +15,32 @@ export const StreamSchema = z.object({
   primary: z.boolean().optional(),
 });
 
-// Radio station event content schema
+// Updated Radio station event content schema - includes streams and markdown description
 export const RadioEventContentSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  website: z.string().url().optional(),
   streams: z.array(StreamSchema),
+  description: z.string(),
 });
 
-// Favorites list item schema
-export const FavoriteItemSchema = z.object({
-  event_id: z.string(),
-  name: z.string(),
-  added_at: z.number(),
+// Radio station metadata schema (extracted from tags)
+export const RadioMetadataSchema = z.object({
+  name: z.string().optional(),
+  website: z.string().url().optional(),
+  location: z.string().optional(),
+  countryCode: z.string().optional(),
+  languageCodes: z.array(z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  thumbnail: z.string().url().optional(),
 });
 
-// Favorites list content schema
+// Updated Favorites list content schema - no longer contains favorites array
 export const FavoritesEventContentSchema = z.object({
   name: z.string(),
   description: z.string(),
-  favorites: z.array(FavoriteItemSchema),
+});
+
+// Schema for a favorite item extracted from an 'a' tag
+export const FavoriteItemSchema = z.object({
+  event_id: z.string(),
+  name: z.string().optional(),
+  added_at: z.number().optional(),
 });

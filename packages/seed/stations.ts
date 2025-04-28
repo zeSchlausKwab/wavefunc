@@ -79,10 +79,8 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '',
         content: JSON.stringify({
-            name: 'FIP Radio',
             description:
-                'Curious and sophisticated: Since 1971 FIP offers a versatile program of jazz, chansons, world music and electronic tunes.',
-            website: 'https://www.radio.net/s/fip',
+                'Curious and sophisticated: Since 1971 FIP offers a versatile program of **jazz**, *chansons*, world music and electronic tunes.',
             streams: [
                 {
                     url: 'https://icecast.radiofrance.fr/fiprock-hifi.aac',
@@ -108,15 +106,13 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', FIP_RADIO_DTAG],
             ['name', 'FIP Radio'],
-            [
-                'description',
-                'Curious and sophisticated: Since 1971 FIP offers a versatile program of jazz, chansons, world music and electronic tunes.',
-            ],
+            ['website', 'https://www.radio.net/s/fip'],
             ['t', 'jazz'],
             ['t', 'world'],
             ['t', 'electronic'],
             ['l', 'fr'],
             ['location', 'Paris, FR'],
+            ['countryCode', 'FR'],
             ['thumbnail', 'https://picsum.photos/seed/fip/400/400'],
         ],
     },
@@ -125,9 +121,7 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '', // Will be set to FIP's pubkey
         content: JSON.stringify({
-            name: 'FIP Rock',
-            description: "FIP's dedicated rock music channel featuring pop and rock music.",
-            website: 'https://www.radio.net/s/fipautourdurock',
+            description: "FIP's dedicated rock music channel featuring pop and rock music with a *French* twist.",
             streams: [
                 {
                     url: 'https://icecast.radiofrance.fr/fip-hifi.aac',
@@ -144,11 +138,12 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', FIP_ROCK_DTAG],
             ['name', 'FIP Rock'],
-            ['description', "FIP's dedicated rock music channel featuring pop and rock music."],
+            ['website', 'https://www.radio.net/s/fipautourdurock'],
             ['t', 'rock'],
             ['t', 'pop'],
             ['l', 'fr'],
             ['location', 'Paris, FR'],
+            ['countryCode', 'FR'],
             ['thumbnail', 'https://picsum.photos/seed/fiprock/400/400'],
         ],
     },
@@ -159,9 +154,8 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '',
         content: JSON.stringify({
-            name: 'Drone Zone',
-            description: 'Served best chilled, safe with most medications. Atmospheric textures with minimal beats.',
-            website: 'https://somafm.com/dronezone/',
+            description:
+                'Served best chilled, safe with most medications. Atmospheric textures with **minimal beats**.',
             streams: [
                 {
                     url: 'https://ice.somafm.com/dronezone-128-aac',
@@ -187,15 +181,13 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', DRONE_ZONE_DTAG],
             ['name', 'Drone Zone'],
-            [
-                'description',
-                'Served best chilled, safe with most medications. Atmospheric textures with minimal beats.',
-            ],
+            ['website', 'https://somafm.com/dronezone/'],
             ['t', 'ambient'],
             ['t', 'electronic'],
             ['t', 'space'],
             ['l', 'en'],
             ['location', 'San Francisco, US'],
+            ['countryCode', 'US'],
             ['thumbnail', 'https://picsum.photos/seed/dronezone/400/400'],
         ],
     },
@@ -204,9 +196,8 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '', // Will be set to SomaFM's pubkey
         content: JSON.stringify({
-            name: 'Vaporwaves',
-            description: 'All Vaporwave. All the time. The aesthetic of a time gone by with a modern interpretation.',
-            website: 'https://somafm.com/vaporwaves/',
+            description:
+                'All **Vaporwave**. All the time. The aesthetic of a time gone by with a *modern interpretation*.',
             streams: [
                 {
                     url: 'https://ice.somafm.com/vaporwaves-128-aac',
@@ -223,14 +214,12 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', VAPORWAVES_DTAG],
             ['name', 'Vaporwaves'],
-            [
-                'description',
-                'All Vaporwave. All the time. The aesthetic of a time gone by with a modern interpretation.',
-            ],
+            ['website', 'https://somafm.com/vaporwaves/'],
             ['t', 'vaporwave'],
             ['t', 'electronic'],
             ['l', 'en'],
             ['location', 'San Francisco, US'],
+            ['countryCode', 'US'],
             ['thumbnail', 'https://picsum.photos/seed/vaporwaves/400/400'],
         ],
     },
@@ -239,9 +228,7 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '',
         content: JSON.stringify({
-            name: 'Cliqhop IDM',
-            description: "Blips'n'beeps backed mostly w/beats. Intelligent Dance Music.",
-            website: 'https://somafm.com/cliqhop/',
+            description: "Blips'n'beeps backed mostly w/beats. **Intelligent Dance Music**.",
             streams: [
                 {
                     url: 'https://ice.somafm.com/cliqhop-128-aac',
@@ -267,12 +254,13 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', CLIQHOP_DTAG],
             ['name', 'Cliqhop IDM'],
-            ['description', "Blips'n'beeps backed mostly w/beats. Intelligent Dance Music."],
+            ['website', 'https://somafm.com/cliqhop/'],
             ['t', 'idm'],
             ['t', 'electronic'],
             ['t', 'experimental'],
             ['l', 'en'],
             ['location', 'San Francisco, US'],
+            ['countryCode', 'US'],
             ['thumbnail', 'https://picsum.photos/seed/cliqhop/400/400'],
         ],
     },
@@ -283,9 +271,7 @@ const rawSeedStations: NostrEvent[] = [
         created_at: Math.floor(Date.now() / 1000),
         pubkey: '',
         content: JSON.stringify({
-            name: 'iWayHigh',
-            description: 'Dub electro chill radio',
-            website: 'http://iwayhigh.net/radio.php',
+            description: 'Dub electro chill radio - perfect for **relaxation** and *coding sessions*.',
             streams: [
                 {
                     url: 'http://172.105.24.4:8000/;',
@@ -302,7 +288,7 @@ const rawSeedStations: NostrEvent[] = [
         tags: [
             ['d', IWAYHIGH_DTAG],
             ['name', 'iWayHigh'],
-            ['description', 'Dub electro chill radio'],
+            ['website', 'http://iwayhigh.net/radio.php'],
             ['t', 'dub'],
             ['t', 'electronic'],
             ['t', 'chill'],
