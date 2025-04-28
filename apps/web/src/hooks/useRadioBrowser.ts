@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import type { RadioBrowserParams, RadioStation, Station, UseRadioBrowserConfig } from '@wavefunc/common/types'
+import type { RadioBrowserParams, RadioStation, UseRadioBrowserConfig } from '@wavefunc/common/src/types/radioBrowser'
+import type { Station } from '@wavefunc/common/src/types/station'
 
 // Default config
 const defaultConfig: UseRadioBrowserConfig = {
@@ -32,26 +33,35 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
     return Object.values(groupedStations).map((stations) => {
         const baseStation = stations[0]
 
+        // Parse all tags from comma-separated string
         const allTags = stations
             .map((s) =>
-                s.tags
+                (s.tags || '')
                     .split(',')
                     .map((tag) => tag.trim())
                     .filter(Boolean),
             )
             .flat()
-        const uniqueTags = [...new Set(allTags)]
+        // Create unique tags array using Array.from(Set) for compatibility
+        const uniqueTags = Array.from(new Set(allTags))
 
+        // Parse language codes
+        const languageCodes = (baseStation.languagecodes || '')
+            .split(',')
+            .map(code => code.trim())
+            .filter(Boolean)
+
+        // Build streams array from the different URLs
         const uniqueStreams = stations.reduce((acc, s) => {
-            const streamUrl = s.url_resolved
+            const streamUrl = s.url_resolved || s.url
             if (!acc.some((existing) => existing.url === streamUrl)) {
                 acc.push({
                     url: streamUrl,
-                    format: s.codec.toLowerCase(),
+                    format: `audio/${s.codec.toLowerCase()}`,
                     quality: {
-                        bitrate: s.bitrate,
+                        bitrate: s.bitrate * 1000, // Convert to bits per second
                         codec: s.codec,
-                        sampleRate: 44100,
+                        sampleRate: 44100, // Default as it's often not provided
                     },
                     primary: s.bitrate === Math.max(...stations.map((st) => st.bitrate)),
                 })
@@ -59,17 +69,31 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
             return acc
         }, [] as any[])
 
+        // Ensure at least one stream is primary
+        if (uniqueStreams.length > 0 && !uniqueStreams.some(stream => stream.primary)) {
+            uniqueStreams[0].primary = true
+        }
+
         return {
             id: baseStation.stationuuid,
             name: baseStation.name,
-            description: `${baseStation.country} • ${baseStation.language || 'Unknown language'}`,
+            description: baseStation.tags ? baseStation.tags.split(',').slice(0, 3).join(', ') : '',
             website: baseStation.homepage || '',
-            genre: uniqueTags.join(', '),
             imageUrl: baseStation.favicon || 'https://picsum.photos/seed/no-station/200/200',
             pubkey: '',
-            tags: uniqueTags.map((tag) => [tag]),
+            countryCode: baseStation.countrycode,
+            languageCodes,
+            // Convert tags to the expected string[][] format where each tag is ['t', tagValue]
+            tags: [
+                ['name', baseStation.name],
+                ...(baseStation.countrycode ? [['countryCode', baseStation.countrycode]] : []),
+                ...uniqueTags.map(tag => ['t', tag]),
+                ...languageCodes.map(code => ['l', code]),
+                ...(baseStation.homepage ? [['website', baseStation.homepage]] : []),
+                ...(baseStation.favicon ? [['thumbnail', baseStation.favicon]] : []),
+            ],
             streams: uniqueStreams,
-            created_at: new Date(baseStation.lastchangetime_iso8601).getTime() / 1000,
+            created_at: Math.floor(new Date(baseStation.lastchangetime_iso8601).getTime() / 1000),
             _originalStations: stations,
         }
     })
@@ -132,6 +156,8 @@ export function useRadioBrowser(config: UseRadioBrowserConfig = {}) {
             }
 
             const data = (await response.json()) as RadioStation[]
+
+            console.log('Radio Browser response:', data)
 
             return transformResponse ? transformToStation(data) : data
         },

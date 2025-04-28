@@ -76,20 +76,23 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
 
             if (favoritesList) {
                 // Update existing favorites list
-                await updateFavoritesList(ndk, favoritesList, {
-                    name: data.name,
-                    description: data.description || '',
-                    favorites: favoritesList.favorites,
-                })
+                await updateFavoritesList(
+                    ndk,
+                    favoritesList,
+                    {
+                        name: data.name,
+                        description: data.description || '',
+                    },
+                    favoritesList.favorites,
+                )
             } else {
                 // Create new favorites list
                 const content: FavoritesListContent = {
                     name: data.name,
                     description: data.description || '',
-                    favorites: [],
                 }
 
-                await publishFavoritesList(ndk, content)
+                await publishFavoritesList(ndk, content, [])
             }
 
             onClose()

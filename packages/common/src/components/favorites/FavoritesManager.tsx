@@ -23,6 +23,7 @@ interface ResolvedStation {
         name: string
         added_at: number
         naddr?: string
+        relay_url?: string
     }
 }
 
@@ -117,6 +118,16 @@ export function FavoritesManager() {
 
                     try {
                         let event: NDKEvent | null = null
+
+                        // Try to fetch from the specific relay if provided
+                        if (favorite.relay_url) {
+                            try {
+                                console.log(`Trying to fetch from specified relay: ${favorite.relay_url}`)
+                                // TODO: Use relay hint when NDK supports it
+                            } catch (error) {
+                                console.warn(`Failed to fetch from relay ${favorite.relay_url}:`, error)
+                            }
+                        }
 
                         if (favorite.naddr) {
                             console.log(`Fetching station using naddr: ${favorite.naddr}`)

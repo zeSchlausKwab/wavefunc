@@ -240,7 +240,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         reset,
         watch,
         setValue,
-        formState: { errors },
+        formState: { errors, isSubmitting },
     } = useForm<StationFormData>({
         // @ts-ignore
         resolver: zodResolver(StationSchema),
@@ -248,13 +248,15 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             name: '',
             description: '',
             website: '',
-            imageUrl: '',
+            thumbnail: '',
             countryCode: '',
             languageCodes: [],
             tags: [],
             streams: [emptyStream],
         },
     })
+
+    const [submitError, setSubmitError] = React.useState<string | null>(null)
 
     React.useEffect(() => {
         if (station) {
@@ -270,7 +272,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 name: station.name,
                 description: station.description,
                 website: station.website,
-                imageUrl: station.imageUrl,
+                thumbnail: station.imageUrl,
                 countryCode: station.countryCode,
                 languageCodes: languageCodes,
                 tags: formTags,
@@ -289,6 +291,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
 
     const onSubmit = async (data: StationFormData) => {
         try {
+            setSubmitError(null)
             const ndk = ndkActions.getNDK()
 
             if (!ndk) {
@@ -302,7 +305,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     description: data.description,
                     website: data.website,
                     streams: data.streams,
-                    imageUrl: data.imageUrl,
+                    thumbnail: data.thumbnail,
                     countryCode: data.countryCode,
                     languageCodes: data.languageCodes,
                     tags: data.tags,
@@ -313,41 +316,19 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     description: 'Your changes have been saved successfully.',
                 })
             } else {
-                const tags = [['thumbnail', data.imageUrl]]
-
-                if (data.countryCode) {
-                    tags.push(['countryCode', data.countryCode])
-                }
-
-                // Add language codes as individual language tags
-                if (data.languageCodes && data.languageCodes.length > 0) {
-                    data.languageCodes.forEach((code) => {
-                        if (code.trim()) {
-                            tags.push(['language', code.trim()])
-                        }
-                    })
-                }
-
-                // Add individual tags from the tags array
-                if (data.tags && data.tags.length > 0) {
-                    data.tags.forEach((tag) => {
-                        if (tag.trim()) {
-                            tags.push(['t', tag.trim()])
-                        }
-                    })
-                }
-
                 const event = createRadioEvent(
                     {
-                        name: data.name,
                         description: data.description,
-                        website: data.website,
                         streams: data.streams,
-                        countryCode: data.countryCode,
-                        languageCodes: data.languageCodes,
-                        tags: data.tags,
                     },
-                    tags,
+                    [
+                        ['name', data.name],
+                        ['thumbnail', data.thumbnail],
+                        ['website', data.website],
+                        ...data.tags.map((tag) => ['t', tag]),
+                        ...data.languageCodes.map((code) => ['l', code]),
+                        ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
+                    ],
                 )
 
                 const ndkEvent = new NDKEvent(ndk, event)
@@ -362,8 +343,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
         } catch (error) {
             console.error('Error creating/updating station:', error)
+            const errorMessage =
+                error instanceof Error ? error.message : 'Failed to save the station. Please try again.'
+            setSubmitError(errorMessage)
             toast('Error', {
-                description: 'Failed to save the station. Please try again.',
+                description: errorMessage,
                 style: {
                     background: 'red',
                 },
@@ -453,16 +437,24 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
 
             // Convert to our format
-            const { content } = convertFromRadioBrowser(stationData)
+            const { content, tags } = convertFromRadioBrowser(stationData)
 
             // Set form values
-            setValue('name', content.name)
+            setValue('name', stationData.name)
             setValue('description', content.description)
-            setValue('website', content.website)
+            setValue('website', stationData.homepage || '')
             setValue('streams', content.streams)
-            setValue('imageUrl', content.favicon)
-            setValue('countryCode', content.countryCode)
-            setValue('languageCodes', content.languageCodes || [])
+            setValue('thumbnail', stationData.favicon || '')
+            setValue('countryCode', stationData.countrycode || '')
+            // Extract language codes from comma-separated string
+            const languageCodes = stationData.languagecodes
+                ? stationData.languagecodes
+                      .split(',')
+                      .map((l: string) => l.trim())
+                      .filter(Boolean)
+                : []
+
+            setValue('languageCodes', languageCodes)
 
             // Set tags from radio browser genres
             if (stationData.tags) {
@@ -622,15 +614,15 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="imageUrl">Thumbnail URL</Label>
+                            <Label htmlFor="thumbnail">Thumbnail URL</Label>
                             <Input
-                                id="imageUrl"
+                                id="thumbnail"
                                 type="url"
-                                value={watch('imageUrl') || ''}
-                                onChange={(e) => setValue('imageUrl', e.target.value)}
+                                value={watch('thumbnail') || ''}
+                                onChange={(e) => setValue('thumbnail', e.target.value)}
                                 required
                             />
-                            {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message}</p>}
+                            {errors.thumbnail && <p className="text-sm text-destructive">{errors.thumbnail.message}</p>}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -743,8 +735,8 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         </div>
 
                         <div className="flex justify-between space-x-2">
-                            <Button type="submit" className="bg-primary text-white">
-                                {station ? 'Save Changes' : 'Create Station'}
+                            <Button type="submit" className="bg-primary text-white" disabled={isSubmitting}>
+                                {isSubmitting ? 'Saving...' : station ? 'Save Changes' : 'Create Station'}
                             </Button>
                             <div className="flex space-x-2">
                                 {station && (
@@ -759,6 +751,15 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                                 </Button>
                             </div>
                         </div>
+
+                        {submitError && (
+                            <div className="mt-4 p-3 bg-destructive/10 border border-destructive rounded-md text-destructive text-sm">
+                                <div className="flex items-center">
+                                    <AlertCircle className="h-4 w-4 mr-2" />
+                                    <span>{submitError}</span>
+                                </div>
+                            </div>
+                        )}
                     </form>
                 )}
             </SheetContent>
