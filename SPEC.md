@@ -70,7 +70,6 @@ The content field must be a JSON string with the following structure:
 
 | Tag Name    | Description                        | Format                                |
 | ----------- | ---------------------------------- | ------------------------------------- |
-| i           | Indexed identity for searchability | Station name                          |
 | t           | Station genre/category             | String (can have multiple)            |
 | thumbnail   | Station logo/image URL             | URL                                   |
 | l           | Station language                   | ISO language code (can have multiple) |
@@ -172,7 +171,12 @@ Favorite stations are stored using 'a' tags with the following format:
         ["description", "Stations I listen to every day"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "FIP Radio", "1690000000"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Soma FM Drone Zone", "1690000001"],
-        ["client", "NostrRadio", "31990:<app-pubkey>:handler123", "wss://relay.wavefunc.io"]
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.io"
+        ]
     ],
     "sig": "..."
 }
@@ -269,7 +273,7 @@ Client tags identify the client application that published a note. This is imple
 
 4. **Thumbnail/Favicon**: For consistency, use the `thumbnail` tag for images rather than `favicon` or other variations.
 
-5. **Language Codes**: Language codes should be stored in individual `language` tags rather than as an array in the content to improve filterability.
+5. **Language Codes**: Language codes should be stored in individual `l` tags rather than as an array in the content to improve filterability.
 
 6. **Genre/Category Tags**: Genres and categories are stored as `t` tags for consistency with Nostr conventions around topic/categorical tags.
 

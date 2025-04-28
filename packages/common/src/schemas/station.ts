@@ -17,7 +17,7 @@ export const StationSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
   website: z.string().url("Must be a valid URL"),
-  imageUrl: z.string().url("Must be a valid URL"),
+  thumbnail: z.string().url("Must be a valid URL"),
   countryCode: z.string().max(10).optional(),
   languageCodes: z.array(z.string()).default([]),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),

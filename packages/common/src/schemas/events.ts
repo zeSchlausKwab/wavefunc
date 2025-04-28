@@ -24,7 +24,6 @@ export const TagSchema = z.tuple([z.string(), z.string()]).rest(z.string())
 export const NameTagSchema = z.tuple([z.literal('name'), z.string()])
 export const DescriptionTagSchema = z.tuple([z.literal('description'), z.string()])
 export const DTagSchema = z.tuple([z.literal('d'), z.string()])
-export const IdentityTagSchema = z.tuple([z.literal('i'), z.string()])
 export const ThumbnailTagSchema = z.tuple([z.literal('thumbnail'), z.string().url()])
 export const TopicTagSchema = z.tuple([z.literal('t'), z.string()])
 export const LanguageTagSchema = z.tuple([z.literal('l'), z.string()])
@@ -39,10 +38,15 @@ export const ClientTagSchema = z.tuple([
 ])
 
 // Favorite station 'a' tag schema - ['a', event_id, relay_url?, petname?, added_at?]
-export const FavoriteATagSchema = z.tuple([
-    z.literal('a'),
-    z.string(),   // event_id
-]).rest(z.string()) // remaining elements (relay, petname, added_at)
+export const FavoriteATagSchema = z
+    .tuple([
+        z.literal('a'),
+        z.string(), // event_id
+        z.string().optional(), // relay_url (optional)
+        z.string().optional(), // petname (optional)
+        z.string().optional(), // added_at (optional) as string timestamp
+    ])
+    .rest(z.string()) // allow additional elements if needed
 
 // Stream quality schema
 export const StreamQualitySchema = z.object({
@@ -82,9 +86,7 @@ export const RadioStationEventSchema = NostrEventBaseSchema.extend({
     tags: z.array(
         z.union([
             NameTagSchema, // Required
-            DescriptionTagSchema, // Required
             DTagSchema, // Required
-            IdentityTagSchema,
             ThumbnailTagSchema,
             WebsiteTagSchema,
             TopicTagSchema,
@@ -188,51 +190,51 @@ export function parseRadioContent(content: string): RadioEventContent | null {
 }
 
 // Helper function to extract radio metadata from tags
-export function extractRadioMetadataFromTags(tags: string[][]): { 
-    name?: string; 
-    website?: string;
-    location?: string;
-    countryCode?: string;
-    languageCodes?: string[];
-    tags?: string[];
-    thumbnail?: string;
+export function extractRadioMetadataFromTags(tags: string[][]): {
+    name?: string
+    website?: string
+    location?: string
+    countryCode?: string
+    languageCodes?: string[]
+    tags?: string[]
+    thumbnail?: string
 } {
     const metadata: Record<string, any> = {
         languageCodes: [],
         tags: [],
-    };
-    
-    tags.forEach(tag => {
-        switch(tag[0]) {
+    }
+
+    tags.forEach((tag) => {
+        switch (tag[0]) {
             case 'name':
-                metadata.name = tag[1];
-                break;
+                metadata.name = tag[1]
+                break
             case 'website':
-                metadata.website = tag[1];
-                break;
+                metadata.website = tag[1]
+                break
             case 'thumbnail':
-                metadata.thumbnail = tag[1];
-                break;
+                metadata.thumbnail = tag[1]
+                break
             case 'countryCode':
-                metadata.countryCode = tag[1];
-                break;
+                metadata.countryCode = tag[1]
+                break
             case 'location':
-                metadata.location = tag[1];
-                break;
+                metadata.location = tag[1]
+                break
             case 'l':
-                metadata.languageCodes.push(tag[1]);
-                break;
+                metadata.languageCodes.push(tag[1])
+                break
             case 't':
-                metadata.tags.push(tag[1]);
-                break;
+                metadata.tags.push(tag[1])
+                break
         }
-    });
-    
+    })
+
     // Clean up empty arrays
-    if (metadata.languageCodes.length === 0) delete metadata.languageCodes;
-    if (metadata.tags.length === 0) delete metadata.tags;
-    
-    return metadata;
+    if (metadata.languageCodes.length === 0) delete metadata.languageCodes
+    if (metadata.tags.length === 0) delete metadata.tags
+
+    return metadata
 }
 
 // Helper function to parse and validate handler content
@@ -258,16 +260,19 @@ export function parseFavoritesContent(content: string): FavoritesEventContent | 
 }
 
 // Helper function to extract favorites from 'a' tags
-export function extractFavoritesFromTags(tags: string[][]): Array<{ event_id: string, name?: string, added_at?: number }> {
+export function extractFavoritesFromTags(
+    tags: string[][],
+): Array<{ event_id: string; relay_url?: string; petname?: string; added_at?: number }> {
     return tags
-        .filter(tag => tag[0] === 'a')
-        .map(tag => {
-            const event_id = tag[1];
-            const name = tag[3] || ''; // petname is optional, in position 3
-            const added_at = tag[4] ? parseInt(tag[4], 10) : undefined; // added_at is optional, in position 4
-            
-            return { event_id, name, added_at };
-        });
+        .filter((tag) => tag[0] === 'a')
+        .map((tag) => {
+            const event_id = tag[1]
+            const relay_url = tag[2] || undefined
+            const petname = tag[3] || undefined
+            const added_at = tag[4] ? parseInt(tag[4], 10) : undefined // added_at is a string timestamp
+
+            return { event_id, relay_url, petname, added_at }
+        })
 }
 
 // Helper function to validate a complete radio station event
