@@ -170,14 +170,9 @@ Favorite stations are stored using 'a' tags with the following format:
         ["d", "favorite_stations_001"],
         ["name", "My Favorite Stations"],
         ["description", "Stations I listen to every day"],
-        ["a", "31237:<pubkey>:<d-tag>", "", "FIP Radio", "1690000000"],
-        ["a", "31237:<pubkey>:<d-tag>", "", "Soma FM Drone Zone", "1690000001"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.io"
-        ]
+        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "FIP Radio", "1690000000"],
+        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Soma FM Drone Zone", "1690000001"],
+        ["client", "NostrRadio", "31990:<app-pubkey>:handler123", "wss://relay.wavefunc.io"]
     ],
     "sig": "..."
 }
