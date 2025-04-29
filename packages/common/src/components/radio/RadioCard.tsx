@@ -108,6 +108,8 @@ interface ExpandedContentProps {
     hasStreams: boolean
     isAuthor: boolean
     handleEdit: () => void
+    selectedStreamId?: number
+    handleStreamSelect: (stream: Stream) => void
 }
 
 const ExpandedContent = ({
@@ -123,9 +125,32 @@ const ExpandedContent = ({
     onCommentClick,
     isAuthor,
     handleEdit,
+    selectedStreamId,
+    handleStreamSelect,
+    hasStreams,
 }: ExpandedContentProps) => (
     <div className={cn('bg-gray-100', isMobile ? 'p-3' : 'p-4')}>
         <UserProfile pubkey={station.pubkey} compact={false} />
+
+        {/* Stream quality selector when expanded and multiple streams are available */}
+        {hasStreams && station.streams && station.streams.length > 1 && (
+            <div className="mt-4 p-2 bg-white rounded-md border">
+                <div className="flex flex-row items-center justify-between">
+                    <div className="font-medium text-sm">Stream Quality:</div>
+                    <div className="flex items-center gap-2">
+                        {station.id && (
+                            <StreamSelector
+                                stationId={Number(station.id)}
+                                onStreamSelect={handleStreamSelect}
+                                selectedStreamId={selectedStreamId}
+                                streams={station.streams}
+                            />
+                        )}
+                    </div>
+                </div>
+                {/* Show detailed info about selected stream */}
+            </div>
+        )}
 
         <div className="mt-4 mb-3 flex flex-col gap-2">
             <div className="flex justify-between items-center">
@@ -204,7 +229,23 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
     const [user, setUser] = useState<NDKUser | null>(null)
     const [isAuthor, setIsAuthor] = useState(false)
 
-    const [selectedStreamId, setSelectedStreamId] = useState<number | undefined>(undefined)
+    // Initialize selectedStreamId with the primary stream or first stream
+    const initialStreamId = useMemo(() => {
+        if (!station.streams || !Array.isArray(station.streams) || station.streams.length === 0) {
+            return undefined
+        }
+
+        // Try to find the primary stream first
+        const primaryStream = station.streams.find((stream) => stream.primary === true)
+        if (primaryStream?.quality?.bitrate) {
+            return primaryStream.quality.bitrate
+        }
+
+        // Fall back to the first stream
+        return station.streams[0]?.quality?.bitrate
+    }, [station.streams])
+
+    const [selectedStreamId, setSelectedStreamId] = useState<number | undefined>(initialStreamId)
 
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
     const currentStation = useStore(stationsStore, (state) => state.currentStation)
@@ -295,7 +336,10 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
 
     // Stream handler
     const handleStreamSelect = (stream: Stream) => {
-        setSelectedStreamId(stream.quality.bitrate)
+        if (stream && stream.quality && stream.quality.bitrate) {
+            setSelectedStreamId(stream.quality.bitrate)
+            console.log(`Selected stream quality: ${stream.quality.bitrate} kbps`)
+        }
     }
 
     // Play/Pause handler
@@ -307,12 +351,14 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
         }
 
         try {
+            // Find the selected stream by bitrate
             const selectedStream =
-                station.streams.find((s) => s.quality.bitrate === selectedStreamId) ||
-                station.streams.find((s) => s.primary) ||
+                station.streams.find((s) => s.quality?.bitrate === selectedStreamId) ||
+                station.streams.find((s) => s.primary === true) ||
                 station.streams[0]
 
             console.log('Selected stream:', selectedStream)
+            console.log(`Stream quality: ${selectedStream?.quality?.bitrate} kbps, Format: ${selectedStream?.format}`)
 
             if (selectedStream) {
                 // If this is the current station, just toggle playback
@@ -511,6 +557,8 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                             hasStreams={hasStreams}
                             isAuthor={isAuthor}
                             handleEdit={handleEdit}
+                            selectedStreamId={selectedStreamId}
+                            handleStreamSelect={handleStreamSelect}
                         />
 
                         {/* Comments section - Always visible when expanded */}

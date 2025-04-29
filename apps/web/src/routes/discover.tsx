@@ -1,6 +1,13 @@
 import { NDKKind } from '@nostr-dev-kit/ndk'
 import { createFileRoute } from '@tanstack/react-router'
-import { cn, mapNostrEventToStation, ndkActions, RADIO_EVENT_KINDS, type Station } from '@wavefunc/common'
+import {
+    cn,
+    mapNostrEventToStation,
+    ndkActions,
+    RADIO_EVENT_KINDS,
+    type NDKFilter,
+    type Station,
+} from '@wavefunc/common'
 import StationGrid from '@wavefunc/common/src/components/station/StationGrid'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
@@ -81,7 +88,8 @@ function useRadioStations() {
         // Subscribe to radio stations but handle the callback manually to avoid type issues
         const filter = {
             kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-        }
+            limit: 50,
+        } as NDKFilter
 
         // Create subscription without a callback
         const subscription = ndk.subscribe(filter, {

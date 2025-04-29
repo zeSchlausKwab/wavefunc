@@ -37,7 +37,7 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                     }}
                 >
                     <SelectTrigger
-                        className={cn(isMobile ? 'w-full h-6 text-[10px] px-2 min-w-[60px]' : 'w-[180px]', 'truncate')}
+                        className={cn(isMobile ? 'w-full h-6 text-[10px] px-2 min-w-[60px]' : 'w-[220px]', 'truncate')}
                     >
                         <SelectValue placeholder={isMobile ? 'Quality' : 'Select quality'} />
                     </SelectTrigger>
@@ -52,26 +52,12 @@ export function StreamSelector({ stationId, streams, selectedStreamId, onStreamS
                                     ? `${Math.round(stream.quality.bitrate / 1000)} kbps`
                                     : 'Unknown'}{' '}
                                 {!isMobile && `(${stream.quality.codec})`}
+                                {stream.quality.sampleRate ? `(${stream.quality.sampleRate} Hz)` : ''}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
             </div>
-            {selectedStream && !isMobile && (
-                <div className="text-xs text-muted-foreground">
-                    <p>Codec: {selectedStream.quality.codec}</p>
-                    <p>
-                        Bitrate:{' '}
-                        {selectedStream.quality.bitrate
-                            ? `${Math.round(selectedStream.quality.bitrate / 1000)} kbps`
-                            : 'Unknown'}
-                    </p>
-                    <p>
-                        Sample Rate:{' '}
-                        {selectedStream.quality.sampleRate ? `${selectedStream.quality.sampleRate} Hz` : 'Unknown'}
-                    </p>
-                </div>
-            )}
         </div>
     )
 }
