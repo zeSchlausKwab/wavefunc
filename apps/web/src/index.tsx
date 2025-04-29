@@ -17,9 +17,46 @@ const VITE_PUBLIC_HOST = process.env.VITE_PUBLIC_HOST
 const APP_PUBKEY = process.env.APP_PUBKEY
 
 const indexHtml = fs.readFileSync(join(process.cwd(), 'src', 'index.html'), 'utf8')
+const isDev = process.env.NODE_ENV !== 'production'
+
+// Track if we're watching file changes
+let isWatching = false
+
+// Function to watch for file changes and rebuild client in dev mode
+async function setupFileWatcher() {
+    if (isDev && !isWatching) {
+        console.log('📺 Setting up file watcher for client rebuilds')
+        isWatching = true
+        
+        // Watch for changes in client files
+        const watcher = fs.watch(join(process.cwd(), 'src'), { recursive: true }, async (event, filename) => {
+            // Skip server files and unnecessary rebuilds
+            if (filename && !filename.includes('server/') && !filename.endsWith('index.tsx')) {
+                console.log(`🔄 Detected change in ${filename}, rebuilding client...`)
+                await buildClient()
+            }
+        })
+        
+        // Also watch common package files
+        const commonWatcher = fs.watch(join(process.cwd(), '../../packages/common/src'), { recursive: true }, async () => {
+            console.log('🔄 Detected change in common package, rebuilding client...')
+            await buildClient()
+        })
+        
+        process.on('SIGINT', () => {
+            watcher.close()
+            commonWatcher.close()
+            process.exit(0)
+        })
+    }
+}
 
 async function startServer() {
     await buildClient()
+    
+    if (isDev) {
+        await setupFileWatcher()
+    }
 
     const server = serve({
         fetch: async (req) => {
@@ -63,7 +100,7 @@ async function startServer() {
 
             return new Response(htmlContent, { headers: { 'Content-Type': 'text/html' } })
         },
-        development: process.env.NODE_ENV !== 'production',
+        development: isDev,
         port: parseInt(process.env.PORT || VITE_PUBLIC_WEB_PORT || '8080'),
         hostname: '0.0.0.0',
     })
