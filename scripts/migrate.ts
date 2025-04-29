@@ -41,9 +41,21 @@ async function fetchStations() {
             Favicon, 
             Tags, 
             CountryCode,
+            Country,
             Language,
             LanguageCodes,
-            Country
+            Codec,
+            Bitrate,
+            Hls,
+            LastCheckOK,
+            LastCheckTime,
+            ClickCount,
+            ClickTrend,
+            ClickTimestamp,
+            SslError,
+            GeoLat,
+            GeoLong,
+            ExtendedInfo
         FROM Station 
         WHERE LastCheckOK = 1
         LIMIT 10;
@@ -53,6 +65,31 @@ async function fetchStations() {
 
 // Convert DB station to Nostr event format
 async function publishRadioStation(station: any) {
+    // Pretty log the station details
+    console.log('\n=== Publishing station ===')
+    console.log(
+        JSON.stringify(
+            {
+                stationuuid: station.StationUuid,
+                name: station.Name,
+                url: station.Url,
+                homepage: station.Homepage,
+                favicon: station.Favicon,
+                tags: station.Tags,
+                country: station.Country,
+                countrycode: station.CountryCode,
+                language: station.Language,
+                languagecodes: station.LanguageCodes,
+                codec: station.Codec,
+                bitrate: station.Bitrate,
+                lastcheckok: station.LastCheckOK,
+                lastchecktime: station.LastCheckTime,
+            },
+            null,
+            2,
+        ),
+    )
+
     // Extract tags to include in the description
     const tags = station.Tags
         ? station.Tags.split(',')
@@ -64,10 +101,10 @@ async function publishRadioStation(station: any) {
     const streams = [
         {
             url: station.Url,
-            format: 'audio/mp3', // Assuming mp3 as default format
+            format: station.Codec ? `audio/${station.Codec.toLowerCase()}` : 'audio/mpeg',
             quality: {
-                bitrate: 128000, // Default bitrate
-                codec: 'MP3',
+                bitrate: (station.Bitrate || 128) * 1000, // Convert to bits per second as required in SPEC
+                codec: station.Codec || 'mp3',
                 sampleRate: 44100, // Standard sample rate
             },
             primary: true,
@@ -85,13 +122,14 @@ async function publishRadioStation(station: any) {
         kind: RADIO_EVENT_KINDS.STREAM,
         content: JSON.stringify(content),
         created_at: Math.floor(Date.now() / 1000),
-        tags: [['name', station.Name]],
-        pubkey: '', // Will be set by signer
+        tags: [
+            ['d', station.StationUuid],
+            ['name', station.Name],
+        ],
+        pubkey: '',
     }
 
-    // Add optional tags - only if they have valid values
     if (station.Homepage && station.Homepage.trim()) {
-        // Ensure the URL starts with http:// or https://
         let website = station.Homepage.trim()
         if (!website.startsWith('http://') && !website.startsWith('https://')) {
             website = 'https://' + website
@@ -100,7 +138,6 @@ async function publishRadioStation(station: any) {
     }
 
     if (station.Favicon && station.Favicon.trim()) {
-        // Ensure the URL starts with http:// or https://
         let favicon = station.Favicon.trim()
         if (!favicon.startsWith('http://') && !favicon.startsWith('https://')) {
             favicon = 'https://' + favicon
@@ -108,7 +145,6 @@ async function publishRadioStation(station: any) {
         event.tags.push(['thumbnail', favicon])
     }
 
-    // Add country code and location if available
     if (station.CountryCode && station.CountryCode.trim()) {
         event.tags.push(['countryCode', station.CountryCode.trim()])
     }
@@ -117,7 +153,6 @@ async function publishRadioStation(station: any) {
         event.tags.push(['location', station.Country.trim()])
     }
 
-    // Add language tags if available
     if (station.LanguageCodes && station.LanguageCodes.trim()) {
         const languageCodes = station.LanguageCodes.split(',')
         languageCodes.forEach((code: string) => {
@@ -126,11 +161,9 @@ async function publishRadioStation(station: any) {
             }
         })
     } else if (station.Language && station.Language.trim()) {
-        // Fallback to the Language field if LanguageCodes is not available
         event.tags.push(['l', station.Language.trim().toUpperCase()])
     }
 
-    // Add tags as t tags
     if (station.Tags) {
         station.Tags.split(',').forEach((tag: string) => {
             if (tag.trim()) {
@@ -139,8 +172,22 @@ async function publishRadioStation(station: any) {
         })
     }
 
-    console.log(`Publishing station: ${station.Name}`)
-    return await publishStation(ndk as any, event, ['client', 'radio-db-migrate'])
+    console.log('\nPrepared Nostr event:')
+    console.log(
+        JSON.stringify(
+            {
+                kind: RADIO_EVENT_KINDS.STREAM,
+                content: JSON.parse(event.content),
+                tags: event.tags,
+            },
+            null,
+            2,
+        ),
+    )
+
+    const result = await publishStation(ndk as any, event, ['client', 'radio-db-migrate'])
+    console.log(`✓ Published station: ${station.Name} (${result.id})\n`)
+    return result
 }
 
 async function main() {
