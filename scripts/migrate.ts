@@ -97,7 +97,6 @@ async function fetchStations(): Promise<DBStation[]> {
             ExtendedInfo
         FROM Station 
         WHERE LastCheckOK = 1
-        LIMIT 2000;
     `)
     return rows as DBStation[]
 }
@@ -168,7 +167,7 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                     // Only group streams that are likely to be the same station with different quality
                     // This heuristic looks for common URL patterns to avoid grouping different stations
                     const isSameStation = areRelatedStreams(mainStation, similar)
-                    
+
                     if (isSameStation) {
                         group.similarStations.push(similar)
                         duplicatesInGroup++
@@ -234,16 +233,16 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
         }
 
         processedStationIds.add(station.StationUuid)
-        
+
         // We're no longer doing fuzzy similarity matching
         // Each station not exactly matched gets its own entry
 
         // Update statistics for single stations
         groupingStats.totalGroups++
-        
+
         const groupSize = 1
         groupingStats.groupSizes[groupSize] = (groupingStats.groupSizes[groupSize] || 0) + 1
-        
+
         groups.push(group)
     }
 
@@ -256,34 +255,53 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
 // Helper to determine if two stations are related streams of the same station
 function areRelatedStreams(station1: DBStation, station2: DBStation): boolean {
     // Don't consider "Radio Caprice" stations the same - they're different
-    if (station1.Name.includes("Radio Caprice") || station2.Name.includes("Radio Caprice")) {
+    if (station1.Name.includes('Radio Caprice') || station2.Name.includes('Radio Caprice')) {
         return false
     }
-    
+
     // Don't consider "ANTENNEBAYERN" stations the same - they're different channels
-    if (station1.Name.includes("ANTENNEBAYERN") || station2.Name.includes("ANTENNEBAYERN")) {
+    if (station1.Name.includes('ANTENNEBAYERN') || station2.Name.includes('ANTENNEBAYERN')) {
         return false
     }
-    
+
     // Extract domain names from URLs to compare
     const domain1 = extractDomain(station1.Url)
     const domain2 = extractDomain(station2.Url)
-    
+
     // If domains are the same, they might be different quality streams of the same station
     if (domain1 && domain2 && domain1 === domain2) {
         // Same domain, likely different quality streams of the same station
         // Look for URL patterns that suggest different bitrates/formats
         const url1 = station1.Url.toLowerCase()
         const url2 = station2.Url.toLowerCase()
-        
+
         // Check if URLs differ in quality indicators: mp3/aac, bitrate numbers, etc.
         const qualityKeywords = [
-            'mp3', 'aac', 'ogg', 'flac', 'opus',
-            '64', '96', '128', '192', '256', '320',
-            'low', 'medium', 'high', 'hd', 'mobile', 'web',
-            'quality', 'hq', 'lq', 'hi', 'lo', 'best'
+            'mp3',
+            'aac',
+            'ogg',
+            'flac',
+            'opus',
+            '64',
+            '96',
+            '128',
+            '192',
+            '256',
+            '320',
+            'low',
+            'medium',
+            'high',
+            'hd',
+            'mobile',
+            'web',
+            'quality',
+            'hq',
+            'lq',
+            'hi',
+            'lo',
+            'best',
         ]
-        
+
         // Count quality-related differences between URLs
         let qualityDifferences = 0
         for (const keyword of qualityKeywords) {
@@ -291,10 +309,10 @@ function areRelatedStreams(station1: DBStation, station2: DBStation): boolean {
                 qualityDifferences++
             }
         }
-        
+
         return qualityDifferences > 0
     }
-    
+
     return false
 }
 
@@ -305,7 +323,7 @@ function extractDomain(url: string): string | null {
         if (!url.includes('://')) {
             url = 'http://' + url
         }
-        
+
         const urlObj = new URL(url)
         return urlObj.hostname
     } catch (e) {
@@ -467,16 +485,79 @@ async function main() {
             // Proceed with migration
             console.log('\nStarting migration...')
 
+            // Progress tracking variables
+            let publishedCount = 0
+            let successCount = 0
+            let failedCount = 0
+            const totalCount = stationGroups.length
+            const startTime = Date.now()
+            let lastUpdateTime = startTime
+
             for (const stationGroup of stationGroups) {
-                await publishRadioStation(stationGroup)
+                try {
+                    const result = await publishRadioStation(stationGroup)
+                    publishedCount++
+
+                    if (result && result.id) {
+                        successCount++
+                    } else {
+                        failedCount++
+                    }
+
+                    // Update progress every second or every 10 stations
+                    const currentTime = Date.now()
+                    if (publishedCount % 10 === 0 || currentTime - lastUpdateTime > 1000) {
+                        const elapsedSeconds = (currentTime - startTime) / 1000
+                        const stationsPerSecond = publishedCount / elapsedSeconds
+                        const percentComplete = ((publishedCount / totalCount) * 100).toFixed(1)
+                        const estimatedTotalTime = totalCount / stationsPerSecond
+                        const estimatedRemaining = estimatedTotalTime - elapsedSeconds
+
+                        process.stdout.write(
+                            `\r[${percentComplete}%] Published ${publishedCount}/${totalCount} stations ` +
+                                `(${successCount} success, ${failedCount} failed) | ` +
+                                `${stationsPerSecond.toFixed(1)} stations/sec | ` +
+                                `Remaining: ${formatTime(estimatedRemaining)}`,
+                        )
+
+                        lastUpdateTime = currentTime
+                    }
+                } catch (error) {
+                    failedCount++
+                    console.error(`\nError publishing station ${stationGroup.mainStation.Name}:`, error)
+                }
             }
 
-            console.log('✅ All stations published!')
+            const totalTime = (Date.now() - startTime) / 1000
+            console.log(`\n\n✅ Migration completed in ${formatTime(totalTime)}`)
+            console.log(`Total stations: ${totalCount}`)
+            console.log(`Successfully published: ${successCount}`)
+            console.log(`Failed: ${failedCount}`)
+
+            // Query the events table to show count
+            try {
+                const [eventRows] = await conn.query('SELECT COUNT(*) as count FROM event WHERE kind = ?', [
+                    RADIO_EVENT_KINDS.STREAM,
+                ])
+                const { count } = (eventRows as any)[0]
+                console.log(`Total events in database: ${count}`)
+            } catch (error) {
+                console.error('Could not count events in database:', error)
+            }
+
+            await conn.end()
         })
     } catch (error) {
         console.error('Error:', error)
         await conn.end()
     }
+}
+
+// Helper function to format time in minutes and seconds
+function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.round(seconds % 60)
+    return `${mins}m ${secs}s`
 }
 
 main().catch(console.error)

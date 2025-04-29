@@ -88,7 +88,7 @@ function useRadioStations() {
         // Subscribe to radio stations but handle the callback manually to avoid type issues
         const filter = {
             kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-            limit: 200,
+            limit: 50,
         } as NDKFilter
 
         // Create subscription without a callback
@@ -200,8 +200,6 @@ function Discover() {
     // Filter stations by selected genre
     const filteredStations = useMemo(() => {
         if (!selectedGenre) return stations
-
-        console.log('stations', stations)
 
         return stations.filter((station) => {
             // Check if the station has the selected genre in its t tags
