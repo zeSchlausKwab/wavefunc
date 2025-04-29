@@ -58,7 +58,7 @@ async function fetchStations() {
             ExtendedInfo
         FROM Station 
         WHERE LastCheckOK = 1
-        LIMIT 10;
+        LIMIT 100;
     `)
     return rows as any[]
 }
