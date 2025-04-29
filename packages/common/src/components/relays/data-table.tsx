@@ -25,6 +25,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ndkActions } from '@wavefunc/common'
 import { toast } from 'sonner'
 import { DEFAULT_RELAYS } from '@wavefunc/common'
+import { createColumns } from './columns'
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
@@ -40,9 +41,34 @@ export function RelayDataTable<TData, TValue>({ columns, data, onRowsChange }: D
     const [newRelayUrl, setNewRelayUrl] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
+    const deleteRelay = (url: string) => {
+        console.log('Deleting relay:', url)
+        const success = ndkActions.removeRelay(url)
+        console.log('Delete successful:', success)
+
+        if (success) {
+            const updatedRelays = ndkActions.getRelays() as unknown as TData[]
+            console.log('Updated relays:', updatedRelays)
+            onRowsChange(updatedRelays)
+            toast('Relay removed', {
+                description: 'The relay has been removed from your list',
+            })
+        } else {
+            toast('Error', {
+                description: 'Failed to remove relay',
+                style: {
+                    background: 'red',
+                },
+            })
+        }
+    }
+
+    // Use the createColumns function and pass the deleteRelay callback
+    const tableColumns = createColumns(deleteRelay) as ColumnDef<TData, TValue>[]
+
     const table = useReactTable({
         data,
-        columns,
+        columns: tableColumns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         onSortingChange: setSorting,
@@ -240,7 +266,7 @@ export function RelayDataTable<TData, TValue>({ columns, data, onRowsChange }: D
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                                    <TableCell colSpan={tableColumns.length} className="h-24 text-center">
                                         No relays found. Add your first relay above.
                                     </TableCell>
                                 </TableRow>

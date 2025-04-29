@@ -18,7 +18,7 @@ export type Relay = {
     write: boolean
 }
 
-export const columns: ColumnDef<Relay>[] = [
+export const createColumns = (onDelete?: (url: string) => void): ColumnDef<Relay>[] => [
     {
         id: 'select',
         header: ({ table }) => (
@@ -91,26 +91,22 @@ export const columns: ColumnDef<Relay>[] = [
             const relay = row.original
 
             return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                                // Delete logic will be handled by the data-table component
-                                console.log('Delete relay:', relay.url)
-                            }}
-                        >
-                            Delete Relay
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <Button
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => {
+                        if (onDelete) {
+                            onDelete(relay.url)
+                        }
+                    }}
+                >
+                    <span className="sr-only">Delete relay</span>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
             )
         },
     },
 ]
+
+// For backward compatibility
+export const columns = createColumns()
