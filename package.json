@@ -17,7 +17,8 @@
         "build": "bun run --cwd apps/web build",
         "test": "bun test",
         "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
-        "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\""
+        "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
+        "migrate": "bun run scripts/migrate.ts"
     },
     "devDependencies": {
         "@types/bun": "^1.2.5",
@@ -31,7 +32,11 @@
     "dependencies": {
         "@nostr-dev-kit/ndk-wallet": "^0.5.1",
         "react": "19.1.0",
-        "react-dom": "19.1.0"
+        "react-dom": "19.1.0",
+        "@nostr-dev-kit/ndk": "^2.14.4",
+        "@planetscale/database": "^1.19.0",
+        "mysql2": "^3.14.1",
+        "nostr-tools": "^2.12.0"
     },
     "resolutions": {
         "react": "19.1.0",
