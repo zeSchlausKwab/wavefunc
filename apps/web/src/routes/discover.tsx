@@ -88,7 +88,7 @@ function useRadioStations() {
         // Subscribe to radio stations but handle the callback manually to avoid type issues
         const filter = {
             kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-            limit: 50,
+            limit: 200,
         } as NDKFilter
 
         // Create subscription without a callback
