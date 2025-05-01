@@ -78,11 +78,11 @@ func main() {
 		doc.AddField(bluge.NewNumericField("kind", float64(event.Kind)).StoreValue())
 		
 		// Index the document
-		if err := writer.Update(doc.ID(), doc); err != nil {
-			log.Printf("error indexing document: %v", err)
-		} else {
-			fmt.Printf("Successfully indexed event %d: %s\n", i+1, event.ID)
-		}
+		// if err := writer.Update(doc.ID(), doc); err != nil {
+		// 	log.Printf("error indexing document: %v", err)
+		// } else {
+		// 	fmt.Printf("Successfully indexed event %d: %s\n", i+1, event.ID)
+		// }
 	}
 
 	// Wait for indexing to complete
@@ -97,7 +97,7 @@ func main() {
 	defer reader.Close()
 
 	// Test search for various terms
-	searchTerms := []string{"test", "wavefunc", "nostr", "event", "nonexistent"}
+	searchTerms := []string{"bagel"}
 	for _, term := range searchTerms {
 		fmt.Printf("\n=== Searching for: '%s' ===\n", term)
 		
