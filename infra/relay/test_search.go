@@ -6,92 +6,82 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
-	"relay/search"
-
-	"github.com/fiatjaf/eventstore/postgresql"
-	_ "github.com/lib/pq"
+	"github.com/blugelabs/bluge"
 	"github.com/nbd-wtf/go-nostr"
 )
 
 // This is a test script that can be run with:
 // go run test_search.go
 func main() {
-	fmt.Println("Testing Bluge Search for Nostr events")
+	fmt.Println("Testing Bluge Search directly (without PostgreSQL)")
 
-	// Set up PostgreSQL (use same logic as in main.go)
-	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
-	if connString == "" {
-		connString = os.Getenv("DATABASE_URL")
-	}
-	if connString == "" {
-		connString = "postgres://postgres:postgres@localhost:5432/nostr?sslmode=disable"
-	}
-
-	fmt.Printf("Using connection string: %s\n", connString)
-
-	// Initialize PostgreSQL backend
-	db := postgresql.PostgresBackend{DatabaseURL: connString}
-	if err := db.Init(); err != nil {
-		log.Fatalf("error initializing PostgreSQL: %v", err)
-	}
-
-	// Set up data directory for Bluge search index
-	dataDir := "data_test"
+	// Set up data directory for Bluge index
+	dataDir := "direct_test"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatalf("error creating test data directory: %v", err)
 	}
 	defer os.RemoveAll(dataDir) // Clean up test data when done
 
-	// Initialize Bluge search backend
-	blugeSearchPath := search.GetPath(dataDir)
-	fmt.Printf("Using Bluge test index at: %s\n", blugeSearchPath)
-
-	blugeSearch := &search.BlugeSearch{
-		Path:          blugeSearchPath,
-		RawEventStore: &db,
+	// Initialize Bluge writer
+	indexPath := dataDir + "/bluge_index"
+	config := bluge.DefaultConfig(indexPath)
+	writer, err := bluge.OpenWriter(config)
+	if err != nil {
+		log.Fatalf("error opening writer: %v", err)
 	}
+	defer writer.Close()
 
-	if err := blugeSearch.Init(); err != nil {
-		log.Fatalf("error initializing Bluge search: %v", err)
+	fmt.Printf("Created Bluge index at: %s\n", indexPath)
+
+	// Create simple content strings that contain fixed search terms
+	searchableContent := [...]string{
+		"test event for search functionality",
+		"another sample event with different words",
+		"this event mentions wavefunc radio explicitly",
+		"nostr is mentioned in this event along with wavefunc",
 	}
-	defer blugeSearch.Close()
-
-	// Create timestamp for unique content
-	timestamp := time.Now().Format(time.RFC3339)
 	
-	// Create test events with content to search - use timestamp to make each unique
-	testEvents := []*nostr.Event{
-		createTestEvent(fmt.Sprintf("This is a test event for Bluge search functionality. Timestamp: %s", timestamp), 1),
-		createTestEvent(fmt.Sprintf("Another test event with different content. Timestamp: %s", timestamp), 1),
-		createTestEvent(fmt.Sprintf("A third event mentioning wavefunc radio. Timestamp: %s", timestamp), 1),
-		createTestEvent(fmt.Sprintf("Fourth event with content about nostr and wavefunc. Timestamp: %s", timestamp), 1),
-	}
-
-	// Save each test event to both PostgreSQL and Bluge
+	// Create test documents and index them directly
 	ctx := context.Background()
-	for i, evt := range testEvents {
-		fmt.Printf("Saving event %d: ID=%s, PubKey=%s\n", i+1, evt.ID, evt.PubKey)
+	testEvents := []*nostr.Event{}
+	
+	for i, content := range searchableContent {
+		// Create a test event
+		event := createTestEvent(content, 1)
+		testEvents = append(testEvents, event)
+		fmt.Printf("Created event %d with content: %s\n", i+1, content)
 		
-		// Add direct to PostgreSQL - avoid verification issues
-		if err := insertEventDirectly(connString, evt); err != nil {
-			log.Printf("error saving to PostgreSQL: %v", err)
-		} else {
-			fmt.Printf("  ✓ Saved to PostgreSQL\n")
-		}
+		// Create Bluge document
+		doc := bluge.NewDocument(event.ID)
 		
-		// Save to Bluge
-		if err := blugeSearch.SaveEvent(ctx, evt); err != nil {
-			log.Printf("error saving to Bluge: %v", err)
+		// Add event ID field
+		doc.AddField(bluge.NewKeywordField("id", event.ID).StoreValue())
+		
+		// Add pubkey field
+		doc.AddField(bluge.NewKeywordField("pubkey", event.PubKey).StoreValue())
+		
+		// Add content as text field
+		doc.AddField(bluge.NewTextField("content", event.Content).StoreValue())
+		fmt.Printf("Added content field: %s\n", event.Content)
+		
+		// Add created_at as numeric field
+		doc.AddField(bluge.NewNumericField("created_at", float64(event.CreatedAt)).StoreValue())
+		
+		// Add kind as numeric field
+		doc.AddField(bluge.NewNumericField("kind", float64(event.Kind)).StoreValue())
+		
+		// Index the document
+		if err := writer.Update(doc.ID(), doc); err != nil {
+			log.Printf("error indexing document: %v", err)
 		} else {
-			fmt.Printf("  ✓ Saved to Bluge\n")
+			fmt.Printf("Successfully indexed event %d: %s\n", i+1, event.ID)
 		}
 	}
 
@@ -99,59 +89,67 @@ func main() {
 	fmt.Println("Waiting for indexing to complete...")
 	time.Sleep(2 * time.Second)
 
-	// Test search for "test"
-	testSearch(ctx, blugeSearch, "test")
-	
-	// Test search for "wavefunc"
-	testSearch(ctx, blugeSearch, "wavefunc")
-	
-	// Test search for "nostr"
-	testSearch(ctx, blugeSearch, "nostr")
-	
-	// Test search for something that doesn't exist
-	testSearch(ctx, blugeSearch, "nonexistent")
-
-	fmt.Println("Search tests completed")
-}
-
-// Helper function to directly insert event into PostgreSQL
-func insertEventDirectly(connString string, evt *nostr.Event) error {
-	// Open a connection to PostgreSQL
-	sqlDB, err := sql.Open("postgres", connString)
+	// Now test search directly without any PostgreSQL dependency
+	reader, err := writer.Reader()
 	if err != nil {
-		return fmt.Errorf("error connecting to database: %w", err)
+		log.Fatalf("error getting reader: %v", err)
 	}
-	defer sqlDB.Close()
+	defer reader.Close()
 
-	// Convert tags to JSON
-	tagsJSON, err := json.Marshal(evt.Tags)
-	if err != nil {
-		return fmt.Errorf("error marshaling tags to JSON: %w", err)
+	// Test search for various terms
+	searchTerms := []string{"test", "wavefunc", "nostr", "event", "nonexistent"}
+	for _, term := range searchTerms {
+		fmt.Printf("\n=== Searching for: '%s' ===\n", term)
+		
+		// Create query
+		query := buildSearchQuery(term)
+		
+		// Create search request
+		searchRequest := bluge.NewTopNSearch(10, query).
+			SortBy([]string{"-created_at"}) // Sort by created_at descending (newest first)
+		
+		// Execute search
+		fmt.Printf("Executing search query...\n")
+		dmi, err := reader.Search(ctx, searchRequest)
+		if err != nil {
+			fmt.Printf("Search error: %v\n", err)
+			continue
+		}
+		
+		// Count results
+		count := 0
+		match, err := dmi.Next()
+		for err == nil && match != nil {
+			count++
+			
+			// Extract stored fields
+			var eventID, content, pubkey string
+			
+			match.VisitStoredFields(func(field string, value []byte) bool {
+				switch field {
+				case "id":
+					eventID = string(value)
+				case "content":
+					content = string(value)
+				case "pubkey":
+					pubkey = string(value)
+				}
+				return true
+			})
+			
+			fmt.Printf("Found: %s (ID: %s, PubKey: %s)\n", content, eventID, pubkey)
+			
+			match, err = dmi.Next()
+		}
+		
+		if count == 0 {
+			fmt.Println("No results found")
+		} else {
+			fmt.Printf("Total results: %d\n", count)
+		}
 	}
 
-	// Insert the event directly into the event table (singular, not plural)
-	query := `
-	INSERT INTO event (id, pubkey, created_at, kind, tags, content, sig)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)
-	ON CONFLICT (id) DO NOTHING
-	`
-
-	_, err = sqlDB.Exec(
-		query,
-		evt.ID,
-		evt.PubKey,
-		evt.CreatedAt,
-		evt.Kind,
-		tagsJSON,
-		evt.Content,
-		evt.Sig,
-	)
-
-	if err != nil {
-		return fmt.Errorf("error inserting event into database: %w", err)
-	}
-
-	return nil
+	fmt.Println("\nSearch tests completed")
 }
 
 // Helper to create a test event with a random pubkey
@@ -161,7 +159,7 @@ func createTestEvent(content string, kind int) *nostr.Event {
 	rand.Read(pubkeyBytes)
 	pubkey := hex.EncodeToString(pubkeyBytes)
 	
-	// Use regular Unix timestamp (seconds) to avoid integer overflow in PostgreSQL
+	// Use regular Unix timestamp (seconds)
 	createdAt := nostr.Timestamp(time.Now().Unix())
 	
 	// Create a unique event ID
@@ -183,35 +181,49 @@ func createTestEvent(content string, kind int) *nostr.Event {
 	return evt
 }
 
-// Helper to test search and print results
-func testSearch(ctx context.Context, searcher *search.BlugeSearch, searchTerm string) {
-	fmt.Printf("\n=== Searching for: %s ===\n", searchTerm)
+// Helper to build a search query
+func buildSearchQuery(searchTerm string) bluge.Query {
+	// Split into terms
+	terms := strings.Fields(searchTerm)
+	fmt.Printf("Search string '%s' parsed into terms: %v\n", searchTerm, terms)
 	
-	// Create a filter with the search term
-	filter := nostr.Filter{
-		Kinds:  []int{1},
-		Search: searchTerm,
-		Limit:  10,
+	if len(terms) == 0 {
+		// Return match all if no terms
+		fmt.Println("No search terms, using MatchAllQuery")
+		return bluge.NewMatchAllQuery()
 	}
 	
-	// Execute search
-	fmt.Printf("Executing search query...\n")
-	results, err := searcher.QueryEvents(ctx, filter)
-	if err != nil {
-		fmt.Printf("Search error: %v\n", err)
-		return
+	// Try multiple query types for the term
+	if len(terms) == 1 {
+		term := terms[0]
+		fmt.Printf("Using multiple query types for: '%s'\n", term)
+		
+		q := bluge.NewBooleanQuery()
+		
+		// Term query (exact match, not analyzed)
+		q.AddShould(bluge.NewTermQuery(term).SetField("content"))
+		
+		// Match query (analyzed)
+		q.AddShould(bluge.NewMatchQuery(term).SetField("content"))
+		
+		// Wildcard queries
+		q.AddShould(bluge.NewWildcardQuery("*"+term+"*").SetField("content"))
+		
+		// Fuzzy query (allows typos)
+		fuzzyQuery := bluge.NewFuzzyQuery(term)
+		fuzzyQuery.SetField("content")
+		fuzzyQuery.SetFuzziness(1)
+		q.AddShould(fuzzyQuery)
+		
+		return q
 	}
 	
-	// Count results
-	count := 0
-	for evt := range results {
-		count++
-		fmt.Printf("Found: %s (ID: %s, PubKey: %s)\n", evt.Content, evt.ID, evt.PubKey)
+	// For multiple terms, OR them together
+	q := bluge.NewBooleanQuery()
+	for _, term := range terms {
+		termQuery := bluge.NewMatchQuery(term).SetField("content")
+		q.AddShould(termQuery)
 	}
 	
-	if count == 0 {
-		fmt.Println("No results found")
-	} else {
-		fmt.Printf("Total results: %d\n", count)
-	}
+	return q
 } 

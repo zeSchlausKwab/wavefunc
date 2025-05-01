@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,8 +55,11 @@ func (b *BlugeSearch) Close() error {
 func (b *BlugeSearch) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	// Skip if no content to index
 	if evt.Content == "" {
+		fmt.Printf("Skipping empty content event: %s\n", evt.ID)
 		return nil
 	}
+
+	fmt.Printf("Indexing event: ID=%s, Content=%s\n", evt.ID, evt.Content)
 
 	// Create a new document
 	doc := bluge.NewDocument(evt.ID)
@@ -68,6 +72,7 @@ func (b *BlugeSearch) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	
 	// Add content as text field
 	doc.AddField(bluge.NewTextField("content", evt.Content).StoreValue())
+	fmt.Printf("Added content field: %s\n", evt.Content)
 	
 	// Add created_at as numeric field for time-based filtering
 	doc.AddField(bluge.NewNumericField("created_at", float64(evt.CreatedAt)).StoreValue())
@@ -90,7 +95,14 @@ func (b *BlugeSearch) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	b.Lock()
 	defer b.Unlock()
 	
-	return b.writer.Update(doc.ID(), doc)
+	err := b.writer.Update(doc.ID(), doc)
+	if err != nil {
+		fmt.Printf("Error updating index: %v\n", err)
+		return err
+	}
+	
+	fmt.Printf("Successfully indexed event: %s\n", evt.ID)
+	return nil
 }
 
 // DeleteEvent removes an event from the search index
@@ -205,36 +217,85 @@ func (b *BlugeSearch) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 			case <-ctx.Done():
 				return
 			default:
-				// Get document ID
-				var eventID string
+				// Extract stored fields
+				var eventID, content, pubkey string
+				var eventCreatedAt uint64
+				var eventKind uint64
+				
 				match.VisitStoredFields(func(field string, value []byte) bool {
-					if field == "id" {
+					switch field {
+					case "id":
 						eventID = string(value)
-						return false
+					case "content":
+						content = string(value)
+					case "pubkey":
+						pubkey = string(value)
+					case "created_at":
+						// Parse the numeric field
+						if f, err := strconv.ParseFloat(string(value), 64); err == nil {
+							eventCreatedAt = uint64(f)
+						}
+					case "kind":
+						// Parse the numeric field
+						if f, err := strconv.ParseFloat(string(value), 64); err == nil {
+							eventKind = uint64(f)
+						}
 					}
 					return true
 				})
 				
-				if eventID != "" && b.RawEventStore != nil {
-					// Get the full event from the backing store
-					idFilter := nostr.Filter{IDs: []string{eventID}}
-					evtCh, err := b.RawEventStore.QueryEvents(ctx, idFilter)
-					if err != nil {
-						fmt.Printf("error querying raw event store: %v\n", err)
-					} else {
-						// Get the first (and should be only) event from the channel
-						select {
-						case evt := <-evtCh:
-							if evt != nil {
-								select {
-								case ch <- evt:
-								case <-ctx.Done():
-									return
+				if eventID != "" {
+					// First try to get the event from the backing store if available
+					if b.RawEventStore != nil {
+						idFilter := nostr.Filter{IDs: []string{eventID}}
+						evtCh, err := b.RawEventStore.QueryEvents(ctx, idFilter)
+						if err == nil {
+							// Try to get the event from the channel with a timeout
+							select {
+							case evt := <-evtCh:
+								if evt != nil {
+									select {
+									case ch <- evt:
+										// Successfully sent the event, move to next one
+										match, err = dmi.Next()
+										continue
+									case <-ctx.Done():
+										return
+									}
 								}
+							case <-ctx.Done():
+								return
+							case <-time.After(200 * time.Millisecond):
+								// Timeout getting event from store, fall through to construct from Bluge
+								fmt.Printf("Timeout getting event from store: %s\n", eventID)
 							}
+						} else {
+							fmt.Printf("Error querying raw event store: %v\n", err)
+							// Fall through to construct from Bluge
+						}
+					}
+					
+					// If we got here, we need to construct an event from Bluge's data
+					if content != "" && pubkey != "" {
+						fmt.Printf("Constructing event from Bluge data: %s\n", eventID)
+						
+						evt := &nostr.Event{
+							ID:        eventID,
+							PubKey:    pubkey,
+							CreatedAt: nostr.Timestamp(eventCreatedAt),
+							Kind:      int(eventKind),
+							Content:   content,
+							Tags:      []nostr.Tag{},
+							Sig:       "", // We don't have the signature
+						}
+						
+						select {
+						case ch <- evt:
 						case <-ctx.Done():
 							return
 						}
+					} else {
+						fmt.Printf("Insufficient data to construct event: %s\n", eventID)
 					}
 				}
 			}
@@ -265,6 +326,7 @@ func parseSearchTerms(searchStr string) []string {
 		}
 	}
 	
+	fmt.Printf("Search string '%s' parsed into terms: %v\n", searchStr, filteredTerms)
 	return filteredTerms
 }
 
@@ -272,22 +334,52 @@ func parseSearchTerms(searchStr string) []string {
 func buildContentQuery(terms []string) bluge.Query {
 	if len(terms) == 0 {
 		// Return match all if no terms
+		fmt.Println("No search terms, using MatchAllQuery")
 		return bluge.NewMatchAllQuery()
 	}
 	
+	// Try multiple query types for maximum matching
 	if len(terms) == 1 {
-		// Single term query
-		return bluge.NewMatchQuery(terms[0]).SetField("content")
+		term := terms[0]
+		fmt.Printf("Using multiple query types for: '%s'\n", term)
+		
+		q := bluge.NewBooleanQuery()
+		
+		// Term query (exact match, not analyzed)
+		q.AddShould(bluge.NewTermQuery(term).SetField("content"))
+		
+		// Match query (analyzed)
+		q.AddShould(bluge.NewMatchQuery(term).SetField("content"))
+		
+		// Wildcard queries
+		q.AddShould(bluge.NewWildcardQuery("*"+term+"*").SetField("content"))
+		
+		// Fuzzy query (allows typos)
+		fuzzyQuery := bluge.NewFuzzyQuery(term)
+		fuzzyQuery.SetField("content")
+		fuzzyQuery.SetFuzziness(1)
+		q.AddShould(fuzzyQuery)
+		
+		return q
 	}
 	
-	// Multiple terms - create a conjunction query (AND)
-	conjunctionQuery := bluge.NewBooleanQuery()
+	// For multiple terms, OR them together
+	fmt.Printf("Multiple term query (OR) for: %v\n", terms)
+	q := bluge.NewBooleanQuery()
 	for _, term := range terms {
-		termQuery := bluge.NewMatchQuery(term).SetField("content")
-		conjunctionQuery.AddMust(termQuery)
+		// Create a subquery with the same options as single term
+		subQuery := bluge.NewBooleanQuery()
+		
+		// Add multiple search types for each term
+		subQuery.AddShould(bluge.NewTermQuery(term).SetField("content"))
+		subQuery.AddShould(bluge.NewMatchQuery(term).SetField("content"))
+		subQuery.AddShould(bluge.NewWildcardQuery("*"+term+"*").SetField("content"))
+		
+		// Add the subquery to the main query
+		q.AddShould(subQuery)
 	}
 	
-	return conjunctionQuery
+	return q
 }
 
 // GetPath returns the absolute path for the Bluge index directory
