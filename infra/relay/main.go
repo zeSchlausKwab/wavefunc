@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"relay/search"
+
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/khatru"
 	"github.com/joho/godotenv"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 func main() {
@@ -60,10 +63,47 @@ func main() {
 		panic(err)
 	}
 
-	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent)
-	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
-	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
-	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+	// Set up data directory for Bluge search index
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	
+	// Create data directory if it doesn't exist
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		fmt.Printf("Warning: Error creating data directory: %v\n", err)
+	}
+	
+	// Initialize Bluge search backend
+	blugeSearchPath := search.GetPath(dataDir)
+	fmt.Printf("Using Bluge search index at: %s\n", blugeSearchPath)
+	
+	blugeSearch := &search.BlugeSearch{
+		Path: blugeSearchPath,
+		RawEventStore: &db,
+	}
+	
+	if err := blugeSearch.Init(); err != nil {
+		fmt.Printf("Error initializing Bluge search: %v\n", err)
+		// Continue without search functionality
+	} else {
+		defer blugeSearch.Close()
+		
+		// Register Bluge for events that have Search filter
+		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, blugeSearch.SaveEvent)
+		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, blugeSearch.DeleteEvent)
+		
+		// Set up QueryEvents to route search queries to Bluge and regular queries to PostgreSQL
+		relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+			if filter.Search != "" {
+				// Use Bluge for search queries
+				return blugeSearch.QueryEvents(ctx, filter)
+			} else {
+				// Use PostgreSQL for regular queries
+				return db.QueryEvents(ctx, filter)
+			}
+		})
+	}
 
 	// Add connection handler
 	relay.OnConnect = []func(ctx context.Context){

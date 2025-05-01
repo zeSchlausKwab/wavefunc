@@ -1,5 +1,5 @@
 import NDK, { NDKEvent, NDKKind, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import type { NostrEvent } from '@nostr-dev-kit/ndk'
+import type { NDKFilter, NostrEvent } from '@nostr-dev-kit/ndk'
 import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
 import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS } from '../schemas/events'
@@ -516,6 +516,62 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
         }
     } catch (error) {
         console.error('Error mapping event to station:', error)
+        throw error
+    }
+}
+
+/**
+ * Searches for radio stations based on search criteria
+ * @param ndk NDK instance
+ * @param options Search options
+ * @returns Promise<Station[]>
+ */
+export async function searchRadioStations(
+    ndk: NDK,
+    options: {
+        searchTerm?: string
+        tags?: string[]
+    } = {},
+): Promise<Station[]> {
+    if (!ndk) {
+        throw new Error('NDK instance not available')
+    }
+
+    const { searchTerm, tags } = options
+
+    // Base filter for radio station events
+    const filter: NDKFilter = {
+        kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
+    }
+
+    // Add tag filters if provided
+    if (tags && tags.length > 0) {
+        filter['#t'] = tags
+    }
+
+    // ONLY add name filter if searchTerm exists and is not empty
+    if (searchTerm && searchTerm.trim()) {
+        filter['#name'] = [searchTerm.trim()]
+    }
+
+    console.log('filter', filter)
+
+    try {
+        const events = await ndk.fetchEvents(filter)
+        const stations: Station[] = []
+
+        for (const event of events) {
+            try {
+                const station = mapNostrEventToStation(event)
+                stations.push(station)
+            } catch (error) {
+                console.warn('Invalid station event:', error)
+            }
+        }
+
+        return stations
+    } catch (error) {
+        console.error('Error searching for stations:', error)
         throw error
     }
 }
