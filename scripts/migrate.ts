@@ -67,6 +67,15 @@ interface StationGroup {
     mainStation: DBStation
     streams: Stream[]
     similarStations: DBStation[]
+    mergedMetadata: {
+        Homepage?: string
+        Favicon?: string
+        Tags: Set<string>
+        CountryCode?: string
+        Country?: string
+        Language?: string
+        LanguageCodes: Set<string>
+    }
 }
 
 // Helper to fetch station data
@@ -138,6 +147,29 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
 
             if (processedStationIds.has(mainStation.StationUuid)) return
 
+            // Initialize the merged metadata
+            const mergedMetadata = {
+                Homepage: mainStation.Homepage,
+                Favicon: mainStation.Favicon,
+                Tags: new Set<string>(
+                    mainStation.Tags
+                        ? mainStation.Tags.split(',')
+                              .map((t) => t.trim())
+                              .filter(Boolean)
+                        : [],
+                ),
+                CountryCode: mainStation.CountryCode,
+                Country: mainStation.Country,
+                Language: mainStation.Language,
+                LanguageCodes: new Set<string>(
+                    mainStation.LanguageCodes
+                        ? mainStation.LanguageCodes.split(',')
+                              .map((c) => c.trim())
+                              .filter(Boolean)
+                        : [],
+                ),
+            }
+
             const group: StationGroup = {
                 mainStation,
                 streams: [
@@ -153,6 +185,7 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                     },
                 ],
                 similarStations: [],
+                mergedMetadata,
             }
 
             processedStationIds.add(mainStation.StationUuid)
@@ -184,6 +217,9 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                         })
 
                         processedStationIds.add(similar.StationUuid)
+
+                        // Merge metadata from similar station
+                        mergeStationMetadata(group.mergedMetadata, similar)
                     }
                 }
             }
@@ -214,6 +250,29 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
         // Skip if we've already processed this station
         if (processedStationIds.has(station.StationUuid)) continue
 
+        // Initialize the merged metadata for this single station
+        const mergedMetadata = {
+            Homepage: station.Homepage,
+            Favicon: station.Favicon,
+            Tags: new Set<string>(
+                station.Tags
+                    ? station.Tags.split(',')
+                          .map((t) => t.trim())
+                          .filter(Boolean)
+                    : [],
+            ),
+            CountryCode: station.CountryCode,
+            Country: station.Country,
+            Language: station.Language,
+            LanguageCodes: new Set<string>(
+                station.LanguageCodes
+                    ? station.LanguageCodes.split(',')
+                          .map((c) => c.trim())
+                          .filter(Boolean)
+                    : [],
+            ),
+        }
+
         // Create a new single-station group
         const group: StationGroup = {
             mainStation: station,
@@ -230,6 +289,7 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                 },
             ],
             similarStations: [],
+            mergedMetadata,
         }
 
         processedStationIds.add(station.StationUuid)
@@ -250,6 +310,53 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
     ;(groups as any).stats = groupingStats
 
     return groups
+}
+
+// Helper to merge metadata from similar stations
+function mergeStationMetadata(mergedMetadata: StationGroup['mergedMetadata'], station: DBStation): void {
+    // For Homepage and Favicon, take the first non-empty value
+    if (!mergedMetadata.Homepage && station.Homepage) {
+        mergedMetadata.Homepage = station.Homepage
+    }
+
+    if (!mergedMetadata.Favicon && station.Favicon) {
+        mergedMetadata.Favicon = station.Favicon
+    }
+
+    // For tags, add any new tags
+    if (station.Tags) {
+        station.Tags.split(',').forEach((tag) => {
+            const trimmedTag = tag.trim()
+            if (trimmedTag) {
+                mergedMetadata.Tags.add(trimmedTag)
+            }
+        })
+    }
+
+    // Country and CountryCode should be consistent across stations
+    // Only update if missing and available in the current station
+    if (!mergedMetadata.CountryCode && station.CountryCode) {
+        mergedMetadata.CountryCode = station.CountryCode
+    }
+
+    if (!mergedMetadata.Country && station.Country) {
+        mergedMetadata.Country = station.Country
+    }
+
+    // Same for language
+    if (!mergedMetadata.Language && station.Language) {
+        mergedMetadata.Language = station.Language
+    }
+
+    // For language codes, merge all codes
+    if (station.LanguageCodes) {
+        station.LanguageCodes.split(',').forEach((code) => {
+            const trimmedCode = code.trim()
+            if (trimmedCode) {
+                mergedMetadata.LanguageCodes.add(trimmedCode)
+            }
+        })
+    }
 }
 
 // Helper to determine if two stations are related streams of the same station
@@ -348,18 +455,24 @@ function printGroupDetails(group: StationGroup): void {
     group.streams.forEach((stream, idx) => {
         console.log(`  ${idx + 1}. ${stream.url} (${stream.quality.bitrate / 1000}kbps ${stream.quality.codec})`)
     })
+
+    // Print merged metadata
+    console.log(`Merged metadata:`)
+    console.log(`  Homepage: ${group.mergedMetadata.Homepage || 'N/A'}`)
+    console.log(`  Favicon: ${group.mergedMetadata.Favicon || 'N/A'}`)
+    console.log(`  Tags: ${Array.from(group.mergedMetadata.Tags).join(', ') || 'N/A'}`)
+    console.log(`  Country: ${group.mergedMetadata.Country || 'N/A'} (${group.mergedMetadata.CountryCode || 'N/A'})`)
+    console.log(`  Language: ${group.mergedMetadata.Language || 'N/A'}`)
+    console.log(`  Language Codes: ${Array.from(group.mergedMetadata.LanguageCodes).join(', ') || 'N/A'}`)
 }
 
 // Convert DB station to Nostr event format
 async function publishRadioStation(stationGroup: StationGroup) {
     const station = stationGroup.mainStation
+    const mergedMetadata = stationGroup.mergedMetadata
 
-    // Extract tags to include in the description
-    const tags = station.Tags
-        ? station.Tags.split(',')
-              .map((tag: string) => tag.trim())
-              .filter(Boolean)
-        : []
+    // Get all tags from the merged metadata
+    const tags = Array.from(mergedMetadata.Tags)
 
     // Create content object with tags in description - must match RadioEventContentSchema
     const content = {
@@ -379,48 +492,44 @@ async function publishRadioStation(stationGroup: StationGroup) {
         pubkey: '',
     }
 
-    if (station.Homepage && station.Homepage.trim()) {
-        let website = station.Homepage.trim()
+    // Use the merged metadata for all other tags
+    if (mergedMetadata.Homepage) {
+        let website = mergedMetadata.Homepage.trim()
         if (!website.startsWith('http://') && !website.startsWith('https://')) {
             website = 'https://' + website
         }
         event.tags.push(['website', website])
     }
 
-    if (station.Favicon && station.Favicon.trim()) {
-        let favicon = station.Favicon.trim()
+    if (mergedMetadata.Favicon) {
+        let favicon = mergedMetadata.Favicon.trim()
         if (!favicon.startsWith('http://') && !favicon.startsWith('https://')) {
             favicon = 'https://' + favicon
         }
         event.tags.push(['thumbnail', favicon])
     }
 
-    if (station.CountryCode && station.CountryCode.trim()) {
-        event.tags.push(['countryCode', station.CountryCode.trim()])
+    if (mergedMetadata.CountryCode) {
+        event.tags.push(['countryCode', mergedMetadata.CountryCode.trim()])
     }
 
-    if (station.Country && station.Country.trim()) {
-        event.tags.push(['location', station.Country.trim()])
+    if (mergedMetadata.Country) {
+        event.tags.push(['location', mergedMetadata.Country.trim()])
     }
 
-    if (station.LanguageCodes && station.LanguageCodes.trim()) {
-        const languageCodes = station.LanguageCodes.split(',')
-        languageCodes.forEach((code: string) => {
-            if (code.trim()) {
-                event.tags.push(['l', code.trim().toUpperCase()])
-            }
+    // Add all language codes from the merged metadata
+    if (mergedMetadata.LanguageCodes.size > 0) {
+        Array.from(mergedMetadata.LanguageCodes).forEach((code) => {
+            event.tags.push(['l', code.toUpperCase()])
         })
-    } else if (station.Language && station.Language.trim()) {
-        event.tags.push(['l', station.Language.trim().toUpperCase()])
+    } else if (mergedMetadata.Language) {
+        event.tags.push(['l', mergedMetadata.Language.trim().toUpperCase()])
     }
 
-    if (station.Tags) {
-        station.Tags.split(',').forEach((tag: string) => {
-            if (tag.trim()) {
-                event.tags.push(['t', tag.trim().toLowerCase()])
-            }
-        })
-    }
+    // Add all tags from the merged metadata
+    Array.from(mergedMetadata.Tags).forEach((tag) => {
+        event.tags.push(['t', tag.toLowerCase()])
+    })
 
     const result = await publishStation(ndk as any, event, ['client', 'radio-db-migrate'])
     // console.log(`✓ Published station: ${station.Name} with ${stationGroup.streams.length} streams (${result.id})`)

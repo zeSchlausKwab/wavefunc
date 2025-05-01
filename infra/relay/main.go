@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"relay/search"
-
+	"github.com/fiatjaf/eventstore/bluge"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/khatru"
 	"github.com/joho/godotenv"
@@ -17,6 +17,10 @@ import (
 )
 
 func main() {
+	// Enable verbose logging
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("Starting relay with verbose logging")
+
 	// Load .env only in local development
 	if _, err := os.Stat(".env"); err == nil {
 		if err := godotenv.Load(filepath.Join("..", "..", ".env")); err != nil {
@@ -74,12 +78,12 @@ func main() {
 		fmt.Printf("Warning: Error creating data directory: %v\n", err)
 	}
 	
-	// Initialize Bluge search backend
-	blugeSearchPath := search.GetPath(dataDir)
+	// Initialize Bluge search backend using the native implementation
+	blugeSearchPath := filepath.Join(dataDir, "bluge_search")
 	fmt.Printf("Using Bluge search index at: %s\n", blugeSearchPath)
 	
-	blugeSearch := &search.BlugeSearch{
-		Path: blugeSearchPath,
+	blugeSearch := bluge.BlugeBackend{
+		Path:          blugeSearchPath,
 		RawEventStore: &db,
 	}
 	
@@ -89,7 +93,7 @@ func main() {
 	} else {
 		defer blugeSearch.Close()
 		
-		// Register Bluge for events that have Search filter
+		// Register handlers for events
 		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, blugeSearch.SaveEvent)
 		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, blugeSearch.DeleteEvent)
 		
@@ -97,7 +101,27 @@ func main() {
 		relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 			if filter.Search != "" {
 				// Use Bluge for search queries
-				return blugeSearch.QueryEvents(ctx, filter)
+				log.Printf("Handling search query: %s (kinds: %v)", filter.Search, filter.Kinds)
+				events, err := blugeSearch.QueryEvents(ctx, filter)
+				if err != nil {
+					log.Printf("Error in Bluge search: %v", err)
+					return nil, err
+				}
+				
+				// Create a buffered channel to collect and log the results
+				resultChan := make(chan *nostr.Event)
+				go func() {
+					defer close(resultChan)
+					count := 0
+					for event := range events {
+						count++
+						log.Printf("Search result #%d: ID=%s, Kind=%d", count, event.ID, event.Kind)
+						resultChan <- event
+					}
+					log.Printf("Search query completed, returned %d results", count)
+				}()
+				
+				return resultChan, nil
 			} else {
 				// Use PostgreSQL for regular queries
 				return db.QueryEvents(ctx, filter)

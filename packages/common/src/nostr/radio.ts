@@ -531,34 +531,83 @@ export async function searchRadioStations(
     options: {
         searchTerm?: string
         tags?: string[]
+        languageCode?: string
+        domain?: string
+        since?: number
+        until?: number
+        authors?: string[]
     } = {},
 ): Promise<Station[]> {
     if (!ndk) {
         throw new Error('NDK instance not available')
     }
 
-    const { searchTerm, tags } = options
+    const { searchTerm, tags, languageCode, domain, since, until, authors } = options
 
     // Base filter for radio station events
     const filter: NDKFilter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
+        limit: 10,
     }
 
-    // Add tag filters if provided
+    // Add time range filters if provided
+    if (since) {
+        filter.since = since
+    }
+
+    if (until) {
+        filter.until = until
+    }
+
+    // Add author filter if provided
+    if (authors && authors.length > 0) {
+        filter.authors = authors
+    }
+
+    // Build search string with NIP-50 extensions
+    let searchString = ''
+
+    // Add the main search term if provided
+    if (searchTerm && searchTerm.trim()) {
+        searchString = searchTerm.trim()
+    }
+
+    // Add language extension if provided
+    if (languageCode) {
+        searchString += ` language:${languageCode}`
+    }
+
+    // Add domain extension if provided
+    if (domain) {
+        searchString += ` domain:${domain}`
+    }
+
+    // Add the search to the filter if we have any search terms or extensions
+    if (searchString.trim()) {
+        filter.search = searchString.trim()
+    }
+
+    // Add tag filters if provided and we're not using search
+    // (because tags are already supported in Bluge search)
     if (tags && tags.length > 0) {
         filter['#t'] = tags
     }
 
-    // ONLY add name filter if searchTerm exists and is not empty
-    if (searchTerm && searchTerm.trim()) {
-        filter['#name'] = [searchTerm.trim()]
-    }
-
-    console.log('filter', filter)
+    console.log('🔎 NIP-50 Search filter:', JSON.stringify(filter, null, 2))
 
     try {
+        // Debugging info about relays before making the request
+        console.log(
+            '📻 Connected relays:',
+            Array.from(ndk.pool?.relays.values() || [])
+                .map((r) => `${r.url} (${r.status})`)
+                .join(', '),
+        )
+
         const events = await ndk.fetchEvents(filter)
         const stations: Station[] = []
+
+        console.log(`🔔 Received ${events.size} events from search`)
 
         for (const event of events) {
             try {
@@ -569,9 +618,10 @@ export async function searchRadioStations(
             }
         }
 
+        console.log(`✅ Successfully mapped ${stations.length} stations`)
         return stations
     } catch (error) {
-        console.error('Error searching for stations:', error)
+        console.error('❌ Error searching for stations:', error)
         throw error
     }
 }

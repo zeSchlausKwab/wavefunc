@@ -10,12 +10,61 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
-	"./search"
+	"github.com/fiatjaf/eventstore/bluge"
 	_ "github.com/lib/pq"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+// InMemoryStore is a simple implementation of RawEventStore
+type InMemoryStore struct {
+	events map[string]*nostr.Event
+}
+
+func NewInMemoryStore() *InMemoryStore {
+	return &InMemoryStore{
+		events: make(map[string]*nostr.Event),
+	}
+}
+
+func (s *InMemoryStore) Init() error {
+	return nil
+}
+
+func (s *InMemoryStore) SaveEvent(ctx context.Context, event *nostr.Event) error {
+	s.events[event.ID] = event
+	return nil
+}
+
+func (s *InMemoryStore) DeleteEvent(ctx context.Context, event *nostr.Event) error {
+	delete(s.events, event.ID)
+	return nil
+}
+
+func (s *InMemoryStore) ReplaceEvent(ctx context.Context, event *nostr.Event) error {
+	s.events[event.ID] = event
+	return nil
+}
+
+func (s *InMemoryStore) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	ch := make(chan *nostr.Event)
+	go func() {
+		defer close(ch)
+		for _, event := range s.events {
+			if filter.Matches(event) {
+				ch <- event
+			}
+		}
+	}()
+	return ch, nil
+}
+
+func (s *InMemoryStore) Close() {
+	// Nothing to close in the in-memory store
+}
 
 // This script indexes all existing events from PostgreSQL into the Bluge search index
 // Usage: go run backfill_search.go --dsn="postgres://user:password@localhost:5432/dbname" --dir="./data"
@@ -43,17 +92,21 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL successfully")
 
-	// Create Bluge search instance
-	blugeDir := search.GetPath(*dataDir)
+	// Create Bluge search instance using the native implementation
+	blugeDir := filepath.Join(*dataDir, "bluge_search")
 	if err := os.MkdirAll(blugeDir, 0755); err != nil {
 		log.Fatalf("Error creating Bluge directory: %v", err)
 	}
 
-	blugeSearch := &search.BlugeSearch{
-		Path: blugeDir,
-	}
+	// Create in-memory store
+	memStore := NewInMemoryStore()
 
 	// Initialize Bluge
+	blugeSearch := &bluge.BlugeBackend{
+		Path:          blugeDir,
+		RawEventStore: memStore,
+	}
+
 	if err := blugeSearch.Init(); err != nil {
 		log.Fatalf("Error initializing Bluge: %v", err)
 	}
@@ -109,6 +162,28 @@ func main() {
 				tags = nostr.Tags{}
 			}
 
+			// Check if this is a radio station by examining tags
+			isRadioStation := false
+			for _, tag := range tags {
+				if len(tag) >= 2 && tag[0] == "name" {
+					// Check if event has a 'name' tag, which is common for radio stations
+					isRadioStation = true
+					break
+				}
+			}
+
+			// Additional check - if content looks like a radio station JSON
+			if !isRadioStation && strings.Contains(content, "\"streams\"") && strings.Contains(content, "\"url\"") {
+				isRadioStation = true
+			}
+
+			// If this is a radio station, ensure it has the correct kind
+			if isRadioStation {
+				// Force radio stations to use the standard kind
+				kind = 31237
+				log.Printf("Detected radio station event %s - using kind 31237", id)
+			}
+
 			// Create nostr event
 			event := &nostr.Event{
 				ID:        id,
@@ -118,6 +193,12 @@ func main() {
 				Tags:      tags,
 				Content:   content,
 				Sig:       sig,
+			}
+
+			// First, save to memory store
+			if err := memStore.SaveEvent(context.Background(), event); err != nil {
+				log.Printf("Error saving event to memory: %v", err)
+				continue
 			}
 
 			// Index event
