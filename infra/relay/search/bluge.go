@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -74,20 +75,58 @@ func (b *BlugeSearch) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	doc.AddField(bluge.NewTextField("content", evt.Content).StoreValue())
 	fmt.Printf("Added content field: %s\n", evt.Content)
 	
+	// For radio station events, parse the JSON content to extract description
+	if evt.Kind == 31237 { // Radio Station Event kind
+		var stationData map[string]interface{}
+		if err := json.Unmarshal([]byte(evt.Content), &stationData); err == nil {
+			// Extract and index description separately for better search
+			if description, ok := stationData["description"].(string); ok && description != "" {
+				doc.AddField(bluge.NewTextField("description", description).StoreValue())
+				fmt.Printf("Added description field: %s\n", description)
+			}
+		}
+	}
+	
 	// Add created_at as numeric field for time-based filtering
 	doc.AddField(bluge.NewNumericField("created_at", float64(evt.CreatedAt)).StoreValue())
 	
 	// Add kind as numeric field
 	doc.AddField(bluge.NewNumericField("kind", float64(evt.Kind)).StoreValue())
 	
-	// Add tags
+	// Add tags with enhanced indexing for radio station fields
 	for _, tag := range evt.Tags {
 		if len(tag) >= 2 {
 			tagName := tag[0]
 			tagValue := tag[1]
 			
-			// Add each tag as a keyword field
-			doc.AddField(bluge.NewKeywordField(fmt.Sprintf("tag_%s", tagName), tagValue).StoreValue())
+			// Basic tag indexing for all tags
+			tagFieldName := fmt.Sprintf("tag_%s", tagName)
+			doc.AddField(bluge.NewKeywordField(tagFieldName, tagValue).StoreValue())
+			
+			// Enhanced indexing for specific radio station tags
+			switch tagName {
+			case "name":
+				// Index station name as both keyword (for exact match) and text (for fulltext search)
+				doc.AddField(bluge.NewKeywordField("station_name", tagValue).StoreValue())
+				doc.AddField(bluge.NewTextField("station_name_text", tagValue).StoreValue())
+			case "website":
+				doc.AddField(bluge.NewKeywordField("website", tagValue).StoreValue())
+			case "t": // Genre/category
+				doc.AddField(bluge.NewKeywordField("genre", tagValue).StoreValue())
+				doc.AddField(bluge.NewTextField("genre_text", tagValue).StoreValue())
+			case "l": // Language code
+				doc.AddField(bluge.NewKeywordField("language", tagValue).StoreValue())
+			case "countryCode":
+				doc.AddField(bluge.NewKeywordField("country_code", tagValue).StoreValue())
+			case "location":
+				doc.AddField(bluge.NewTextField("location", tagValue).StoreValue())
+			case "nip05": // Add support for domain filtering from NIP-50
+				doc.AddField(bluge.NewKeywordField("nip05", tagValue).StoreValue())
+				// Extract domain from nip05 for domain: extension
+				if parts := strings.Split(tagValue, "@"); len(parts) == 2 {
+					doc.AddField(bluge.NewKeywordField("domain", parts[1]).StoreValue())
+				}
+			}
 		}
 	}
 	
@@ -118,6 +157,34 @@ func (b *BlugeSearch) ReplaceEvent(ctx context.Context, evt *nostr.Event) error 
 	return b.SaveEvent(ctx, evt)
 }
 
+// parseSearchTerms parses the search string into individual terms and extracts NIP-50 extensions
+func parseSearchTerms(searchStr string) ([]string, map[string]string) {
+	// Split by spaces
+	terms := strings.Fields(searchStr)
+	
+	// Extract extensions like "domain:example.com" or "include:spam"
+	filteredTerms := []string{}
+	extensions := make(map[string]string)
+	
+	for _, term := range terms {
+		if strings.Contains(term, ":") {
+			parts := strings.SplitN(term, ":", 2)
+			if len(parts) == 2 {
+				key := strings.ToLower(parts[0])
+				value := parts[1]
+				extensions[key] = value
+				fmt.Printf("Found extension: %s = %s\n", key, value)
+				continue
+			}
+		}
+		filteredTerms = append(filteredTerms, term)
+	}
+	
+	fmt.Printf("Search string '%s' parsed into terms: %v with extensions: %v\n", 
+		searchStr, filteredTerms, extensions)
+	return filteredTerms, extensions
+}
+
 // QueryEvents performs a search query and returns matching events
 func (b *BlugeSearch) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	// If search is not requested, reject this query
@@ -133,16 +200,20 @@ func (b *BlugeSearch) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		return nil, fmt.Errorf("error getting bluge reader: %w", err)
 	}
 	
+	// Parse search terms and extensions
+	searchTerms, extensions := parseSearchTerms(filter.Search)
+	
 	// Build query
 	var searchQuery bluge.Query
 	
-	// Basic search query on content
-	searchTerms := parseSearchTerms(filter.Search)
+	// Build content query
 	contentQuery := buildContentQuery(searchTerms)
 	
 	// Combine with filters (authors, kinds, etc.)
 	conjunctionQuery := bluge.NewBooleanQuery()
 	conjunctionQuery.AddMust(contentQuery)
+
+	fmt.Printf("Conjunction query: %v\n", filter)
 	
 	// Add filter for authors (pubkeys)
 	if len(filter.Authors) > 0 {
@@ -181,6 +252,33 @@ func (b *BlugeSearch) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				tagQuery.AddShould(bluge.NewTermQuery(tagValue).SetField(fmt.Sprintf("tag_%s", tagName)))
 			}
 			conjunctionQuery.AddMust(tagQuery)
+		}
+	}
+	
+	// Handle NIP-50 extensions
+	for extKey, extValue := range extensions {
+		switch extKey {
+		case "domain":
+			// Domain extension - filter by domain
+			domainQuery := bluge.NewTermQuery(extValue).SetField("domain")
+			conjunctionQuery.AddMust(domainQuery)
+			
+		case "language":
+			// Language extension - filter by language code
+			langQuery := bluge.NewTermQuery(extValue).SetField("language")
+			conjunctionQuery.AddMust(langQuery)
+			
+		case "include":
+			// include:spam - no action needed, we don't implement spam filtering yet
+			// This would be the place to disable spam filtering if implemented
+			
+		case "nsfw":
+			// nsfw:true/false - no action needed yet as we don't have nsfw tagging
+			// This would filter based on some nsfw field if implemented
+			
+		case "sentiment":
+			// sentiment:positive/negative/neutral - no action yet as we don't analyze sentiment
+			// Would filter based on sentiment analysis if implemented
 		}
 	}
 	
@@ -313,24 +411,7 @@ func (b *BlugeSearch) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 // Helper functions
 
-// parseSearchTerms parses the search string into individual terms
-func parseSearchTerms(searchStr string) []string {
-	// Basic implementation - split by spaces
-	terms := strings.Fields(searchStr)
-	
-	// Filter out any special commands like "include:spam"
-	filteredTerms := []string{}
-	for _, term := range terms {
-		if !strings.Contains(term, ":") {
-			filteredTerms = append(filteredTerms, term)
-		}
-	}
-	
-	fmt.Printf("Search string '%s' parsed into terms: %v\n", searchStr, filteredTerms)
-	return filteredTerms
-}
-
-// buildContentQuery builds a query for the content field from search terms
+// buildContentQuery builds a query for searching across relevant fields
 func buildContentQuery(terms []string) bluge.Query {
 	if len(terms) == 0 {
 		// Return match all if no terms
@@ -338,48 +419,82 @@ func buildContentQuery(terms []string) bluge.Query {
 		return bluge.NewMatchAllQuery()
 	}
 	
+	// Fields to search across with their boost values (higher = more important)
+	searchFields := map[string]float64{
+		"station_name_text": 2.0,    // Station name is most important
+		"content":           1.5,     // Content is next
+		"description":       1.5,     // Description is equally important
+		"genre_text":        1.2,     // Genre is somewhat important
+		"location":          1.0,     // Location is least important
+	}
+	
 	// Try multiple query types for maximum matching
 	if len(terms) == 1 {
 		term := terms[0]
-		fmt.Printf("Using multiple query types for: '%s'\n", term)
+		fmt.Printf("Using multiple query types for: '%s' across multiple fields\n", term)
 		
-		q := bluge.NewBooleanQuery()
+		// Main boolean query
+		mainQuery := bluge.NewBooleanQuery()
 		
-		// Term query (exact match, not analyzed)
-		q.AddShould(bluge.NewTermQuery(term).SetField("content"))
+		// Create field-specific queries for this term
+		for field, boost := range searchFields {
+			fieldQuery := bluge.NewBooleanQuery()
+			
+			// Term query (exact match, not analyzed)
+			termQuery := bluge.NewTermQuery(term).SetField(field)
+			termQuery.SetBoost(boost * 1.5) // Boost exact matches more
+			fieldQuery.AddShould(termQuery)
+			
+			// Match query (analyzed)
+			matchQuery := bluge.NewMatchQuery(term).SetField(field)
+			matchQuery.SetBoost(boost)
+			fieldQuery.AddShould(matchQuery)
+			
+			// Wildcard queries (prefix)
+			wildcardQuery := bluge.NewWildcardQuery(term+"*").SetField(field)
+			wildcardQuery.SetBoost(boost * 1.2)
+			fieldQuery.AddShould(wildcardQuery)
+			
+			// Wildcard queries (contains)
+			containsQuery := bluge.NewWildcardQuery("*"+term+"*").SetField(field)
+			containsQuery.SetBoost(boost * 0.8)
+			fieldQuery.AddShould(containsQuery)
+			
+			// Fuzzy query (allows typos)
+			fuzzyQuery := bluge.NewFuzzyQuery(term)
+			fuzzyQuery.SetField(field)
+			fuzzyQuery.SetFuzziness(1)
+			fuzzyQuery.SetBoost(boost * 0.7)
+			fieldQuery.AddShould(fuzzyQuery)
+			
+			// Add the field query to the main query
+			mainQuery.AddShould(fieldQuery)
+		}
 		
-		// Match query (analyzed)
-		q.AddShould(bluge.NewMatchQuery(term).SetField("content"))
-		
-		// Wildcard queries
-		q.AddShould(bluge.NewWildcardQuery("*"+term+"*").SetField("content"))
-		
-		// Fuzzy query (allows typos)
-		fuzzyQuery := bluge.NewFuzzyQuery(term)
-		fuzzyQuery.SetField("content")
-		fuzzyQuery.SetFuzziness(1)
-		q.AddShould(fuzzyQuery)
-		
-		return q
+		return mainQuery
 	}
 	
-	// For multiple terms, OR them together
-	fmt.Printf("Multiple term query (OR) for: %v\n", terms)
-	q := bluge.NewBooleanQuery()
+	// For multiple terms, create a complex query
+	fmt.Printf("Multiple term query for: %v across multiple fields\n", terms)
+	mainQuery := bluge.NewBooleanQuery()
+	
+	// Process each term
 	for _, term := range terms {
-		// Create a subquery with the same options as single term
-		subQuery := bluge.NewBooleanQuery()
+		termQuery := bluge.NewBooleanQuery()
 		
-		// Add multiple search types for each term
-		subQuery.AddShould(bluge.NewTermQuery(term).SetField("content"))
-		subQuery.AddShould(bluge.NewMatchQuery(term).SetField("content"))
-		subQuery.AddShould(bluge.NewWildcardQuery("*"+term+"*").SetField("content"))
+		// Add this term across all fields
+		for field, boost := range searchFields {
+			fieldQuery := bluge.NewMatchQuery(term).SetField(field)
+			fieldQuery.SetBoost(boost)
+			termQuery.AddShould(fieldQuery)
+		}
 		
-		// Add the subquery to the main query
-		q.AddShould(subQuery)
+		// Add this term to main query as a SHOULD clause
+		// This means documents matching more terms will score higher
+		mainQuery.AddShould(termQuery)
 	}
 	
-	return q
+	return mainQuery
 }
 
 // GetPath returns the absolute path for the Bluge index directory
