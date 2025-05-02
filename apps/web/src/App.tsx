@@ -19,8 +19,8 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     console.log(`Adding relay from config: ${relay}`)
-    // const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
-    const ndk = ndkActions.initialize([relay])
+    const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
+    // const ndk = ndkActions.initialize([relay])
     ndkActions.initializeSearchNdk(relay)
     await ndkActions.connect()
     await ndkActions.connectSearchNdk()
