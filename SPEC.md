@@ -33,14 +33,16 @@ The content field must be a JSON string with the following structure:
             },
             "primary": true
         }
-    ]
+    ],
+    "streamingServerUrl": "https://streaming-server.com"
 }
 ```
 
-| Field       | Type   | Required | Description                                     |
-| ----------- | ------ | -------- | ----------------------------------------------- |
-| description | string | Yes      | Detailed description with markdown support      |
-| streams     | array  | Yes      | Array of stream objects (at least one required) |
+| Field              | Type   | Required | Description                                     |
+| ------------------ | ------ | -------- | ----------------------------------------------- |
+| description        | string | Yes      | Detailed description with markdown support      |
+| streams            | array  | Yes      | Array of stream objects (at least one required) |
+| streamingServerUrl | string | No       | URL to the streaming server (optional)          |
 
 #### Stream Object
 

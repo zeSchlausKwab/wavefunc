@@ -67,6 +67,7 @@ export const StreamSchema = z.object({
 export const RadioEventContentSchema = z.object({
     streams: z.array(StreamSchema).min(1, 'At least one stream is required'),
     description: z.string().min(1, 'Description is required'),
+    streamingServerUrl: z.string().url().optional(),
 })
 
 // Radio Station Event (kind 31237)

@@ -107,3 +107,41 @@ export const serveStatic = async (path: string) => {
         return new Response('Internal server error', { status: 500 })
     }
 }
+
+export async function proxyIcecastRequest(url: string): Promise<Response> {
+    try {
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'User-Agent': 'NostrRadio/1.0',
+            },
+        })
+
+        if (!response.ok) {
+            return new Response(JSON.stringify({ error: 'Failed to fetch Icecast server information' }), {
+                status: response.status,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+            })
+        }
+
+        const data = await response.text()
+
+        return new Response(data, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+        })
+    } catch (error) {
+        return new Response(JSON.stringify({ error: 'Failed to fetch Icecast server information' }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+        })
+    }
+}

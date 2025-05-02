@@ -21,6 +21,7 @@ export interface Station {
         }
         primary?: boolean
     }[]
+    streamingServerUrl?: string
     created_at: number
     event?: NDKEvent
 }

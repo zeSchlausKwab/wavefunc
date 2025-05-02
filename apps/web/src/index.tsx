@@ -3,7 +3,7 @@ import { config } from 'dotenv'
 import fs from 'fs'
 import { join } from 'path'
 import { buildClient } from './server/build-client'
-import { isBot, serveStatic } from './server/utils'
+import { isBot, serveStatic, proxyIcecastRequest } from './server/utils'
 import { injectOpenGraphMetadata } from './server/og'
 
 config({
@@ -27,8 +27,7 @@ async function setupFileWatcher() {
     if (isDev && !isWatching) {
         console.log('📺 Setting up file watcher for client rebuilds')
         isWatching = true
-        
-        // Watch for changes in client files
+
         const watcher = fs.watch(join(process.cwd(), 'src'), { recursive: true }, async (event, filename) => {
             // Skip server files and unnecessary rebuilds
             if (filename && !filename.includes('server/') && !filename.endsWith('index.tsx')) {
@@ -36,13 +35,17 @@ async function setupFileWatcher() {
                 await buildClient()
             }
         })
-        
+
         // Also watch common package files
-        const commonWatcher = fs.watch(join(process.cwd(), '../../packages/common/src'), { recursive: true }, async () => {
-            console.log('🔄 Detected change in common package, rebuilding client...')
-            await buildClient()
-        })
-        
+        const commonWatcher = fs.watch(
+            join(process.cwd(), '../../packages/common/src'),
+            { recursive: true },
+            async () => {
+                console.log('🔄 Detected change in common package, rebuilding client...')
+                await buildClient()
+            },
+        )
+
         process.on('SIGINT', () => {
             watcher.close()
             commonWatcher.close()
@@ -53,7 +56,7 @@ async function setupFileWatcher() {
 
 async function startServer() {
     await buildClient()
-    
+
     if (isDev) {
         await setupFileWatcher()
     }
@@ -81,6 +84,41 @@ async function startServer() {
                     JSON.stringify({ VITE_PUBLIC_APP_ENV, VITE_PUBLIC_WEB_PORT, VITE_PUBLIC_HOST, APP_PUBKEY }),
                     { headers: { 'Content-Type': 'application/javascript' } },
                 )
+            }
+
+            // Handle Icecast proxy API endpoint
+            if (path.startsWith('/api/proxy/icecast')) {
+                if (req.method !== 'GET') {
+                    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+                        status: 405,
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                }
+
+                const targetUrl = url.searchParams.get('url')
+                if (!targetUrl) {
+                    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+                        status: 400,
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                }
+
+                try {
+                    const parsedUrl = new URL(targetUrl)
+                    if (!parsedUrl.pathname.endsWith('/status-json.xsl')) {
+                        return new Response(JSON.stringify({ error: 'Invalid Icecast URL' }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json' },
+                        })
+                    }
+
+                    return await proxyIcecastRequest(targetUrl)
+                } catch (error) {
+                    return new Response(JSON.stringify({ error: 'Invalid URL' }), {
+                        status: 400,
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                }
             }
 
             let htmlContent = indexHtml

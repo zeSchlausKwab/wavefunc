@@ -33,6 +33,7 @@ export function createRadioEvent(
             }
             primary?: boolean
         }[]
+        streamingServerUrl?: string
     },
     tags: string[][],
     existingTags?: string[][],
@@ -113,6 +114,7 @@ export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
         description: content.description,
         website: websiteTag,
         streams: content.streams,
+        streamingServerUrl: content.streamingServerUrl,
         countryCode: countryCode,
         languageCodes: languageCodes,
         tags: genreTags,
@@ -160,6 +162,7 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
             }
             primary: boolean
         }[]
+        streamingServerUrl?: string
     } = {
         description: radioBrowserStation.name, // API doesn't have a description, use name as fallback
         streams: [
@@ -174,6 +177,11 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
                 primary: true,
             },
         ],
+    }
+
+    // Add streamingServerUrl if it exists in the RadioBrowser data
+    if (radioBrowserStation.serverUrl) {
+        content.streamingServerUrl = radioBrowserStation.serverUrl;
     }
 
     // Generate a UUID-like d-tag value
@@ -301,6 +309,7 @@ export function stationToNostrEvent(station: Station): NostrEvent {
         content: JSON.stringify({
             description: station.description,
             streams: station.streams,
+            ...(station.streamingServerUrl ? { streamingServerUrl: station.streamingServerUrl } : {}),
         }),
         created_at: station.created_at,
         pubkey: station.pubkey,
@@ -490,6 +499,7 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
             pubkey: event.pubkey,
             tags: event.tags as string[][],
             streams: stationData.streams,
+            streamingServerUrl: stationData.streamingServerUrl,
             created_at: event.created_at || Math.floor(Date.now() / 1000),
             countryCode: stationData.countryCode,
             languageCodes: stationData.languageCodes,
