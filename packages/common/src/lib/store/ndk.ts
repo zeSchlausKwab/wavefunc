@@ -9,6 +9,12 @@ interface NDKState {
     isConnecting: boolean
     isConnected: boolean
     explicitRelayUrls: string[]
+    searchNdk: {
+        ndk: NDK | null
+        isConnecting: boolean
+        isConnected: boolean
+        url: string
+    }
 }
 
 const initialState: NDKState = {
@@ -16,6 +22,12 @@ const initialState: NDKState = {
     isConnecting: false,
     isConnected: false,
     explicitRelayUrls: [],
+    searchNdk: {
+        ndk: null,
+        isConnecting: false,
+        isConnected: false,
+        url: '',
+    },
 }
 
 export const ndkStore = new Store<NDKState>(initialState)
@@ -104,6 +116,74 @@ export const ndkActions = {
         } finally {
             ndkStore.setState((state) => ({ ...state, isConnecting: false }))
         }
+    },
+
+    // Initialize the dedicated search NDK instance
+    initializeSearchNdk: (url?: string) => {
+        const state = ndkStore.state
+        if (state.searchNdk.ndk) return state.searchNdk.ndk
+
+        // Use the provided URL or the one from state
+        const relayUrl = url || state.searchNdk.url
+
+        // Create a new NDK instance specifically for search
+        const searchNdk = new NDK({
+            explicitRelayUrls: [relayUrl],
+        })
+
+        ndkStore.setState((state) => ({
+            ...state,
+            searchNdk: {
+                ...state.searchNdk,
+                ndk: searchNdk,
+                url: relayUrl,
+            },
+        }))
+
+        return searchNdk
+    },
+
+    // Connect to the search NDK
+    connectSearchNdk: async (): Promise<void> => {
+        const state = ndkStore.state
+        if (!state.searchNdk.ndk || state.searchNdk.isConnected || state.searchNdk.isConnecting) return
+
+        ndkStore.setState((state) => ({
+            ...state,
+            searchNdk: {
+                ...state.searchNdk,
+                isConnecting: true,
+            },
+        }))
+
+        try {
+            await state.searchNdk.ndk.connect()
+            await new Promise<void>((resolve) => {
+                state.searchNdk.ndk!.pool.on('connect', () => {
+                    ndkStore.setState((state) => ({
+                        ...state,
+                        searchNdk: {
+                            ...state.searchNdk,
+                            isConnected: true,
+                        },
+                    }))
+                    resolve()
+                })
+            })
+        } finally {
+            ndkStore.setState((state) => ({
+                ...state,
+                searchNdk: {
+                    ...state.searchNdk,
+                    isConnecting: false,
+                },
+            }))
+        }
+    },
+
+    // Get the search NDK instance
+    getSearchNdk: () => {
+        return ndkStore.state.searchNdk.ndk
     },
 
     addExplicitRelay: (relayUrls: string[]): string[] => {

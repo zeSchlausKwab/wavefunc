@@ -4,9 +4,8 @@ import { nip19 } from 'nostr-tools'
 import type { Station } from '../types/station'
 import { validateRadioStationEvent, parseRadioContent, RADIO_EVENT_KINDS } from '../schemas/events'
 import { v4 as uuidv4 } from 'uuid'
-
-// Mocked application pubkey for NIP-89 handler
-export const APP_PUBKEY = '000000000000000000000000000000000000000000000000000000000000radio'
+import { ndkActions } from '../lib/store/ndk'
+import { envActions } from '../lib/store/env'
 
 // type RadioEventContent = z.infer<typeof RadioEventContentSchema>
 
@@ -217,23 +216,6 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
     }
 }
 
-function safeStringify(obj: any, space = 2) {
-    const seen = new WeakSet()
-    return JSON.stringify(
-        obj,
-        (key, value) => {
-            if (typeof value === 'object' && value !== null) {
-                if (seen.has(value)) {
-                    return '[Circular]'
-                }
-                seen.add(value)
-            }
-            return value
-        },
-        space,
-    )
-}
-
 /**
  * Subscribe to radio station events
  * @param ndk NDK instance
@@ -433,7 +415,7 @@ export function createHandlerEvent(): NostrEvent {
 
     return {
         kind: NDKKind.AppHandler,
-        pubkey: APP_PUBKEY,
+        pubkey: envActions.getEnv()?.APP_PUBKEY || '',
         created_at: Math.floor(Date.now() / 1000),
         content: JSON.stringify({
             name: 'NostrRadio',
@@ -473,7 +455,7 @@ export async function publishHandlerEvent(ndk: NDK): Promise<NDKEvent> {
  */
 export function createClientTag(handlerEvent: NDKEvent, relayUrl?: string): string[] {
     const dTag = handlerEvent.tags.find((tag) => tag[0] === 'd')?.[1] || ''
-    const clientId = `${NDKKind.AppHandler}:${APP_PUBKEY}:${dTag}`
+    const clientId = `${NDKKind.AppHandler}:${envActions.getEnv()?.APP_PUBKEY || ''}:${dTag}`
 
     return ['client', 'NostrRadio', clientId, ...(relayUrl ? [relayUrl] : [])]
 }
@@ -538,8 +520,9 @@ export async function searchRadioStations(
         authors?: string[]
     } = {},
 ): Promise<Station[]> {
-    if (!ndk) {
-        throw new Error('NDK instance not available')
+    const searchNdk = ndkActions.getSearchNdk()
+    if (!searchNdk) {
+        throw new Error('Search NDK instance not available')
     }
 
     const { searchTerm, tags, languageCode, domain, since, until, authors } = options
@@ -604,7 +587,7 @@ export async function searchRadioStations(
                 .join(', '),
         )
 
-        const events = await ndk.fetchEvents(filter)
+        const events = await searchNdk.fetchEvents(filter)
         const stations: Station[] = []
 
         console.log(`🔔 Received ${events.size} events from search`)

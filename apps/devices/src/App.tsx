@@ -25,7 +25,9 @@ declare module '@tanstack/react-router' {
 
 const loadEnvAndNdk = async () => {
     const ndk = ndkActions.initialize([...DEFAULT_RELAYS, 'ws://192.168.100.99:3002'])
+    ndkActions.initializeSearchNdk('ws://192.168.100.99:3002')
     await ndkActions.connect()
+    await ndkActions.connectSearchNdk()
 
     // Try to reconnect wallet if it exists
     await walletActions.reconnectFromStorage(ndk).catch((err) => {

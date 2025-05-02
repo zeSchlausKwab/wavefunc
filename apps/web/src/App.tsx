@@ -21,7 +21,9 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     console.log(`Adding relay from config: ${relay}`)
     // const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
     const ndk = ndkActions.initialize([relay])
+    ndkActions.initializeSearchNdk(relay)
     await ndkActions.connect()
+    await ndkActions.connectSearchNdk()
 
     // Try to reconnect wallet if it exists
     await walletActions.reconnectFromStorage(ndk).catch((err) => {
