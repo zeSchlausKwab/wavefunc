@@ -24,6 +24,7 @@ const conn = mysql.createPool({
 
 // Setup NDK with a signer
 const signer = new NDKPrivateKeySigner(PRIVATE_KEY)
+// const relayUrls = ['wss://relay.wavefunc.live']
 const relayUrls = ['ws://192.168.0.185:3002']
 
 const ndk = new NDK({
@@ -47,6 +48,7 @@ interface DBStation {
     Bitrate?: number
     LastCheckOK: number
     LastCheckTime?: string
+    ServerUuid?: string
     [key: string]: any // For other properties we might not explicitly define
 }
 
@@ -103,11 +105,37 @@ async function fetchStations(): Promise<DBStation[]> {
             SslError,
             GeoLat,
             GeoLong,
+            ServerUuid,
             ExtendedInfo
         FROM Station 
         WHERE LastCheckOK = 1
+        LIMIT 10000
     `)
     return rows as DBStation[]
+}
+
+// Helper to fetch streaming server URL by UUID
+async function fetchStreamingServerUrl(serverUuid: string): Promise<string | null> {
+    if (!serverUuid) return null
+
+    try {
+        const [rows] = await conn.query(
+            `
+            SELECT Url
+            FROM StreamingServers
+            WHERE Uuid = ?
+        `,
+            [serverUuid],
+        )
+
+        if (Array.isArray(rows) && rows.length > 0) {
+            return (rows[0] as any).Url || null
+        }
+        return null
+    } catch (error) {
+        console.error(`Error fetching streaming server URL for UUID ${serverUuid}:`, error)
+        return null
+    }
 }
 
 // Group similar stations
@@ -474,10 +502,25 @@ async function publishRadioStation(stationGroup: StationGroup) {
     // Get all tags from the merged metadata
     const tags = Array.from(mergedMetadata.Tags)
 
+    // Fetch streaming server URL if ServerUuid is available
+    let streamingServerUrl = null
+    if (station.ServerUuid) {
+        streamingServerUrl = await fetchStreamingServerUrl(station.ServerUuid)
+    }
+
     // Create content object with tags in description - must match RadioEventContentSchema
-    const content = {
+    const content: {
+        description: string
+        streams: Stream[]
+        streamingServerUrl?: string
+    } = {
         description: tags.length > 0 ? tags.join(', ').toLowerCase() : `${station.Name} radio station`,
         streams: stationGroup.streams,
+    }
+
+    // Add streamingServerUrl to content if available
+    if (streamingServerUrl) {
+        content.streamingServerUrl = streamingServerUrl
     }
 
     // Create event with required tags
