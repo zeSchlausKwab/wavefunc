@@ -94,7 +94,10 @@ func main() {
 		defer blugeSearch.Close()
 		
 		// Register handlers for events
-		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, blugeSearch.SaveEvent)
+		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
+			log.Printf("Indexing event: ID=%s, Kind=%d, PubKey=%s", event.ID, event.Kind, event.PubKey)
+			return blugeSearch.SaveEvent(ctx, event)
+		})
 		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, blugeSearch.DeleteEvent)
 		
 		// Set up QueryEvents to route search queries to Bluge and regular queries to PostgreSQL
