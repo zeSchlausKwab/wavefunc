@@ -1,9 +1,3 @@
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Input } from '@wavefunc/ui/components/ui/input'
-import { Label } from '@wavefunc/ui/components/ui/label'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
-import { Textarea } from '@wavefunc/ui/components/ui/textarea'
-import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type NDK from '@nostr-dev-kit/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
@@ -18,6 +12,12 @@ import {
     type Station,
     type StationFormData,
 } from '@wavefunc/common'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Input } from '@wavefunc/ui/components/ui/input'
+import { Label } from '@wavefunc/ui/components/ui/label'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { AlertCircle, ExternalLink, Import, Plus, Trash, Wand2, X } from 'lucide-react'
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
@@ -90,9 +90,6 @@ const TagInput = ({
 interface EditStationDrawerProps {
     station?: Station
     isOpen: boolean
-    // onClose: () => void;
-    // onSave: (station: Partial<Station>) => void;
-    // onDelete?: (stationId: string) => void;
 }
 
 const emptyStream = {
@@ -165,7 +162,6 @@ function parsePlsContent(content: string): string[] {
 }
 
 async function parseStreamUrl(url: string) {
-    // Handle PLS files
     if (url.toLowerCase().endsWith('.pls')) {
         try {
             const content = await fetchPlsContent(url)
@@ -175,7 +171,6 @@ async function parseStreamUrl(url: string) {
                 throw new Error('No stream URLs found in PLS file')
             }
 
-            // Use the first stream URL and detect its quality
             const streamUrl = streamUrls[0]
             return {
                 url: streamUrl,
@@ -189,7 +184,6 @@ async function parseStreamUrl(url: string) {
         }
     }
 
-    // Handle M3U/M3U8 files
     if (url.toLowerCase().endsWith('.m3u') || url.toLowerCase().endsWith('.m3u8')) {
         return {
             url: url,
@@ -199,7 +193,6 @@ async function parseStreamUrl(url: string) {
         }
     }
 
-    // Handle direct stream URLs
     return {
         url: url,
         format: detectStreamFormat(url),
@@ -208,7 +201,6 @@ async function parseStreamUrl(url: string) {
     }
 }
 
-// Function to fetch station data from radio-browser.info API
 async function fetchFromRadioBrowser(stationName: string) {
     try {
         const encodedName = encodeURIComponent(stationName)
@@ -226,10 +218,80 @@ async function fetchFromRadioBrowser(stationName: string) {
     }
 }
 
+async function detectStreamingServerUrl(streams: { url: string }[]): Promise<{ url: string } | null> {
+    if (!streams || streams.length === 0) return null
+
+    const streamUrls = streams.map((stream) => stream.url)
+    const serverUrls = new Set<string>()
+
+    for (const url of streamUrls) {
+        try {
+            const parsedUrl = new URL(url)
+            const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`
+            serverUrls.add(baseUrl)
+        } catch (error) {
+            console.error('Error parsing URL:', error)
+        }
+    }
+
+    for (const serverUrl of serverUrls) {
+        const mightBeIcecast =
+            serverUrl.includes('icecast') ||
+            serverUrl.includes('stream') ||
+            serverUrl.includes('radio') ||
+            serverUrl.includes('audio') ||
+            streamUrls.some((url) => url.includes('.pls') || url.includes('.m3u'))
+
+        const statusUrl = `${serverUrl}/status-json.xsl`
+        const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(statusUrl)}`
+
+        try {
+            const response = await fetch(proxyUrl)
+
+            if (response.ok) {
+                toast('Streaming server detected!', {
+                    description: `Found Icecast server at ${serverUrl}`,
+                })
+                return { url: serverUrl }
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Invalid response from server' }))
+                console.warn('Error from proxy:', errorData)
+                throw new Error(errorData.error || 'Failed to validate streaming server')
+            }
+        } catch (error) {
+            console.warn('Error accessing Icecast status:', error)
+
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            const isProxyError = errorMessage.includes('Failed to fetch Icecast server')
+
+            if (
+                mightBeIcecast &&
+                !isProxyError &&
+                !(error instanceof Error && error.message.includes('Failed to validate'))
+            ) {
+                toast('Potential streaming server detected', {
+                    description: 'Could not verify server but URL pattern suggests a streaming server.',
+                    duration: 5000,
+                })
+                return { url: serverUrl }
+            }
+
+            if (isProxyError) {
+                throw new Error('Server does not appear to be a valid Icecast streaming server')
+            }
+
+            continue
+        }
+    }
+
+    throw new Error('Could not verify any streaming server')
+}
+
 export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [isImporting, setIsImporting] = React.useState(false)
     const [importName, setImportName] = React.useState('')
+    const [streamingServerUrlError, setStreamingServerUrlError] = React.useState<string | null>(null)
     const handleClose = () => {
         closeStationDrawer()
     }
@@ -253,6 +315,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             languageCodes: [],
             tags: [],
             streams: [emptyStream],
+            streamingServerUrl: '',
         },
     })
 
@@ -287,6 +350,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     ...stream,
                     primary: stream.primary ?? false,
                 })),
+                streamingServerUrl: station.streamingServerUrl || '',
             }
 
             reset(formData)
@@ -318,6 +382,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     countryCode: data.countryCode,
                     languageCodes: data.languageCodes,
                     tags: data.tags,
+                    streamingServerUrl: data.streamingServerUrl,
                 })
 
                 console.log('Station updated successfully:', ndkEvent)
@@ -333,11 +398,12 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     {
                         description: data.description,
                         streams: data.streams,
+                        streamingServerUrl: data.streamingServerUrl || undefined,
                     },
                     [
                         ['name', data.name],
-                        ['thumbnail', data.thumbnail],
-                        ['website', data.website],
+                        ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
+                        ...(data.website ? [['website', data.website]] : []),
                         ...data.tags.map((tag) => ['t', tag]),
                         ...data.languageCodes.map((code) => ['l', code]),
                         ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
@@ -425,6 +491,9 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         }
     }
 
+    // TODO: allow search or remove
+    // TODO: implement a check for the websiote name for similarities
+
     const handleImportFromRadioBrowser = async () => {
         if (!importName.trim()) {
             toast('Error', {
@@ -439,7 +508,6 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         try {
             setIsImporting(true)
             const stationData = await fetchFromRadioBrowser(importName)
-
             if (!stationData) {
                 toast('Not found', {
                     description: 'No station found with that name in radio-browser.info',
@@ -499,6 +567,56 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         }
     }
 
+    // Update the handleDetectStreamingServer function
+    const handleDetectStreamingServer = async () => {
+        try {
+            const streams = watch('streams')
+            if (!streams || streams.length === 0) {
+                toast('No streams available', {
+                    style: { background: 'red' },
+                })
+                return
+            }
+
+            toast('Detecting streaming server...', {
+                duration: 2000,
+            })
+
+            // Reset previous error state
+            setStreamingServerUrlError(null)
+
+            try {
+                const result = await detectStreamingServerUrl(streams)
+                if (result) {
+                    setValue('streamingServerUrl', result.url)
+                    toast('Streaming server detected!', {
+                        description: `Found server at ${result.url}`,
+                    })
+                }
+            } catch (error) {
+                console.error('Error detecting streaming server:', error)
+                // Set error state to trigger visual feedback
+                if (error instanceof Error) {
+                    setStreamingServerUrlError(error.message)
+                } else {
+                    setStreamingServerUrlError('Failed to validate streaming server')
+                }
+
+                // Keep the current URL but mark it as invalid
+                toast('Invalid streaming server URL', {
+                    description: 'The server could not be validated. Please correct or clear the URL.',
+                    style: { background: 'red' },
+                })
+            }
+        } catch (error) {
+            console.error('Unexpected error:', error)
+            setStreamingServerUrlError('An unexpected error occurred')
+            toast('Error detecting streaming server', {
+                style: { background: 'red' },
+            })
+        }
+    }
+
     return (
         <Sheet
             open={isOpen}
@@ -506,7 +624,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 if (!open) handleClose()
             }}
         >
-            <SheetContent className="w-[90vw] sm:max-w-[540px] overflow-y-auto">
+            <SheetContent className="w-[90vw] sm:max-w-[640px] overflow-y-auto">
                 <div className="absolute right-4 top-4">
                     <Button
                         variant="ghost"
@@ -616,27 +734,63 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                             )}
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="website">Website</Label>
+                            <Label htmlFor="website">Website (Optional)</Label>
                             <Input
                                 id="website"
                                 type="url"
                                 value={watch('website') || ''}
                                 onChange={(e) => setValue('website', e.target.value)}
-                                required
                             />
                             {errors.website && <p className="text-sm text-destructive">{errors.website.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="thumbnail">Thumbnail URL</Label>
+                            <Label htmlFor="thumbnail">Thumbnail URL (Optional)</Label>
                             <Input
                                 id="thumbnail"
                                 type="url"
                                 value={watch('thumbnail') || ''}
                                 onChange={(e) => setValue('thumbnail', e.target.value)}
-                                required
                             />
                             {errors.thumbnail && <p className="text-sm text-destructive">{errors.thumbnail.message}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="streamingServerUrl">Streaming Server URL (Optional)</Label>
+                            <div className="relative">
+                                <Input
+                                    id="streamingServerUrl"
+                                    type="url"
+                                    value={watch('streamingServerUrl') || ''}
+                                    onChange={(e) => {
+                                        setValue('streamingServerUrl', e.target.value)
+                                        // Clear error state when user modifies the field
+                                        if (streamingServerUrlError) setStreamingServerUrlError(null)
+                                    }}
+                                    placeholder="https://streaming-server.com"
+                                    className={streamingServerUrlError ? 'border-destructive' : ''}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                                    onClick={handleDetectStreamingServer}
+                                    title="Auto-detect streaming server from stream URLs"
+                                >
+                                    <Wand2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Checks if the server has a public '/status-json.xsl' endpoint typical of Icecast
+                                servers.
+                            </p>
+                            {streamingServerUrlError && (
+                                <p className="text-sm text-destructive">{streamingServerUrlError}</p>
+                            )}
+                            {errors.streamingServerUrl && (
+                                <p className="text-sm text-destructive">{errors.streamingServerUrl.message}</p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
