@@ -118,9 +118,11 @@ func main() {
 	relay := khatru.NewRelay()
 
 	relay.Info.Name = "Wavefunc Relay"
-	relay.Info.PubKey = os.Getenv("RELAY_PUBKEY")
-	relay.Info.Description = "Wavefuncs indexed relay for things related to Internet Radio"
+	relay.Info.PubKey = os.Getenv("APP_PUBKEY")
+	relay.Info.Description = "Wavefuncs indexed relay for things related to Internet Radio - https://wavefunc.live"
 	relay.Info.Icon = "https://wavefunc.live/images/logo.png"
+	relay.Info.AddSupportedNIP(50)
+	relay.Info.URL = "https://relay.wavefunc.live"
 	
 	// Get PostgreSQL connection string from env
 	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
