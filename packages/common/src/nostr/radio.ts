@@ -181,7 +181,7 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
 
     // Add streamingServerUrl if it exists in the RadioBrowser data
     if (radioBrowserStation.serverUrl) {
-        content.streamingServerUrl = radioBrowserStation.serverUrl;
+        content.streamingServerUrl = radioBrowserStation.serverUrl
     }
 
     // Generate a UUID-like d-tag value
@@ -589,10 +589,9 @@ export async function searchRadioStations(
     console.log('🔎 NIP-50 Search filter:', JSON.stringify(filter, null, 2))
 
     try {
-        // Debugging info about relays before making the request
         console.log(
             '📻 Connected relays:',
-            Array.from(ndk.pool?.relays.values() || [])
+            Array.from(searchNdk.pool?.relays.values() || [])
                 .map((r) => `${r.url} (${r.status})`)
                 .join(', '),
         )
