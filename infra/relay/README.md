@@ -135,3 +135,75 @@ This process ensures all radio station events are properly indexed with the corr
 ## Documentation
 
 For more detailed information about the search functionality, see [SEARCH.md](./SEARCH.md).
+
+# Nostr Relay Tools
+
+This directory contains tools for managing the Nostr relay.
+
+## Reset and Reindex Search Index
+
+The relay provides built-in admin endpoints to reset and rebuild the search index. This is useful when:
+
+- The search index is corrupted or outdated
+- You need to rebuild the index after schema changes
+- You want to ensure all events are properly indexed
+
+### Using the Admin Endpoints
+
+The relay has two admin endpoints for search index management:
+
+1. **Start Reindexing**:
+   ```
+   POST /admin/reset-search-index
+   ```
+
+2. **Check Indexing Status**:
+   ```
+   GET /admin/indexing-status
+   ```
+
+### Authentication
+
+Admin endpoints can be secured using a token-based authentication:
+
+1. Set the `ADMIN_AUTH_TOKEN` environment variable to a secure value
+2. Include this token in the `Authorization` header when making requests:
+   ```
+   Authorization: Bearer YOUR_AUTH_TOKEN
+   ```
+
+### Example Usage
+
+To trigger a reindex:
+
+```bash
+curl -X POST http://your-relay-host:3002/admin/reset-search-index \
+  -H "Authorization: Bearer YOUR_AUTH_TOKEN"
+```
+
+To check the status:
+
+```bash
+curl http://your-relay-host:3002/admin/indexing-status
+```
+
+The status endpoint returns a JSON response with the current indexing status:
+
+```json
+{
+  "isIndexing": true,
+  "status": "Processing batch at offset 5000 (5000/25000)",
+  "percent": 20.0
+}
+```
+
+### Important Notes
+
+- Reindexing happens in the background and does not block the main relay operations
+- The search index will be unavailable briefly at the end of the process while it's being updated
+- Only one reindexing operation can run at a time
+
+## Other Tools
+
+- `backfill_search.go`: One-time script to initially build the search index (no HTTP server)
+- `main.go`: Main relay server implementation
