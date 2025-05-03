@@ -109,7 +109,6 @@ async function fetchStations(): Promise<DBStation[]> {
             ExtendedInfo
         FROM Station 
         WHERE LastCheckOK = 1
-        LIMIT 10000
     `)
     return rows as DBStation[]
 }
