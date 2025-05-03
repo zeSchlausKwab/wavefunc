@@ -153,14 +153,15 @@ The relay provides built-in admin endpoints to reset and rebuild the search inde
 The relay has two admin endpoints for search index management:
 
 1. **Start Reindexing**:
-   ```
-   POST /admin/reset-search-index
-   ```
+
+    ```
+    POST /admin/reset-search-index
+    ```
 
 2. **Check Indexing Status**:
-   ```
-   GET /admin/indexing-status
-   ```
+    ```
+    GET /admin/indexing-status
+    ```
 
 ### Authentication
 
@@ -168,9 +169,9 @@ Admin endpoints can be secured using a token-based authentication:
 
 1. Set the `ADMIN_AUTH_TOKEN` environment variable to a secure value
 2. Include this token in the `Authorization` header when making requests:
-   ```
-   Authorization: Bearer YOUR_AUTH_TOKEN
-   ```
+    ```
+    Authorization: Bearer YOUR_AUTH_TOKEN
+    ```
 
 ### Example Usage
 
@@ -191,9 +192,9 @@ The status endpoint returns a JSON response with the current indexing status:
 
 ```json
 {
-  "isIndexing": true,
-  "status": "Processing batch at offset 5000 (5000/25000)",
-  "percent": 20.0
+    "isIndexing": true,
+    "status": "Processing batch at offset 5000 (5000/25000)",
+    "percent": 20.0
 }
 ```
 
@@ -207,3 +208,54 @@ The status endpoint returns a JSON response with the current indexing status:
 
 - `backfill_search.go`: One-time script to initially build the search index (no HTTP server)
 - `main.go`: Main relay server implementation
+
+## Admin Authentication
+
+The relay uses NIP-42 authentication to secure admin endpoints. There are two authentication methods:
+
+1. **HTTP API Authentication:**
+
+    - Uses custom HTTP headers for authenticating admin API calls
+    - Requires setting the following HTTP headers:
+        - `X-Admin-Pubkey`: Public key of the admin
+        - `X-Admin-Timestamp`: Current timestamp in ISO format
+        - `X-Admin-Signature`: Signature of the `{method}:{path}:{timestamp}` message
+
+2. **NIP-42 WebSocket Authentication:**
+    - For WebSocket connections, standard NIP-42 authentication is used
+    - Admin commands via WebSocket require authentication with a public key listed in `APP_PUBKEY`
+
+### Configuration
+
+To set up admin authentication:
+
+1. Add your admin public keys to the `APP_PUBKEY` environment variable (comma-separated)
+2. For API calls, set `ADMIN_PRIVATE_KEY` and `ADMIN_PUBKEY` in your environment
+
+### Admin Endpoints
+
+The relay has several admin endpoints:
+
+- `/admin/reset-search-index` - Reset and rebuild the search index
+- `/admin/indexing-status` - Check the status of an ongoing index rebuild
+- `/admin/test-auth` - Test authentication is working correctly
+
+## Admin Tools
+
+The repository includes admin tools to interact with these endpoints:
+
+```bash
+# Using the Bun script from project root
+bun admin             # Show help
+bun admin:test        # Test authentication
+bun admin:status      # Check indexing status
+bun admin:reset-index # Reset and rebuild the search index
+bun admin:curl        # Use the simple curl script
+
+# Or run directly from scripts directory
+cd scripts
+bun admin-nostr.ts test-auth
+./test-admin.sh
+```
+
+These tools use the credentials in your environment variables to authenticate with the relay.

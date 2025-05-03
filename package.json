@@ -18,7 +18,11 @@
         "test": "bun test",
         "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
         "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
-        "migrate": "bun run scripts/migrate.ts"
+        "migrate": "bun run scripts/migrate.ts",
+        "admin": "bun run scripts/admin-nostr.ts",
+        "admin:test": "bun run scripts/admin-nostr.ts test-auth",
+        "admin:status": "bun run scripts/admin-nostr.ts status",
+        "admin:reset-index": "bun run scripts/admin-nostr.ts reset-index"
     },
     "devDependencies": {
         "@types/bun": "^1.2.5",
