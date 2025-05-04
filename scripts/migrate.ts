@@ -137,13 +137,25 @@ async function fetchStreamingServerUrl(serverUuid: string): Promise<string | nul
     }
 }
 
+// Extract domain from URL
+function extractDomain(url: string): string | null {
+    try {
+        // Handle URLs without protocol
+        if (!url.includes('://')) {
+            url = 'http://' + url
+        }
+
+        const urlObj = new URL(url)
+        return urlObj.hostname
+    } catch (e) {
+        return null
+    }
+}
+
 // Group similar stations
 function groupSimilarStations(stations: DBStation[]): StationGroup[] {
     const groups: StationGroup[] = []
     const processedStationIds = new Set<string>()
-
-    // Increase similarity threshold to require higher match (0.9 = 90% similar)
-    const SIMILARITY_THRESHOLD = 0.9
 
     // For statistics
     const groupingStats = {
@@ -154,30 +166,253 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
         groupSizes: {} as Record<number, number>, // Size -> count
     }
 
-    // Group by exact name match first (case insensitive)
-    const nameGroups: Record<string, DBStation[]> = {}
+    // First, group stations by domain+name for more accurate matching
+    const domainNameGroups: Record<string, DBStation[]> = {}
 
-    // First pass: group by exact name match
+    // Create domain+name grouping keys
     stations.forEach((station) => {
-        const nameLower = station.Name.toLowerCase().trim()
-        if (!nameGroups[nameLower]) {
-            nameGroups[nameLower] = []
+        const normalizedName = station.Name.toLowerCase().trim()
+        const domain = extractDomain(station.Url)
+
+        if (!domain) return
+
+        // Create a compound key of domain root + normalized name
+        // Extract the root domain (e.g., radio1.si from live.radio1.si)
+        const domainParts = domain.split('.')
+        let rootDomain = domain
+
+        if (domainParts.length >= 2) {
+            // Get the last two parts of the domain (e.g., radio1.si)
+            rootDomain = domainParts.slice(-2).join('.')
         }
-        nameGroups[nameLower].push(station)
+
+        const key = `${rootDomain}_${normalizedName}`
+
+        if (!domainNameGroups[key]) {
+            domainNameGroups[key] = []
+        }
+
+        domainNameGroups[key].push(station)
     })
 
-    // Process exact name matches first
-    Object.entries(nameGroups).forEach(([name, stationsWithSameName]) => {
-        if (stationsWithSameName.length > 1) {
-            // Found stations with exactly the same name
-            const mainStation = stationsWithSameName[0]
+    // Process domain+name groups first
+    for (const [key, stationsInGroup] of Object.entries(domainNameGroups)) {
+        // Skip if all stations in this group are already processed
+        if (stationsInGroup.every((station) => processedStationIds.has(station.StationUuid))) {
+            continue
+        }
 
-            if (processedStationIds.has(mainStation.StationUuid)) return
+        // Get unprocessed stations
+        const unprocessedStations = stationsInGroup.filter((station) => !processedStationIds.has(station.StationUuid))
+
+        if (unprocessedStations.length === 0) continue
+
+        // Sort by LastCheckTime (most recent first) and LastCheckOK (1 before 0)
+        unprocessedStations.sort((a, b) => {
+            // First prioritize stations that passed the check
+            if (a.LastCheckOK !== b.LastCheckOK) {
+                return b.LastCheckOK - a.LastCheckOK
+            }
+
+            // Then by recent check time
+            if (!a.LastCheckTime) return 1
+            if (!b.LastCheckTime) return -1
+            return new Date(b.LastCheckTime).getTime() - new Date(a.LastCheckTime).getTime()
+        })
+
+        const mainStation = unprocessedStations[0]
+        processedStationIds.add(mainStation.StationUuid)
+
+        // Create a Set for unique stream URLs to avoid duplicates
+        const uniqueStreamUrls = new Set<string>()
+
+        // Initialize the merged metadata
+        const mergedMetadata = {
+            Homepage: mainStation.Homepage || '',
+            Favicon: mainStation.Favicon || '',
+            Tags: new Set<string>(
+                mainStation.Tags
+                    ? mainStation.Tags.split(',')
+                          .map((t) => t.trim())
+                          .filter(Boolean)
+                    : [],
+            ),
+            CountryCode: mainStation.CountryCode || '',
+            Country: mainStation.Country || '',
+            Language: mainStation.Language || '',
+            LanguageCodes: new Set<string>(
+                mainStation.LanguageCodes
+                    ? mainStation.LanguageCodes.split(',')
+                          .map((c) => c.trim())
+                          .filter(Boolean)
+                    : [],
+            ),
+        }
+
+        // Add main station's stream
+        uniqueStreamUrls.add(mainStation.Url)
+
+        const streams: Stream[] = [
+            {
+                url: mainStation.Url,
+                format: mainStation.Codec ? `audio/${mainStation.Codec.toLowerCase()}` : 'audio/mpeg',
+                quality: {
+                    bitrate: (mainStation.Bitrate || 128) * 1000,
+                    codec: mainStation.Codec || 'mp3',
+                    sampleRate: 44100,
+                },
+                primary: true,
+            },
+        ]
+
+        const similarStations: DBStation[] = []
+        let duplicatesInGroup = 0
+
+        // Process all other stations in this domain+name group
+        for (let i = 1; i < unprocessedStations.length; i++) {
+            const similar = unprocessedStations[i]
+
+            // Skip if URL is already included
+            if (uniqueStreamUrls.has(similar.Url)) continue
+
+            // Verify the stations are truly related by checking country
+            // If both stations have country codes and they differ, they're different stations
+            if (mainStation.CountryCode && similar.CountryCode && mainStation.CountryCode !== similar.CountryCode) {
+                continue
+            }
+
+            // Add this station
+            similarStations.push(similar)
+            duplicatesInGroup++
+            processedStationIds.add(similar.StationUuid)
+            uniqueStreamUrls.add(similar.Url)
+
+            // Add stream
+            streams.push({
+                url: similar.Url,
+                format: similar.Codec ? `audio/${similar.Codec.toLowerCase()}` : 'audio/mpeg',
+                quality: {
+                    bitrate: (similar.Bitrate || 128) * 1000,
+                    codec: similar.Codec || 'mp3',
+                    sampleRate: 44100,
+                },
+                primary: false,
+            })
+
+            // Merge metadata from similar station
+            mergeStationMetadata(mergedMetadata, similar)
+        }
+
+        // Create the station group
+        const group: StationGroup = {
+            mainStation,
+            streams,
+            similarStations,
+            mergedMetadata,
+        }
+
+        // Update statistics
+        groupingStats.totalGroups++
+        groupingStats.totalDuplicatesFound += duplicatesInGroup
+
+        const groupSize = duplicatesInGroup + 1
+        groupingStats.groupSizes[groupSize] = (groupingStats.groupSizes[groupSize] || 0) + 1
+
+        if (groupSize > groupingStats.largestGroupSize) {
+            groupingStats.largestGroupSize = groupSize
+            groupingStats.largestGroupName = mainStation.Name
+        }
+
+        groups.push(group)
+    }
+
+    // Now look for remaining stations that might be related by domain pattern
+    // but have slightly different names, focusing on same root domain
+    const domainGroups: Record<string, DBStation[]> = {}
+
+    // Group remaining stations by domain
+    for (let i = 0; i < stations.length; i++) {
+        const station = stations[i]
+
+        // Skip if already processed
+        if (processedStationIds.has(station.StationUuid)) continue
+
+        const domain = extractDomain(station.Url)
+        if (!domain) continue
+
+        // Extract the root domain (e.g., radio1.si from live.radio1.si)
+        const domainParts = domain.split('.')
+        let rootDomain = domain
+
+        if (domainParts.length >= 2) {
+            // Get the last two parts of the domain (e.g., radio1.si)
+            rootDomain = domainParts.slice(-2).join('.')
+        }
+
+        if (!domainGroups[rootDomain]) {
+            domainGroups[rootDomain] = []
+        }
+
+        domainGroups[rootDomain].push(station)
+    }
+
+    // Process domain groups
+    for (const [rootDomain, stationsInDomain] of Object.entries(domainGroups)) {
+        // Skip single-station domains
+        if (stationsInDomain.length <= 1) {
+            continue
+        }
+
+        // Group stations by name similarity within the same domain
+        const nameGroupsInDomain: Record<string, DBStation[]> = {}
+
+        // Create simplified name groups (removing common words)
+        stationsInDomain.forEach((station) => {
+            // Simplify name by removing common words like "radio", "fm", etc.
+            let simplifiedName = station.Name.toLowerCase()
+                .replace(/\bradio\b|\bfm\b|\bmusic\b|\bonline\b|\bofficial\b|\bstream\b/g, '')
+                .trim()
+                .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
+
+            if (!nameGroupsInDomain[simplifiedName]) {
+                nameGroupsInDomain[simplifiedName] = []
+            }
+
+            nameGroupsInDomain[simplifiedName].push(station)
+        })
+
+        // Process each name group within this domain
+        for (const [simplifiedName, stationsWithSimilarName] of Object.entries(nameGroupsInDomain)) {
+            if (stationsWithSimilarName.length <= 1) continue
+
+            // Get unprocessed stations
+            const unprocessedStations = stationsWithSimilarName.filter(
+                (station) => !processedStationIds.has(station.StationUuid),
+            )
+
+            if (unprocessedStations.length <= 1) continue
+
+            // Sort by LastCheckTime (most recent first) and LastCheckOK
+            unprocessedStations.sort((a, b) => {
+                if (a.LastCheckOK !== b.LastCheckOK) {
+                    return b.LastCheckOK - a.LastCheckOK
+                }
+
+                if (!a.LastCheckTime) return 1
+                if (!b.LastCheckTime) return -1
+                return new Date(b.LastCheckTime).getTime() - new Date(a.LastCheckTime).getTime()
+            })
+
+            const mainStation = unprocessedStations[0]
+            processedStationIds.add(mainStation.StationUuid)
+
+            // Create a Set for unique stream URLs to avoid duplicates
+            const uniqueStreamUrls = new Set<string>()
 
             // Initialize the merged metadata
             const mergedMetadata = {
-                Homepage: mainStation.Homepage,
-                Favicon: mainStation.Favicon,
+                Homepage: mainStation.Homepage || '',
+                Favicon: mainStation.Favicon || '',
                 Tags: new Set<string>(
                     mainStation.Tags
                         ? mainStation.Tags.split(',')
@@ -185,9 +420,9 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                               .filter(Boolean)
                         : [],
                 ),
-                CountryCode: mainStation.CountryCode,
-                Country: mainStation.Country,
-                Language: mainStation.Language,
+                CountryCode: mainStation.CountryCode || '',
+                Country: mainStation.Country || '',
+                Language: mainStation.Language || '',
                 LanguageCodes: new Set<string>(
                     mainStation.LanguageCodes
                         ? mainStation.LanguageCodes.split(',')
@@ -197,90 +432,94 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                 ),
             }
 
+            // Add main station's stream
+            uniqueStreamUrls.add(mainStation.Url)
+
+            const streams: Stream[] = [
+                {
+                    url: mainStation.Url,
+                    format: mainStation.Codec ? `audio/${mainStation.Codec.toLowerCase()}` : 'audio/mpeg',
+                    quality: {
+                        bitrate: (mainStation.Bitrate || 128) * 1000,
+                        codec: mainStation.Codec || 'mp3',
+                        sampleRate: 44100,
+                    },
+                    primary: true,
+                },
+            ]
+
+            const similarStations: DBStation[] = []
+            let duplicatesInGroup = 0
+
+            // Process all other stations with similar name and same domain
+            for (let i = 1; i < unprocessedStations.length; i++) {
+                const similar = unprocessedStations[i]
+
+                // Skip if URL is already included
+                if (uniqueStreamUrls.has(similar.Url)) continue
+
+                // Verify the stations are truly related by checking country
+                if (mainStation.CountryCode && similar.CountryCode && mainStation.CountryCode !== similar.CountryCode) {
+                    continue
+                }
+
+                // Add this station
+                similarStations.push(similar)
+                duplicatesInGroup++
+                processedStationIds.add(similar.StationUuid)
+                uniqueStreamUrls.add(similar.Url)
+
+                // Add stream
+                streams.push({
+                    url: similar.Url,
+                    format: similar.Codec ? `audio/${similar.Codec.toLowerCase()}` : 'audio/mpeg',
+                    quality: {
+                        bitrate: (similar.Bitrate || 128) * 1000,
+                        codec: similar.Codec || 'mp3',
+                        sampleRate: 44100,
+                    },
+                    primary: false,
+                })
+
+                // Merge metadata from similar station
+                mergeStationMetadata(mergedMetadata, similar)
+            }
+
+            // Create the station group
             const group: StationGroup = {
                 mainStation,
-                streams: [
-                    {
-                        url: mainStation.Url,
-                        format: mainStation.Codec ? `audio/${mainStation.Codec.toLowerCase()}` : 'audio/mpeg',
-                        quality: {
-                            bitrate: (mainStation.Bitrate || 128) * 1000,
-                            codec: mainStation.Codec || 'mp3',
-                            sampleRate: 44100,
-                        },
-                        primary: true,
-                    },
-                ],
-                similarStations: [],
+                streams,
+                similarStations,
                 mergedMetadata,
             }
 
-            processedStationIds.add(mainStation.StationUuid)
-            let duplicatesInGroup = 0
+            // Update statistics
+            groupingStats.totalGroups++
+            groupingStats.totalDuplicatesFound += duplicatesInGroup
 
-            // Add all other stations with the same name
-            for (let i = 1; i < stationsWithSameName.length; i++) {
-                const similar = stationsWithSameName[i]
+            const groupSize = duplicatesInGroup + 1
+            groupingStats.groupSizes[groupSize] = (groupingStats.groupSizes[groupSize] || 0) + 1
 
-                // Ensure URLs are different
-                if (similar.Url !== mainStation.Url) {
-                    // Only group streams that are likely to be the same station with different quality
-                    // This heuristic looks for common URL patterns to avoid grouping different stations
-                    const isSameStation = areRelatedStreams(mainStation, similar)
-
-                    if (isSameStation) {
-                        group.similarStations.push(similar)
-                        duplicatesInGroup++
-
-                        group.streams.push({
-                            url: similar.Url,
-                            format: similar.Codec ? `audio/${similar.Codec.toLowerCase()}` : 'audio/mpeg',
-                            quality: {
-                                bitrate: (similar.Bitrate || 128) * 1000,
-                                codec: similar.Codec || 'mp3',
-                                sampleRate: 44100,
-                            },
-                            primary: false,
-                        })
-
-                        processedStationIds.add(similar.StationUuid)
-
-                        // Merge metadata from similar station
-                        mergeStationMetadata(group.mergedMetadata, similar)
-                    }
-                }
+            if (groupSize > groupingStats.largestGroupSize) {
+                groupingStats.largestGroupSize = groupSize
+                groupingStats.largestGroupName = mainStation.Name
             }
 
-            // Only add groups that have multiple streams
-            if (group.streams.length > 1) {
-                // Update statistics
-                groupingStats.totalGroups++
-                groupingStats.totalDuplicatesFound += duplicatesInGroup
-
-                const groupSize = duplicatesInGroup + 1
-                groupingStats.groupSizes[groupSize] = (groupingStats.groupSizes[groupSize] || 0) + 1
-
-                if (groupSize > groupingStats.largestGroupSize) {
-                    groupingStats.largestGroupSize = groupSize
-                    groupingStats.largestGroupName = mainStation.Name
-                }
-
-                groups.push(group)
-            }
+            groups.push(group)
         }
-    })
+    }
 
-    // Second pass: for stations not yet grouped, create individual groups
+    // Create individual groups for remaining stations
     for (let i = 0; i < stations.length; i++) {
         const station = stations[i]
 
-        // Skip if we've already processed this station
+        // Skip if already processed
         if (processedStationIds.has(station.StationUuid)) continue
 
         // Initialize the merged metadata for this single station
         const mergedMetadata = {
-            Homepage: station.Homepage,
-            Favicon: station.Favicon,
+            Homepage: station.Homepage || '',
+            Favicon: station.Favicon || '',
             Tags: new Set<string>(
                 station.Tags
                     ? station.Tags.split(',')
@@ -288,9 +527,9 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
                           .filter(Boolean)
                     : [],
             ),
-            CountryCode: station.CountryCode,
-            Country: station.Country,
-            Language: station.Language,
+            CountryCode: station.CountryCode || '',
+            Country: station.Country || '',
+            Language: station.Language || '',
             LanguageCodes: new Set<string>(
                 station.LanguageCodes
                     ? station.LanguageCodes.split(',')
@@ -321,9 +560,6 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
 
         processedStationIds.add(station.StationUuid)
 
-        // We're no longer doing fuzzy similarity matching
-        // Each station not exactly matched gets its own entry
-
         // Update statistics for single stations
         groupingStats.totalGroups++
 
@@ -341,11 +577,12 @@ function groupSimilarStations(stations: DBStation[]): StationGroup[] {
 
 // Helper to merge metadata from similar stations
 function mergeStationMetadata(mergedMetadata: StationGroup['mergedMetadata'], station: DBStation): void {
-    // For Homepage and Favicon, take the first non-empty value
+    // For Homepage, prefer non-empty values
     if (!mergedMetadata.Homepage && station.Homepage) {
         mergedMetadata.Homepage = station.Homepage
     }
 
+    // For Favicon, prefer non-empty values
     if (!mergedMetadata.Favicon && station.Favicon) {
         mergedMetadata.Favicon = station.Favicon
     }
@@ -383,85 +620,6 @@ function mergeStationMetadata(mergedMetadata: StationGroup['mergedMetadata'], st
                 mergedMetadata.LanguageCodes.add(trimmedCode)
             }
         })
-    }
-}
-
-// Helper to determine if two stations are related streams of the same station
-function areRelatedStreams(station1: DBStation, station2: DBStation): boolean {
-    // Don't consider "Radio Caprice" stations the same - they're different
-    if (station1.Name.includes('Radio Caprice') || station2.Name.includes('Radio Caprice')) {
-        return false
-    }
-
-    // Don't consider "ANTENNEBAYERN" stations the same - they're different channels
-    if (station1.Name.includes('ANTENNEBAYERN') || station2.Name.includes('ANTENNEBAYERN')) {
-        return false
-    }
-
-    // Extract domain names from URLs to compare
-    const domain1 = extractDomain(station1.Url)
-    const domain2 = extractDomain(station2.Url)
-
-    // If domains are the same, they might be different quality streams of the same station
-    if (domain1 && domain2 && domain1 === domain2) {
-        // Same domain, likely different quality streams of the same station
-        // Look for URL patterns that suggest different bitrates/formats
-        const url1 = station1.Url.toLowerCase()
-        const url2 = station2.Url.toLowerCase()
-
-        // Check if URLs differ in quality indicators: mp3/aac, bitrate numbers, etc.
-        const qualityKeywords = [
-            'mp3',
-            'aac',
-            'ogg',
-            'flac',
-            'opus',
-            '64',
-            '96',
-            '128',
-            '192',
-            '256',
-            '320',
-            'low',
-            'medium',
-            'high',
-            'hd',
-            'mobile',
-            'web',
-            'quality',
-            'hq',
-            'lq',
-            'hi',
-            'lo',
-            'best',
-        ]
-
-        // Count quality-related differences between URLs
-        let qualityDifferences = 0
-        for (const keyword of qualityKeywords) {
-            if (url1.includes(keyword) !== url2.includes(keyword)) {
-                qualityDifferences++
-            }
-        }
-
-        return qualityDifferences > 0
-    }
-
-    return false
-}
-
-// Helper to extract domain from URL
-function extractDomain(url: string): string | null {
-    try {
-        // Handle URLs without protocol
-        if (!url.includes('://')) {
-            url = 'http://' + url
-        }
-
-        const urlObj = new URL(url)
-        return urlObj.hostname
-    } catch (e) {
-        return null
     }
 }
 
@@ -507,6 +665,16 @@ async function publishRadioStation(stationGroup: StationGroup) {
         streamingServerUrl = await fetchStreamingServerUrl(station.ServerUuid)
     }
 
+    // Sort streams by bitrate (highest first) to ensure better quality streams are preferred
+    const sortedStreams = [...stationGroup.streams].sort((a, b) => {
+        return (b.quality.bitrate || 0) - (a.quality.bitrate || 0)
+    })
+
+    // Set the highest quality stream as primary
+    sortedStreams.forEach((stream, idx) => {
+        stream.primary = idx === 0
+    })
+
     // Create content object with tags in description - must match RadioEventContentSchema
     const content: {
         description: string
@@ -514,7 +682,7 @@ async function publishRadioStation(stationGroup: StationGroup) {
         streamingServerUrl?: string
     } = {
         description: tags.length > 0 ? tags.join(', ').toLowerCase() : `${station.Name} radio station`,
-        streams: stationGroup.streams,
+        streams: sortedStreams,
     }
 
     // Add streamingServerUrl to content if available
