@@ -22,7 +22,12 @@
         "admin": "bun run scripts/admin-nostr.ts",
         "admin:test": "bun run scripts/admin-nostr.ts test-auth",
         "admin:status": "bun run scripts/admin-nostr.ts status",
-        "admin:reset-index": "bun run scripts/admin-nostr.ts reset-index"
+        "admin:reset-index": "bun run scripts/admin-nostr.ts reset-index",
+        "admin:curl": "./scripts/test-admin.sh",
+        "publish:handler": "bun run scripts/publish-handler.ts",
+        "publish:handler:live": "bun run scripts/publish-handler.ts --live",
+        "publish:handler:direct": "bun run scripts/publish-handler.ts --direct",
+        "publish:handler:live:direct": "bun run scripts/publish-handler.ts --live --direct"
     },
     "devDependencies": {
         "@types/bun": "^1.2.5",

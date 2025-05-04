@@ -1,9 +1,27 @@
 {
     "names": {
-        "zeRealSchlausKwab": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3"
+        "zeRealSchlausKwab": "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3",
+        "Wavefunc": "210f31b6019f5ae13c995c8d83faa41a129f1296842e4c3313ab8a4abb09d1a2"
     },
     "relays": {
         "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3": [
+            "wss://relay.wavefunc.live",
+            "wss://nostr-relay.wlvs.space",
+            "wss://relay.damus.io",
+            "wss://nostr-pub.wellorder.net",
+            "wss://relay.nostr.info",
+            "wss://nostr.bitcoiner.social",
+            "wss://nostr.onsats.org",
+            "wss://nostr.oxtr.dev",
+            "wss://nostr.fmt.wiz.biz",
+            "wss://nproxy.zerologin.com",
+            "wss://elden.nostr.land",
+            "wss://relay.snort.social",
+            "wss://nos.lol",
+            "wss://offchain.pub",
+            "wss://relay.current.fyi"
+        ],
+        "210f31b6019f5ae13c995c8d83faa41a129f1296842e4c3313ab8a4abb09d1a2": [
             "wss://relay.wavefunc.live",
             "wss://nostr-relay.wlvs.space",
             "wss://relay.damus.io",

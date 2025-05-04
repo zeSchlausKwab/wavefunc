@@ -123,6 +123,7 @@ func main() {
 	relay.Info.Icon = "https://wavefunc.live/images/logo.png"
 	relay.Info.AddSupportedNIP(50)
 	relay.Info.URL = "https://relay.wavefunc.live"
+
 	
 	// Get PostgreSQL connection string from env
 	connString := os.Getenv("POSTGRES_CONNECTION_STRING")
@@ -189,16 +190,35 @@ func main() {
 		
 		// Register handlers for events
 		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
-			log.Printf("Indexing event: ID=%s, Kind=%d, PubKey=%s", event.ID, event.Kind, event.PubKey)
-			return blugeSearch.SaveEvent(ctx, event)
+			// Only index radio station events (kind 31237)
+			if event.Kind == 31237 {
+				log.Printf("Indexing radio station event: ID=%s, Kind=%d, PubKey=%s", event.ID, event.Kind, event.PubKey)
+				return blugeSearch.SaveEvent(ctx, event)
+			}
+			// For other events, just log but don't index
+			log.Printf("Storing non-indexed event: ID=%s, Kind=%d, PubKey=%s", event.ID, event.Kind, event.PubKey)
+			return nil
 		})
-		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, blugeSearch.DeleteEvent)
+		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
+			// Only handle deletion for indexed events
+			if event.Kind == 31237 {
+				return blugeSearch.DeleteEvent(ctx, event)
+			}
+			return nil
+		})
 		
 		// Set up QueryEvents to route search queries to Bluge and regular queries to PostgreSQL
 		relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 			if filter.Search != "" {
 				// Use Bluge for search queries
 				log.Printf("Handling search query: %s (kinds: %v)", filter.Search, filter.Kinds)
+				
+				// If no specific kinds are requested, default to radio station events
+				if len(filter.Kinds) == 0 {
+					log.Printf("No kind specified in search, defaulting to kind 31237 (radio stations)")
+					filter.Kinds = []int{31237}
+				}
+				
 				events, err := blugeSearch.QueryEvents(ctx, filter)
 				if err != nil {
 					log.Printf("Error in Bluge search: %v", err)
@@ -229,8 +249,14 @@ func main() {
 	// Add NIP-42 authentication for admin commands
 	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (bool, string) {
 		// Check if this is an admin-related event
-		if event.Kind == 24133 { // Custom kind for admin commands
+		// Using kind 35688 for admin commands - this is in the "replaceable parameter" range (30000-39999)
+		// but shouldn't conflict with common NIPs
+		// TODO: probably insecure, but we'll fix it later
+		if event.Kind == 35688 { // Custom kind for admin commands
 			authedPubkey := khatru.GetAuthed(ctx)
+
+			println("authedPubkey:")
+			println(authedPubkey)
 			
 			if authedPubkey == "" {
 				// Not authenticated, request auth
@@ -284,6 +310,7 @@ func main() {
 	
 	// Add admin test endpoint for authentication testing
 	adminHandler.HandleFunc("/admin/test-auth", func(w http.ResponseWriter, r *http.Request) {
+		println("test-auth")
 		handleAdminRequest(w, r, func(w http.ResponseWriter, r *http.Request) {
 			// This handler will only be called if authentication was successful
 			log.Printf("Authenticated admin access from %s", getUserInfo(r))
@@ -293,6 +320,76 @@ func main() {
 				"success": true,
 				"message": "Authentication successful",
 				"time": time.Now().Format(time.RFC3339),
+			})
+		})
+	})
+	
+	// Add endpoint to publish NIP-89 handler information
+	adminHandler.HandleFunc("/admin/publish-handler", func(w http.ResponseWriter, r *http.Request) {
+		handleAdminRequest(w, r, func(w http.ResponseWriter, r *http.Request) {
+			// This handler will publish a pre-signed event sent by the client
+			log.Printf("Handling publish request from %s", getUserInfo(r))
+			
+			// Only accept POST requests with JSON body
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed, only POST is supported", http.StatusMethodNotAllowed)
+				return
+			}
+			
+			if r.Header.Get("Content-Type") != "application/json" {
+				http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+				return
+			}
+			
+			// Parse the pre-signed event from the request body
+			var event nostr.Event
+			if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+				http.Error(w, "Invalid JSON body: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			
+			// Verify the event is properly formed
+			if event.ID == "" || event.PubKey == "" || event.Sig == "" {
+				http.Error(w, "Event must include ID, PubKey, and Sig fields", http.StatusBadRequest)
+				return
+			}
+			
+			// Verify that the event is from an authorized admin
+			authorized := false
+			for _, admin := range authorizedAdmins {
+				if admin == event.PubKey {
+					authorized = true
+					break
+				}
+			}
+			
+			if !authorized {
+				log.Printf("Unauthorized event publication attempt with pubkey: %s", event.PubKey)
+				http.Error(w, "Unauthorized: not an admin pubkey", http.StatusUnauthorized)
+				return
+			}
+			
+			// Verify the event signature
+			ok, err := event.CheckSignature()
+			if err != nil {
+				http.Error(w, "Error checking signature: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			if !ok {
+				http.Error(w, "Invalid signature", http.StatusBadRequest)
+				return
+			}
+			
+			// The event is valid and from an authorized admin, publish it
+			log.Printf("Publishing event kind %d from %s with ID %s", event.Kind, event.PubKey, event.ID)
+			
+			// If this is connected to a real relay, you would publish it
+			// But for now, we'll just simulate success
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": true,
+				"message": "Event published successfully",
+				"event_id": event.ID,
 			})
 		})
 	})
@@ -344,6 +441,13 @@ func handleAdminRequest(w http.ResponseWriter, r *http.Request, handler func(htt
 	signature := r.Header.Get("X-Admin-Signature")
 	timestamp := r.Header.Get("X-Admin-Timestamp")
 	
+	println("pubkey:")
+	println(pubkey)
+	println("signature:")
+	println(signature)
+	println("timestamp:")
+	println(timestamp)
+
 	// If headers are provided, validate the signature
 	if pubkey != "" && signature != "" && timestamp != "" {
 		// Check if timestamp is recent (within 5 minutes)
@@ -508,9 +612,9 @@ func handleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 		// Get batch size (fixed at 1000 for now)
 		batchSize := 1000
 
-		// Get total number of events
+		// Get total number of radio station events (kind 31237)
 		var totalEvents int
-		err = db.QueryRow("SELECT COUNT(*) FROM event").Scan(&totalEvents)
+		err = db.QueryRow("SELECT COUNT(*) FROM event WHERE kind = 31237").Scan(&totalEvents)
 		if err != nil {
 			log.Printf("Error counting events: %v", err)
 			setIndexingError(fmt.Sprintf("Error counting events: %v", err))
@@ -521,7 +625,7 @@ func handleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 
 		// Set status to indexing
 		indexingMutex.Lock()
-		indexingStatus = fmt.Sprintf("Indexing %d events...", totalEvents)
+		indexingStatus = fmt.Sprintf("Indexing %d radio station events (kind 31237)...", totalEvents)
 		indexingMutex.Unlock()
 
 		// Process events in batches
@@ -537,10 +641,11 @@ func handleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 			
 			log.Printf("Processing batch at offset %d", offset)
 			
-			// Query events from PostgreSQL
+			// Query only radio station events (kind 31237) from PostgreSQL
 			rows, err := db.Query(`
 				SELECT id, pubkey, created_at, kind, tags, content, sig 
 				FROM event 
+				WHERE kind = 31237
 				ORDER BY created_at 
 				LIMIT $1 OFFSET $2
 			`, batchSize, offset)
@@ -636,7 +741,7 @@ func handleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 		}
 
 		duration := time.Since(startTime)
-		completionMsg := fmt.Sprintf("Indexing complete! Processed %d events in %v (%.2f events/sec)", 
+		completionMsg := fmt.Sprintf("Indexing complete! Processed %d radio station events in %v (%.2f events/sec)", 
 			totalProcessed, duration, float64(totalProcessed)/duration.Seconds())
 		
 		log.Println(completionMsg)

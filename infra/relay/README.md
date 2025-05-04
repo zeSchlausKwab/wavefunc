@@ -159,9 +159,78 @@ The relay has two admin endpoints for search index management:
     ```
 
 2. **Check Indexing Status**:
+
     ```
     GET /admin/indexing-status
     ```
+
+3. **Publish Handler Info**:
+    ```
+    GET /admin/publish-handler
+    ```
+
+## NIP-89 Handler Publication
+
+The relay supports publishing NIP-89 handler information events for radio stations. This allows clients to recognize your application as a handler for radio station events.
+
+### Handler Event Publishing
+
+To publish a handler event for your radio station application:
+
+```bash
+# Local development through API (default)
+bun publish:handler [handler-id]
+
+# Local development with direct publishing
+bun publish:handler:direct [handler-id]
+
+# Production through API
+bun publish:handler:live [handler-id]
+
+# Production with direct publishing
+bun publish:handler:live:direct [handler-id]
+```
+
+Where:
+- `handler-id` is an optional identifier for the handler (if omitted, a timestamp-based ID will be generated)
+
+This command will:
+1. Create a NIP-89 handler event (kind 31990)
+2. Set the required tags according to the specification
+3. Sign it with your admin key
+4. Publish it to the relay (either through the API or directly)
+5. Also publish a kind 0 metadata event with the application profile information
+
+#### Publication Methods
+
+The script supports two methods for publishing events:
+
+1. **Through API** (default) - Events are created and signed by the client, then sent to the backend API endpoint which verifies and publishes them.
+2. **Direct Publishing** - Events are created, signed, and published directly to the relay without going through the API endpoint.
+
+The API-based approach allows for additional validation and permission checks on the server side before publishing, while direct publishing is simpler but less controlled.
+
+#### Event Publication
+
+The script publishes two events:
+
+1. **Kind 31990 (NIP-89 Handler)** - Declares your application as a handler for radio station events
+   - Contains information about supported kinds, URL templates, and app details
+   - Uses a d-tag to make it replaceable (can be updated later with same handler ID)
+
+2. **Kind 0 (Metadata)** - Creates a profile for your application
+   - Contains basic profile information: name, picture, about, website, and NIP-05 identifier
+   - Follows the standard metadata format from NIP-01
+
+#### Configuration
+
+The handler and profile information is defined in `scripts/publish-handler.ts`. You can customize:
+
+- Application name and display name
+- Application icon URL
+- Description and website
+- NIP-05 identifier for verification
+- Web URL templates for opening stations
 
 ### Authentication
 

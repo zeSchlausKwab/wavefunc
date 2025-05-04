@@ -17,7 +17,7 @@ if (!APP_PUBKEY) {
 }
 
 // Get relay URL from environment
-const relayUrl = process.env.VITE_PUBLIC_RELAY_URL || 'http://localhost:3002'
+const relayUrl = 'https://relay.wavefunc.live'
 
 // Setup NDK with a signer for proper Nostr signatures
 const signer = new NDKPrivateKeySigner(APP_PRIVATE_KEY)
