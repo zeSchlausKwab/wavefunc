@@ -18,10 +18,8 @@ import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import {
     cn,
-    decodeStationNaddr,
     getStationBackgroundColor,
     ndkActions,
-    ndkStore,
     openEditStationDrawer,
     playStation,
     stationsStore,
@@ -42,7 +40,6 @@ interface StationContentProps {
     stationTags: string[]
     isMobile: boolean
     isFullWidth: boolean
-    existsInNostr: NDKEvent | null
     isExpanded: boolean
     setIsExpanded: (expanded: boolean) => void
 }
@@ -52,7 +49,6 @@ const StationContent = ({
     stationTags,
     isMobile,
     isFullWidth,
-    existsInNostr,
     isExpanded,
     setIsExpanded,
 }: StationContentProps) => (
@@ -75,7 +71,7 @@ const StationContent = ({
                         </span>
                     </div>
                 )}
-                {existsInNostr && (
+                {station.event && (
                     <Button
                         variant="ghost"
                         size="sm"
@@ -94,31 +90,25 @@ const StationContent = ({
 // Expanded content section with station stats
 interface ExpandedContentProps {
     station: Station
-    existsInNostr: NDKEvent | null
-    stationNaddr: string | null
+    stationNaddr: string
     currentListId?: string
     isMobile: boolean
-    isExistsInNostr: boolean
     setIsExpanded: (expanded: boolean) => void
     isExpanded: boolean
     commentsCount: number
     onCommentClick: () => void
-    isCurrentlyPlaying: boolean
-    handlePlay: () => void
-    hasStreams: boolean
     isAuthor: boolean
     handleEdit: () => void
     selectedStreamId?: number
     handleStreamSelect: (stream: Stream) => void
+    hasStreams: boolean
 }
 
 const ExpandedContent = ({
     station,
-    existsInNostr,
     stationNaddr,
     currentListId,
     isMobile,
-    isExistsInNostr,
     setIsExpanded,
     isExpanded,
     commentsCount,
@@ -154,7 +144,7 @@ const ExpandedContent = ({
 
         <div className="mt-4 mb-3 flex flex-col gap-2">
             <div className="flex justify-between items-center">
-                {isExistsInNostr && station && station.id && (
+                {station && station.id && (
                     <div className="flex items-center space-x-2">
                         <FavoritesDropdown station={station} currentListId={currentListId} />
                         {isAuthor && (
@@ -172,11 +162,11 @@ const ExpandedContent = ({
                     </div>
                 )}
 
-                {existsInNostr && (
+                {station.event && (
                     <div className="flex items-center gap-2">
                         <SocialInteractionBar
-                            event={existsInNostr}
-                            naddr={stationNaddr || ''}
+                            event={station.event}
+                            naddr={stationNaddr}
                             authorPubkey={station.pubkey}
                             commentsCount={commentsCount}
                             onCommentClick={onCommentClick}
@@ -213,20 +203,13 @@ const ExpandedContent = ({
 interface RadioCardProps {
     station: Station
     currentListId?: string
-    naddr?: string
 }
 
-export default function RadioCard({ station, currentListId, naddr }: RadioCardProps) {
+export default function RadioCard({ station, currentListId }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
-    // @ts-ignore
     const [commentsCount, setCommentsCount] = useState(0)
-
-    const [existsInNostr, setExistsInNostr] = useState<NDKEvent | null>(null)
-    const [checkingNostr, setCheckingNostr] = useState(false)
-    const [stationNaddr, setStationNaddr] = useState<string | null>(null)
-    const [user, setUser] = useState<NDKUser | null>(null)
     const [isAuthor, setIsAuthor] = useState(false)
 
     // Initialize selectedStreamId with the primary stream or first stream
@@ -269,51 +252,7 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
     // Generate background color based on station name
     const cardBackgroundColor = useMemo(() => getStationBackgroundColor(station.name || '', 0.9), [station.name])
 
-    // Check if station exists in Nostr
-    useEffect(() => {
-        let isMounted = true
-
-        const checkRadioExists = async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk || !station.naddr || !isMounted) return
-
-            try {
-                setStationNaddr(station.naddr) // Store the naddr directly, it's already properly encoded
-
-                // Decode it to get necessary data for fetching the event
-                const decodedData = decodeStationNaddr(station.naddr)
-
-                // Create a filter to find the exact event
-                const filter = {
-                    kinds: [decodedData.kind],
-                    authors: [decodedData.pubkey],
-                    '#d': [decodedData.identifier],
-                }
-
-                const events = await ndk.fetchEvents(filter)
-                if (!isMounted) return
-
-                const foundEvent = Array.from(events)[0]
-                if (foundEvent) {
-                    setExistsInNostr(foundEvent)
-                    return
-                }
-
-                // No event found, set to null
-                setExistsInNostr(null)
-            } catch (e) {
-                console.error('Error checking if radio exists:', e)
-            }
-        }
-
-        checkRadioExists()
-
-        return () => {
-            isMounted = false
-        }
-    }, [station.naddr, ndkActions])
-
-    // Get current user
+    // Get current user and check if user is author
     useEffect(() => {
         const getUser = async () => {
             const ndk = ndkActions.getNDK()
@@ -321,8 +260,6 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
 
             try {
                 const currentUser = await ndk.signer.user()
-                setUser(currentUser)
-
                 if (currentUser && station.pubkey) {
                     setIsAuthor(currentUser.pubkey === station.pubkey)
                 }
@@ -403,9 +340,9 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
     }, [station.tags])
 
     // Determine if card should be rendered as expanded (full width)
-    const isFullWidth = isExpanded && existsInNostr !== null && Boolean(existsInNostr)
+    const isFullWidth = isExpanded && station.event !== undefined
     const hasStreams = station.streams && Array.isArray(station.streams) && station.streams.length > 0
-    const isExistsInNostr = existsInNostr !== null && Boolean(existsInNostr)
+    const hasNostrEvent = Boolean(station.event)
 
     return (
         <Card
@@ -425,7 +362,7 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                 isFullWidth={isFullWidth}
             />
 
-            {isExistsInNostr && (
+            {hasNostrEvent && (
                 <div className="absolute bottom-2 left-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
                     <CheckCircle2 className="w-4 h-4" />
                 </div>
@@ -440,9 +377,9 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                         {/* Header with station name, genre and stream selector */}
                         <StationHeader
                             station={station}
-                            existsInNostr={existsInNostr}
-                            stationNaddr={stationNaddr}
-                            checkingNostr={checkingNostr}
+                            existsInNostr={station.event || null}
+                            stationNaddr={station.naddr || ''}
+                            checkingNostr={false}
                             isMobile={isMobile}
                             isFullWidth={isFullWidth}
                             streams={station.streams}
@@ -456,7 +393,6 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                             stationTags={stationTags}
                             isMobile={isMobile}
                             isFullWidth={isFullWidth}
-                            existsInNostr={existsInNostr}
                             isExpanded={isExpanded}
                             setIsExpanded={setIsExpanded}
                         />
@@ -475,28 +411,16 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                                         isMobile ? 'w-full justify-between mt-1' : 'space-x-1',
                                     )}
                                 >
-                                    {isExistsInNostr ? (
+                                    {hasNostrEvent ? (
                                         <SocialInteractionBar
-                                            event={existsInNostr}
+                                            event={station.event!}
                                             authorPubkey={station.pubkey}
                                             commentsCount={commentsCount}
                                             onCommentClick={toggleComments}
                                             compact={true}
-                                            naddr={stationNaddr || ''}
+                                            naddr={station.naddr || ''}
                                         />
-                                    ) : (
-                                        <Button
-                                            onClick={handleEdit}
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn('h-7', isMobile ? 'px-2 text-[10px] w-full' : 'px-1')}
-                                        >
-                                            <Plus className="h-3 w-3 mr-1" />
-                                            <span className={cn(isMobile ? 'text-[10px]' : 'text-xs')}>
-                                                Add to Nostr
-                                            </span>
-                                        </Button>
-                                    )}
+                                    ) : null}
                                 </div>
 
                                 <div
@@ -519,12 +443,12 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                                         </div>
                                     )}
 
-                                    {isExistsInNostr && station && station.id && (
+                                    {hasNostrEvent && station && station.id && (
                                         <FavoritesDropdown station={station} currentListId={currentListId} />
                                     )}
 
                                     {/* Expand button (mobile only) */}
-                                    {isMobile && isExistsInNostr && (
+                                    {isMobile && hasNostrEvent && (
                                         <ExpandButton
                                             isExpanded={isExpanded}
                                             setIsExpanded={setIsExpanded}
@@ -539,34 +463,30 @@ export default function RadioCard({ station, currentListId, naddr }: RadioCardPr
                 </div>
 
                 {/* Expanded content section */}
-                {isExpanded && isExistsInNostr && (
+                {isExpanded && hasNostrEvent && (
                     <>
                         <ExpandedContent
                             station={station}
-                            existsInNostr={existsInNostr}
-                            stationNaddr={stationNaddr}
+                            stationNaddr={station.naddr || ''}
                             currentListId={currentListId}
                             isMobile={isMobile}
-                            isExistsInNostr={isExistsInNostr}
                             setIsExpanded={setIsExpanded}
                             isExpanded={isExpanded}
                             commentsCount={commentsCount}
                             onCommentClick={toggleComments}
-                            isCurrentlyPlaying={isCurrentlyPlaying}
-                            handlePlay={handlePlay}
-                            hasStreams={hasStreams}
                             isAuthor={isAuthor}
                             handleEdit={handleEdit}
                             selectedStreamId={selectedStreamId}
                             handleStreamSelect={handleStreamSelect}
+                            hasStreams={hasStreams}
                         />
 
                         {/* Comments section - Always visible when expanded */}
                         <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
-                            {station.id ? (
+                            {station.id && station.event ? (
                                 <CommentsList
                                     stationId={station.id}
-                                    stationEvent={existsInNostr}
+                                    stationEvent={station.event}
                                     commentsCount={commentsCount}
                                 />
                             ) : (

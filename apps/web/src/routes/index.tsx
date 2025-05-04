@@ -2,6 +2,7 @@ import { useSearchStations, useTopClickedStations } from '@/hooks/useRadioBrowse
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { createFileRoute } from '@tanstack/react-router'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
+import APIStationCard from '@wavefunc/common/src/components/radio/APIStationCard'
 import type { RadioBrowserParams } from '@wavefunc/common/src/types/radioBrowser'
 import type { Station } from '@wavefunc/common/src/types/station'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
@@ -330,7 +331,7 @@ function Index() {
                         ) : (
                             <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {topStations.map((station, index) => (
-                                    <RadioCard
+                                    <APIStationCard
                                         key={'id' in station ? station.id : `station-${index}`}
                                         station={station as Station}
                                     />
@@ -364,7 +365,7 @@ function Index() {
                                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 bg-black gap-6"
                                     >
                                         {searchResults.map((station, index) => (
-                                            <RadioCard
+                                            <APIStationCard
                                                 key={'id' in station ? station.id : `station-${index}`}
                                                 station={station as Station}
                                             />
