@@ -147,6 +147,8 @@ function extractUrlPattern(url: string): string {
 
         const urlObj = new URL(url)
         const domain = urlObj.hostname
+        // Include port in the pattern since different ports often indicate different stations
+        const port = urlObj.port ? `:${urlObj.port}` : ''
 
         // Extract path components and remove empty segments
         const pathParts = urlObj.pathname.split('/').filter(Boolean)
@@ -167,30 +169,29 @@ function extractUrlPattern(url: string): string {
                     pathParts[0].toLowerCase() === 'radio' ||
                     pathParts[0].toLowerCase() === 'audio')
             ) {
-                // Include the domain and the first two path segments - this captures
-                // patterns like stream.zeno.fm/4vvv2kt70xhvv and qurango.net/radio/mix
-                return `${domain}/${pathParts[0]}/${pathParts[1]}`
+                // Include the domain, port and the first two path segments
+                return `${domain}${port}/${pathParts[0]}/${pathParts[1]}`
             }
 
             // 2. For URLs with file-like endings (handle cases where ID is in the filename)
-            // e.g., myradio24.org/torrnado.m3u vs myradio24.org/kinozaltv
-            // Check if the last segment contains a dot (likely a file extension)
             const lastSegment = pathParts[pathParts.length - 1]
             if (lastSegment.includes('.')) {
                 // Get the base name without extension
                 const baseName = lastSegment.split('.')[0]
-                // Include the domain and all path except the extension
-                return `${domain}${pathParts.length > 1 ? '/' + pathParts.slice(0, -1).join('/') : ''}/${baseName}`
+                // Include the domain, port and all path except the extension
+                return `${domain}${port}${pathParts.length > 1 ? '/' + pathParts.slice(0, -1).join('/') : ''}/${baseName}`
             }
 
             // 3. Handle URLs where each different path represents a different station
-            // e.g., piccpndali.v.myalicdn.com/audio/shandong_2.m3u8 vs piccpndali.v.myalicdn.com/audio/guangxi_2.m3u8
             // Include the full path except file extensions
-            return `${domain}/${pathParts.join('/')}`.replace(/\.(mp3|aac|ogg|m4a|flac|wav|pls|m3u|m3u8|xspf)$/i, '')
+            return `${domain}${port}/${pathParts.join('/')}`.replace(
+                /\.(mp3|aac|ogg|m4a|flac|wav|pls|m3u|m3u8|xspf)$/i,
+                '',
+            )
         }
 
-        // Default case: just use the domain if no significant path segments
-        return domain
+        // Default case: domain + port
+        return domain + port
     } catch (e) {
         return url
     }
@@ -206,7 +207,7 @@ function areRelatedUrls(url1: string, url2: string): boolean {
         const url1Obj = new URL(url1)
         const url2Obj = new URL(url2)
 
-        // Different domains means probably different stations unless they're clear subdomains
+        // Different domains means probably different stations
         if (url1Obj.hostname !== url2Obj.hostname) {
             // Check for subdomains of the same root domain
             const rootDomain1 = url1Obj.hostname.split('.').slice(-2).join('.')
@@ -218,6 +219,32 @@ function areRelatedUrls(url1: string, url2: string): boolean {
             }
 
             return false
+        }
+
+        // Different ports typically indicate different stations/services
+        if (url1Obj.port !== url2Obj.port && url1Obj.port !== '' && url2Obj.port !== '') {
+            // Some special cases to handle
+            // 1. Check for specific ports used for quality variations (e.g., 8000 vs 8010 for different bitrates)
+            const qualityPortPatterns = [
+                // Common port patterns for quality variants
+                /^80\d{2}$/, // 8000, 8001, 8010, etc.
+                /^443\d{1}$/, // 4430, 4431, etc.
+                // Add more patterns if needed
+            ]
+
+            const isQualityPortDiff = qualityPortPatterns.some((pattern) => {
+                // If both ports match the same quality port pattern, they might be related
+                if (pattern.test(url1Obj.port) && pattern.test(url2Obj.port)) {
+                    // Also check if paths are identical - this is important
+                    return url1Obj.pathname === url2Obj.pathname
+                }
+                return false
+            })
+
+            // If not a quality port difference, treat as different stations
+            if (!isQualityPortDiff) {
+                return false
+            }
         }
 
         // Extract path parts for more detailed comparison
@@ -262,7 +289,6 @@ function areRelatedUrls(url1: string, url2: string): boolean {
                 differingSegments++
 
                 // Check if this segment looks like a unique identifier
-                // (random-looking alphanumeric strings are likely IDs)
                 const isLikelyId =
                     // Longer alphanumeric strings likely represent unique IDs
                     (segments1[i].length > 8 && /^[a-z0-9]+$/i.test(segments1[i])) ||
