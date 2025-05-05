@@ -105,9 +105,7 @@ export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
     const genreTags = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
     const websiteTag = tags.find((tag) => tag[0] === 'website')?.[1] || ''
     const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1] || ''
-    const languageCodes = tags
-        .filter((tag) => tag[0] === 'language')
-        .map((tag) => tag[1])
+    const languageCodes = tags.filter((tag) => tag[0] === 'language').map((tag) => tag[1])
     const thumbnailTag = tags.find((tag) => tag[0] === 'thumbnail')?.[1] || ''
     const locationTag = tags.find((tag) => tag[0] === 'location')?.[1] || ''
 
@@ -618,6 +616,21 @@ export async function searchRadioStations(
         console.error('❌ Error searching for stations:', error)
         throw error
     }
+}
+
+export async function getStationByCoordinates(ndk: NDK, pubkey: string, dTag: string): Promise<Station | null> {
+    const filter = {
+        kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
+        authors: [pubkey],
+        '#d': [dTag],
+    }
+
+    const event = await ndk.fetchEvent(filter)
+    if (!event) {
+        return null
+    }
+
+    return mapNostrEventToStation(event)
 }
 
 export async function fetchStation(ndk: NDK, naddr: string): Promise<Station | null> {

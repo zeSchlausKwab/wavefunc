@@ -15,6 +15,7 @@ export * from './types/comment'
 export * from './types'
 export * from './nostr/service'
 export * from './nostr/reactions'
+export * from './nostr/featured'
 
 // Export constants
 export { RADIO_EVENT_KINDS } from './schemas/events'

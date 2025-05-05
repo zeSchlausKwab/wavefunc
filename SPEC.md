@@ -265,7 +265,6 @@ Featured stations are stored using 'a' tags with the following format:
         ["t", "jazz"],
         ["t", "blues"],
         ["t", "featured"],
-        ["created_by", "WaveFunc Radio Team"],
         ["p", "<app's pubkey>"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "WBGO Jazz 88.3", "1"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Jazz FM", "2"],

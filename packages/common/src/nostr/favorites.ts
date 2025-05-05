@@ -15,6 +15,8 @@ import { envStore } from '../lib/store/env'
  */
 // The 'l' tag value for radio favorites
 export const FAVORITES_LIST_LABEL = 'user_favourite_list'
+// The 'l' tag value for featured station lists
+export const FEATURED_LIST_LABEL = 'featured_station_list'
 
 // Type for a station reference in favorites
 export interface FavoriteStation {
@@ -25,6 +27,34 @@ export interface FavoriteStation {
     relay_url?: string
     pubkey?: string
     tags?: string[][]
+}
+
+/**
+ * Interface for a station in a featured list
+ */
+export interface FeaturedStation {
+    event_id: string
+    name: string
+    relay_url?: string
+    pubkey?: string
+    tags?: string[][]
+    order?: string
+}
+
+/**
+ * Interface for a featured station list
+ */
+export interface FeaturedList {
+    id: string
+    name: string
+    description: string
+    topic: string
+    image?: string
+    banner?: string
+    stations: any[] // Allow any type of station, either FeaturedStation or Station
+    created_at: number
+    pubkey: string
+    tags: string[][]
 }
 
 export interface FavoritesList {
@@ -345,7 +375,7 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
     // Check for the new FAVORITES_LIST_LABEL tag
     const lTags = event.tags.filter((tag) => tag[0] === 'l')
     const isValidList = lTags.some((tag) => tag[1] === FAVORITES_LIST_LABEL)
-    
+
     if (!isValidList) {
         throw new Error('Not a valid radio favorites list')
     }
@@ -518,4 +548,92 @@ export async function fetchFavoritesLists(
             }
         })
         .filter((list): list is FavoritesList => list !== null)
+}
+
+/**
+ * Parse a featured station list event
+ */
+export function parseFeaturedListEvent(event: NDKEvent | NostrEvent): FeaturedList {
+    if (event.kind !== NDKKind.AppSpecificData) {
+        throw new Error('Invalid event kind for featured list')
+    }
+
+    // Validate that this is a featured station list
+    const lTags = event.tags.filter((tag) => tag[0] === 'l')
+    const isValidList = lTags.some((tag) => tag[1] === FEATURED_LIST_LABEL)
+
+    if (!isValidList) {
+        throw new Error('Not a valid featured station list')
+    }
+
+    try {
+        // Parse content
+        let name = ''
+        let description = ''
+        let topic = ''
+        let image: string | undefined
+        let banner: string | undefined
+
+        try {
+            // Try to parse JSON content first
+            const content = JSON.parse(event.content)
+            name = content.name || ''
+            description = content.description || ''
+            topic = content.topic || ''
+            image = content.image
+            banner = content.banner
+        } catch (e) {
+            // Fallback to tags
+            const nameTag = event.tags.find((tag) => tag[0] === 'name')
+            const descTag = event.tags.find((tag) => tag[0] === 'description')
+            const topicTag = event.tags.find((tag) => tag[0] === 'topic')
+            const imageTag = event.tags.find((tag) => tag[0] === 'image')
+            const bannerTag = event.tags.find((tag) => tag[0] === 'banner')
+
+            name = nameTag?.[1] || 'Untitled Featured List'
+            description = descTag?.[1] || ''
+            topic = topicTag?.[1] || ''
+            image = imageTag?.[1]
+            banner = bannerTag?.[1]
+        }
+
+        // Parse stations from a-tags
+        const aTags = event.tags.filter((tag) => tag[0] === 'a')
+        const stations = aTags
+            .map((tag) => {
+                if (tag.length < 2) return null
+
+                const addressRef = tag[1]
+                if (!addressRef) return null
+
+                // Format: ['a', addressRef, relay_url?, display_name?, order?]
+                const relay_url = tag[2] || undefined
+                const display_name = tag[3] || 'Unknown Station'
+                const order = tag[4] || undefined
+
+                return {
+                    event_id: addressRef,
+                    name: display_name,
+                    relay_url,
+                    order,
+                }
+            })
+            .filter(Boolean) as FeaturedStation[]
+
+        return {
+            id: (event as NDKEvent).id || '',
+            name,
+            description,
+            topic,
+            image,
+            banner,
+            stations,
+            created_at: event.created_at || Math.floor(Date.now() / 1000),
+            pubkey: event.pubkey,
+            tags: event.tags as string[][],
+        }
+    } catch (error) {
+        console.error('Error parsing featured list:', error)
+        throw new Error('Invalid featured list format')
+    }
 }
