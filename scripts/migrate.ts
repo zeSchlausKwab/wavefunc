@@ -739,13 +739,13 @@ async function publishRadioStation(stationGroup: StationGroup) {
         event.tags.push(['location', mergedMetadata.Country.trim()])
     }
 
-    // Add all language codes from the merged metadata
+    // Add all language codes from the merged metadata using 'language' tag
     if (mergedMetadata.LanguageCodes.size > 0) {
         Array.from(mergedMetadata.LanguageCodes).forEach((code) => {
-            event.tags.push(['l', code.toUpperCase()])
+            event.tags.push(['language', code.toUpperCase()]) // Using 'language' tag per SPEC.md
         })
     } else if (mergedMetadata.Language) {
-        event.tags.push(['l', mergedMetadata.Language.trim().toUpperCase()])
+        event.tags.push(['language', mergedMetadata.Language.trim().toUpperCase()]) // Using 'language' tag per SPEC.md
     }
 
     // Add all tags from the merged metadata

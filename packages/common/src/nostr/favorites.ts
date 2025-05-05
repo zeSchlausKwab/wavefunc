@@ -14,7 +14,7 @@ import { envStore } from '../lib/store/env'
  * Favorites list types following NIP-78 app-specific data
  */
 // The 'l' tag value for radio favorites
-export const FAVORITES_LIST_TYPE = 'radio_favorites'
+export const FAVORITES_LIST_LABEL = 'user_favourite_list'
 
 // Type for a station reference in favorites
 export interface FavoriteStation {
@@ -81,7 +81,8 @@ export function createFavoritesEvent(
     // Create base tags
     const eventTags = [
         ['d', createStationDTagValue()],
-        ['l', FAVORITES_LIST_TYPE],
+        // Use the 'l' tag with user_favourite_list value per updated spec
+        ['l', FAVORITES_LIST_LABEL],
         ['name', content.name],
         ['description', content.description],
         ...createFavoritesTags(favorites),
@@ -182,7 +183,8 @@ export async function updateFavoritesList(
     // Create base tags
     const eventTags = [
         dTag as NDKTag,
-        ['l', FAVORITES_LIST_TYPE],
+        // Use only the new 'l' tag format
+        ['l', FAVORITES_LIST_LABEL],
         ['name', content.name],
         ['description', content.description],
         ...createFavoritesTags(favorites),
@@ -340,8 +342,11 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
     }
 
     // Validate that this is a radio favorites list
-    const lTag = event.tags.find((tag) => tag[0] === 'l' && tag[1] === FAVORITES_LIST_TYPE)
-    if (!lTag) {
+    // Check for the new FAVORITES_LIST_LABEL tag
+    const lTags = event.tags.filter((tag) => tag[0] === 'l')
+    const isValidList = lTags.some((tag) => tag[1] === FAVORITES_LIST_LABEL)
+    
+    if (!isValidList) {
         throw new Error('Not a valid radio favorites list')
     }
 
@@ -372,7 +377,12 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
 /**
  * Helper to parse list content
  */
-function parseListContent(event: NDKEvent | NostrEvent): { name: string; description: string; image?: string; banner?: string } {
+function parseListContent(event: NDKEvent | NostrEvent): {
+    name: string
+    description: string
+    image?: string
+    banner?: string
+} {
     let name = ''
     let description = ''
     let image: string | undefined
@@ -391,7 +401,7 @@ function parseListContent(event: NDKEvent | NostrEvent): { name: string; descrip
         const descTag = event.tags.find((tag) => tag[0] === 'description')
         const imageTag = event.tags.find((tag) => tag[0] === 'image')
         const bannerTag = event.tags.find((tag) => tag[0] === 'banner')
-        
+
         name = nameTag?.[1] || 'Untitled Favorites List'
         description = descTag?.[1] || ''
         image = imageTag?.[1]
@@ -442,7 +452,7 @@ export function subscribeToFavoritesLists(
 ) {
     const filter: NDKFilter = {
         kinds: [NDKKind.AppSpecificData],
-        '#l': [FAVORITES_LIST_TYPE],
+        '#l': [FAVORITES_LIST_LABEL], // Use only the new format
     }
 
     // Add pubkey filter if specified
@@ -481,7 +491,7 @@ export async function fetchFavoritesLists(
 ): Promise<FavoritesList[]> {
     const filter: NDKFilter = {
         kinds: [NDKKind.AppSpecificData],
-        '#l': [FAVORITES_LIST_TYPE],
+        '#l': [FAVORITES_LIST_LABEL], // Use only the new format
         '#t': ['favorites'],
     }
 

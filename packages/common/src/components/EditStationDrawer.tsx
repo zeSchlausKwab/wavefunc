@@ -288,6 +288,9 @@ async function detectStreamingServerUrl(streams: { url: string }[]): Promise<{ u
     throw new Error('Could not verify any streaming server')
 }
 
+/**
+ * Map a Nostr event to a Station object for editing
+ */
 export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [isImporting, setIsImporting] = React.useState(false)
@@ -330,11 +333,11 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                 .map((tag) => tag[1])
                 .filter(Boolean)
 
-            // Extract language codes - try languageCodes first, then fall back to 'l' tags
+            // Extract language codes - use only 'language' tags
             const languageCodes =
                 station.languageCodes ||
                 station.tags
-                    .filter((tag) => tag[0] === 'l')
+                    .filter((tag) => tag[0] === 'language')
                     .map((tag) => tag[1])
                     .filter(Boolean)
 
@@ -406,7 +409,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
                         ...(data.website ? [['website', data.website]] : []),
                         ...data.tags.map((tag) => ['t', tag]),
-                        ...data.languageCodes.map((code) => ['l', code]),
+                        ...data.languageCodes.map((code) => ['language', code]),
                         ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
                     ],
                 )

@@ -105,9 +105,11 @@ export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
     const genreTags = tags.filter((tag) => tag[0] === 't').map((tag) => tag[1])
     const websiteTag = tags.find((tag) => tag[0] === 'website')?.[1] || ''
     const countryCode = tags.find((tag) => tag[0] === 'countryCode')?.[1] || ''
-    const languageCodes = tags.filter((tag) => tag[0] === 'l').map((tag) => tag[1])
-    const location = tags.find((tag) => tag[0] === 'location')?.[1] || ''
-    const thumbnail = tags.find((tag) => tag[0] === 'thumbnail')?.[1] || ''
+    const languageCodes = tags
+        .filter((tag) => tag[0] === 'language')
+        .map((tag) => tag[1])
+    const thumbnailTag = tags.find((tag) => tag[0] === 'thumbnail')?.[1] || ''
+    const locationTag = tags.find((tag) => tag[0] === 'location')?.[1] || ''
 
     return {
         name: nameTag[1],
@@ -118,8 +120,8 @@ export function parseRadioEventWithSchema(event: NDKEvent | NostrEvent) {
         countryCode: countryCode,
         languageCodes: languageCodes,
         tags: genreTags,
-        location: location,
-        thumbnail: thumbnail,
+        location: locationTag,
+        thumbnail: thumbnailTag,
         eventTags: tags,
     }
 }
@@ -203,9 +205,9 @@ export function convertFromRadioBrowser(radioBrowserStation: any): {
         tagsArray.push(['countryCode', radioBrowserStation.countrycode])
     }
 
-    // Add language codes as individual l tags (not language)
+    // Add language codes as individual 'language' tags (previously 'l' tags)
     languageCodes.forEach((code: string) => {
-        tagsArray.push(['l', code])
+        tagsArray.push(['language', code]) // Changed from 'l' to 'language'
     })
 
     // Add favicon as thumbnail

@@ -60,7 +60,7 @@ func extractEventMetadata(event *nostr.Event) (name, description string, genres,
 				name = tag[1]
 			case "t": // Genre/tag
 				genres = append(genres, tag[1])
-			case "l": // Language code
+			case "language": // Only use the new language tag format per updated SPEC.md
 				languages = append(languages, tag[1])
 			}
 		}
