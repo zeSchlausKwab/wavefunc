@@ -22,6 +22,7 @@ import { AlertCircle, ExternalLink, Import, Plus, Trash, Wand2, X } from 'lucide
 import React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { ImageUrlInput } from './ui/ImageUrlInput'
 
 // TagInput component for adding and removing tags
 const TagInput = ({
@@ -745,14 +746,14 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="thumbnail">Thumbnail URL (Optional)</Label>
-                            <Input
-                                id="thumbnail"
-                                type="url"
+                            <Label htmlFor="thumbnail">Thumbnail Image</Label>
+                            <ImageUrlInput
                                 value={watch('thumbnail') || ''}
-                                onChange={(e) => setValue('thumbnail', e.target.value)}
+                                onChange={(value) => setValue('thumbnail', value)}
+                                error={errors.thumbnail?.message}
+                                description="Image URL for the station logo or thumbnail"
+                                placeholder="https://example.com/image.jpg"
                             />
-                            {errors.thumbnail && <p className="text-sm text-destructive">{errors.thumbnail.message}</p>}
                         </div>
 
                         <div className="space-y-2">
