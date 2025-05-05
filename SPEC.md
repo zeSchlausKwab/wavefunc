@@ -174,11 +174,102 @@ Favorite stations are stored using 'a' tags with the following format:
     "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
     "tags": [
         ["d", "<random-uuid>"],
-        ["l", "user_favourite_list"]
+        ["l", "user_favourite_list"],
         ["name", "My Favorite Stations"],
         ["description", "Stations I listen to every day"],
+        ["p", "<app's pubkey>"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "FIP Radio", "1690000000"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Soma FM Drone Zone", "1690000001"],
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.io"
+        ]
+    ],
+    "sig": "..."
+}
+```
+
+## Featured Station Lists (kind 30078)
+
+Featured Station Lists are curated collections of radio stations grouped by theme, genre, mood, or other organizing principles. These are typically created by the application or trusted curators to showcase stations to users. Like favorites lists, these events use kind 30078 but with a different label tag value to distinguish them.
+
+### Content Format
+
+The content field must be a JSON string with the following structure:
+
+```json
+{
+    "name": "Jazz & Blues Stations",
+    "description": "The best jazz and blues radio stations from around the world",
+    "image": "https://example.com/jazz-image.jpg",
+    "banner": "https://example.com/jazz-banner.jpg",
+    "topic": "jazz-blues"
+}
+```
+
+| Field       | Type   | Required | Description                               |
+| ----------- | ------ | -------- | ----------------------------------------- |
+| name        | string | Yes      | Name of the featured list                 |
+| description | string | Yes      | Description of the featured list          |
+| image       | string | No       | URL to an image representing the list     |
+| banner      | string | No       | URL to a banner image for the list        |
+| topic       | string | Yes      | Topic/theme identifier for the collection |
+
+### Required Tags
+
+| Tag Name | Description                    | Format                          |
+| -------- | ------------------------------ | ------------------------------- |
+| d        | Unique identifier for the list | Random string or descriptive ID |
+| l        | Label for list type            | "featured_station_list"         |
+
+### Station Tags ('a' tags)
+
+Featured stations are stored using 'a' tags with the following format:
+
+| Tag Name | Format                                             | Example                                                      |
+| -------- | -------------------------------------------------- | ------------------------------------------------------------ |
+| a        | ['a', event_id, relay_url?, display_name?, order?] | ['a', 'abc123', 'wss://relay.example.com', 'FIP Radio', '1'] |
+
+- `event_id`: The event ID of the featured station
+- `relay_url` (optional): Hint for where to find the station event
+- `display_name` (optional): Display name to use for the station in this list
+- `order` (optional): Numeric order/rank within the list (lower numbers appear first)
+
+### Recommended Tags
+
+| Tag Name    | Description                            | Format                              |
+| ----------- | -------------------------------------- | ----------------------------------- |
+| name        | Name of the featured list              | String                              |
+| description | Description of the featured list       | String                              |
+| topic       | Topic/theme tag for the collection     | String                              |
+| t           | Category/genre tag (can have multiple) | String                              |
+| client      | Client that published the event        | [Format specification](#client-tag) |
+| p           | Pubkey of the curator (app or user)    | String                              |
+| created_by  | Attribution for the curator (optional) | String                              |
+
+### Example Event
+
+```json
+{
+    "id": "...",
+    "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
+    "created_at": 1690000000,
+    "kind": 30078,
+    "content": "{\"name\":\"Jazz & Blues Stations\",\"description\":\"The best jazz and blues radio stations from around the world\",\"image\":\"https://example.com/jazz-image.jpg\",\"banner\":\"https://example.com/jazz-banner.jpg\",\"topic\":\"jazz-blues\"}",
+    "tags": [
+        ["d", "jazz-blues-collection"],
+        ["l", "featured_station_list"],
+        ["topic", "jazz-blues"],
+        ["t", "jazz"],
+        ["t", "blues"],
+        ["t", "featured"],
+        ["created_by", "WaveFunc Radio Team"],
+        ["p", "<app's pubkey>"],
+        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "WBGO Jazz 88.3", "1"],
+        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Jazz FM", "2"],
+        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Blues Radio", "3"],
         [
             "client",
             "NostrRadio",

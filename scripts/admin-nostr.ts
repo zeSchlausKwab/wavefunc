@@ -17,8 +17,8 @@ if (!APP_PUBKEY) {
 }
 
 // Get relay URL from environment
-// const relayUrl = 'https://relay.wavefunc.live'
-const relayUrl = 'http://localhost:3002'
+const relayUrl = 'https://relay.wavefunc.live'
+// const relayUrl = 'http://localhost:3002'
 // Setup NDK with a signer for proper Nostr signatures
 const signer = new NDKPrivateKeySigner(APP_PRIVATE_KEY)
 const ndk = new NDK({

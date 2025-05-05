@@ -400,10 +400,10 @@ interface SearchFilters {
 }
 
 export const Route = createFileRoute('/discover')({
-    component: Discover,
+    component: Index,
 })
 
-function Discover() {
+function Index() {
     // Search state
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
@@ -449,41 +449,41 @@ function Discover() {
                 })
 
                 console.log(`🔍 Search complete, found ${results.length} results`)
-                
+
                 // If we got results, return them
                 if (results.length > 0) {
-                    return results;
+                    return results
                 }
-                
+
                 // If no results and we have a search term, try a more flexible search
                 if (filters.searchTerm && !filters.tags && !filters.languageCode && !filters.domain) {
-                    console.log('🔍 No results, trying more flexible search...');
-                    
+                    console.log('🔍 No results, trying more flexible search...')
+
                     // Try searching with the term as a tag instead
                     const tagResults = await searchRadioStations(ndk, {
                         searchTerm: '', // Clear search term
                         tags: [filters.searchTerm.toLowerCase()], // Use as tag
-                    });
-                    
+                    })
+
                     if (tagResults.length > 0) {
-                        console.log(`🔍 Found ${tagResults.length} results with tag search`);
-                        return tagResults;
+                        console.log(`🔍 Found ${tagResults.length} results with tag search`)
+                        return tagResults
                     }
-                    
+
                     // If still no results, try just getting recent stations
-                    console.log('🔍 No results with tag search, getting recent stations');
+                    console.log('🔍 No results with tag search, getting recent stations')
                     const recentResults = await searchRadioStations(ndk, {
                         since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30, // Last 30 days
-                    });
-                    
-                    console.log(`🔍 Found ${recentResults.length} recent stations`);
-                    return recentResults;
+                    })
+
+                    console.log(`🔍 Found ${recentResults.length} recent stations`)
+                    return recentResults
                 }
-                
-                return results;
+
+                return results
             } catch (error) {
-                console.error('❌ Error during search:', error);
-                return [];
+                console.error('❌ Error during search:', error)
+                return []
             }
         },
         enabled:
@@ -498,10 +498,10 @@ function Discover() {
     // Handle search button click
     const handleSearch = () => {
         // Prepare search term - trim and handle special characters
-        const cleanSearchTerm = searchTerm.trim();
-        
+        const cleanSearchTerm = searchTerm.trim()
+
         if (cleanSearchTerm !== filters.searchTerm) {
-            console.log(`Updating search term: "${cleanSearchTerm}"`);
+            console.log(`Updating search term: "${cleanSearchTerm}"`)
             // Only update if the value has changed
             setFilters((prev) => ({
                 ...prev,
@@ -623,8 +623,6 @@ function Discover() {
 
     return (
         <div className="w-full flex flex-col gap-4 my-6 max-w-full">
-            <h1 className={cn('font-bold mb-3', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Discover</h1>
-
             <SearchInput
                 value={searchTerm}
                 onChange={handleSearchInputChange}
