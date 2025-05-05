@@ -425,13 +425,87 @@ function Discover() {
     // Responsive state
     const isMobile = useMedia('(max-width: 640px)')
 
+    // Use Tanstack Query to fetch stations with search parameters
+    const { data: searchResults, isLoading } = useQuery({
+        queryKey: ['stations', 'search', filters],
+        queryFn: async () => {
+            const ndk = ndkActions.getNDK()
+            if (!ndk) return []
+
+            console.log('🔍 Executing search with filters:', {
+                searchTerm: filters.searchTerm,
+                tags: filters.tags,
+                languageCode: filters.languageCode,
+                domain: filters.domain,
+            })
+
+            try {
+                // First attempt with exact filters
+                const results = await searchRadioStations(ndk, {
+                    searchTerm: filters.searchTerm,
+                    tags: filters.tags || undefined,
+                    languageCode: filters.languageCode || undefined,
+                    domain: filters.domain || undefined,
+                })
+
+                console.log(`🔍 Search complete, found ${results.length} results`)
+                
+                // If we got results, return them
+                if (results.length > 0) {
+                    return results;
+                }
+                
+                // If no results and we have a search term, try a more flexible search
+                if (filters.searchTerm && !filters.tags && !filters.languageCode && !filters.domain) {
+                    console.log('🔍 No results, trying more flexible search...');
+                    
+                    // Try searching with the term as a tag instead
+                    const tagResults = await searchRadioStations(ndk, {
+                        searchTerm: '', // Clear search term
+                        tags: [filters.searchTerm.toLowerCase()], // Use as tag
+                    });
+                    
+                    if (tagResults.length > 0) {
+                        console.log(`🔍 Found ${tagResults.length} results with tag search`);
+                        return tagResults;
+                    }
+                    
+                    // If still no results, try just getting recent stations
+                    console.log('🔍 No results with tag search, getting recent stations');
+                    const recentResults = await searchRadioStations(ndk, {
+                        since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30, // Last 30 days
+                    });
+                    
+                    console.log(`🔍 Found ${recentResults.length} recent stations`);
+                    return recentResults;
+                }
+                
+                return results;
+            } catch (error) {
+                console.error('❌ Error during search:', error);
+                return [];
+            }
+        },
+        enabled:
+            Boolean(filters.searchTerm) ||
+            Boolean(filters.tags) ||
+            Boolean(filters.languageCode) ||
+            Boolean(filters.domain),
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+    })
+
     // Handle search button click
     const handleSearch = () => {
-        if (searchTerm !== filters.searchTerm) {
+        // Prepare search term - trim and handle special characters
+        const cleanSearchTerm = searchTerm.trim();
+        
+        if (cleanSearchTerm !== filters.searchTerm) {
+            console.log(`Updating search term: "${cleanSearchTerm}"`);
             // Only update if the value has changed
             setFilters((prev) => ({
                 ...prev,
-                searchTerm: searchTerm,
+                searchTerm: cleanSearchTerm,
             }))
         }
     }
@@ -499,39 +573,6 @@ function Discover() {
             domain: null,
         })
     }
-
-    // Use Tanstack Query to fetch stations with search parameters
-    const { data: searchResults, isLoading } = useQuery({
-        queryKey: ['stations', 'search', filters],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) return []
-
-            console.log('🔍 Executing search with filters:', {
-                searchTerm: filters.searchTerm,
-                tags: filters.tags,
-                languageCode: filters.languageCode,
-                domain: filters.domain,
-            })
-
-            const results = await searchRadioStations(ndk, {
-                searchTerm: filters.searchTerm,
-                tags: filters.tags || undefined,
-                languageCode: filters.languageCode || undefined,
-                domain: filters.domain || undefined,
-            })
-
-            console.log(`🔍 Search complete, found ${results.length} results`)
-            return results
-        },
-        enabled:
-            Boolean(filters.searchTerm) ||
-            Boolean(filters.tags) ||
-            Boolean(filters.languageCode) ||
-            Boolean(filters.domain),
-        refetchOnWindowFocus: false,
-        staleTime: 1000 * 60 * 5, // 5 minutes
-    })
 
     // Get real-time station updates from subscription
     const { stations: realtimeStations } = useRadioStations()

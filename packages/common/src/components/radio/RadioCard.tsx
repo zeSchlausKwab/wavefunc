@@ -258,8 +258,6 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
             const ndk = ndkActions.getNDK()
             if (!ndk || !ndk.signer) return
 
-            console.log('Station', station)
-
             try {
                 const currentUser = await ndk.signer.user()
                 if (currentUser && station.pubkey) {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fiatjaf/eventstore/bluge"
@@ -196,8 +197,20 @@ func HandleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 					Sig:       sig,
 				})
 
-				// Create searchable content fields
-				searchableContent, nameOnlyContent := createSearchableContent(name, description, genres, languages)
+				// Create a combined search text for better searching
+				// This is similar to what our WavefuncBlugeWrapper does
+				searchableContent := name + " " + name + " " + description
+				
+				// Add genres and languages to searchable content
+				if len(genres) > 0 {
+					searchableContent += " " + strings.Join(genres, " ")
+				}
+				if len(languages) > 0 {
+					searchableContent += " " + strings.Join(languages, " ")
+				}
+				
+				// Convert to lowercase for case-insensitive searching
+				searchableContent = strings.ToLower(searchableContent)
 
 				// Create nostr event
 				event := &nostr.Event{
@@ -206,19 +219,16 @@ func HandleResetSearchIndex(w http.ResponseWriter, r *http.Request, connString, 
 					CreatedAt: nostr.Timestamp(createdAt),
 					Kind:      kind,
 					Tags:      tags,
-					Content:   content,
+					// Use the enhanced searchable content instead of the original content
+					// This ensures the index has the same format as real-time events
+					Content:   searchableContent,
 					Sig:       sig,
 				}
-
-				// Store searchable contents in special tags for Bluge to index
-				event.Tags = append(event.Tags, nostr.Tag{"_searchable", searchableContent})
-				event.Tags = append(event.Tags, nostr.Tag{"_name_searchable", nameOnlyContent})
 
 				// Log detailed info about important events for debugging
 				if batchCount % 100 == 0 || totalProcessed < 10 {
 					log.Printf("Indexing event: ID=%s, Kind=%d, Name=%s", id, kind, name)
-					log.Printf("Searchable content: %s", searchableContent)
-					log.Printf("Name-only content: %s", nameOnlyContent)
+					log.Printf("Enhanced content: %s", searchableContent)
 				}
 
 				// Index event

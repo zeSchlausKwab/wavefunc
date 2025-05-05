@@ -131,16 +131,25 @@ func main() {
 	blugeSearchPath := filepath.Join(dataDir, "bluge_search")
 	fmt.Printf("Using Bluge search index at: %s\n", blugeSearchPath)
 	
-	blugeSearch := bluge.BlugeBackend{
+	// Initialize the original Bluge search backend
+	originalBlugeSearch := bluge.BlugeBackend{
 		Path:          blugeSearchPath,
 		RawEventStore: &db,
 	}
 	
-	if err := blugeSearch.Init(); err != nil {
+	// Variable to hold the HTTP handler
+	var handler http.Handler
+	
+	if err := originalBlugeSearch.Init(); err != nil {
 		fmt.Printf("Error initializing Bluge search: %v\n", err)
 		// Continue without search functionality
+		// Set up handler without search functionality
+		handler = SetupHandlers(relay, &originalBlugeSearch, connString, dataDir)
 	} else {
-		defer blugeSearch.Close()
+		defer originalBlugeSearch.Close()
+		
+		// Create our enhanced wrapper around the original Bluge backend
+		blugeSearch := NewWavefuncBlugeWrapper(&originalBlugeSearch)
 		
 		// Register handlers for events
 		relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
@@ -156,7 +165,7 @@ func main() {
 		relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
 			// Only handle deletion for indexed events
 			if event.Kind == 31237 {
-				return blugeSearch.DeleteEvent(ctx, event)
+				return blugeSearch.BlugeBackend.DeleteEvent(ctx, event)
 			}
 			return nil
 		})
@@ -165,12 +174,15 @@ func main() {
 		relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 			if filter.Search != "" {
 				// Use our dedicated search module
-				return QueryWithSearch(ctx, &blugeSearch, filter)
+				return QueryWithSearch(ctx, blugeSearch.BlugeBackend, filter)
 			} else {
 				// Use PostgreSQL for regular queries
 				return db.QueryEvents(ctx, filter)
 			}
 		})
+		
+		// Set up all HTTP handlers with our enhanced search capability
+		handler = SetupHandlers(relay, blugeSearch.BlugeBackend, connString, dataDir)
 	}
 
 	// Add NIP-42 authentication for admin commands
@@ -220,9 +232,6 @@ func main() {
 			port = "3002"
 		}
 	}
-
-	// Set up all HTTP handlers
-	handler := SetupHandlers(relay, &blugeSearch, connString, dataDir)
 
 	fmt.Printf("Running on :%s with admin endpoints\n", port)
 	err := http.ListenAndServe("0.0.0.0:"+port, handler)
