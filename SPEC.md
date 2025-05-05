@@ -74,7 +74,7 @@ The content field must be a JSON string with the following structure:
 | ----------- | -------------------------------- | ------------------------------------- |
 | t           | Station genre/category           | String (can have multiple)            |
 | thumbnail   | Station logo/image URL           | URL                                   |
-| l           | Station language                 | ISO language code (can have multiple) |
+| language    | Station language                 | ISO language code (can have multiple) |
 | countryCode | Station country                  | ISO 3166-2 country code               |
 | location    | Physical location of the station | String (e.g., "Paris, FR")            |
 | website     | Station's website                | URL                                   |
@@ -90,13 +90,13 @@ The content field must be a JSON string with the following structure:
     "kind": 31237,
     "content": "{\"description\":\"Curious and sophisticated: Since 1971 FIP offers a versatile program of **jazz**, *chansons*, world music and electronic tunes.\",\"streams\":[{\"url\":\"https://icecast.radiofrance.fr/fiprock-hifi.aac\",\"format\":\"audio/aac\",\"quality\":{\"bitrate\":128000,\"codec\":\"aac\",\"sampleRate\":44100},\"primary\":true}]}",
     "tags": [
-        ["d", "fip01"],
+        ["d", "<random-uuid>"],
         ["name", "FIP Radio"],
         ["website", "https://www.radio.net/s/fip"],
         ["t", "jazz"],
         ["t", "world"],
         ["t", "electronic"],
-        ["l", "fr"],
+        ["language", "fr"],
         ["countryCode", "FR"],
         ["location", "Paris, FR"],
         ["thumbnail", "https://picsum.photos/seed/fip/400/400"],
@@ -134,6 +134,7 @@ The content field must be a JSON string with the following structure:
 | description | string | Yes      | Description of the favorites list     |
 | image       | string | No       | URL to an image representing the list |
 | banner      | string | No       | URL to a banner image for the list    |
+| l           | string | Yes      | event label (user_favourite_list)     |
 
 ### Required Tags
 
@@ -172,7 +173,8 @@ Favorite stations are stored using 'a' tags with the following format:
     "kind": 30078,
     "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
     "tags": [
-        ["d", "favorite_stations_001"],
+        ["d", "<random-uuid>"],
+        ["l", "user_favourite_list"]
         ["name", "My Favorite Stations"],
         ["description", "Stations I listen to every day"],
         ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "FIP Radio", "1690000000"],
@@ -241,7 +243,8 @@ The content field must be a JSON string with the following structure:
     "tags": [
         ["d", "handler123"],
         ["k", "31237"],
-        ["web", "https://wavefunc.io/station/<bech32>", "nevent"],
+        ["web", "https://wavefunc.io/station/<bech32>", "naddr"],
+        ["web", "https://wavefunc.io/profile/<bech32>", "npub"],
         ["web", "https://wavefunc.io/stations", "naddr"]
     ],
     "sig": "..."
