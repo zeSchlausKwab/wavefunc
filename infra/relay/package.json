@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "dev": "go run main.go",
+        "dev": "go run .",
         "build": "go build -o relay",
         "start": "./relay",
         "test:env": "bash ./env-test.sh"
