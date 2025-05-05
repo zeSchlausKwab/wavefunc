@@ -122,14 +122,18 @@ The content field must be a JSON string with the following structure:
 ```json
 {
     "name": "My Favorite Stations",
-    "description": "A collection of my favorite radio stations"
+    "description": "A collection of my favorite radio stations",
+    "image": "https://example.com/favorites-image.jpg",
+    "banner": "https://example.com/favorites-banner.jpg"
 }
 ```
 
-| Field       | Type   | Required | Description                       |
-| ----------- | ------ | -------- | --------------------------------- |
-| name        | string | Yes      | Name of the favorites list        |
-| description | string | Yes      | Description of the favorites list |
+| Field       | Type   | Required | Description                           |
+| ----------- | ------ | -------- | ------------------------------------- |
+| name        | string | Yes      | Name of the favorites list            |
+| description | string | Yes      | Description of the favorites list     |
+| image       | string | No       | URL to an image representing the list |
+| banner      | string | No       | URL to a banner image for the list    |
 
 ### Required Tags
 
@@ -166,7 +170,7 @@ Favorite stations are stored using 'a' tags with the following format:
     "pubkey": "...",
     "created_at": 1690000000,
     "kind": 30078,
-    "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\"}",
+    "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
     "tags": [
         ["d", "favorite_stations_001"],
         ["name", "My Favorite Stations"],

@@ -281,14 +281,42 @@ export function FavoritesManager() {
             ) : (
                 <div className="space-y-4">
                     {favoritesLists.map((list) => (
-                        <Card key={list.id} className="w-full">
+                        <Card key={list.id} className="w-full overflow-hidden">
+                            {list.banner && (
+                                <div className="relative w-full h-32">
+                                    <img
+                                        src={list.banner}
+                                        alt={`${list.name} banner`}
+                                        className="w-full h-32 object-cover"
+                                        onError={(e) => {
+                                            // Hide the image on error
+                                            ;(e.target as HTMLImageElement).style.display = 'none'
+                                        }}
+                                    />
+                                </div>
+                            )}
                             <CardHeader>
                                 <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="text-lg font-semibold">{list.name}</CardTitle>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {list.description || 'No description'}
-                                        </p>
+                                    <div className="flex gap-4 items-center">
+                                        {list.image && (
+                                            <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0">
+                                                <img
+                                                    src={list.image}
+                                                    alt={`${list.name} thumbnail`}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        // Hide the image on error
+                                                        ;(e.target as HTMLImageElement).style.display = 'none'
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <CardTitle className="text-lg font-semibold">{list.name}</CardTitle>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                {list.description || 'No description'}
+                                            </p>
+                                        </div>
                                     </div>
                                     <Button variant="outline" size="sm" onClick={() => handleEditList(list)}>
                                         <Edit className="mr-2 h-4 w-4" />
@@ -296,6 +324,7 @@ export function FavoritesManager() {
                                     </Button>
                                 </div>
                             </CardHeader>
+
                             <CardContent className="p-2">
                                 <div className="flex flex-col gap-4">
                                     {list.favorites && list.favorites.length > 0 ? (

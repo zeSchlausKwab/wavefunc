@@ -5,7 +5,7 @@ import { Button } from '@wavefunc/ui/components/ui/button'
 import { Input } from '@wavefunc/ui/components/ui/input'
 import { Label } from '@wavefunc/ui/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
-import { Trash, X, AlertCircle } from 'lucide-react'
+import { Trash, X, AlertCircle, ImageIcon, FileImage } from 'lucide-react'
 import {
     type FavoritesList,
     type FavoritesListContent,
@@ -17,9 +17,13 @@ import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { z } from 'zod'
 import { ndkActions } from '@wavefunc/common'
 
+const urlSchema = z.string().url("Must be a valid URL").or(z.string().length(0));
+
 const FavoritesListSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
+    image: urlSchema.optional(),
+    banner: urlSchema.optional(),
 })
 
 type FavoritesListFormData = z.infer<typeof FavoritesListSchema>
@@ -47,10 +51,14 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
             ? {
                   name: favoritesList.name,
                   description: favoritesList.description,
+                  image: favoritesList.image || '',
+                  banner: favoritesList.banner || '',
               }
             : {
                   name: '',
                   description: '',
+                  image: '',
+                  banner: '',
               },
     })
 
@@ -59,11 +67,15 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
             reset({
                 name: favoritesList.name,
                 description: favoritesList.description,
+                image: favoritesList.image || '',
+                banner: favoritesList.banner || '',
             })
         } else {
             reset({
                 name: '',
                 description: '',
+                image: '',
+                banner: '',
             })
         }
 
@@ -89,6 +101,8 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                     {
                         name: data.name,
                         description: data.description || '',
+                        image: data.image || undefined,
+                        banner: data.banner || undefined,
                     },
                     favoritesList.favorites,
                 )
@@ -97,6 +111,8 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                 const content: FavoritesListContent = {
                     name: data.name,
                     description: data.description || '',
+                    image: data.image || undefined,
+                    banner: data.banner || undefined,
                 }
 
                 await publishFavoritesList(ndk, content, [])
@@ -200,6 +216,34 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                                 {...register('description')}
                                 placeholder="Describe your favorites list"
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="image">Image URL</Label>
+                            <div className="flex gap-2 items-center">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    id="image"
+                                    {...register('image')}
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                            </div>
+                            {errors.image && <p className="text-sm text-destructive">{errors.image.message}</p>}
+                            <p className="text-xs text-muted-foreground">Square image used as the list thumbnail</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="banner">Banner URL</Label>
+                            <div className="flex gap-2 items-center">
+                                <FileImage className="h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    id="banner"
+                                    {...register('banner')}
+                                    placeholder="https://example.com/banner.jpg"
+                                />
+                            </div>
+                            {errors.banner && <p className="text-sm text-destructive">{errors.banner.message}</p>}
+                            <p className="text-xs text-muted-foreground">Wide image used as the list header (recommended aspect ratio 3:1)</p>
                         </div>
 
                         {favoritesList && (

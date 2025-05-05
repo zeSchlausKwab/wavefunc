@@ -31,6 +31,8 @@ export interface FavoritesList {
     id: string
     name: string
     description: string
+    image?: string
+    banner?: string
     favorites: FavoriteStation[]
     created_at: number
     pubkey: string
@@ -40,6 +42,8 @@ export interface FavoritesList {
 export interface FavoritesListContent {
     name: string
     description: string
+    image?: string
+    banner?: string
 }
 
 /**
@@ -74,19 +78,32 @@ export function createFavoritesEvent(
     const appPubkey = envStore.state.env?.VITE_APP_PUBKEY || ''
     const timestamp = Math.floor(Date.now() / 1000)
 
+    // Create base tags
+    const eventTags = [
+        ['d', createStationDTagValue()],
+        ['l', FAVORITES_LIST_TYPE],
+        ['name', content.name],
+        ['description', content.description],
+        ...createFavoritesTags(favorites),
+        ['t', 'favorites'],
+        // Add app reference if available
+        ...(appPubkey ? [['p', appPubkey]] : []),
+    ]
+
+    // Add image tag if provided
+    if (content.image) {
+        eventTags.push(['image', content.image])
+    }
+
+    // Add banner tag if provided
+    if (content.banner) {
+        eventTags.push(['banner', content.banner])
+    }
+
     return {
         kind: NDKKind.AppSpecificData,
         created_at: timestamp,
-        tags: [
-            ['d', createStationDTagValue()],
-            ['l', FAVORITES_LIST_TYPE],
-            ['name', content.name],
-            ['description', content.description],
-            ...createFavoritesTags(favorites),
-            ['t', 'favorites'],
-            // Add app reference if available
-            ...(appPubkey ? [['p', appPubkey]] : []),
-        ],
+        tags: eventTags,
         content: JSON.stringify(content),
         pubkey,
     }
@@ -155,23 +172,38 @@ export async function updateFavoritesList(
     const content: FavoritesListContent = {
         name: updatedContent.name ?? favoritesList.name,
         description: updatedContent.description ?? favoritesList.description,
+        image: updatedContent.image ?? favoritesList.image,
+        banner: updatedContent.banner ?? favoritesList.banner,
     }
 
     // Use updated favorites or existing ones
     const favorites = updatedFavorites ?? favoritesList.favorites
 
+    // Create base tags
+    const eventTags = [
+        dTag as NDKTag,
+        ['l', FAVORITES_LIST_TYPE],
+        ['name', content.name],
+        ['description', content.description],
+        ...createFavoritesTags(favorites),
+        ['t', 'favorites'],
+        ...(appPubkey ? [['p', appPubkey]] : []),
+    ]
+
+    // Add image tag if provided
+    if (content.image) {
+        eventTags.push(['image', content.image])
+    }
+
+    // Add banner tag if provided
+    if (content.banner) {
+        eventTags.push(['banner', content.banner])
+    }
+
     const event: NostrEvent = {
         kind: NDKKind.AppSpecificData,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [
-            dTag as NDKTag,
-            ['l', FAVORITES_LIST_TYPE],
-            ['name', content.name],
-            ['description', content.description],
-            ...createFavoritesTags(favorites),
-            ['t', 'favorites'],
-            ...(appPubkey ? [['p', appPubkey]] : []),
-        ],
+        tags: eventTags,
         content: JSON.stringify(content),
         pubkey,
     }
@@ -315,7 +347,7 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
 
     try {
         // Parse name and description
-        const { name, description } = parseListContent(event)
+        const { name, description, image, banner } = parseListContent(event)
 
         // Parse favorites from a-tags
         const favorites = parseFavorites(event)
@@ -324,6 +356,8 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
             id: (event as NDKEvent).id || '',
             name,
             description,
+            image,
+            banner,
             favorites,
             created_at: event.created_at || Math.floor(Date.now() / 1000),
             pubkey: event.pubkey,
@@ -338,24 +372,33 @@ export function parseFavoritesEvent(event: NDKEvent | NostrEvent): FavoritesList
 /**
  * Helper to parse list content
  */
-function parseListContent(event: NDKEvent | NostrEvent): { name: string; description: string } {
+function parseListContent(event: NDKEvent | NostrEvent): { name: string; description: string; image?: string; banner?: string } {
     let name = ''
     let description = ''
+    let image: string | undefined
+    let banner: string | undefined
 
     try {
         // Try JSON content first
         const content = JSON.parse(event.content)
         name = content.name || ''
         description = content.description || ''
+        image = content.image
+        banner = content.banner
     } catch (e) {
         // Fallback to tags
         const nameTag = event.tags.find((tag) => tag[0] === 'name')
         const descTag = event.tags.find((tag) => tag[0] === 'description')
+        const imageTag = event.tags.find((tag) => tag[0] === 'image')
+        const bannerTag = event.tags.find((tag) => tag[0] === 'banner')
+        
         name = nameTag?.[1] || 'Untitled Favorites List'
         description = descTag?.[1] || ''
+        image = imageTag?.[1]
+        banner = bannerTag?.[1]
     }
 
-    return { name, description }
+    return { name, description, image, banner }
 }
 
 /**
