@@ -10,6 +10,9 @@ interface UIState {
         isOpen: boolean
         error: string | null
     }
+    historyDrawer: {
+        isOpen: boolean
+    }
 }
 
 const initialState: UIState = {
@@ -21,6 +24,9 @@ const initialState: UIState = {
         isOpen: false,
         error: null,
     },
+    historyDrawer: {
+        isOpen: false,
+    }
 }
 
 export const uiStore = new Store<UIState>(initialState)
@@ -60,6 +66,24 @@ export const closeStationDrawer = () => {
         stationDrawer: {
             isOpen: false,
             station: null,
+        },
+    }))
+}
+
+export const openHistoryDrawer = () => {
+    uiStore.setState((state) => ({
+        ...state,
+        historyDrawer: {
+            isOpen: true,
+        },
+    }))
+}
+
+export const closeHistoryDrawer = () => {
+    uiStore.setState((state) => ({
+        ...state,
+        historyDrawer: {
+            isOpen: false,
         },
     }))
 }

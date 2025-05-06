@@ -25,11 +25,14 @@ import {
     Volume1,
     Volume2,
     VolumeX,
+    History,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 // import { MusicRecognitionButton } from './MusicRecognitionButton'
 // import { StreamMetadataDisplay } from './radio/StreamMetadataDisplay'
 import { StreamTechnicalInfo } from './radio/StreamTechnicalInfo'
+import { addToHistory, loadHistory } from '@wavefunc/common/src/lib/store/history'
+import { openHistoryDrawer } from '@wavefunc/common/src/lib/store/ui'
 
 export function RadioPlayer() {
     // Use the stationsStore directly
@@ -48,6 +51,11 @@ export function RadioPlayer() {
     const [audioVolume, setAudioVolume] = useState(1)
     const stationChangeRef = useRef(false)
 
+    // Load history on mount
+    useEffect(() => {
+        loadHistory()
+    }, [])
+
     // Update stream URL when current station changes
     useEffect(() => {
         if (currentStation && currentStation.streams && currentStation.streams.length > 0) {
@@ -58,8 +66,20 @@ export function RadioPlayer() {
 
             // Reset metadata when station changes
             setMetadata(undefined)
+
+            // Add to history when station changes and is playing
+            if (isPlaying) {
+                addToHistory(currentStation)
+            }
         }
     }, [currentStation])
+
+    // Add to history when playback state changes to playing
+    useEffect(() => {
+        if (isPlaying && currentStation) {
+            addToHistory(currentStation)
+        }
+    }, [isPlaying, currentStation])
 
     // Setup audio event listeners
     useEffect(() => {
@@ -164,7 +184,12 @@ export function RadioPlayer() {
     const VolumeIcon = getVolumeIcon()
 
     return (
-        <div className={cn('fixed bottom-0 left-0 right-0 bg-background px-4 py-3 z-30', 'border-t-4 border-black')}>
+        <div
+            className={cn(
+                'fixed bottom-0 left-0 right-0 bg-background px-4 py-3 z-30',
+                'border-t-4 border-black',
+            )}
+        >
             <div className="max-w-7xl mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-4">
                 <audio ref={audioRef} src={streamUrl} autoPlay={isPlaying} className="hidden" />
 
@@ -323,6 +348,26 @@ export function RadioPlayer() {
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>Station Technical Info</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className={cn(
+                                        'h-9 w-9 border-2 border-black',
+                                        'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                        'transition-transform hover:translate-y-[-2px]',
+                                    )}
+                                    onClick={openHistoryDrawer}
+                                >
+                                    <History className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Play History</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>

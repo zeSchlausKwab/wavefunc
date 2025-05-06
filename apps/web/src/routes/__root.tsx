@@ -9,6 +9,7 @@ import type { AppRouterContext } from '@wavefunc/common'
 import { uiStore } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common/src/types/station'
 import { CheckerPattern } from '@wavefunc/common'
+import { HistoryDrawer } from '@wavefunc/common/src/components/radio/HistoryDrawer'
 
 function Providers({ children }: { children: React.ReactNode }) {
     const drawer = useStore(uiStore, (state) => state.stationDrawer)
@@ -20,6 +21,7 @@ function Providers({ children }: { children: React.ReactNode }) {
             {children}
             <Toaster />
             <EditStationDrawer isOpen={isOpen} station={station} />
+            <HistoryDrawer />
         </>
     )
 }
@@ -34,7 +36,7 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
                     <Header />
                 </div>
 
-                <main className="mx-auto w-full max-w-full pb-40 px-2 lg:px-12">
+                <main className="w-full max-w-full pb-40 px-2 lg:px-12">
                     <Outlet />
                 </main>
                 <LoginDialog />
