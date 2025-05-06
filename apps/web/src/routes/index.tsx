@@ -62,7 +62,7 @@ function Index() {
             <div className="mb-12 p-6 border-2 border-black rounded-lg bg-background/50 shadow-sm mx-auto">
                 <h2 className="text-xl font-bold mb-4">Welcome to Wavefunc!</h2>
 
-                <p className="text-muted-foreground mb-6 leading-8 break-all">
+                <p className="text-muted-foreground mb-6 text-md leading-12">
                     Your Nostr native place for everything internet radio. After you've checked out the featured
                     stations, and after you've logged in and changed the settings
                     <span className="inline-flex mx-2">
