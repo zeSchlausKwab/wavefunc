@@ -1,25 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useStore } from '@tanstack/react-store'
 import {
+    AuthButton,
+    authStore,
     cn,
     getFeaturedListsForHomepage,
     HOMEPAGE_LAYOUT,
     ndkActions,
+    openCreateStationDrawer,
     type FeaturedList,
     type Station,
 } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { Loader2, Music } from 'lucide-react'
+import { Disc, Headphones, Loader2, Music, Plus, Radio } from 'lucide-react'
 import { useMedia } from 'react-use'
 
 export const Route = createFileRoute('/')({
     component: Index,
 })
 
+    const IconWrapper = ({ icon: Icon, className = 'h-5 w-5' }: { icon: any; className?: string }) => {
+        return <Icon className={className} />
+    }
+
 function Index() {
     const isMobile = useMedia('(max-width: 640px)')
-
+    const authState = useStore(authStore)
     // Fetch featured lists for homepage
     const { data: featuredLists, isLoading } = useQuery({
         queryKey: ['featured-lists-homepage'],
@@ -30,6 +38,80 @@ function Index() {
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
     })
+
+        const handleCreateStation = () => {
+        openCreateStationDrawer()
+    }
+
+    
+
+    const renderWelcomeCard = () => {
+        return (
+            <div className="mb-12 p-6 border-2 border-black rounded-lg bg-background/50 shadow-sm">
+                <h2 className="text-xl font-bold mb-4">Welcome to Wavefunc!</h2>
+                
+                <p className="text-muted-foreground mb-6 leading-8">
+                    Your Nostr native place for everything internet radio. After you've checked out the featured stations, and after you've logged in and changed the settings
+                    <span className="inline-flex mx-2">
+                    <AuthButton
+                        compact={true}
+                        className="px-1 mx-1 font-medium text-primary inline-flex"
+                    />
+                    </span>, you can:
+
+                        <span className="mr-2">
+                        <Link to="/favourites" className="mx-2">
+                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
+                                                    <IconWrapper icon={Radio} className="h-5 w-5 mr-3" />
+
+                                create your favourite lists
+                            </Button>
+                        </Link>
+                        </span>
+
+                                                <span className="mr-2">
+                        <Link to="/discover" className="mx-2">
+                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
+                                <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
+                                discover radio stations on Nostr
+                            </Button>
+                        </Link>
+                        </span>
+                                                <span className="mr-2">or if you haven't found your station on Nostr, you can</span>
+                                                <span className="mr-2">
+                   <Link to="/legacy" className="mx-2">
+                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
+                                                    <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
+
+                                try our legacy API search
+                            </Button>
+                        </Link>
+                        </span>
+                        <span className="mr-2">or bring your own favorite station to nostr:</span>
+                        <span className="mr-2">
+
+                    <Button
+                        variant="default"
+                        size="icon"
+                        className={cn(
+                            'bg-green-500 hover:bg-green-600 text-white h-7 w-7 mr-3',
+                            'border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                            'transition-transform hover:translate-y-[-2px]',
+                        )}
+                        disabled={!authState.isAuthenticated}
+                        onClick={handleCreateStation}
+                    >
+                        <IconWrapper icon={Plus} className="h-4 w-4" />
+                    </Button>
+
+                        </span>
+
+                </p>
+                
+
+            </div>
+        )
+    }
 
     const renderFeaturedList = (list: FeaturedList, index: number) => {
         if (!list) return null
@@ -103,7 +185,16 @@ function Index() {
                     <p className="text-muted-foreground">Check back later for curated station collections</p>
                 </div>
             ) : (
-                <div className="space-y-10">{featuredLists.map((list, index) => renderFeaturedList(list, index))}</div>
+                <div className="space-y-10">
+                    {/* First featured list */}
+                    {featuredLists[0] && renderFeaturedList(featuredLists[0], 0)}
+                    
+                    {/* Welcome card between first and second featured lists */}
+                    {renderWelcomeCard()}
+                    
+                    {/* Rest of the featured lists */}
+                    {featuredLists.slice(1).map((list, index) => renderFeaturedList(list, index + 1))}
+                </div>
             )}
         </div>
     )

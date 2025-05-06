@@ -182,7 +182,6 @@ export async function getFeaturedListsForHomepage(
 
                             const event = await ndk.fetchEvent(filter)
                             if (event) {
-                                console.log('event', event)
                                 return mapNostrEventToStation(event)
                             }
                         }

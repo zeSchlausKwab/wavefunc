@@ -15,7 +15,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
 
     if (authState.isAuthenticating) {
         return (
-            <Button disabled variant="ghost" {...props}>
+            <Button disabled variant="outline" {...props}>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 <span>Connecting...</span>
             </Button>
@@ -26,7 +26,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
         return (
             <div className="flex items-center gap-2">
                 <Link to="/settings">
-                    <Button variant="ghost" size="icon" title="Settings">
+                    <Button variant="outline" size="icon" title="Settings">
                         <Settings className="h-4 w-4" />
                     </Button>
                 </Link>
@@ -39,7 +39,7 @@ export function AuthButton({ compact = false, ...props }: AuthButtonProps) {
     return (
         <div className="flex items-center gap-2">
             <Link to="/settings">
-                <Button variant="ghost" size="icon" title="Settings">
+                <Button variant="outline" size="icon" title="Settings">
                     <Settings className="h-4 w-4" />
                 </Button>
             </Link>
