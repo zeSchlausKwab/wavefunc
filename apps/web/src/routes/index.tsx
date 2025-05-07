@@ -62,14 +62,16 @@ function Index() {
             <div className="mb-12 p-6 border-2 border-black rounded-lg bg-background/50 shadow-sm mx-auto">
                 <h2 className="text-xl font-bold mb-4">Welcome to Wavefunc!</h2>
 
-                <p className="text-muted-foreground mb-6 text-md leading-12">
-                    Your Nostr native place for everything internet radio. After you've checked out the featured
-                    stations, and after you've logged in and changed the settings
-                    <span className="inline-flex mx-2">
-                        <AuthButton compact={true} className="px-1 mx-1 font-medium text-primary inline-flex" />
+                <div className="text-muted-foreground mb-6 text-md leading-12">
+                    <span className="mb-2 block">
+                        Your Nostr native place for everything internet radio. After you've checked out the featured
+                        stations, and after you've logged in and changed the settings
+                        <span className="inline-flex mx-2">
+                            <AuthButton compact={true} className="px-1 mx-1 font-medium text-primary inline-flex" />
+                        </span>
+                        , you can:
                     </span>
-                    , you can:
-                    <span className="mr-2">
+                    <span className="mr-2 inline-block">
                         <Link to="/favourites" className="mx-2">
                             <Button variant="default" className="bg-black text-white hover:bg-black/80">
                                 <IconWrapper icon={Radio} className="h-5 w-5 mr-3" />
@@ -77,7 +79,7 @@ function Index() {
                             </Button>
                         </Link>
                     </span>
-                    <span className="mr-2">
+                    <span className="mr-2 inline-block">
                         <Link to="/discover" className="mx-2">
                             <Button variant="default" className="bg-black text-white hover:bg-black/80">
                                 <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
@@ -85,8 +87,8 @@ function Index() {
                             </Button>
                         </Link>
                     </span>
-                    <span className="mr-2">or if you haven't found your station on Nostr, you can</span>
-                    <span className="mr-2">
+                    <span className="mr-2 inline-block">or if you haven't found your station on Nostr, you can</span>
+                    <span className="mr-2 inline-block">
                         <Link to="/legacy" className="mx-2">
                             <Button variant="default" className="bg-black text-white hover:bg-black/80">
                                 <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
@@ -94,8 +96,8 @@ function Index() {
                             </Button>
                         </Link>
                     </span>
-                    <span className="mr-2">or bring your own favorite station to nostr:</span>
-                    <span className="mr-2">
+                    <span className="mr-2 inline-block">or bring your own favorite station to nostr:</span>
+                    <span className="mr-2 inline-block">
                         <Button
                             variant="default"
                             size="icon"
@@ -110,7 +112,7 @@ function Index() {
                             <IconWrapper icon={Plus} className="h-4 w-4" />
                         </Button>
                     </span>
-                </p>
+                </div>
             </div>
         )
     }
