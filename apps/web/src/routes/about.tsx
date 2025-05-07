@@ -18,12 +18,14 @@ function About() {
                         <span className="text-2xl mr-2">🎧</span> What is Wavef(u)nc?
                     </h2>
                     <p className="mb-4 text-gray-800">
-                        Wavef(u)nc is a decentralized audio streaming platform built on the Nostr protocol. It allows
-                        you to discover, create, and share audio stations with the Nostr community. 🚀
+                        Wavef(u)nc is a decentralized internet radio discovery platform built on the Nostr protocol. It
+                        allows you to discover, share, and create lists of your favorite radio stations within the Nostr
+                        community. 🚀
                     </p>
                     <p className="mb-4 text-gray-800">
-                        Whether you're looking to share music, podcasts, or any audio content, Wavef(u)nc provides a
-                        censorship-resistant platform where your content remains under your control. 🔒💯
+                        We don't host any streams ourselves - instead, we publish and display Nostr events that link to
+                        existing radio streams around the world, creating a censorship-resistant directory that remains
+                        under community control. 🔒💯
                     </p>
                 </CardContent>
             </Card>
@@ -41,28 +43,29 @@ function About() {
                             <p className="text-gray-700">
                                 Wavef(u)nc is built on Nostr (Notes and Other Stuff Transmitted by Relays), a simple,
                                 open protocol that enables a truly censorship-resistant and global social network. All
-                                content is cryptographically signed and can be verified by anyone.
+                                station information is cryptographically signed and can be verified by anyone.
                             </p>
                         </div>
 
                         <div className="bg-gradient-to-tr from-purple-50 to-purple-100 p-5 rounded-lg border-l-4 border-purple-400 shadow-sm">
                             <h3 className="font-medium mb-2 text-purple-800 flex items-center">
-                                <span className="mr-2">🎹</span> Creating Stations
+                                <span className="mr-2">🎹</span> Adding Radio Stations
                             </h3>
                             <p className="text-gray-700">
-                                Once logged in with your Nostr identity, you can create audio stations by clicking the
-                                "+" button in the header. Add audio content, set a title, description, and start sharing
-                                with the world! 🌍
+                                Once logged in with your Nostr identity, you can add radio stations by clicking the "+"
+                                button in the header. Simply provide the stream URL, station details, and publish it to
+                                the Nostr network. All streams are hosted externally - we just provide the directory! 📡
                             </p>
                         </div>
 
                         <div className="bg-gradient-to-tr from-green-50 to-green-100 p-5 rounded-lg border-l-4 border-green-400 shadow-sm">
                             <h3 className="font-medium mb-2 text-green-800 flex items-center">
-                                <span className="mr-2">🔍</span> Discovering Content
+                                <span className="mr-2">🔍</span> Discovering Stations
                             </h3>
                             <p className="text-gray-700">
-                                Browse through stations created by other users in the Discovery feed. Filter by tags,
-                                creators, or content type to find exactly what you're looking for! 🎵 👀
+                                Browse through radio stations created by other users in the Discovery feed. Filter by
+                                genres, creators, or regions to find exactly what you're looking for! Tune in directly
+                                from the app. 🎵 👂
                             </p>
                         </div>
                     </div>
@@ -76,24 +79,26 @@ function About() {
                     </h2>
                     <ol className="list-decimal pl-5 space-y-4">
                         <li className="p-2 rounded-md bg-white bg-opacity-60">
-                            <strong className="text-indigo-700">Create a Nostr Identity</strong> 👤
+                            <strong className="text-indigo-700">Use Your Existing Nostr Key or Create One</strong> 👤
                             <p className="text-gray-700 mt-1">
-                                If you don't already have one, you'll need to create a Nostr identity using apps like
-                                Amber, Alby, or any NIP-07 compatible extension.
+                                Already have a Nostr key? Great! If not, you can generate a new private key right in the
+                                app. You can also use NIP-07 browser extensions like Alby or nos2x.
                             </p>
                         </li>
                         <li className="p-2 rounded-md bg-white bg-opacity-60">
-                            <strong className="text-indigo-700">Connect Your Identity</strong> 🔌
+                            <strong className="text-indigo-700">Sign In</strong> 🔑
                             <p className="text-gray-700 mt-1">
-                                Use the login button to connect your Nostr identity to Wavef(u)nc. You can either scan a
-                                QR code with a mobile wallet or use extension-based login.
+                                Click the "Sign In" button to log in with your Nostr key. You can either use your
+                                browser extension, scan a QR code with a mobile app, use NIP-46 remote signers like
+                                Amber, or enter your private key (nsec). Your key never leaves your device!
                             </p>
                         </li>
                         <li className="p-2 rounded-md bg-white bg-opacity-60">
-                            <strong className="text-indigo-700">Explore or Create</strong> 🎵
+                            <strong className="text-indigo-700">Explore or Add Stations</strong> 🎵
                             <p className="text-gray-700 mt-1">
-                                Start exploring available stations or create your own by clicking the "+" button in the
-                                header.
+                                Start exploring available radio stations or add your favorite stations by clicking the
+                                "+" button in the header. Create personal favorite lists to organize your radio
+                                experience!
                             </p>
                         </li>
                     </ol>
@@ -111,7 +116,8 @@ function About() {
                             <span className="text-gray-700">
                                 This app is currently operating with a limited relay that will eventually be reset. This
                                 is an experimental application, and content may not be permanently stored. For long-term
-                                content preservation, consider using multiple Nostr relays. ✨
+                                content preservation, consider using multiple Nostr relays. Remember that we don't host
+                                any radio streams - we only provide links to existing streams around the web. ✨
                             </span>
                         </p>
                     </div>
