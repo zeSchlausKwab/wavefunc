@@ -141,9 +141,7 @@ export function EditFavoritesListDrawer({ favoritesList, isOpen, onClose }: Edit
                 throw new Error('NDK not initialized')
             }
 
-            console.log('Deleting favorites list with ID:', favoritesList.id)
             await deleteFavoritesList(ndk, favoritesList.id)
-            console.log('Favorites list deleted successfully')
             onClose()
         } catch (error) {
             console.error('Error deleting favorites list:', error)

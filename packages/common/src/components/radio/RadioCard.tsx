@@ -275,15 +275,12 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
     const handleStreamSelect = (stream: Stream) => {
         if (stream && stream.quality && stream.quality.bitrate) {
             setSelectedStreamId(stream.quality.bitrate)
-            console.log(`Selected stream quality: ${stream.quality.bitrate} kbps`)
         }
     }
 
     // Play/Pause handler
     const handlePlay = () => {
-        console.log('handlePlay', station.name, station.streams)
         if (!station.streams?.length) {
-            console.log('No streams available for this station')
             return
         }
 
@@ -294,17 +291,12 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                 station.streams.find((s) => s.primary === true) ||
                 station.streams[0]
 
-            console.log('Selected stream:', selectedStream)
-            console.log(`Stream quality: ${selectedStream?.quality?.bitrate} kbps, Format: ${selectedStream?.format}`)
-
             if (selectedStream) {
                 // If this is the current station, just toggle playback
                 if (currentStation?.id === station.id) {
-                    console.log('Toggling playback for current station')
                     togglePlayback()
                 } else {
                     // If this is a new station, set it as current and ensure playback starts
-                    console.log('Playing new station')
                     playStation({
                         ...station,
                         streams: [selectedStream],

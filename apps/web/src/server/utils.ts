@@ -108,40 +108,81 @@ export const serveStatic = async (path: string) => {
     }
 }
 
+/**
+ * Proxy requests to Icecast servers with better error handling and fallback methods
+ * Many Icecast servers use self-signed certificates or have certificate issues
+ */
 export async function proxyIcecastRequest(url: string): Promise<Response> {
-    try {
-        const response = await fetch(url, {
-            headers: {
-                Accept: 'application/json',
-                'User-Agent': 'NostrRadio/1.0',
-            },
-        })
+    // Try multiple methods to fetch the data
+    async function tryFetch(): Promise<Response | null> {
+        try {
+            // 1. First try with normal fetch
+            const response = await fetch(url)
+            if (response.ok) {
+                const data = await response.text()
+                return new Response(data, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                    },
+                })
+            }
+        } catch (error: any) {
+            console.log('Standard fetch failed:', error.message)
+            // Continue to fallback methods
+        }
 
-        if (!response.ok) {
-            return new Response(JSON.stringify({ error: 'Failed to fetch Icecast server information' }), {
-                status: response.status,
+        try {
+            // 2. Try with the node-fetch method (used by Bun internally) with TLS checks disabled
+            // This is a workaround for Bun's fetch not having a rejectUnauthorized option
+            const { execSync } = await import('child_process')
+
+            // Use curl as a fallback method with insecure flag
+            const curlResult = execSync(`curl -k -s "${url}"`, { encoding: 'utf8' })
+
+            return new Response(curlResult, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*',
                 },
             })
+        } catch (error: any) {
+            console.error('Curl fallback failed:', error.message)
+            return null
         }
+    }
 
-        const data = await response.text()
+    try {
+        const result = await tryFetch()
+        if (result) return result
 
-        return new Response(data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
+        // If all methods failed
+        return new Response(
+            JSON.stringify({
+                error: 'Failed to fetch Icecast data. The server may be using an invalid certificate.',
+            }),
+            {
+                status: 502,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
             },
-        })
-    } catch (error) {
-        return new Response(JSON.stringify({ error: 'Failed to fetch Icecast server information' }), {
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
+        )
+    } catch (error: any) {
+        console.error('Error proxying Icecast request:', error)
+        return new Response(
+            JSON.stringify({
+                error: 'Failed to fetch Icecast server information',
+                details: error.message,
+            }),
+            {
+                status: 500,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
             },
-        })
+        )
     }
 }

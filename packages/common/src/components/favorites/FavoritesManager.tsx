@@ -54,7 +54,6 @@ export function FavoritesManager() {
         // Fetch all favorites lists for the user
         fetchFavoritesLists(ndk, { pubkey })
             .then((lists) => {
-                console.log('Fetched favorites lists:', lists)
                 setFavoritesLists(lists)
             })
             .catch((error) => {
@@ -66,7 +65,6 @@ export function FavoritesManager() {
 
         // Subscribe to updates to favorites lists
         const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
-            console.log('Favorites list updated:', favoritesList)
             setFavoritesLists((prev) => {
                 const index = prev.findIndex((list) => list.id === favoritesList.id)
                 if (index >= 0) {
@@ -104,8 +102,6 @@ export function FavoritesManager() {
                     continue
                 }
 
-                console.log(`Processing ${list.favorites.length} favorites from list ${list.name}`)
-
                 for (const favorite of list.favorites) {
                     // Skip invalid favorites
                     if (!favorite.event_id) {
@@ -130,7 +126,6 @@ export function FavoritesManager() {
                         }
 
                         if (favorite.naddr) {
-                            console.log(`Fetching station using naddr: ${favorite.naddr}`)
                             try {
                                 const parts = favorite.naddr.split(':')
                                 if (parts.length >= 3 && parts[0] === String(RADIO_EVENT_KINDS.STREAM)) {
@@ -142,7 +137,6 @@ export function FavoritesManager() {
                                         '#d': [identifier],
                                     }
 
-                                    console.log(`Fetching with coordinate filter:`, filter)
                                     const events = await ndk.fetchEvents(filter)
                                     const foundEvent = Array.from(events)[0]
 
@@ -164,7 +158,6 @@ export function FavoritesManager() {
 
                         // Only try by event_id if naddr didn't work and the event_id doesn't look like an naddr
                         if (!event && favorite.event_id && !favorite.event_id.startsWith('naddr')) {
-                            console.log(`Fetching station using event_id: ${favorite.event_id}`)
                             try {
                                 event = await ndk.fetchEvent(favorite.event_id)
                                 if (event) {

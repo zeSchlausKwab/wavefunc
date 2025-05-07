@@ -432,13 +432,6 @@ function Index() {
             const ndk = ndkActions.getNDK()
             if (!ndk) return []
 
-            console.log('🔍 Executing search with filters:', {
-                searchTerm: filters.searchTerm,
-                tags: filters.tags,
-                languageCode: filters.languageCode,
-                domain: filters.domain,
-            })
-
             try {
                 // First attempt with exact filters
                 const results = await searchRadioStations(ndk, {
@@ -448,8 +441,6 @@ function Index() {
                     domain: filters.domain || undefined,
                 })
 
-                console.log(`🔍 Search complete, found ${results.length} results`)
-
                 // If we got results, return them
                 if (results.length > 0) {
                     return results
@@ -457,8 +448,6 @@ function Index() {
 
                 // If no results and we have a search term, try a more flexible search
                 if (filters.searchTerm && !filters.tags && !filters.languageCode && !filters.domain) {
-                    console.log('🔍 No results, trying more flexible search...')
-
                     // Try searching with the term as a tag instead
                     const tagResults = await searchRadioStations(ndk, {
                         searchTerm: '', // Clear search term
@@ -466,17 +455,13 @@ function Index() {
                     })
 
                     if (tagResults.length > 0) {
-                        console.log(`🔍 Found ${tagResults.length} results with tag search`)
                         return tagResults
                     }
 
-                    // If still no results, try just getting recent stations
-                    console.log('🔍 No results with tag search, getting recent stations')
                     const recentResults = await searchRadioStations(ndk, {
                         since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30, // Last 30 days
                     })
 
-                    console.log(`🔍 Found ${recentResults.length} recent stations`)
                     return recentResults
                 }
 
@@ -501,7 +486,6 @@ function Index() {
         const cleanSearchTerm = searchTerm.trim()
 
         if (cleanSearchTerm !== filters.searchTerm) {
-            console.log(`Updating search term: "${cleanSearchTerm}"`)
             // Only update if the value has changed
             setFilters((prev) => ({
                 ...prev,
@@ -529,8 +513,6 @@ function Index() {
 
     // Handle filter changes
     const handleFiltersChange = (newFilters: SearchFilters) => {
-        console.log('Filters changed to:', newFilters)
-
         // Apply filter changes directly
         setFilters(newFilters)
 

@@ -76,10 +76,6 @@ function ProfilePage() {
         staleTime: 1000 * 60 * 5, // 5 minutes
     })
 
-    useEffect(() => {
-        console.log('Profile ID:', profileId)
-    }, [profileId])
-
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">

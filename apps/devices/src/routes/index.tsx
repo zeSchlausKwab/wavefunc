@@ -20,7 +20,6 @@ function Index() {
 
         // Subscribe to radio station events using helper
         const subscription = subscribeToRadioStations(ndk, (event) => {
-            console.log('event', event)
             try {
                 const radioData = parseRadioEventWithSchema(event)
 

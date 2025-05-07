@@ -26,6 +26,7 @@ import {
     Volume2,
     VolumeX,
     History,
+    Users,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 // import { MusicRecognitionButton } from './MusicRecognitionButton'
@@ -33,6 +34,33 @@ import { useEffect, useRef, useState } from 'react'
 import { StreamTechnicalInfo } from './radio/StreamTechnicalInfo'
 import { addToHistory, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { openHistoryDrawer } from '@wavefunc/common/src/lib/store/ui'
+import { IcecastMetadataDisplay } from '@wavefunc/common/src/components/radio/IcecastMetadataDisplay'
+
+// Define Icecast metadata types
+export interface IcecastSong {
+    title: string
+    played_at: number | string
+}
+
+export interface IcecastSource {
+    listenurl: string
+    listeners: number
+    server_name: string
+    server_description: string
+    server_type: string
+    bitrate: number
+    song?: string
+    title?: string
+    genre?: string
+    song_history?: IcecastSong[]
+}
+
+export interface IcecastMetadata {
+    icestats: {
+        source: IcecastSource | IcecastSource[]
+        source_count?: number
+    }
+}
 
 async function parsePls(url: string): Promise<string | null> {
     try {
@@ -81,6 +109,30 @@ async function resolveStreamUrl(url: string): Promise<string> {
     return url
 }
 
+/**
+ * Try to fetch Icecast metadata from a stream URL
+ */
+async function fetchIcecastMetadata(streamUrl: string): Promise<IcecastMetadata | null> {
+    try {
+        // Extract the base server URL
+        const url = new URL(streamUrl)
+        const serverBaseUrl = `${url.protocol}//${url.hostname}${url.port ? ':' + url.port : ''}`
+
+        // Use our proxy endpoint to avoid CORS issues
+        const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(serverBaseUrl + '/status-json.xsl')}`
+
+        const response = await fetch(proxyUrl)
+        if (!response.ok) {
+            throw new Error(`Failed to fetch Icecast metadata: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data as IcecastMetadata
+    } catch (error) {
+        return null
+    }
+}
+
 export function RadioPlayer() {
     const { isPlaying, currentStation } = useStore(stationsStore)
     const hasNext = useHasNext()
@@ -97,6 +149,9 @@ export function RadioPlayer() {
 
     const [showVolumeControl, setShowVolumeControl] = useState(false)
     const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
+    const [showListenersInfo, setShowListenersInfo] = useState(false)
+    const [icecastMetadata, setIcecastMetadata] = useState<IcecastMetadata | null>(null)
+    const [icecastLoading, setIcecastLoading] = useState(false)
 
     useEffect(() => {
         loadHistory()
@@ -105,11 +160,11 @@ export function RadioPlayer() {
     useEffect(() => {
         if (!currentStation?.streams?.length) return
 
-        console.log('Station changed to:', currentStation.name)
         setStreamUrl(currentStation.streams[0].url)
         setError(undefined)
         stationChangeRef.current = true
         setMetadata(undefined)
+        setIcecastMetadata(null)
 
         if (isPlaying) {
             addToHistory(currentStation)
@@ -122,9 +177,19 @@ export function RadioPlayer() {
         setIsBuffering(true)
         resolveStreamUrl(streamUrl)
             .then((url) => {
-                console.log('Resolved stream URL:', url)
                 setResolvedStreamUrl(url)
                 setError(undefined)
+
+                // After resolving URL, try to fetch Icecast metadata
+                // setIcecastLoading(true)
+                // return fetchIcecastMetadata(url)
+                //     .then((data) => {
+                //         setIcecastMetadata(data)
+                //         setIcecastLoading(false)
+                //     })
+                //     .catch(() => {
+                //         setIcecastLoading(false)
+                //     })
             })
             .catch((err) => {
                 console.error('Error resolving stream URL:', err)
@@ -132,6 +197,28 @@ export function RadioPlayer() {
                 setIsBuffering(false)
             })
     }, [streamUrl])
+
+    // Periodically refresh Icecast metadata when playing
+    // useEffect(() => {
+    //     if (!isPlaying || !resolvedStreamUrl) return
+
+    //     const refreshIcecast = async () => {
+    //         try {
+    //             const data = await fetchIcecastMetadata(resolvedStreamUrl)
+    //             setIcecastMetadata(data)
+    //         } catch (error) {
+    //             console.error('Error refreshing Icecast metadata:', error)
+    //         }
+    //     }
+
+    //     // Initial fetch
+    //     refreshIcecast()
+
+    //     // Set up polling every 30 seconds
+    //     const interval = setInterval(refreshIcecast, 30000)
+
+    //     return () => clearInterval(interval)
+    // }, [isPlaying, resolvedStreamUrl])
 
     useEffect(() => {
         if (isPlaying && currentStation) {
@@ -145,18 +232,15 @@ export function RadioPlayer() {
 
         const handlers = {
             onPlay: () => {
-                console.log('Audio playing')
                 setIsBuffering(false)
             },
             onPause: () => {
                 console.log('Audio paused')
             },
             onWaiting: () => {
-                console.log('Audio buffering')
                 setIsBuffering(true)
             },
             onPlaying: () => {
-                console.log('Audio playing after buffering')
                 setIsBuffering(false)
                 stationChangeRef.current = false
             },
@@ -222,6 +306,7 @@ export function RadioPlayer() {
 
     const toggleVolumeControl = () => setShowVolumeControl(!showVolumeControl)
     const toggleTechnicalInfo = () => setShowTechnicalInfo(!showTechnicalInfo)
+    const toggleListenersInfo = () => setShowListenersInfo(!showListenersInfo)
 
     const VolumeIcon = audioVolume === 0 ? VolumeX : audioVolume < 0.5 ? Volume1 : Volume2
 
@@ -230,6 +315,13 @@ export function RadioPlayer() {
         metadata?.songTitle ||
         metadata?.artist ||
         (currentStation?.description ? `${currentStation.description.slice(0, 50)}...` : 'No metadata available')
+
+    // Check if we have Icecast metadata with listeners count to determine if we should show the listeners button
+    const hasIcecastListeners =
+        !!icecastMetadata?.icestats?.source &&
+        (Array.isArray(icecastMetadata.icestats.source)
+            ? icecastMetadata.icestats.source.some((s) => typeof s.listeners === 'number')
+            : typeof icecastMetadata.icestats.source.listeners === 'number')
 
     const renderPlaybackControls = () => (
         <div className="flex items-center gap-2">
@@ -375,6 +467,33 @@ export function RadioPlayer() {
                     {/* Volume control */}
                     {renderVolumeControl()}
 
+                    {/* Listeners button - only show if Icecast metadata is available */}
+                    {hasIcecastListeners && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className={cn(
+                                            'h-9 w-9 border-2 border-black',
+                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                            'transition-transform hover:translate-y-[-2px]',
+                                            showListenersInfo && 'bg-blue-100',
+                                        )}
+                                        onClick={toggleListenersInfo}
+                                    >
+                                        <Users className="h-4 w-4" />
+                                        {icecastLoading && (
+                                            <div className="absolute right-0 top-0 h-2 w-2 bg-blue-500 rounded-full animate-ping"></div>
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Station Listeners & History</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
+
                     {/* Technical info button */}
                     <TooltipProvider>
                         <Tooltip>
@@ -386,6 +505,7 @@ export function RadioPlayer() {
                                         'h-9 w-9 border-2 border-black',
                                         'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
                                         'transition-transform hover:translate-y-[-2px]',
+                                        showTechnicalInfo && 'bg-gray-100',
                                     )}
                                     onClick={toggleTechnicalInfo}
                                 >
@@ -427,6 +547,13 @@ export function RadioPlayer() {
                         resolvedUrl={resolvedStreamUrl || streamUrl}
                         isLoading={isBuffering}
                     />
+                </div>
+            )}
+
+            {/* Icecast listeners and song history panel */}
+            {showListenersInfo && icecastMetadata && (
+                <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200 text-xs animate-in slide-in-from-bottom-5">
+                    <IcecastMetadataDisplay metadata={icecastMetadata} />
                 </div>
             )}
         </div>
