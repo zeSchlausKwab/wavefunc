@@ -12,6 +12,7 @@ import { AuthButton } from './auth/AuthButton'
 import { Nav } from './Nav'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
+import { SiteLinks } from './SiteLinks'
 export function Header() {
     const authState = useStore(authStore)
     const [isNavOpen, setIsNavOpen] = useState(false)
@@ -70,43 +71,7 @@ export function Header() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {!isMobile && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="text-xs bg-amber-100 text-amber-800 px-3 py-1 rounded-full border-2 border-amber-500 flex items-center font-medium">
-                                        <IconWrapper icon={AlertTriangle} className="h-3 w-3 mr-1 text-amber-500" />
-                                        <span>Limited relay - will be reset</span>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>This is a development environment with limited relay capacity</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-
-                    {isMobile && (
-                        <TooltipProvider>
-                            <Tooltip open={showWarningTooltip} onOpenChange={setShowWarningTooltip}>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className={cn(
-                                            'h-9 w-9 border-2 border-amber-500 bg-amber-100',
-                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                        )}
-                                    >
-                                        <IconWrapper icon={AlertTriangle} className="h-4 w-4 text-amber-500" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Limited relay - will be reset</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
+                    <SiteLinks />
 
                     {authState.isAuthenticated && (
                         <Button
