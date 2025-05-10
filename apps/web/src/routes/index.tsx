@@ -28,10 +28,6 @@ export const Route = createFileRoute('/')({
     component: Index,
 })
 
-const IconWrapper = ({ icon: Icon, className = 'h-5 w-5' }: { icon: any; className?: string }) => {
-    return <Icon className={className} />
-}
-
 const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', 'electronic']
 const DEV_NPUB = 'npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf'
 
@@ -55,39 +51,12 @@ function Index() {
     }, [])
 
     const authState = useStore(authStore)
-    const ndk = ndkActions.getNDK()
-    const env = envActions.getEnv()
 
     const [isAppZapDialogOpen, setIsAppZapDialogOpen] = useState(false)
-    const [canAppReceiveZaps, setCanAppReceiveZaps] = useState<boolean | null>(null)
-    const [checkingAppZapCapability, setCheckingAppZapCapability] = useState(false)
     const [appZapEventForDialog, setAppZapEventForDialog] = useState<NDKEvent | null>(null)
     const [queryError, setQueryError] = useState<string | null>(null)
-    const [initialLoad, setInitialLoad] = useState(true)
     const [ndkReady, setNdkReady] = useState(false)
     const [envReady, setEnvReady] = useState(false)
-
-    // Single initialization & readiness check
-    useEffect(() => {
-        const checkInitialization = async () => {
-            // Check if NDK is ready
-            if (ndk) {
-                setNdkReady(true)
-            }
-
-            // Check if Env is ready
-            if (env) {
-                setEnvReady(true)
-            }
-
-            // Both are ready
-            if (ndk && env) {
-                setInitialLoad(false)
-            }
-        }
-
-        checkInitialization()
-    }, [ndk, env])
 
     useEffect(() => {
         loadHistory()
@@ -98,41 +67,36 @@ function Index() {
     }, [])
 
     useEffect(() => {
-        if (ndk && env?.APP_PUBKEY && ndkReady && envReady) {
-            const checkZapCapability = async () => {
-                try {
-                    setCheckingAppZapCapability(true)
-                    const userToZap = ndk.getUser({ pubkey: env.APP_PUBKEY! })
-                    const zapInfo = await userToZap.getZapInfo()
-                    setCanAppReceiveZaps(zapInfo.size > 0)
-                } catch (error) {
-                    console.error('Failed to check app zap capability:', error)
-                    setCanAppReceiveZaps(false)
-                } finally {
-                    setCheckingAppZapCapability(false)
-                }
-            }
-            // checkZapCapability()
-
-            const tempEvent = new NDKEvent(ndk)
-            tempEvent.pubkey = env.APP_PUBKEY!
-            tempEvent.content = 'Wavefunc App'
-            tempEvent.kind = 0
-            setAppZapEventForDialog(tempEvent)
+        const ndk = ndkActions.getNDK()
+        if (!ndk) {
+            console.error('NDK not available for zap event creation')
+            return
         }
-    }, [ndk, env?.APP_PUBKEY, ndkReady, envReady])
+        const env = envActions.getEnv()
+        if (!env?.APP_PUBKEY) {
+            console.error('APP_PUBKEY not available for zap event creation')
+            return
+        }
+        const tempEvent = new NDKEvent(ndk)
+        tempEvent.pubkey = env.APP_PUBKEY!
+        tempEvent.content = 'Wavefunc App'
+        tempEvent.kind = 0
+        setAppZapEventForDialog(tempEvent)
+    }, [ndkReady, envReady])
 
     const featuredListQueries = useQueries({
         queries: homepageFeaturedListDTags.map((dTag) => ({
             queryKey: ['featured-list', dTag],
             queryFn: async () => {
+                const ndk = ndkActions.getNDK()
                 if (!ndk) {
-                    console.error('NDK not available for featured list query', dTag)
-                    throw new Error('NDK not available')
+                    console.error('NDK not available for zap event creation')
+                    return
                 }
+                const env = envActions.getEnv()
                 if (!env?.APP_PUBKEY) {
-                    console.error('APP_PUBKEY not available for featured list query', dTag)
-                    throw new Error('APP_PUBKEY not available')
+                    console.error('APP_PUBKEY not available for zap event creation')
+                    return
                 }
 
                 try {
@@ -148,7 +112,6 @@ function Index() {
                 }
             },
             staleTime: 1000 * 60 * 5,
-            enabled: !!ndk && !!env?.APP_PUBKEY && ndkReady && envReady,
             retry: 3,
             retryDelay: (attempt: number) => Math.min(attempt > 1 ? 2000 * 2 ** attempt : 1000, 30000),
             onError: (error: Error) => {
@@ -158,8 +121,8 @@ function Index() {
         })),
     })
 
-    const isLoading = featuredListQueries.some((query) => query.isLoading) || initialLoad
-    const hasError = featuredListQueries.some((query) => query.isError) || queryError !== null
+    const isLoading = false // featuredListQueries.some((query) => query.isLoading) || initialLoad
+    const hasError = false // featuredListQueries.some((query) => query.isError) || queryError !== null
 
     const listForLayout1 = featuredListQueries[0]?.data ?? null
     const listForLayout2 = featuredListQueries[1]?.data ?? null
@@ -230,22 +193,14 @@ function Index() {
                     Consider supporting the app and its developer to keep the music playing!
                 </p>
                 <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                    {env?.APP_PUBKEY && appZapEventForDialog && (
-                        <Button
-                            variant="outline"
-                            className="flex-1 justify-center border-yellow-500 hover:border-yellow-600 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
-                            onClick={() => setIsAppZapDialogOpen(true)}
-                            title={canAppReceiveZaps === false ? 'App cannot receive zaps currently' : 'Zap the App!'}
-                        >
-                            <Zap
-                                className={cn(
-                                    'h-5 w-5 mr-2',
-                                    canAppReceiveZaps !== false ? 'text-yellow-500' : 'text-gray-400',
-                                )}
-                            />{' '}
-                            Zap the App
-                        </Button>
-                    )}
+                    <Button
+                        variant="outline"
+                        className="flex-1 justify-center border-yellow-500 hover:border-yellow-600 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
+                        onClick={() => setIsAppZapDialogOpen(true)}
+                        title={'Zap the App!'}
+                    >
+                        <Zap className={cn('h-5 w-5 mr-2 text-yellow-500')} /> Zap the App
+                    </Button>
                     <a
                         href={`https://njump.me/${DEV_NPUB}`}
                         target="_blank"
@@ -366,7 +321,7 @@ function Index() {
                 </div>
             )}
 
-            {isAppZapDialogOpen && appZapEventForDialog && env?.APP_PUBKEY && (
+            {isAppZapDialogOpen && appZapEventForDialog && (
                 <ZapDialog
                     isOpen={isAppZapDialogOpen}
                     onOpenChange={setIsAppZapDialogOpen}
