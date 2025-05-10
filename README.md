@@ -10,7 +10,7 @@ A decentralized internet radio registry built on Nostr, offering music recogniti
 
 - 🎵 **Radio Station Streaming**: Listen to radio stations from around the world.
 - 📻 **Radio Station Registry**: Define and discover radio stations using Nostr events (Kind 31237).
-- 🔍 **Music Recognition**: Identify songs playing on any radio station (via AudD API and Nostr DVM).
+- 🔍 **Dedicated and Indexed Relay**: Ligthning fast radio station search.
 - ⭐ **Favorites Management**: Create and manage lists of your favorite stations using Nostr events (Kind 30078).
 - 큐 **Featured Station Lists**: Discover curated collections of radio stations.
 - 🔑 **Nostr Authentication**: Seamless login with your Nostr key (including NIP-46 for remote signing).

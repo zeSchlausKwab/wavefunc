@@ -336,11 +336,15 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
 
     const renderInvoiceQR = () => (
         <div className="flex flex-col items-center space-y-4">
-            <div className="bg-white p-6 rounded-lg">
-                <QRCodeSVG value={invoice || ''} size={240} level="H" includeMargin={true} className="mx-auto" />
+            <div 
+                className="bg-white p-6 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => invoice && copyToClipboard(invoice)}
+                title="Click to copy invoice"
+            >
+                <QRCodeSVG value={invoice || ''} size={240} level="H" includeMargin={true} className="mx-auto pointer-events-none" />
             </div>
             <div className="flex flex-col w-full space-y-2">
-                <p className="text-center text-sm mb-2">Scan with your Lightning wallet</p>
+                <p className="text-center text-sm mb-2">Scan with your Lightning wallet or click QR to copy</p>
                 <div className="flex items-center">
                     <Input value={invoice || ''} readOnly className="font-mono text-xs" />
                     <Button

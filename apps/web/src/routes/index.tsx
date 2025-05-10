@@ -11,14 +11,19 @@ import {
     type FeaturedList,
     type Station,
     getSpecificFeaturedListByDTag,
+    envActions,
+    ZapDialog,
+    NDKEvent,
 } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import { getLastPlayedStation, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { setCurrentStation } from '@wavefunc/common/src/lib/store/stations'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { Headphones, Loader2, Music, Plus, Radio } from 'lucide-react'
-import { useEffect } from 'react'
+import { Headphones, Loader2, Music, Plus, Radio, Zap, UserPlus, ExternalLink, Info } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
+import { nip19 } from 'nostr-tools'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/')({
     component: Index,
@@ -28,41 +33,71 @@ const IconWrapper = ({ icon: Icon, className = 'h-5 w-5' }: { icon: any; classNa
     return <Icon className={className} />
 }
 
-// Define the d-tags for the featured lists you want on the homepage
-const APP_PUBKEY = '210f31b6019f5ae13c995c8d83faa41a129f1296842e4c3313ab8a4abb09d1a2'
 const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', 'electronic']
+const DEV_NPUB = 'npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf'
 
 function Index() {
     const isMobile = useMedia('(max-width: 640px)')
     const authState = useStore(authStore)
     const ndk = ndkActions.getNDK()
+    const env = envActions.getEnv()
 
-    // Load last played station from history
+    const [isAppZapDialogOpen, setIsAppZapDialogOpen] = useState(false)
+    const [canAppReceiveZaps, setCanAppReceiveZaps] = useState<boolean | null>(null)
+    const [checkingAppZapCapability, setCheckingAppZapCapability] = useState(false)
+    const [appZapEventForDialog, setAppZapEventForDialog] = useState<NDKEvent | null>(null)
+
     useEffect(() => {
         loadHistory()
         const lastStation = getLastPlayedStation()
         if (lastStation) {
-            // Set as current station but don't start playing
             setCurrentStation(lastStation)
         }
     }, [])
+
+    useEffect(() => {
+        if (ndk && env?.APP_PUBKEY) {
+            const checkZapCapability = async () => {
+                try {
+                    setCheckingAppZapCapability(true)
+                    const userToZap = ndk.getUser({ pubkey: env.APP_PUBKEY! })
+                    const zapInfo = await userToZap.getZapInfo()
+                    setCanAppReceiveZaps(zapInfo.size > 0)
+                } catch (error) {
+                    console.error('Failed to check app zap capability:', error)
+                    setCanAppReceiveZaps(false)
+                } finally {
+                    setCheckingAppZapCapability(false)
+                }
+            }
+            checkZapCapability()
+
+            const tempEvent = new NDKEvent(ndk)
+            tempEvent.pubkey = env.APP_PUBKEY!
+            tempEvent.content = 'Wavefunc App'
+            tempEvent.kind = 0
+            setAppZapEventForDialog(tempEvent)
+        }
+    }, [ndk, env?.APP_PUBKEY])
 
     const featuredListQueries = useQueries({
         queries: homepageFeaturedListDTags.map((dTag) => ({
             queryKey: ['featured-list', dTag],
             queryFn: async () => {
                 if (!ndk) throw new Error('NDK not available')
-                return getSpecificFeaturedListByDTag(ndk, dTag, APP_PUBKEY, { withStations: true })
+                return getSpecificFeaturedListByDTag(ndk, dTag, env?.APP_PUBKEY || '', { withStations: true })
             },
             staleTime: 1000 * 60 * 5,
-            enabled: !!ndk,
+            enabled: !!ndk && !!env?.APP_PUBKEY,
         })),
     })
 
     const isLoading = featuredListQueries.some((query) => query.isLoading)
-    const featuredLists = featuredListQueries
-        .map((query) => query.data)
-        .filter((list): list is FeaturedList => list !== null)
+
+    const listForLayout1 = featuredListQueries[0]?.data ?? null
+    const listForLayout2 = featuredListQueries[1]?.data ?? null
+    const listForLayout3 = featuredListQueries[2]?.data ?? null
+    const loadedFeaturedLists = [listForLayout1, listForLayout2, listForLayout3].filter(Boolean)
 
     const handleCreateStation = () => {
         openCreateStationDrawer()
@@ -70,59 +105,95 @@ function Index() {
 
     const renderWelcomeCard = () => {
         return (
-            <div className="mb-12 p-6 border-2 border-black rounded-lg bg-background/50 shadow-sm mx-auto">
-                <h2 className="text-xl font-bold mb-4">Welcome to Wavefunc!</h2>
+            <div className="mb-12 p-6 border-2 border-black rounded-lg bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 shadow-lg mx-auto">
+                <div className="flex items-center mb-4">
+                    <Info className="h-8 w-8 text-purple-600 mr-3" />
+                    <h2 className="text-2xl font-bold text-gray-800">Welcome to Wavefunc!</h2>
+                </div>
 
-                <div className="text-muted-foreground mb-6 text-md leading-12">
-                    <span className="mb-2 block">
-                        Your Nostr native place for everything internet radio. After you've checked out the featured
-                        stations, and after you've logged in and changed the settings
-                        <span className="inline-flex mx-2">
-                            <AuthButton compact={true} className="px-1 mx-1 font-medium text-primary inline-flex" />
-                        </span>
-                        , you can:
+                <div className="text-gray-600 mb-6 text-md leading-relaxed">
+                    <span>
+                        Your Nostr-native hub for internet radio. Explore featured stations, log in to customize your
+                        experience (
                     </span>
-                    <span className="mr-2 inline-block">
-                        <Link to="/favourites" className="mx-2">
-                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
-                                <IconWrapper icon={Radio} className="h-5 w-5 mr-3" />
-                                create your favourite lists
-                            </Button>
-                        </Link>
-                    </span>
-                    <span className="mr-2 inline-block">
-                        <Link to="/discover" className="mx-2">
-                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
-                                <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
-                                discover radio stations on Nostr
-                            </Button>
-                        </Link>
-                    </span>
-                    <span className="mr-2 inline-block">or if you haven't found your station on Nostr, you can</span>
-                    <span className="mr-2 inline-block">
-                        <Link to="/legacy" className="mx-2">
-                            <Button variant="default" className="bg-black text-white hover:bg-black/80">
-                                <IconWrapper icon={Headphones} className="h-5 w-5 mr-3" />
-                                try our legacy API search
-                            </Button>
-                        </Link>
-                    </span>
-                    <span className="mr-2 inline-block">or bring your own favorite station to nostr:</span>
-                    <span className="mr-2 inline-block">
+                    <AuthButton
+                        compact={true}
+                        className="px-1 mx-0.5 font-medium text-purple-600 hover:text-purple-700 inline-flex items-center"
+                    />
+                    <span>), and dive into the world of decentralized audio!</span>
+                </div>
+
+                <h3 className="text-xl font-semibold text-gray-700 mb-3">Get Started:</h3>
+                <ul className="space-y-3 mb-8 list-none pl-0">
+                    {[
+                        { to: '/favourites', icon: Radio, label: 'Create Your Favourite Lists' },
+                        { to: '/discover', icon: Headphones, label: 'Discover Stations on Nostr' },
+                        { to: '/legacy', icon: Headphones, label: 'Try Our Legacy API Search' },
+                    ].map((item) => (
+                        <li key={item.to} className="pl-0">
+                            <Link to={item.to} className="w-full">
+                                <Button
+                                    variant="outline"
+                                    className="w-full justify-start text-left border-gray-300 hover:border-purple-500 hover:bg-purple-50 text-gray-700"
+                                >
+                                    <item.icon className="h-5 w-5 mr-3 text-purple-500" /> {item.label}
+                                </Button>
+                            </Link>
+                        </li>
+                    ))}
+                    <li className="pl-0">
                         <Button
-                            variant="default"
-                            size="icon"
-                            className={cn(
-                                'bg-green-500 hover:bg-green-600 text-white h-7 w-7 mr-3',
-                                'border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                'transition-transform hover:translate-y-[-2px]',
-                            )}
+                            variant="outline"
+                            className="w-full justify-start text-left border-gray-300 hover:border-purple-500 hover:bg-purple-50 text-gray-700"
                             disabled={!authState.isAuthenticated}
                             onClick={handleCreateStation}
+                            title={
+                                !authState.isAuthenticated
+                                    ? 'Login to create a station'
+                                    : 'Bring your own station to Nostr'
+                            }
                         >
-                            <IconWrapper icon={Plus} className="h-4 w-4" />
+                            <Plus className="h-5 w-5 mr-3 text-purple-500" /> Bring Your Own Station to Nostr
                         </Button>
-                    </span>
+                    </li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-gray-700 mb-3">Enjoying Wavefunc?</h3>
+                <p className="text-gray-600 mb-4 text-md leading-relaxed">
+                    Consider supporting the app and its developer to keep the music playing!
+                </p>
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                    {env?.APP_PUBKEY && appZapEventForDialog && (
+                        <Button
+                            variant="outline"
+                            className="flex-1 justify-center border-yellow-500 hover:border-yellow-600 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
+                            onClick={() => setIsAppZapDialogOpen(true)}
+                            disabled={checkingAppZapCapability || canAppReceiveZaps === false}
+                            title={canAppReceiveZaps === false ? 'App cannot receive zaps currently' : 'Zap the App!'}
+                        >
+                            <Zap
+                                className={cn(
+                                    'h-5 w-5 mr-2',
+                                    canAppReceiveZaps !== false ? 'text-yellow-500' : 'text-gray-400',
+                                )}
+                            />{' '}
+                            Zap the App
+                        </Button>
+                    )}
+                    <a
+                        href={`https://njump.me/${DEV_NPUB}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1"
+                    >
+                        <Button
+                            variant="outline"
+                            className="w-full justify-center border-blue-500 hover:border-blue-600 hover:bg-blue-50 text-blue-700 hover:text-blue-800"
+                        >
+                            <UserPlus className="h-5 w-5 mr-2 text-blue-500" /> Follow ze Dev of zis app
+                            <ExternalLink className="h-4 w-4 ml-2 opacity-70" />
+                        </Button>
+                    </a>
                 </div>
             </div>
         )
@@ -131,25 +202,23 @@ function Index() {
     const renderFeaturedList = (list: FeaturedList, index: number) => {
         if (!list) return null
 
-        // Different layouts based on position
         let gridClass = ''
         let title = list.name
 
         switch (index) {
-            case HOMEPAGE_LAYOUT.GRID_2X2: // First list - 2x2 grid (4 stations)
+            case HOMEPAGE_LAYOUT.GRID_2X2:
                 gridClass = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4'
                 break
-            case HOMEPAGE_LAYOUT.GRID_1X2: // Second list - 1x2 grid (2 stations)
+            case HOMEPAGE_LAYOUT.GRID_1X2:
                 gridClass = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4'
                 break
-            case HOMEPAGE_LAYOUT.GRID_3X2: // Third list - 3x1 grid (3 stations)
+            case HOMEPAGE_LAYOUT.GRID_3X2:
                 gridClass = 'grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4'
                 break
             default:
                 gridClass = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
         }
 
-        // Limit the number of stations shown based on the layout
         let stationsToShow = [...list.stations]
         if (index === HOMEPAGE_LAYOUT.GRID_2X2) {
             stationsToShow = stationsToShow.slice(0, 4)
@@ -169,7 +238,6 @@ function Index() {
                 {stationsToShow.length > 0 ? (
                     <div className={`grid ${gridClass}`}>
                         {stationsToShow.map((station) => {
-                            // Cast to FeaturedStation for proper typing
                             const stationData = station as unknown as Station
                             return <RadioCard key={stationData.id} station={stationData} />
                         })}
@@ -193,7 +261,7 @@ function Index() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <span className="ml-2">Loading featured stations...</span>
                 </div>
-            ) : !featuredLists || featuredLists.length === 0 ? (
+            ) : loadedFeaturedLists.length === 0 ? (
                 <div className="text-center py-12 border rounded-lg bg-muted/30">
                     <Music className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
                     <h2 className="text-xl font-semibold mb-2">No Featured Stations Found</h2>
@@ -203,15 +271,24 @@ function Index() {
                 </div>
             ) : (
                 <div className="space-y-10">
-                    {/* First featured list */}
-                    {featuredLists[0] && renderFeaturedList(featuredLists[0], HOMEPAGE_LAYOUT.GRID_2X2)}
+                    {listForLayout1 && renderFeaturedList(listForLayout1, HOMEPAGE_LAYOUT.GRID_2X2)}
 
-                    {/* Welcome card between first and second featured lists */}
-                    {featuredLists.length > 0 && renderWelcomeCard()}
+                    {(listForLayout1 || listForLayout2 || listForLayout3) && renderWelcomeCard()}
 
-                    {/* Rest of the featured lists */}
-                    {featuredLists.slice(1).map((list, index) => renderFeaturedList(list, index + 1))}
+                    {listForLayout2 && renderFeaturedList(listForLayout2, HOMEPAGE_LAYOUT.GRID_1X2)}
+                    {listForLayout3 && renderFeaturedList(listForLayout3, HOMEPAGE_LAYOUT.GRID_3X2)}
                 </div>
+            )}
+
+            {isAppZapDialogOpen && appZapEventForDialog && env?.APP_PUBKEY && (
+                <ZapDialog
+                    isOpen={isAppZapDialogOpen}
+                    onOpenChange={setIsAppZapDialogOpen}
+                    event={appZapEventForDialog}
+                    onZapComplete={(zapEvent: NDKEvent | undefined) => {
+                        toast.success('App zapped successfully!')
+                    }}
+                />
             )}
         </div>
     )
