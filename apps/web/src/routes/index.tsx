@@ -1,16 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import {
     AuthButton,
     authStore,
     cn,
-    getFeaturedListsForHomepage,
     HOMEPAGE_LAYOUT,
     ndkActions,
     openCreateStationDrawer,
     type FeaturedList,
     type Station,
+    getSpecificFeaturedListByDTag,
 } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import { getLastPlayedStation, loadHistory } from '@wavefunc/common/src/lib/store/history'
@@ -28,9 +28,14 @@ const IconWrapper = ({ icon: Icon, className = 'h-5 w-5' }: { icon: any; classNa
     return <Icon className={className} />
 }
 
+// Define the d-tags for the featured lists you want on the homepage
+const APP_PUBKEY = '210f31b6019f5ae13c995c8d83faa41a129f1296842e4c3313ab8a4abb09d1a2'
+const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', 'electronic']
+
 function Index() {
     const isMobile = useMedia('(max-width: 640px)')
     const authState = useStore(authStore)
+    const ndk = ndkActions.getNDK()
 
     // Load last played station from history
     useEffect(() => {
@@ -42,16 +47,22 @@ function Index() {
         }
     }, [])
 
-    // Fetch featured lists for homepage
-    const { data: featuredLists, isLoading } = useQuery({
-        queryKey: ['featured-lists-homepage'],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-            return getFeaturedListsForHomepage(ndk, { limit: 3, withStations: true })
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
+    const featuredListQueries = useQueries({
+        queries: homepageFeaturedListDTags.map((dTag) => ({
+            queryKey: ['featured-list', dTag],
+            queryFn: async () => {
+                if (!ndk) throw new Error('NDK not available')
+                return getSpecificFeaturedListByDTag(ndk, dTag, APP_PUBKEY, { withStations: true })
+            },
+            staleTime: 1000 * 60 * 5,
+            enabled: !!ndk,
+        })),
     })
+
+    const isLoading = featuredListQueries.some((query) => query.isLoading)
+    const featuredLists = featuredListQueries
+        .map((query) => query.data)
+        .filter((list): list is FeaturedList => list !== null)
 
     const handleCreateStation = () => {
         openCreateStationDrawer()
@@ -185,16 +196,18 @@ function Index() {
             ) : !featuredLists || featuredLists.length === 0 ? (
                 <div className="text-center py-12 border rounded-lg bg-muted/30">
                     <Music className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                    <h2 className="text-xl font-semibold mb-2">No Featured Stations</h2>
-                    <p className="text-muted-foreground">Check back later for curated station collections</p>
+                    <h2 className="text-xl font-semibold mb-2">No Featured Stations Found</h2>
+                    <p className="text-muted-foreground">
+                        Could not load the specified featured collections. Check back later!
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-10">
                     {/* First featured list */}
-                    {featuredLists[0] && renderFeaturedList(featuredLists[0], 0)}
+                    {featuredLists[0] && renderFeaturedList(featuredLists[0], HOMEPAGE_LAYOUT.GRID_2X2)}
 
                     {/* Welcome card between first and second featured lists */}
-                    {renderWelcomeCard()}
+                    {featuredLists.length > 0 && renderWelcomeCard()}
 
                     {/* Rest of the featured lists */}
                     {featuredLists.slice(1).map((list, index) => renderFeaturedList(list, index + 1))}
