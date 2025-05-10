@@ -1,14 +1,12 @@
 'use client'
 
-import { Link } from '@tanstack/react-router'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { cn } from '@wavefunc/common'
 import { Github, Radio } from 'lucide-react'
 import { ExternalLink } from './ExternalLink'
 
 export function SiteLinks() {
     const githubUrl = 'https://github.com/zeSchlausKwab/wavefunc'
-    const nostrUrl = 'https://njump.me/mock' // Replace 'mock' with actual Nostr ID when available
+    const nostrUrl = `https://njump.me/npub1yy8nrdspnadwz0yetjxc874yrgff7y5ksshycvcn4w9y4wcf6x3qdqlqpp` // Replace 'mock' with actual Nostr ID when available
 
     return (
         <div className="flex items-center gap-3 mr-2 hidden sm:flex">
