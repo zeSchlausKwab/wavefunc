@@ -9,11 +9,11 @@ import { fetchStation } from '@wavefunc/common/src/nostr/radio'
 function getNDK() {
     return new NDK({
         explicitRelayUrls: [
-            'wss://relay.damus.io',
-            'wss://nos.lol',
-            'wss://relay.nostr.band',
+            // 'wss://relay.damus.io',
+            // 'wss://nos.lol',
+            // 'wss://relay.nostr.band',
             'wss://relay.wavefunc.live',
-            'ws://192.168.0.188:3002',
+            // 'ws://192.168.0.188:3002',
         ],
     })
 }

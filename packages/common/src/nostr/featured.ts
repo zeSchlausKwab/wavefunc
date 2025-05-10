@@ -122,7 +122,7 @@ export async function findFeaturedListByTopic(ndk: NDK, topic: string): Promise<
         limit: 1,
     }
 
-    const relay = new NDKRelay('wss://relay.wavefunc.com', undefined, ndk)
+    const relay = new NDKRelay('wss://relay.wavefunc.live', undefined, ndk)
     const event = await ndk.fetchEvent(filter, undefined, relay)
 
     if (!event) {
@@ -162,8 +162,8 @@ export async function getSpecificFeaturedListByDTag(
     }
 
     try {
-        const relay = new NDKRelay('wss://relay.wavefunc.com', undefined, ndk)
-        const listEvent = await ndk.fetchEvent(filter, undefined, relay)
+        const relay = new NDKRelay('wss://relay.wavefunc.live', undefined, ndk)
+        const listEvent = await ndk.fetchEvent(filter, {}, relay)
 
         if (!listEvent) {
             console.warn(`No featured list found with dTag '${dTag}' and author '${authorPubkey}'`)
