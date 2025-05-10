@@ -115,6 +115,8 @@ export async function findFeaturedListByTopic(ndk: NDK, topic: string): Promise<
         limit: 1,
     }
 
+    ndk.explicitRelayUrls = ['wss://relay.wavefunc.com']
+
     const events = await ndk.fetchEvents(filter)
     const event = Array.from(events)[0]
 
@@ -152,8 +154,9 @@ export async function getSpecificFeaturedListByDTag(
         authors: [authorPubkey],
         '#l': [FEATURED_LIST_LABEL], // 'featured_station_list'
         '#d': [dTag],
-        limit: 1,
     };
+
+    ndk.explicitRelayUrls = ['wss://relay.wavefunc.com']
 
     try {
         const listEvent = await ndk.fetchEvent(filter);
