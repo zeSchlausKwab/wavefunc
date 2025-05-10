@@ -1,6 +1,6 @@
 # WaveFunc
 
-A decentralized internet radio registry built on Nostr, offering music recognition capabilities and favorites management.
+A decentralized internet radio registry built on Nostr, offering music recognition capabilities and favorites management. This application is also referred to as NostrRadio in the specification documents.
 
 <div align="center">
   <img src="apps/web/public/images/logo.png" alt="WaveFunc Logo" width="200" />
@@ -8,20 +8,25 @@ A decentralized internet radio registry built on Nostr, offering music recogniti
 
 ## Features
 
-- 🎵 **Radio Station Streaming**: Listen to radio stations from around the world
-- 🔍 **Music Recognition**: Identify songs playing on any radio station
-- ⭐ **Favorites**: Create and manage lists of your favorite stations
-- 🔑 **Nostr Authentication**: Seamless login with your Nostr key
-- 🌐 **Decentralized**: Built on Nostr protocol for censorship resistance
-- 📱 **Responsive Design**: Works on desktop and mobile devices
+- 🎵 **Radio Station Streaming**: Listen to radio stations from around the world.
+- 📻 **Radio Station Registry**: Define and discover radio stations using Nostr events (Kind 31237).
+- 🔍 **Music Recognition**: Identify songs playing on any radio station (via AudD API and Nostr DVM).
+- ⭐ **Favorites Management**: Create and manage lists of your favorite stations using Nostr events (Kind 30078).
+- 큐 **Featured Station Lists**: Discover curated collections of radio stations.
+- 🔑 **Nostr Authentication**: Seamless login with your Nostr key (including NIP-46 for remote signing).
+- 🌐 **Decentralized**: Built on the Nostr protocol for censorship resistance and data portability.
+- 📱 **Responsive Design**: Works on desktop and mobile devices.
+- 🔗 **NIP-89 Handler Support**: Declares itself as a handler for radio station events (Kind 31990).
 
 ## Tech Stack
 
 - **Frontend**: React, TailwindCSS, Vite, Tanstack Router
-- **Backend**: Bun, Elysia
-- **Nostr**: NDK (Nostr Development Kit)
-- **Deployment**: Docker, Nginx, Railway
+- **Backend**: Bun
+- **Nostr**: NDK (Nostr Development Kit), NIP-07, NIP-46
+- **Database**: PostgreSQL (for caching/indexing Nostr events - optional, primarily relies on Nostr relays)
+- **Deployment**: Nginx, Railway
 - **Music Recognition**: AudD API via DVM (Nostr Data Verification Method)
+- **Specification**: Follows NostrRadio event kinds and formats (see `SPEC.md`)
 
 ## Development Setup
 
@@ -77,9 +82,12 @@ PUBLIC_RELAY_PORT=3002
 PUBLIC_WEB_PORT=8080
 PUBLIC_API_PORT=3001
 PUBLIC_BLOSSOM_URL=<url>
+# Add your Nostr pubkey if you are running a DVM or want to publish curated lists
+# NOSTR_PUBLIC_KEY=<your_nostr_pubkey_hex>
+# NOSTR_PRIVATE_KEY=<your_nostr_private_key_hex> # Keep this safe!
 ```
 
-> **Important:** When testing features like NIP-46 login or using the app from other devices on your network, set `PUBLIC_HOST` to your machine's local IP address (e.g., `192.168.1.x`) instead of `localhost`. This ensures proper communication between devices on your network.
+> **Important:** When testing features like NIP-46 login or using the app from other devices on your network, set `PUBLIC_HOST` to your machine's local IP address (e.g., `192.168.1.x`) instead of `localhost`. This ensures proper communication between devices on your network. The `NOSTR_PUBLIC_KEY` and `NOSTR_PRIVATE_KEY` are primarily for application-level event publishing (e.g. featured lists, NIP-89 handler events if the app itself publishes these). User-specific actions are signed by the user's client.
 
 For production, you'll also need:
 
@@ -96,11 +104,12 @@ POSTGRES_HOST=localhost
 ```
 /apps
   /web          # React frontend
-  /backend      # Elysia API server
+  /devices      # app (coming soon)
 /infra
-  /relay        # Nostr relay
-  /dvm          # Data Verification Method service
-/packages       # Shared code
+  /blossom      # blossom
+  /dvm          # Data Verification Method service (for music recognition)
+/packages       # Shared code (e.g., Nostr types, utilities)
+/docs           # Documentation, including SPEC.md
 ```
 
 ## Development
@@ -115,6 +124,16 @@ POSTGRES_HOST=localhost
 - `bun run build`: Build the application for production
 - `bun run test`: Run tests
 - `bun run format`: Format code using Prettier
+
+## Specification Adherence
+
+WaveFunc / NostrRadio follows the event kinds, content formats, and tag structures defined in `SPEC.md`. Key kinds include:
+
+- `31237`: Radio Station Event
+- `30078`: Favorites List & Featured Station Lists
+- `31990`: NIP-89 Handler Event
+
+Refer to `SPEC.md` for detailed information on event structures, tags, and content formats.
 
 ## License
 

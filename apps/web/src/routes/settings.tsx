@@ -59,10 +59,10 @@ function Settings() {
                         <Wallet className="h-4 w-4" />
                         NWC
                     </TabsTrigger>
-                    <TabsTrigger value="cashu" className="flex items-center gap-2">
+                    {/* <TabsTrigger value="cashu" className="flex items-center gap-2">
                         <Wallet className="h-4 w-4" />
                         Cashu
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                 </TabsList>
 
                 <TabsContent value="profile">
