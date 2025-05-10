@@ -1,6 +1,6 @@
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Input } from '@wavefunc/ui/components/ui/input'
-import { authActions, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@wavefunc/common'
+import { authActions, NOSTR_AUTO_LOGIN, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@wavefunc/common'
 import { useEnv } from '@wavefunc/common'
 import { ndkActions } from '@wavefunc/common'
 import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
@@ -11,12 +11,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 interface NostrConnectQRProps {
     onError?: (error: string) => void
     onSuccess?: () => void
+    autoLogin?: boolean
 }
 
 // Global lock to prevent multiple login attempts across component remounts
 let globalLoginInProgress = false
 
-export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
+export function NostrConnectQR({ onError, onSuccess, autoLogin = true }: NostrConnectQRProps) {
     const { env, initialize } = useEnv()
     const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null)
     const [localPubkey, setLocalPubkey] = useState<string | null>(null)
@@ -24,12 +25,20 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     const [listening, setListening] = useState(false)
     const [generatingConnectionUrl, setGeneratingConnectionUrl] = useState(false)
     const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
+    const [debugLogs, setDebugLogs] = useState<string[]>([])
 
     // Component level refs
     const isLoggingInRef = useRef(false)
     const activeSubscriptionRef = useRef<any>(null)
     const isMountedRef = useRef(true)
     const hasTriggeredSuccessRef = useRef(false)
+    const connectionTimeoutRef = useRef<number | null>(null)
+
+    // Add debugging function
+    const addDebugLog = (message: string) => {
+        console.log(`[NostrConnect] ${message}`)
+        setDebugLogs((prev) => [...prev.slice(-9), message])
+    }
 
     // Initialize env store if needed
     useEffect(() => {
@@ -66,6 +75,11 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 }
                 activeSubscriptionRef.current = null
             }
+            
+            // Clear any pending timeouts
+            if (connectionTimeoutRef.current) {
+                clearTimeout(connectionTimeoutRef.current)
+            }
         }
     }, [])
 
@@ -83,6 +97,11 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             activeSubscriptionRef.current = null
         }
 
+        if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current)
+            connectionTimeoutRef.current = null
+        }
+
         setListening(false)
     }
 
@@ -90,7 +109,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
     useEffect(() => {
         // Skip if login is already happening
         if (globalLoginInProgress) {
-            console.log('Global login already in progress, skipping initialization')
+            addDebugLog('Global login already in progress, skipping initialization')
             return
         }
 
@@ -104,6 +123,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 if (!isMountedRef.current) return
                 setLocalPubkey(user.pubkey)
                 setGeneratingConnectionUrl(false)
+                addDebugLog(`Generated local pubkey: ${user.pubkey.slice(0, 8)}...${user.pubkey.slice(-4)}`)
             })
             .catch((err) => {
                 console.error('Failed to get user pubkey:', err)
@@ -125,6 +145,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         const secret = Math.random().toString(36).substring(2, 15)
 
         setTempSecret(secret)
+        addDebugLog(`Configured relay: ${relay}`)
 
         const params = new URLSearchParams()
         params.set('relay', relay)
@@ -187,7 +208,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             hasTriggeredSuccessRef.current ||
             !env
         ) {
-            console.log('Login already in progress, component unmounted, or env not available')
+            addDebugLog('Login already in progress, component unmounted, or env not available')
             return
         }
 
@@ -195,6 +216,9 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             globalLoginInProgress = true
             isLoggingInRef.current = true
             cleanup()
+            
+            addDebugLog(`Starting login flow: ${logMessage}`)
+            addDebugLog(`Remote pubkey: ${event.pubkey.slice(0, 8)}...${event.pubkey.slice(-4)}`)
 
             const bunkerUrl = constructBunkerUrl(event)
             if (!bunkerUrl) {
@@ -209,22 +233,53 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 throw new Error('NDK not initialized')
             }
 
+            addDebugLog(`Created bunker URL: ${bunkerUrl.substring(0, 20)}...`)
+            
+            // Create a new NIP46 signer with our connection information
             const nip46Signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
-            await nip46Signer.blockUntilReady()
+            
+            // Add timeout for blockUntilReady
+            let signerReadyResolved = false
+            const readyPromise = nip46Signer.blockUntilReady().then(() => {
+                signerReadyResolved = true
+                addDebugLog('NIP46 signer is ready')
+                return true
+            })
+            
+            const timeoutPromise = new Promise<boolean>(resolve => {
+                setTimeout(() => {
+                    if (!signerReadyResolved) {
+                        addDebugLog('NIP46 signer timeout - proceeding anyway')
+                        resolve(true) // Proceed anyway to see if things work
+                    }
+                    resolve(true)
+                }, 5000)
+            })
+            
+            await Promise.race([readyPromise, timeoutPromise])
 
             localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
             localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
+            
+            // Set auto-login preference
+            if (autoLogin) {
+                localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+            } else {
+                localStorage.removeItem(NOSTR_AUTO_LOGIN)
+            }
 
             if (!isMountedRef.current) {
                 return
             }
 
             setConnectionStatus('connected')
-            await authActions.loginWithNip46(bunkerUrl, localSigner)
+            addDebugLog('Starting auth login with NIP46')
+            await authActions.loginWithNip46(bunkerUrl, localSigner, autoLogin)
 
             triggerSuccess()
         } catch (err) {
             console.error('Error in login flow:', err)
+            addDebugLog(`Error: ${err instanceof Error ? err.message : String(err)}`)
 
             if (isMountedRef.current) {
                 setConnectionStatus('error')
@@ -253,6 +308,7 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         
         setListening(true)
         setConnectionStatus('connecting')
+        addDebugLog('Starting to listen for Nostr Connect events')
 
         const ndk = ndkActions.getNDK()
         if (!ndk) {
@@ -283,17 +339,29 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                 !isMountedRef.current ||
                 hasTriggeredSuccessRef.current
             ) {
-                console.log('Login in progress or component unmounted, ignoring event')
+                addDebugLog('Login in progress or component unmounted, ignoring event')
                 return
             }
 
             try {
+                addDebugLog(`Received event: ${event.kind} from ${event.pubkey.slice(0, 8)}`)
+                
                 await event.decrypt(undefined, localSigner)
-                const request = JSON.parse(event.content)
+                let request
+                try {
+                    request = JSON.parse(event.content)
+                    addDebugLog(`Parsed request: ${JSON.stringify(request).substring(0, 50)}...`)
+                } catch (parseErr) {
+                    addDebugLog(`Failed to parse event content: ${event.content.substring(0, 30)}...`)
+                    console.error('Failed to parse event content:', parseErr)
+                    return
+                }
 
+                // For mobile clients, sometimes the event format differs
+                // Handle both possible formats
                 if (request.method === 'connect') {
                     if (request.id && processedRequestIds.has(request.id)) {
-                        console.log('Skipping already processed connect request:', request.id)
+                        addDebugLog(`Skipping already processed connect request: ${request.id}`)
                         return
                     }
 
@@ -301,7 +369,10 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                         processedRequestIds.add(request.id)
                     }
 
+                    // Check if token matches what we expect
                     if (request.params && request.params.token === tempSecret) {
+                        addDebugLog('Received matching connect request, sending response')
+                        
                         const response = {
                             id: request.id,
                             result: tempSecret,
@@ -317,28 +388,43 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                             // @ts-ignore - The NDK API requires a string pubkey here despite type definitions
                             await responseEvent.encrypt(undefined, localSigner, event.pubkey)
                             await responseEvent.publish()
+                            addDebugLog('Connect response published')
+                            
+                            // Important: Some mobile clients don't send a separate 'ack' but expect 
+                            // us to proceed with login after the connect response
+                            setTimeout(() => {
+                                if (!hasTriggeredSuccessRef.current && isMountedRef.current && !isLoggingInRef.current) {
+                                    addDebugLog('No ack received, trying to login anyway')
+                                    handleLoginWithSigner(event, 'Auto-proceeding after connect without ack')
+                                }
+                            }, 2000)
                         } catch (err) {
                             console.error('Error sending approval:', err)
+                            addDebugLog(`Error sending approval: ${err instanceof Error ? err.message : String(err)}`)
                             if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
                                 setConnectionStatus('error')
                                 if (onError) onError(err instanceof Error ? err.message : 'Error sending approval')
                             }
                         }
                     } else {
-                        console.log('Token mismatch:', request.params?.token, tempSecret)
+                        addDebugLog(`Token mismatch: ${request.params?.token} vs expected ${tempSecret}`)
                     }
-                } else if (request.result === 'ack') {
+                } else if (request.result === 'ack' || request.method === 'ack' || 
+                           // Handle different variations of ack responses that mobile clients might send
+                           (request.result && (typeof request.result === 'string' || typeof request.result === 'object'))) {
+                    addDebugLog('Received ack or result that may be an ack')
+                    
                     if (processedAckIds.has(event.id)) {
-                        console.log('Skipping already processed ACK:', event.id)
+                        addDebugLog(`Skipping already processed ACK: ${event.id}`)
                         return
                     }
 
                     processedAckIds.add(event.id)
-
                     await handleLoginWithSigner(event, 'Starting login flow from ACK response')
                 }
             } catch (error) {
                 console.error('Failed to process event:', error)
+                addDebugLog(`Failed to process event: ${error instanceof Error ? error.message : String(error)}`)
                 if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
                     setConnectionStatus('error')
                     if (onError) onError(error instanceof Error ? error.message : 'Failed to process event')
@@ -346,7 +432,22 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
             }
         })
 
-        const timeout = setTimeout(() => {
+        // Set a more reasonable timeout (1 minute) and add a retry option
+        const shortTimeout = setTimeout(() => {
+            if (
+                isMountedRef.current &&
+                !hasTriggeredSuccessRef.current &&
+                connectionStatus !== 'connected' &&
+                !isLoggingInRef.current
+            ) {
+                addDebugLog('Short timeout reached - continuing to wait but showing warning')
+                // Don't reset everything yet, just show a warning
+                setDebugLogs((prev) => [...prev, "Warning: Taking longer than expected. Please make sure you've approved in your wallet."])
+            }
+        }, 60000) // 1 minute warning
+
+        // Longer timeout will actually stop the connection
+        connectionTimeoutRef.current = window.setTimeout(() => {
             if (
                 isMountedRef.current &&
                 !hasTriggeredSuccessRef.current &&
@@ -360,7 +461,11 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         }, 300000) // 5 minutes
 
         return () => {
-            clearTimeout(timeout)
+            clearTimeout(shortTimeout)
+            if (connectionTimeoutRef.current) {
+                clearTimeout(connectionTimeoutRef.current)
+                connectionTimeoutRef.current = null
+            }
             cleanup()
         }
     }, [connectionUrl, localPubkey, localSigner, onError, onSuccess, tempSecret])
@@ -371,11 +476,51 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
         })
     }
 
+    const resetConnection = () => {
+        cleanup()
+        setConnectionStatus('idle')
+        setGeneratingConnectionUrl(true)
+        setTempSecret(null)
+        setLocalPubkey(null)
+        setLocalSigner(null)
+        setDebugLogs([])
+        globalLoginInProgress = false
+        isLoggingInRef.current = false
+        hasTriggeredSuccessRef.current = false
+        
+        // Generate a new signer
+        const signer = NDKPrivateKeySigner.generate()
+        setLocalSigner(signer)
+
+        signer
+            .user()
+            .then((user) => {
+                if (!isMountedRef.current) return
+                setLocalPubkey(user.pubkey)
+                setGeneratingConnectionUrl(false)
+                addDebugLog(`Reset: Generated new local pubkey: ${user.pubkey.slice(0, 8)}...${user.pubkey.slice(-4)}`)
+            })
+            .catch((err) => {
+                console.error('Failed to get user pubkey:', err)
+                if (!isMountedRef.current) return
+                setConnectionStatus('error')
+                onError?.('Failed to initialize connection')
+            })
+    }
+
     return (
         <div className="flex flex-col items-center gap-4 py-4">
             {connectionStatus === 'error' && (
                 <div className="bg-destructive/10 text-destructive rounded p-2 mb-2 text-sm w-full">
                     Connection failed. Please try again.
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-2"
+                        onClick={resetConnection}
+                    >
+                        Reset Connection
+                    </Button>
                 </div>
             )}
 
@@ -438,6 +583,15 @@ export function NostrConnectQR({ onError, onSuccess }: NostrConnectQRProps) {
                             <CopyIcon className="h-4 w-4" />
                         </Button>
                     </div>
+                    
+                    {debugLogs.length > 0 && (
+                        <div className="w-full mt-4 text-xs text-muted-foreground border rounded p-2 max-h-32 overflow-y-auto">
+                            <p className="font-medium mb-1">Connection logs:</p>
+                            {debugLogs.map((log, i) => (
+                                <div key={i} className="truncate">{log}</div>
+                            ))}
+                        </div>
+                    )}
                 </>
             ) : (
                 <div className="flex flex-col items-center gap-2 py-8">

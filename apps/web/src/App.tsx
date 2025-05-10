@@ -19,11 +19,31 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     console.log(`Adding relay from config: ${relay}`)
+
+    // Ensure the relays are properly initialized and connected
     const ndk = ndkActions.initialize([...DEFAULT_RELAYS, relay])
-    // const ndk = ndkActions.initialize([relay])
+
+    // Initialize the search NDK with the local relay
     ndkActions.initializeSearchNdk([relay])
-    await ndkActions.connect()
-    await ndkActions.connectSearchNdk()
+
+    // Connect to relays
+    try {
+        await ndkActions.connect()
+        await ndkActions.connectSearchNdk()
+
+        // Verify that we have connected to at least the local relay
+        setTimeout(() => {
+            const relays = ndkActions.getRelays()
+            const localRelayConnected = relays.some((r) => r.url === relay)
+            if (!localRelayConnected) {
+                console.warn('Local relay not connected - attempting to reconnect')
+                ndkActions.addRelay(relay)
+                ndkActions.connect()
+            }
+        }, 2000)
+    } catch (err) {
+        console.error('Error connecting to relays:', err)
+    }
 
     // Try to reconnect wallet if it exists
     await walletActions.reconnectFromStorage(ndk).catch((err) => {

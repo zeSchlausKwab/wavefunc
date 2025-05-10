@@ -78,6 +78,16 @@ export const authActions = {
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
 
+            // Check auto-login preference first
+            const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN) === 'true'
+            
+            // Skip auto-login if not enabled
+            if (!autoLogin) {
+                console.log('Auto-login disabled, skipping automatic authentication')
+                authStore.setState((state) => ({ ...state, isAuthenticating: false }))
+                return
+            }
+
             // Check if we have both a bunker URL and a local signer key in localStorage
             const bunkerUrl = localStorage.getItem(NOSTR_CONNECT_KEY)
             const privateKey = localStorage.getItem(NOSTR_LOCAL_SIGNER_KEY)
@@ -187,18 +197,8 @@ export const authActions = {
             // Check for encrypted private key
             const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
             if (encryptedPrivateKey) {
-                const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN)
-                if (autoLogin !== 'true') {
-                    authStore.setState((state) => ({
-                        ...state,
-                        needsDecryptionPassword: true,
-                        isAuthenticating: false,
-                    }))
-                    return
-                }
-
-                // Even with auto login, we need the password for decryption
-                // But we can't auto-login without user intervention to provide the password
+                // Even with auto login enabled, we need the password for decryption
+                // But we can indicate to the UI that we need the password specifically for auto-login
                 authStore.setState((state) => ({
                     ...state,
                     needsDecryptionPassword: true,
@@ -207,20 +207,15 @@ export const authActions = {
                 return
             }
 
-            // Try extension login as fallback
-            try {
-                await authActions.loginWithExtension()
-            } catch (error) {
-                console.error('Extension login fallback failed:', error)
-                authStore.setState((state) => ({ ...state, isAuthenticating: false }))
-            }
+            // Don't try extension login automatically - it requires user interaction
+            authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         } catch (error) {
             console.error('Authentication failed:', error)
             authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         }
     },
 
-    decryptAndLogin: async (password: string) => {
+    decryptAndLogin: async (password: string, autoLogin: boolean = false) => {
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
             const encryptedPrivateKey = localStorage.getItem(NOSTR_LOCAL_ENCRYPTED_SIGNER_KEY)
@@ -232,7 +227,7 @@ export const authActions = {
             const privateKey = await decryptPrivateKey(encryptedPrivateKey, password)
 
             // Login with the decrypted key
-            await authActions.loginWithPrivateKey(privateKey)
+            await authActions.loginWithPrivateKey(privateKey, autoLogin)
 
             authStore.setState((state) => ({ ...state, needsDecryptionPassword: false }))
         } catch (error) {
@@ -277,7 +272,7 @@ export const authActions = {
         }
     },
 
-    loginWithPrivateKey: async (privateKey: string) => {
+    loginWithPrivateKey: async (privateKey: string, autoLogin: boolean = false) => {
         const ndk = ndkActions.getNDK()
         if (!ndk) throw new Error('NDK not initialized')
 
@@ -290,6 +285,13 @@ export const authActions = {
 
             const user = await signer.user()
 
+            // Set auto-login preference
+            if (autoLogin) {
+                localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+            } else {
+                localStorage.removeItem(NOSTR_AUTO_LOGIN)
+            }
+
             authStore.setState((state) => ({
                 ...state,
                 user,
@@ -308,7 +310,7 @@ export const authActions = {
         }
     },
 
-    loginWithExtension: async () => {
+    loginWithExtension: async (autoLogin: boolean = false) => {
         const ndk = ndkActions.getNDK()
         if (!ndk) throw new Error('NDK not initialized')
 
@@ -320,6 +322,13 @@ export const authActions = {
 
             const user = await signer.user()
 
+            // Set auto-login preference
+            if (autoLogin) {
+                localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+            } else {
+                localStorage.removeItem(NOSTR_AUTO_LOGIN)
+            }
+
             authStore.setState((state) => ({
                 ...state,
                 user,
@@ -338,43 +347,146 @@ export const authActions = {
         }
     },
 
-    loginWithNip46: async (bunkerUrl: string, localSigner: NDKPrivateKeySigner) => {
+    loginWithNip46: async (bunkerUrl: string, localSigner: NDKPrivateKeySigner, autoLogin: boolean = true) => {
         const ndk = ndkActions.getNDK()
         if (!ndk) throw new Error('NDK not initialized')
 
         // Store credentials for later reconnection
         localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
         localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
+        
+        // Set auto-login preference
+        if (autoLogin) {
+            localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+        } else {
+            localStorage.removeItem(NOSTR_AUTO_LOGIN)
+        }
+        
+        // Reset connection attempt counter when starting a fresh login
+        localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
 
         try {
             authStore.setState((state) => ({ ...state, isAuthenticating: true }))
 
-            // Ensure NDK is connected - check if we have active relays
+            // Ensure NDK is connected with active relays
             if (ndk.pool?.relays.size === 0) {
+                console.log('No relays connected, connecting NDK first')
                 await ndkActions.connect()
+
+                // Small delay to ensure relay connections are initiated
+                await new Promise((resolve) => setTimeout(resolve, 1000))
             }
 
+            console.log(`Creating NIP46 signer with bunker URL: ${bunkerUrl.substring(0, 15)}...`)
             const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
-            await signer.blockUntilReady()
+
+            // Add timeout protection for blockUntilReady
+            let signerReady = false
+            const timeoutMs = 15000 // 15 seconds
+
+            const signerReadyPromise = signer
+                .blockUntilReady()
+                .then(() => {
+                    signerReady = true
+                    console.log('NIP-46 signer ready')
+                    return true
+                })
+                .catch((err) => {
+                    console.error('NIP-46 signer initialization error:', err)
+                    // Even if there's an error, we might still be able to proceed
+                    // Some mobile clients don't implement the full protocol
+                    return false
+                })
+
+            const timeoutPromise = new Promise<boolean>((resolve) => {
+                setTimeout(() => {
+                    if (!signerReady) {
+                        console.warn('NIP-46 signer not ready after timeout - attempting to proceed anyway')
+                        resolve(false)
+                    } else {
+                        resolve(true)
+                    }
+                }, timeoutMs)
+            })
+
+            // Race between ready and timeout - but we'll proceed either way
+            const isReady = await Promise.race([signerReadyPromise, timeoutPromise])
+
+            // Even if not fully ready, we'll set the signer and attempt to use it
             ndkActions.setSigner(signer)
-            const user = await signer.user()
 
-            authStore.setState((state) => ({
-                ...state,
-                user,
-                isAuthenticated: true,
-            }))
+            let user: NDKUser
+            try {
+                console.log('Fetching user info from signer')
+                user = await signer.user()
+                console.log(`Got user pubkey: ${user.pubkey.slice(0, 8)}...`)
 
-            return user
+                authStore.setState((state) => ({
+                    ...state,
+                    user,
+                    isAuthenticated: true,
+                    isAuthenticating: false,
+                }))
+
+                // Reset connection attempts on success
+                localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+                console.log('NIP-46 login successful')
+
+                return user
+            } catch (userError) {
+                console.error('Failed to get user from signer:', userError)
+
+                // If we couldn't get the user but we might have access to the remote pubkey
+                try {
+                    // Try to access the remote pubkey - this is implementation dependent
+                    // and might be available as a property on the signer
+                    const remotePubkey =
+                        (signer as any)._remotePubkey ||
+                        (signer as any).remotePubkey ||
+                        bunkerUrl.split('?')[0].split('://')[1]
+
+                    if (remotePubkey) {
+                        console.log('Using remote pubkey as fallback')
+                        user = new NDKUser({ pubkey: remotePubkey })
+
+                        authStore.setState((state) => ({
+                            ...state,
+                            user,
+                            isAuthenticated: true,
+                            isAuthenticating: false,
+                        }))
+
+                        localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+                        console.log('NIP-46 login successful with fallback method')
+
+                        return user
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback user creation failed:', fallbackError)
+                    throw userError // Throw the original error
+                }
+
+                throw userError
+            }
         } catch (error) {
-            // Clean up stored credentials on error
-            localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
-            localStorage.removeItem(NOSTR_CONNECT_KEY)
+            console.error('NIP-46 login error:', error)
+
+            // Track failed attempts
+            const currentAttempts = parseInt(localStorage.getItem(NOSTR_CONNECTION_ATTEMPT) || '0')
+            localStorage.setItem(NOSTR_CONNECTION_ATTEMPT, (currentAttempts + 1).toString())
+
+            // Clean up stored credentials on critical errors or after max retries
+            if (currentAttempts >= NOSTR_MAX_RETRIES) {
+                localStorage.removeItem(NOSTR_LOCAL_SIGNER_KEY)
+                localStorage.removeItem(NOSTR_CONNECT_KEY)
+                localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
+            }
 
             authStore.setState((state) => ({
                 ...state,
                 isAuthenticated: false,
             }))
+
             throw error
         } finally {
             authStore.setState((state) => ({ ...state, isAuthenticating: false }))

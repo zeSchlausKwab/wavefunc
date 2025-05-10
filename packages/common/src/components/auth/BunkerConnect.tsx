@@ -1,5 +1,5 @@
 import { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { authActions, ndkActions, uiActions } from '@wavefunc/common'
+import { authActions, ndkActions, uiActions, NOSTR_AUTO_LOGIN } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Input } from '@wavefunc/ui/components/ui/input'
 import { Scanner } from '@yudiel/react-qr-scanner'
@@ -8,9 +8,10 @@ import { useState } from 'react'
 
 interface BunkerConnectProps {
     onError?: (error: string) => void
+    autoLogin?: boolean
 }
 
-export function BunkerConnect({ onError }: BunkerConnectProps) {
+export function BunkerConnect({ onError, autoLogin = true }: BunkerConnectProps) {
     const [bunkerUrl, setBunkerUrl] = useState('')
     const [loading, setLoading] = useState(false)
 
@@ -27,6 +28,13 @@ export function BunkerConnect({ onError }: BunkerConnectProps) {
             // Generate a local signer for NIP-46
             const localSigner = NDKPrivateKeySigner.generate()
             await localSigner.blockUntilReady()
+
+            // Set auto-login preference
+            if (autoLogin) {
+                localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+            } else {
+                localStorage.removeItem(NOSTR_AUTO_LOGIN)
+            }
 
             // Use the loginWithNip46 method from authActions
             await authActions.loginWithNip46(url, localSigner)

@@ -13,6 +13,7 @@ import {
     NOSTR_STORED_PUBKEY,
     uiActions,
     uiStore,
+    NOSTR_AUTO_LOGIN,
 } from '@wavefunc/common'
 import { generateSecretKey, nip19 } from 'nostr-tools'
 import { useEffect, useState } from 'react'
@@ -144,7 +145,14 @@ export function LoginDialog() {
 
         try {
             if (hasStoredKey) {
-                await authActions.decryptAndLogin(password)
+                // Update auto-login preference
+                if (autoLogin) {
+                    localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
+                } else {
+                    localStorage.removeItem(NOSTR_AUTO_LOGIN)
+                }
+
+                await authActions.decryptAndLogin(password, autoLogin)
                 resetFormInputs()
                 uiActions.closeAuthDialog()
             }
@@ -173,7 +181,7 @@ export function LoginDialog() {
             await authActions.encryptAndStorePrivateKey(privateKey, encryptionPassword, autoLogin)
 
             // Log in with the validated private key
-            await authActions.loginWithPrivateKey(privateKey)
+            await authActions.loginWithPrivateKey(privateKey, autoLogin)
 
             resetFormInputs()
             uiActions.closeAuthDialog()
@@ -199,7 +207,7 @@ export function LoginDialog() {
 
     const handleExtensionLogin = async () => {
         try {
-            await authActions.loginWithExtension()
+            await authActions.loginWithExtension(autoLogin)
             uiActions.closeAuthDialog()
         } catch (error) {
             console.error('Extension login failed:', error)
@@ -239,6 +247,18 @@ export function LoginDialog() {
                         />
                         {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
                     </div>
+
+                    <div className="flex items-center space-x-2">
+                        <Checkbox
+                            id="auto-login-stored"
+                            checked={autoLogin}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => setAutoLogin(checked === true)}
+                        />
+                        <Label htmlFor="auto-login-stored" className="text-sm text-muted-foreground cursor-pointer">
+                            Automatically login next time
+                        </Label>
+                    </div>
+
                     <Button onClick={handleStoredKeyLogin} disabled={isLoading} className="w-full">
                         {isLoading ? 'Decrypting...' : 'Login'}
                     </Button>
@@ -361,6 +381,30 @@ export function LoginDialog() {
         )
     }
 
+    // Create new extension login section with auto-login checkbox
+    const renderExtensionSection = () => {
+        return (
+            <div className="space-y-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                    Login using your Nostr browser extension (e.g., Alby, nos2x).
+                </p>
+                <div className="flex items-center space-x-2">
+                    <Checkbox
+                        id="auto-login-extension"
+                        checked={autoLogin}
+                        onCheckedChange={(checked: boolean | 'indeterminate') => setAutoLogin(checked === true)}
+                    />
+                    <Label htmlFor="auto-login-extension" className="text-sm text-muted-foreground cursor-pointer">
+                        Automatically login next time
+                    </Label>
+                </div>
+                <Button onClick={handleExtensionLogin} disabled={isLoading} className="w-full">
+                    {isLoading ? 'Connecting...' : 'Connect to Extension'}
+                </Button>
+            </div>
+        )
+    }
+
     return (
         <Dialog open={uiState.authDialog.isOpen} onOpenChange={handleDialogChange}>
             <DialogContent className="sm:max-w-[425px]">
@@ -383,24 +427,53 @@ export function LoginDialog() {
                             </TabsList>
 
                             <TabsContent value="qr">
-                                <NostrConnectQR onError={handleError} onSuccess={() => uiActions.closeAuthDialog()} />
+                                <div className="space-y-4">
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <Checkbox
+                                            id="auto-login-nostr-connect"
+                                            checked={autoLogin}
+                                            onCheckedChange={(checked: boolean | 'indeterminate') =>
+                                                setAutoLogin(checked === true)
+                                            }
+                                        />
+                                        <Label
+                                            htmlFor="auto-login-nostr-connect"
+                                            className="text-sm text-muted-foreground cursor-pointer"
+                                        >
+                                            Automatically login next time
+                                        </Label>
+                                    </div>
+                                    <NostrConnectQR
+                                        onError={handleError}
+                                        onSuccess={() => uiActions.closeAuthDialog()}
+                                        autoLogin={autoLogin}
+                                    />
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="bunker">
-                                <BunkerConnect onError={handleError} />
+                                <div className="space-y-4">
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <Checkbox
+                                            id="auto-login-bunker"
+                                            checked={autoLogin}
+                                            onCheckedChange={(checked: boolean | 'indeterminate') =>
+                                                setAutoLogin(checked === true)
+                                            }
+                                        />
+                                        <Label
+                                            htmlFor="auto-login-bunker"
+                                            className="text-sm text-muted-foreground cursor-pointer"
+                                        >
+                                            Automatically login next time
+                                        </Label>
+                                    </div>
+                                    <BunkerConnect onError={handleError} autoLogin={autoLogin} />
+                                </div>
                             </TabsContent>
                         </Tabs>
                     </TabsContent>
-                    <TabsContent value="extension">
-                        <div className="space-y-4 py-4">
-                            <p className="text-sm text-muted-foreground">
-                                Login using your Nostr browser extension (e.g., Alby, nos2x).
-                            </p>
-                            <Button onClick={handleExtensionLogin} disabled={isLoading} className="w-full">
-                                {isLoading ? 'Connecting...' : 'Connect to Extension'}
-                            </Button>
-                        </div>
-                    </TabsContent>
+                    <TabsContent value="extension">{renderExtensionSection()}</TabsContent>
                 </Tabs>
                 {passwordError && <div className="text-sm text-red-500 mt-2 text-center">{passwordError}</div>}
             </DialogContent>
