@@ -1,28 +1,27 @@
-import { useQuery, useQueries } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import {
     AuthButton,
     authStore,
     cn,
+    envActions,
+    getSpecificFeaturedListByDTag,
     HOMEPAGE_LAYOUT,
     ndkActions,
+    NDKEvent,
     openCreateStationDrawer,
+    ZapDialog,
     type FeaturedList,
     type Station,
-    getSpecificFeaturedListByDTag,
-    envActions,
-    ZapDialog,
-    NDKEvent,
 } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import { getLastPlayedStation, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { setCurrentStation } from '@wavefunc/common/src/lib/store/stations'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { Headphones, Loader2, Music, Plus, Radio, Zap, UserPlus, ExternalLink, Info } from 'lucide-react'
+import { ExternalLink, Headphones, Info, Loader2, Music, Plus, Radio, UserPlus, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
-import { nip19 } from 'nostr-tools'
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/')({
@@ -37,7 +36,24 @@ const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', '
 const DEV_NPUB = 'npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf'
 
 function Index() {
-    const isMobile = useMedia('(max-width: 640px)')
+    // Use window.innerWidth as fallback if useMedia hook fails
+    const [isMobileWidth, setIsMobileWidth] = useState(() =>
+        typeof window !== 'undefined' ? window.innerWidth <= 640 : false,
+    )
+    // Use the hook as a secondary check
+    const isMobileMedia = useMedia('(max-width: 640px)', false)
+    const isMobile = isMobileMedia || isMobileWidth
+
+    // Add a resize listener for more reliable mobile detection
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobileWidth(window.innerWidth <= 640)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
+
     const authState = useStore(authStore)
     const ndk = ndkActions.getNDK()
     const env = envActions.getEnv()
@@ -46,6 +62,7 @@ function Index() {
     const [canAppReceiveZaps, setCanAppReceiveZaps] = useState<boolean | null>(null)
     const [checkingAppZapCapability, setCheckingAppZapCapability] = useState(false)
     const [appZapEventForDialog, setAppZapEventForDialog] = useState<NDKEvent | null>(null)
+    const [queryError, setQueryError] = useState<string | null>(null)
 
     useEffect(() => {
         loadHistory()
@@ -54,6 +71,32 @@ function Index() {
             setCurrentStation(lastStation)
         }
     }, [])
+
+    // Ensure we have NDK and env initialized
+    useEffect(() => {
+        // Log the environment variables for debugging
+        console.log('Environment loaded:', !!env, 'APP_PUBKEY available:', !!env?.APP_PUBKEY)
+        console.log('NDK initialized:', !!ndk)
+
+        if (!ndk) {
+            console.error('NDK not initialized, attempting to initialize...')
+            try {
+                ndkActions.initialize()
+                ndkActions.connect()
+            } catch (error) {
+                console.error('Failed to initialize NDK:', error)
+            }
+        }
+
+        if (!env) {
+            console.error('Environment not initialized, attempting to initialize...')
+            try {
+                envActions.initialize()
+            } catch (error) {
+                console.error('Failed to initialize environment:', error)
+            }
+        }
+    }, [ndk, env])
 
     useEffect(() => {
         if (ndk && env?.APP_PUBKEY) {
@@ -84,15 +127,41 @@ function Index() {
         queries: homepageFeaturedListDTags.map((dTag) => ({
             queryKey: ['featured-list', dTag],
             queryFn: async () => {
-                if (!ndk) throw new Error('NDK not available')
-                return getSpecificFeaturedListByDTag(ndk, dTag, env?.APP_PUBKEY || '', { withStations: true })
+                if (!ndk) {
+                    console.error('NDK not available for featured list query')
+                    throw new Error('NDK not available')
+                }
+                if (!env?.APP_PUBKEY) {
+                    console.error('APP_PUBKEY not available for featured list query')
+                    throw new Error('APP_PUBKEY not available')
+                }
+
+                try {
+                    console.log(`Fetching list: ${dTag}`)
+                    const result = await getSpecificFeaturedListByDTag(ndk, dTag, env.APP_PUBKEY, {
+                        withStations: true,
+                    })
+                    console.log(`List ${dTag} fetched:`, !!result)
+                    return result
+                } catch (error) {
+                    console.error(`Error fetching list ${dTag}:`, error)
+                    throw error
+                }
             },
             staleTime: 1000 * 60 * 5,
             enabled: !!ndk && !!env?.APP_PUBKEY,
+            // Add longer retry logic for mobile
+            retry: 3,
+            retryDelay: (attempt: number) => Math.min(attempt > 1 ? 2000 * 2 ** attempt : 1000, 30000),
+            onError: (error: Error) => {
+                setQueryError(`Failed to load ${dTag}: ${error.message}`)
+                console.error(`Query error for ${dTag}:`, error)
+            },
         })),
     })
 
     const isLoading = featuredListQueries.some((query) => query.isLoading)
+    const hasError = featuredListQueries.some((query) => query.isError) || queryError !== null
 
     const listForLayout1 = featuredListQueries[0]?.data ?? null
     const listForLayout2 = featuredListQueries[1]?.data ?? null
@@ -219,13 +288,14 @@ function Index() {
                 gridClass = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
         }
 
+        // Show more cards on mobile to ensure content is visible
         let stationsToShow = [...list.stations]
         if (index === HOMEPAGE_LAYOUT.GRID_2X2) {
-            stationsToShow = stationsToShow.slice(0, 4)
+            stationsToShow = stationsToShow.slice(0, isMobile ? 2 : 4)
         } else if (index === HOMEPAGE_LAYOUT.GRID_1X2) {
-            stationsToShow = stationsToShow.slice(0, 2)
+            stationsToShow = stationsToShow.slice(0, isMobile ? 1 : 2)
         } else if (index === HOMEPAGE_LAYOUT.GRID_3X2) {
-            stationsToShow = stationsToShow.slice(0, 3)
+            stationsToShow = stationsToShow.slice(0, isMobile ? 2 : 3)
         }
 
         return (
@@ -252,6 +322,9 @@ function Index() {
         )
     }
 
+    // Always show welcome card on mobile
+    const shouldShowWelcomeCard = isMobile || loadedFeaturedLists.length > 0
+
     return (
         <div className="w-full flex flex-col gap-4 my-6 max-w-full">
             <h1 className={cn('font-bold mb-6', isMobile ? 'text-xl' : 'text-2xl md:text-3xl')}>Featured Stations</h1>
@@ -261,19 +334,35 @@ function Index() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <span className="ml-2">Loading featured stations...</span>
                 </div>
+            ) : hasError ? (
+                // Show the welcome card even on error
+                <div className="space-y-10">
+                    {renderWelcomeCard()}
+                    <div className="text-center py-12 border rounded-lg bg-muted/30">
+                        <Music className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                        <h2 className="text-xl font-semibold mb-2">Error Loading Featured Stations</h2>
+                        <p className="text-muted-foreground">
+                            {queryError || 'There was an issue loading featured stations. Please try again later.'}
+                        </p>
+                    </div>
+                </div>
             ) : loadedFeaturedLists.length === 0 ? (
-                <div className="text-center py-12 border rounded-lg bg-muted/30">
-                    <Music className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                    <h2 className="text-xl font-semibold mb-2">No Featured Stations Found</h2>
-                    <p className="text-muted-foreground">
-                        Could not load the specified featured collections. Check back later!
-                    </p>
+                // Show welcome card even when no lists are loaded
+                <div className="space-y-10">
+                    {renderWelcomeCard()}
+                    <div className="text-center py-12 border rounded-lg bg-muted/30">
+                        <Music className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                        <h2 className="text-xl font-semibold mb-2">No Featured Stations Found</h2>
+                        <p className="text-muted-foreground">
+                            Could not load the specified featured collections. Check back later!
+                        </p>
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-10">
                     {listForLayout1 && renderFeaturedList(listForLayout1, HOMEPAGE_LAYOUT.GRID_2X2)}
 
-                    {(listForLayout1 || listForLayout2 || listForLayout3) && renderWelcomeCard()}
+                    {shouldShowWelcomeCard && renderWelcomeCard()}
 
                     {listForLayout2 && renderFeaturedList(listForLayout2, HOMEPAGE_LAYOUT.GRID_1X2)}
                     {listForLayout3 && renderFeaturedList(listForLayout3, HOMEPAGE_LAYOUT.GRID_3X2)}
