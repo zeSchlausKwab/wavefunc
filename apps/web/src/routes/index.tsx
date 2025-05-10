@@ -63,6 +63,31 @@ function Index() {
     const [checkingAppZapCapability, setCheckingAppZapCapability] = useState(false)
     const [appZapEventForDialog, setAppZapEventForDialog] = useState<NDKEvent | null>(null)
     const [queryError, setQueryError] = useState<string | null>(null)
+    const [initialLoad, setInitialLoad] = useState(true)
+    const [ndkReady, setNdkReady] = useState(false)
+    const [envReady, setEnvReady] = useState(false)
+
+    // Single initialization & readiness check
+    useEffect(() => {
+        const checkInitialization = async () => {
+            // Check if NDK is ready
+            if (ndk) {
+                setNdkReady(true)
+            }
+
+            // Check if Env is ready
+            if (env) {
+                setEnvReady(true)
+            }
+
+            // Both are ready
+            if (ndk && env) {
+                setInitialLoad(false)
+            }
+        }
+
+        checkInitialization()
+    }, [ndk, env])
 
     useEffect(() => {
         loadHistory()
@@ -72,34 +97,8 @@ function Index() {
         }
     }, [])
 
-    // Ensure we have NDK and env initialized
     useEffect(() => {
-        // Log the environment variables for debugging
-        console.log('Environment loaded:', !!env, 'APP_PUBKEY available:', !!env?.APP_PUBKEY)
-        console.log('NDK initialized:', !!ndk)
-
-        if (!ndk) {
-            console.error('NDK not initialized, attempting to initialize...')
-            try {
-                ndkActions.initialize()
-                ndkActions.connect()
-            } catch (error) {
-                console.error('Failed to initialize NDK:', error)
-            }
-        }
-
-        if (!env) {
-            console.error('Environment not initialized, attempting to initialize...')
-            try {
-                envActions.initialize()
-            } catch (error) {
-                console.error('Failed to initialize environment:', error)
-            }
-        }
-    }, [ndk, env])
-
-    useEffect(() => {
-        if (ndk && env?.APP_PUBKEY) {
+        if (ndk && env?.APP_PUBKEY && ndkReady && envReady) {
             const checkZapCapability = async () => {
                 try {
                     setCheckingAppZapCapability(true)
@@ -113,7 +112,7 @@ function Index() {
                     setCheckingAppZapCapability(false)
                 }
             }
-            checkZapCapability()
+            // checkZapCapability()
 
             const tempEvent = new NDKEvent(ndk)
             tempEvent.pubkey = env.APP_PUBKEY!
@@ -121,18 +120,18 @@ function Index() {
             tempEvent.kind = 0
             setAppZapEventForDialog(tempEvent)
         }
-    }, [ndk, env?.APP_PUBKEY])
+    }, [ndk, env?.APP_PUBKEY, ndkReady, envReady])
 
     const featuredListQueries = useQueries({
         queries: homepageFeaturedListDTags.map((dTag) => ({
             queryKey: ['featured-list', dTag],
             queryFn: async () => {
                 if (!ndk) {
-                    console.error('NDK not available for featured list query')
+                    console.error('NDK not available for featured list query', dTag)
                     throw new Error('NDK not available')
                 }
                 if (!env?.APP_PUBKEY) {
-                    console.error('APP_PUBKEY not available for featured list query')
+                    console.error('APP_PUBKEY not available for featured list query', dTag)
                     throw new Error('APP_PUBKEY not available')
                 }
 
@@ -149,8 +148,7 @@ function Index() {
                 }
             },
             staleTime: 1000 * 60 * 5,
-            enabled: !!ndk && !!env?.APP_PUBKEY,
-            // Add longer retry logic for mobile
+            enabled: !!ndk && !!env?.APP_PUBKEY && ndkReady && envReady,
             retry: 3,
             retryDelay: (attempt: number) => Math.min(attempt > 1 ? 2000 * 2 ** attempt : 1000, 30000),
             onError: (error: Error) => {
@@ -160,7 +158,7 @@ function Index() {
         })),
     })
 
-    const isLoading = featuredListQueries.some((query) => query.isLoading)
+    const isLoading = featuredListQueries.some((query) => query.isLoading) || initialLoad
     const hasError = featuredListQueries.some((query) => query.isError) || queryError !== null
 
     const listForLayout1 = featuredListQueries[0]?.data ?? null
@@ -237,7 +235,6 @@ function Index() {
                             variant="outline"
                             className="flex-1 justify-center border-yellow-500 hover:border-yellow-600 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
                             onClick={() => setIsAppZapDialogOpen(true)}
-                            disabled={checkingAppZapCapability || canAppReceiveZaps === false}
                             title={canAppReceiveZaps === false ? 'App cannot receive zaps currently' : 'Zap the App!'}
                         >
                             <Zap
@@ -291,11 +288,11 @@ function Index() {
         // Show more cards on mobile to ensure content is visible
         let stationsToShow = [...list.stations]
         if (index === HOMEPAGE_LAYOUT.GRID_2X2) {
-            stationsToShow = stationsToShow.slice(0, isMobile ? 2 : 4)
+            stationsToShow = stationsToShow.slice(0, 4)
         } else if (index === HOMEPAGE_LAYOUT.GRID_1X2) {
-            stationsToShow = stationsToShow.slice(0, isMobile ? 1 : 2)
+            stationsToShow = stationsToShow.slice(0, 2)
         } else if (index === HOMEPAGE_LAYOUT.GRID_3X2) {
-            stationsToShow = stationsToShow.slice(0, isMobile ? 2 : 3)
+            stationsToShow = stationsToShow.slice(0, 3)
         }
 
         return (

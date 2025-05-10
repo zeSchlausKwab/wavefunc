@@ -28,7 +28,6 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
         const pubkey = ndk?.activeUser?.pubkey
 
         if (!pubkey || !ndk) {
-            console.log('No pubkey or NDK, clearing state')
             setFavoritesLists([])
             return
         }

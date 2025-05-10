@@ -13,8 +13,9 @@ import { Label } from '@wavefunc/ui/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
 import { ndkActions } from '@wavefunc/common'
 import { walletStore } from '@wavefunc/common'
-import {
+import NDK, {
     NDKEvent,
+    NDKPrivateKeySigner,
     NDKSubscription,
     NDKSubscriptionCacheUsage,
     NDKZapper,
@@ -128,66 +129,71 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }, [event])
 
-    const subscribeToZapReceipts = useCallback(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk || !event.id) return null
+    const subscribeToZapReceipts = useCallback(
+        (ndk: NDK) => {
+            startTimeRef.current = Math.floor(Date.now() / 1000)
 
-        startTimeRef.current = Math.floor(Date.now() / 1000)
-
-        const filter = {
-            kinds: [9735],
-            '#e': [event.id],
-            since: startTimeRef.current - 5,
-        }
-
-        const sub = ndk.subscribe(filter, {
-            closeOnEose: false,
-            cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-        })
-
-        sub.on('event', (zapEvent: NDKEvent) => {
-            const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
-            let isOurZap = false
-
-            if (descriptionTag) {
-                try {
-                    const zapRequest = JSON.parse(descriptionTag)
-                    isOurZap = zapRequest.tags?.some(
-                        (tag: string[]) =>
-                            (tag[0] === 'e' && tag[1] === event.id) || (tag[0] === 'a' && tag[1]?.includes(event.id)),
-                    )
-                } catch (error) {
-                    console.error('Failed to parse zap request:', error)
-                }
+            const filter = {
+                kinds: [9735],
+                '#e': [event.id],
+                since: startTimeRef.current - 5,
             }
 
-            const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTimeRef.current - 10
+            console.log('filter', filter)
 
-            if (isOurZap || isRecentZap) {
-                setPaymentComplete(true)
-                setPaymentPending(false)
-                setNwcZapStatus('success')
+            const sub = ndk.subscribe(filter, {
+                closeOnEose: false,
+                cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+            })
 
-                if (resolvePaymentRef.current) {
-                    const confirmation: NDKPaymentConfirmationLN = {
-                        preimage: zapEvent.tags.find((t) => t[0] === 'preimage')?.[1] || 'unknown',
+            console.log('sub', sub)
+
+            sub.on('event', (zapEvent: NDKEvent) => {
+                const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
+                let isOurZap = false
+
+                if (descriptionTag) {
+                    try {
+                        const zapRequest = JSON.parse(descriptionTag)
+                        isOurZap = zapRequest.tags?.some(
+                            (tag: string[]) =>
+                                (tag[0] === 'e' && tag[1] === event.id) ||
+                                (tag[0] === 'a' && tag[1]?.includes(event.id)),
+                        )
+                    } catch (error) {
+                        console.error('Failed to parse zap request:', error)
                     }
-                    resolvePaymentRef.current(confirmation)
-                    resolvePaymentRef.current = null
                 }
 
-                onZapComplete?.(zapEvent)
-                toast.success('Zap successful! 🤙')
+                const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTimeRef.current - 10
 
-                setTimeout(() => {
-                    onOpenChange(false)
-                    sub.stop()
-                }, 1500)
-            }
-        })
+                if (isOurZap || isRecentZap) {
+                    setPaymentComplete(true)
+                    setPaymentPending(false)
+                    setNwcZapStatus('success')
 
-        return sub
-    }, [event, onZapComplete, onOpenChange])
+                    if (resolvePaymentRef.current) {
+                        const confirmation: NDKPaymentConfirmationLN = {
+                            preimage: zapEvent.tags.find((t) => t[0] === 'preimage')?.[1] || 'unknown',
+                        }
+                        resolvePaymentRef.current(confirmation)
+                        resolvePaymentRef.current = null
+                    }
+
+                    onZapComplete?.(zapEvent)
+                    toast.success('Zap successful! 🤙')
+
+                    setTimeout(() => {
+                        onOpenChange(false)
+                        sub.stop()
+                    }, 1500)
+                }
+            })
+
+            return sub
+        },
+        [event, onZapComplete, onOpenChange],
+    )
 
     const generateInvoice = async () => {
         try {
@@ -200,7 +206,8 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            const sub = subscribeToZapReceipts()
+            const sub = subscribeToZapReceipts(ndk)
+            console.log('sub', sub)
             zapSubscriptionRef.current = sub
 
             const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
@@ -217,6 +224,11 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 comment: 'Zap from WaveFunc',
                 lnPay,
             })
+
+            // if the zappers ndk has no signer, set the signer to the wallet
+            if (!zapper.ndk.signer) {
+                zapper.ndk.signer = NDKPrivateKeySigner.generate()
+            }
 
             await zapper.zap()
         } catch (error) {
@@ -336,12 +348,18 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
 
     const renderInvoiceQR = () => (
         <div className="flex flex-col items-center space-y-4">
-            <div 
+            <div
                 className="bg-white p-6 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => invoice && copyToClipboard(invoice)}
                 title="Click to copy invoice"
             >
-                <QRCodeSVG value={invoice || ''} size={240} level="H" includeMargin={true} className="mx-auto pointer-events-none" />
+                <QRCodeSVG
+                    value={invoice || ''}
+                    size={240}
+                    level="H"
+                    includeMargin={true}
+                    className="mx-auto pointer-events-none"
+                />
             </div>
             <div className="flex flex-col w-full space-y-2">
                 <p className="text-center text-sm mb-2">Scan with your Lightning wallet or click QR to copy</p>
