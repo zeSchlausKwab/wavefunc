@@ -1,4 +1,11 @@
-import NDK, { NDKEvent, NDKKind, NDKSubscriptionCacheUsage, type NDKFilter } from '@nostr-dev-kit/ndk'
+import NDK, {
+    NDKEvent,
+    NDKKind,
+    NDKRelay,
+    NDKRelaySet,
+    NDKSubscriptionCacheUsage,
+    type NDKFilter,
+} from '@nostr-dev-kit/ndk'
 import { FEATURED_LIST_LABEL, parseFeaturedListEvent, type FeaturedList } from './favorites'
 import { getStationByCoordinates, mapNostrEventToStation } from './radio'
 import type { Station } from '../types/station'
@@ -115,10 +122,8 @@ export async function findFeaturedListByTopic(ndk: NDK, topic: string): Promise<
         limit: 1,
     }
 
-    ndk.explicitRelayUrls = ['wss://relay.wavefunc.com']
-
-    const events = await ndk.fetchEvents(filter)
-    const event = Array.from(events)[0]
+    const relay = new NDKRelay('wss://relay.wavefunc.com', undefined, ndk)
+    const event = await ndk.fetchEvent(filter, undefined, relay)
 
     if (!event) {
         return null
@@ -154,63 +159,64 @@ export async function getSpecificFeaturedListByDTag(
         authors: [authorPubkey],
         '#l': [FEATURED_LIST_LABEL], // 'featured_station_list'
         '#d': [dTag],
-    };
-
-    ndk.explicitRelayUrls = ['wss://relay.wavefunc.com']
+    }
 
     try {
-        const listEvent = await ndk.fetchEvent(filter);
+        const relay = new NDKRelay('wss://relay.wavefunc.com', undefined, ndk)
+        const listEvent = await ndk.fetchEvent(filter, undefined, relay)
 
         if (!listEvent) {
-            console.warn(`No featured list found with dTag '${dTag}' and author '${authorPubkey}'`);
-            return null;
+            console.warn(`No featured list found with dTag '${dTag}' and author '${authorPubkey}'`)
+            return null
         }
 
-        const featuredList = parseFeaturedListEvent(listEvent);
+        const featuredList = parseFeaturedListEvent(listEvent)
 
         if (!options?.withStations || !featuredList) {
-            return featuredList; // Return list without stations if not requested or if parsing failed
+            return featuredList // Return list without stations if not requested or if parsing failed
         }
 
         // Fetch and populate stations for this specific list
         const stationPromises = featuredList.stations.map(async (stationRef) => {
             try {
                 if (typeof stationRef === 'object' && 'event_id' in stationRef) {
-                    const parts = stationRef.event_id.split(':');
+                    const parts = stationRef.event_id.split(':')
                     if (parts.length >= 3) {
                         // const kind = parseInt(parts[0]); // This is kind 31237 for stations
-                        const stationPubkey = parts[1];
-                        const stationDTag = parts[2];
+                        const stationPubkey = parts[1]
+                        const stationDTag = parts[2]
 
                         // Fetch the station event by its coordinates
                         // getStationByCoordinates already returns a fully mapped Station object or null
-                        const station = await getStationByCoordinates(ndk, stationPubkey, stationDTag);
-                        
+                        const station = await getStationByCoordinates(ndk, stationPubkey, stationDTag)
+
                         if (station) {
-                            return station;
+                            return station
                         }
-                        console.warn(`Station not found via getStationByCoordinates for ${stationRef.event_id}`);
-                        return null;
+                        console.warn(`Station not found via getStationByCoordinates for ${stationRef.event_id}`)
+                        return null
                     }
                 }
-                console.warn(`Invalid station reference in list ${dTag}:`, stationRef);
-                return null;
+                console.warn(`Invalid station reference in list ${dTag}:`, stationRef)
+                return null
             } catch (error) {
-                console.warn(`Failed to fetch/map station for list ${dTag} (ref: ${JSON.stringify(stationRef)}):`, error);
-                return null;
+                console.warn(
+                    `Failed to fetch/map station for list ${dTag} (ref: ${JSON.stringify(stationRef)}):`,
+                    error,
+                )
+                return null
             }
-        });
+        })
 
-        const stations = (await Promise.all(stationPromises))
-            .filter((station): station is Station => station !== null);
+        const stations = (await Promise.all(stationPromises)).filter((station): station is Station => station !== null)
 
         return {
             ...featuredList,
             stations: stations, // Now correctly typed as Station[]
-        };
+        }
     } catch (error) {
-        console.error(`Error fetching specific featured list (dTag: ${dTag}):`, error);
-        return null;
+        console.error(`Error fetching specific featured list (dTag: ${dTag}):`, error)
+        return null
     }
 }
 
