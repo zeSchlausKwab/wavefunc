@@ -4,6 +4,9 @@ import NDKCacheAdapterDexie from '@nostr-dev-kit/ndk-cache-dexie'
 import { Store } from '@tanstack/store'
 import { DEFAULT_RELAYS } from '@wavefunc/common'
 
+// Helper function to normalize relay URLs by removing trailing slashes
+const normalizeUrl = (url: string): string => (url.endsWith('/') ? url.slice(0, -1) : url)
+
 interface NDKState {
     ndk: NDK | null
     isConnecting: boolean
@@ -54,13 +57,21 @@ export const ndkActions = {
 
         // Merge provided relays with saved relays, with provided taking precedence
         if (relays && relays.length > 0) {
-            // Add any provided relays that aren't already in the list
+            // Add any provided relays that aren't already in the list (after normalization)
             relays.forEach((url) => {
-                if (!explicitRelayUrls.includes(url)) {
+                const normalizedUrl = normalizeUrl(url)
+                if (!explicitRelayUrls.some((existingUrl) => normalizeUrl(existingUrl) === normalizedUrl)) {
                     explicitRelayUrls.push(url)
                 }
             })
         }
+
+        // Deduplicate relay URLs after normalization
+        const uniqueRelays = new Map<string, string>()
+        explicitRelayUrls.forEach((url) => {
+            uniqueRelays.set(normalizeUrl(url), url)
+        })
+        explicitRelayUrls = Array.from(uniqueRelays.values())
 
         const ndk = new NDK({
             // @ts-ignore - Ignoring type mismatch between NDK and cache adapter
@@ -238,6 +249,10 @@ export const ndkActions = {
         return ndkStore.state.ndk?.signer
     },
 
+    getState: () => {
+        return ndkStore.state
+    },
+
     getRelays: () => {
         const state = ndkStore.state
         if (!state.ndk) return []
@@ -260,7 +275,9 @@ export const ndkActions = {
 
                 // Then add any localStorage relays that aren't already in the NDK pool
                 for (const savedRelay of parsedRelays) {
-                    const existingRelayIndex = combinedRelays.findIndex((r) => r.url === savedRelay.url)
+                    const existingRelayIndex = combinedRelays.findIndex(
+                        (r) => normalizeUrl(r.url) === normalizeUrl(savedRelay.url),
+                    )
                     if (existingRelayIndex >= 0) {
                         // Update permissions for existing relay
                         combinedRelays[existingRelayIndex].read = savedRelay.read
@@ -271,13 +288,25 @@ export const ndkActions = {
                     }
                 }
 
-                return combinedRelays
+                // Deduplicate relays
+                const uniqueRelays = new Map<string, { url: string; read: boolean; write: boolean }>()
+                combinedRelays.forEach((relay) => {
+                    uniqueRelays.set(normalizeUrl(relay.url), relay)
+                })
+
+                return Array.from(uniqueRelays.values())
             }
         } catch (error) {
             console.error('Failed to load relays from localStorage:', error)
         }
 
-        return relaysFromNdk
+        // Deduplicate NDK relays before returning
+        const uniqueRelays = new Map<string, { url: string; read: boolean; write: boolean }>()
+        relaysFromNdk.forEach((relay) => {
+            uniqueRelays.set(normalizeUrl(relay.url), relay)
+        })
+
+        return Array.from(uniqueRelays.values())
     },
 
     updateRelays: async (relayConfigs: { url: string; read: boolean; write: boolean }[]) => {
@@ -342,8 +371,15 @@ export const ndkActions = {
 
         try {
             // Normalize URL
-            const normalizedUrl = url.trim()
+            const normalizedUrl = normalizeUrl(url)
             new URL(normalizedUrl) // Validate URL
+
+            // Check if this relay already exists (after normalization)
+            const existingRelays = state.explicitRelayUrls.map(normalizeUrl)
+            if (existingRelays.includes(normalizedUrl)) {
+                console.log(`Relay ${normalizedUrl} already exists (possibly with different formatting)`)
+                return true // Already exists, consider it a success
+            }
 
             // Add to NDK
             state.ndk.addExplicitRelay(normalizedUrl)
@@ -354,8 +390,8 @@ export const ndkActions = {
 
             // Update stored relay list in localStorage
             const currentRelays = ndkActions.getRelays()
-            // Check if relay already exists in stored list
-            if (!currentRelays.some((r) => r.url === normalizedUrl)) {
+            // Check if relay already exists in stored list after normalization
+            if (!currentRelays.some((r) => normalizeUrl(r.url) === normalizedUrl)) {
                 const newRelays = [...currentRelays, { url: normalizedUrl, read, write }]
                 localStorage.setItem('RELAY_LIST', JSON.stringify(newRelays))
             }

@@ -80,7 +80,7 @@ export const authActions = {
 
             // Check auto-login preference first
             const autoLogin = localStorage.getItem(NOSTR_AUTO_LOGIN) === 'true'
-            
+
             // Skip auto-login if not enabled
             if (!autoLogin) {
                 console.log('Auto-login disabled, skipping automatic authentication')
@@ -129,7 +129,14 @@ export const authActions = {
 
                     // Ensure NDK is connected - check if we have active relays
                     if (ndk.pool?.relays.size === 0) {
-                        await ndkActions.connect()
+                        console.log('No relays connected during NIP-46 reconnection, checking connection state')
+                        const ndkState = ndkActions.getState()
+                        if (!ndkState.isConnected && !ndkState.isConnecting) {
+                            console.log('Connecting NDK from getAuthFromLocalStorageAndLogin')
+                            await ndkActions.connect()
+                        } else {
+                            console.log('NDK is already connecting or connected')
+                        }
                     }
 
                     // Create local signer from the stored key
@@ -354,14 +361,14 @@ export const authActions = {
         // Store credentials for later reconnection
         localStorage.setItem(NOSTR_LOCAL_SIGNER_KEY, localSigner.privateKey || '')
         localStorage.setItem(NOSTR_CONNECT_KEY, bunkerUrl)
-        
+
         // Set auto-login preference
         if (autoLogin) {
             localStorage.setItem(NOSTR_AUTO_LOGIN, 'true')
         } else {
             localStorage.removeItem(NOSTR_AUTO_LOGIN)
         }
-        
+
         // Reset connection attempt counter when starting a fresh login
         localStorage.removeItem(NOSTR_CONNECTION_ATTEMPT)
 
@@ -370,11 +377,17 @@ export const authActions = {
 
             // Ensure NDK is connected with active relays
             if (ndk.pool?.relays.size === 0) {
-                console.log('No relays connected, connecting NDK first')
-                await ndkActions.connect()
+                console.log('No relays connected, checking NDK connection state')
+                const ndkState = ndkActions.getState()
+                if (!ndkState.isConnected && !ndkState.isConnecting) {
+                    console.log('Connecting NDK from NIP-46 login')
+                    await ndkActions.connect()
 
-                // Small delay to ensure relay connections are initiated
-                await new Promise((resolve) => setTimeout(resolve, 1000))
+                    // Small delay to ensure relay connections are initiated
+                    await new Promise((resolve) => setTimeout(resolve, 1000))
+                } else {
+                    console.log('NDK is already connecting or connected')
+                }
             }
 
             console.log(`Creating NIP46 signer with bunker URL: ${bunkerUrl.substring(0, 15)}...`)

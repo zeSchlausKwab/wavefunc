@@ -18,27 +18,41 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
-    console.log(`Adding relay from config: ${relay}`)
-
     // Ensure the relays are properly initialized and connected
     const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
 
     // Initialize the search NDK with the local relay
     ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
 
-    // Connect to relays
+    // Connect to relays only if not already connected
     try {
-        await ndkActions.connect()
-        await ndkActions.connectSearchNdk()
+        const ndkState = ndkActions.getState()
 
-        // Verify that we have connected to at least the local relay
+        // Only connect main NDK if not already connected
+        if (!ndkState.isConnected && !ndkState.isConnecting) {
+            console.log('Connecting to main NDK')
+            await ndkActions.connect()
+        } else {
+            console.log('Main NDK is already connected or connecting')
+        }
+
+        // Only connect search NDK if not already connected
+        const searchState = ndkState.searchNdk
+        if (!searchState.isConnected && !searchState.isConnecting) {
+            console.log('Connecting to search NDK')
+            await ndkActions.connectSearchNdk()
+        } else {
+            console.log('Search NDK is already connected or connecting')
+        }
+
+        // Verify local relay connection - but only attempt once
         setTimeout(() => {
             const relays = ndkActions.getRelays()
             const localRelayConnected = relays.some((r) => r.url === relay)
             if (!localRelayConnected) {
-                console.warn('Local relay not connected - attempting to reconnect')
+                console.warn('Local relay not connected - adding to relay list')
                 ndkActions.addRelay(relay)
-                ndkActions.connect()
+                // Don't call connect again, just add the relay - it will be used on next reconnect
             }
         }, 2000)
     } catch (err) {
