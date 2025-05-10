@@ -13,12 +13,12 @@ import {
     type Station,
 } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Disc, Headphones, Loader2, Music, Plus, Radio } from 'lucide-react'
-import { useMedia } from 'react-use'
-import { useEffect } from 'react'
-import { loadHistory, getLastPlayedStation } from '@wavefunc/common/src/lib/store/history'
+import { getLastPlayedStation, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { setCurrentStation } from '@wavefunc/common/src/lib/store/stations'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Headphones, Loader2, Music, Plus, Radio } from 'lucide-react'
+import { useEffect } from 'react'
+import { useMedia } from 'react-use'
 
 export const Route = createFileRoute('/')({
     component: Index,

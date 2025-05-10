@@ -13,7 +13,7 @@ interface NDKState {
         ndk: NDK | null
         isConnecting: boolean
         isConnected: boolean
-        url: string
+        url: string[]
     }
 }
 
@@ -26,7 +26,7 @@ const initialState: NDKState = {
         ndk: null,
         isConnecting: false,
         isConnected: false,
-        url: '',
+        url: [],
     },
 }
 
@@ -101,34 +101,38 @@ export const ndkActions = {
                         }
                     }
                 }
-                console.log('Loaded relays:', state.ndk.pool.relays)
+                console.log('Attempting to connect to relays:', Array.from(state.ndk.pool.relays.keys()))
             } catch (error) {
                 console.error('Failed to load relays during connect:', error)
             }
 
             await state.ndk.connect()
-            await new Promise<void>((resolve) => {
-                state.ndk!.pool.on('connect', () => {
-                    ndkStore.setState((state) => ({ ...state, isConnected: true }))
-                    resolve()
-                })
-            })
+            // NDK.connect() resolves when connection attempts have been initiated.
+            // We will assume connection is in progress and let the app proceed.
+            // Individual relay statuses can be monitored via NDK pool events if needed elsewhere.
+            ndkStore.setState((state) => ({ ...state, isConnected: true }))
+            console.log('NDK connection process initiated. explicitRelayUrls:', state.ndk.explicitRelayUrls)
+        } catch (error) {
+            console.error('Error during NDK connect:', error)
+            // Even if there's an error, set isConnected to true to allow app to proceed
+            // The app should be able to function with no relays or if initial connection fails
+            ndkStore.setState((state) => ({ ...state, isConnected: true }))
         } finally {
             ndkStore.setState((state) => ({ ...state, isConnecting: false }))
         }
     },
 
     // Initialize the dedicated search NDK instance
-    initializeSearchNdk: (url?: string) => {
+    initializeSearchNdk: (url?: string[]) => {
         const state = ndkStore.state
         if (state.searchNdk.ndk) return state.searchNdk.ndk
 
         // Use the provided URL or the one from state
-        const relayUrl = url || state.searchNdk.url
+        const relayUrls = url || state.searchNdk.url
 
         // Create a new NDK instance specifically for search
         const searchNdk = new NDK({
-            explicitRelayUrls: [relayUrl],
+            explicitRelayUrls: relayUrls,
         })
 
         ndkStore.setState((state) => ({
@@ -136,7 +140,7 @@ export const ndkActions = {
             searchNdk: {
                 ...state.searchNdk,
                 ndk: searchNdk,
-                url: relayUrl,
+                url: relayUrls,
             },
         }))
 
@@ -158,18 +162,24 @@ export const ndkActions = {
 
         try {
             await state.searchNdk.ndk.connect()
-            await new Promise<void>((resolve) => {
-                state.searchNdk.ndk!.pool.on('connect', () => {
-                    ndkStore.setState((state) => ({
-                        ...state,
-                        searchNdk: {
-                            ...state.searchNdk,
-                            isConnected: true,
-                        },
-                    }))
-                    resolve()
-                })
-            })
+            // Similar to the main NDK, let the app proceed after initiating connection.
+            ndkStore.setState((state) => ({
+                ...state,
+                searchNdk: {
+                    ...state.searchNdk,
+                    isConnected: true,
+                },
+            }))
+            console.log('Search NDK connection process initiated for relay:', state.searchNdk.url)
+        } catch (error) {
+            console.error('Error during Search NDK connect:', error)
+            ndkStore.setState((state) => ({
+                ...state,
+                searchNdk: {
+                    ...state.searchNdk,
+                    isConnected: true, // Allow app to proceed
+                },
+            }))
         } finally {
             ndkStore.setState((state) => ({
                 ...state,
