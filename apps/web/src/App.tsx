@@ -131,6 +131,7 @@ export default function App({ initialEnvConfig }: AppProps) {
                 // Initialize NDK with environment
                 await loadEnvAndNdk(envConfigToUse)
 
+                
                 const client = await createQueryClient()
                 setQueryClient(client)
 

@@ -2,19 +2,11 @@
 import './polyfills'
 
 import React from 'react'
-// import { createRoot } from 'react-dom/client'
 import { hydrateRoot } from 'react-dom/client'
 import App from './App'
 
-// Client-side rendering
 const container = document.getElementById('root')
 if (container) {
-    // const root = createRoot(container)
-    // root.render(
-    //     <React.StrictMode>
-    //         <App />
-    //     </React.StrictMode>,
-    // )
     hydrateRoot(
         container,
         <React.StrictMode>

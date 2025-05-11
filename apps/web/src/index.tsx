@@ -26,60 +26,11 @@ function getServerEnvConfig(): EnvConfig {
     }
 }
 
-// Track if we're watching file changes
-let isWatching = false
-
-// Function to watch for file changes and rebuild client in dev mode
-async function setupFileWatcher() {
-    if (isDev && !isWatching) {
-        console.log('📺 Setting up file watcher for client rebuilds')
-        isWatching = true
-
-        const clientSrcWatcher = fs.watch(join(process.cwd(), 'src'), { recursive: true }, async (event, filename) => {
-            if (
-                filename &&
-                !filename.includes('server/') &&
-                !filename.includes('index.tsx') &&
-                !filename.startsWith('dist/') &&
-                !filename.endsWith('.DS_Store')
-            ) {
-                console.log(`🔄 Detected change in client-related file ${filename}, rebuilding client...`)
-                await buildClient()
-            }
-        })
-
-        // Also watch common package files
-        const commonWatcher = fs.watch(
-            join(process.cwd(), '../../packages/common/src'),
-            { recursive: true },
-            async (event, filename) => {
-                if (filename && !filename.endsWith('.DS_Store')) {
-                    console.log('🔄 Detected change in common package, rebuilding client...')
-                    await buildClient()
-                }
-            },
-        )
-
-        process.on('SIGINT', () => {
-            clientSrcWatcher.close()
-            commonWatcher.close()
-            process.exit(0)
-        })
-    }
-}
-
 async function startServer() {
-    // await buildClient()
-
-    if (isDev) {
-        await setupFileWatcher()
-    }
-
     const serverPort = process.env.PORT || process.env.VITE_PUBLIC_WEB_PORT || '8080'
 
     const server = serve({
         routes: {
-            // Serve /envConfig API endpoint
             '/envConfig': () => {
                 const envConfig = getServerEnvConfig()
                 console.log('envConfig', envConfig)
@@ -97,11 +48,9 @@ async function startServer() {
                 const imagePath = path.replace('/images/', '')
                 return serveStatic(`images/${imagePath}`)
             }
-            // Serve .well-known/nostr.json - moved back here
             if (path === '/.well-known/nostr.json') {
                 return new Response(file(join(process.cwd(), 'public', '.well-known', 'nostr.json')))
             }
-            // /envConfig is now in `routes`
 
             if (path.startsWith('/api/proxy/icecast')) {
                 if (req.method !== 'GET') {
@@ -139,9 +88,9 @@ async function startServer() {
             const isStaticOrApiRoute =
                 path.startsWith('/dist/') ||
                 path.startsWith('/images/') ||
+                path.startsWith('/favicon.ico') ||
                 path === '/.well-known/nostr.json' ||
                 path.startsWith('/api/proxy/icecast')
-            // /envConfig is handled by the `routes` object, so it won't reach here.
 
             // const stationMatch = path.match(/^\/station\/([^\/]+)/) // No longer needed for this check
             // const profileMatch = path.match(/^\/profile\/([^\/]+)/) // No longer needed for this check
@@ -154,7 +103,10 @@ async function startServer() {
                     const envConfig = getServerEnvConfig()
 
                     let openGraphTags = ''
-                    if (isBot(req)) {
+                    // TODO: Remove this once we have a way to detect bots
+                    // const isBotReq = isBot(req)
+                    const isBotReq = true
+                    if (isBotReq) {
                         console.log(`Bot detected for ${path} - generating OpenGraph metadata`)
                         openGraphTags = await generateOpenGraphTags(req)
                     }

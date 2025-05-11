@@ -9,9 +9,9 @@ import { fetchStation } from '@wavefunc/common/src/nostr/radio'
 function getNDK() {
     return new NDK({
         explicitRelayUrls: [
-            // 'wss://relay.damus.io',
-            // 'wss://nos.lol',
-            // 'wss://relay.nostr.band',
+            'wss://relay.damus.io',
+            'wss://nos.lol',
+            'wss://relay.nostr.band',
             'wss://relay.wavefunc.live',
             // 'ws://192.168.0.188:3002',
         ],
@@ -31,6 +31,8 @@ export async function generateOpenGraphTags(req: Request): Promise<string> {
 
     const stationMatch = path.match(/^\/station\/([^\/]+)/)
     const profileMatch = path.match(/^\/profile\/([^\/]+)/)
+
+    console.log('Generating OpenGraph tags for', path)
 
     if (stationMatch) {
         const stationId = stationMatch[1]
