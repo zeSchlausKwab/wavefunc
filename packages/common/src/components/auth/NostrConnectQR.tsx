@@ -1,13 +1,12 @@
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Input } from '@wavefunc/ui/components/ui/input'
-import { authActions, NOSTR_AUTO_LOGIN, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@wavefunc/common'
-import { useEnv } from '@wavefunc/common'
+import { authActions, envStore, NOSTR_AUTO_LOGIN, NOSTR_CONNECT_KEY, NOSTR_LOCAL_SIGNER_KEY } from '@wavefunc/common'
 import { ndkActions } from '@wavefunc/common'
 import { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { CopyIcon, Loader2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-
+import { useStore } from '@tanstack/react-store'
 interface NostrConnectQRProps {
     onError?: (error: string) => void
     onSuccess?: () => void
@@ -18,7 +17,7 @@ interface NostrConnectQRProps {
 let globalLoginInProgress = false
 
 export function NostrConnectQR({ onError, onSuccess, autoLogin = true }: NostrConnectQRProps) {
-    const { env, initialize } = useEnv()
+    const { env } = useStore(envStore)
     const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null)
     const [localPubkey, setLocalPubkey] = useState<string | null>(null)
     const [tempSecret, setTempSecret] = useState<string | null>(null)

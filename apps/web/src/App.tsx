@@ -12,7 +12,7 @@ import { routeTree } from './routeTree.gen'
 import { envActions } from '@wavefunc/common'
 
 // Helper to check if running in browser
-const isBrowser = typeof window !== 'undefined';
+const isBrowser = typeof window !== 'undefined'
 
 const loadEnvAndNdk = async (env: EnvConfig) => {
     const localMachineIp = env.VITE_PUBLIC_HOST || (isBrowser ? window.location.hostname : 'localhost')
@@ -45,7 +45,7 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
             console.log('Connecting to search NDK')
             await ndkActions.connectSearchNdk()
         } else if (!searchState) {
-            console.log('Search NDK state not found, skipping connection.');
+            console.log('Search NDK state not found, skipping connection.')
         } else {
             console.log('Search NDK is already connected or connecting')
         }
@@ -87,69 +87,112 @@ function createAppRouter(queryClient: QueryClient, env: EnvConfig) {
 }
 
 interface AppProps {
-    initialEnvConfig?: EnvConfig;
+    initialEnvConfig?: EnvConfig
 }
 
 export default function App({ initialEnvConfig }: AppProps) {
     const [queryClient, setQueryClient] = useState<QueryClient | null>(null)
     const [router, setRouter] = useState<any | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
+    const [envConfig, setEnvConfig] = useState<EnvConfig | null>(initialEnvConfig || null)
+    const [isEnvInitialized, setIsEnvInitialized] = useState(false)
+    const [isAppCoreInitialized, setIsAppCoreInitialized] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // Effect 1: Initialize Environment Configuration
     useEffect(() => {
-        const initialize = async () => {
-            console.log('Initializing application...')
+        const initializeEnv = async () => {
+            console.log('Phase 1: Initializing Environment Configuration...')
+            if (isEnvInitialized) {
+                // Prevent re-running if already initialized
+                console.log('Environment already initialized, skipping.')
+                return
+            }
             try {
-                setIsLoading(true)
-
-                let envConfigToUse: EnvConfig;
+                let resolvedEnvConfig: EnvConfig
                 if (initialEnvConfig) {
-                    console.log('Using initialEnvConfig from SSR');
-                    envConfigToUse = initialEnvConfig;
+                    console.log('Using initialEnvConfig from SSR')
+                    resolvedEnvConfig = initialEnvConfig
                 } else {
-                    console.log('Fetching envConfig on client');
-                    // Check if env config is already loaded by hydration script
-                    let preloadedEnv: EnvConfig | null = null;
+                    console.log('Attempting to load envConfig on client')
+                    let preloadedEnv: EnvConfig | null = null
                     if (isBrowser) {
-                        const preloadedEnvScript = document.getElementById('env-config-hydration');
+                        const preloadedEnvScript = document.getElementById('env-config-hydration')
                         if (preloadedEnvScript?.textContent) {
                             try {
-                                preloadedEnv = JSON.parse(preloadedEnvScript.textContent);
-                                console.log('Using envConfig from hydration script');
+                                preloadedEnv = JSON.parse(preloadedEnvScript.textContent)
+                                console.log('Using envConfig from hydration script')
                             } catch (e) {
-                                console.error('Failed to parse preloaded env config from script', e);
+                                console.error('Failed to parse preloaded env config from script', e)
                             }
                         }
                     }
                     if (preloadedEnv) {
-                        envConfigToUse = preloadedEnv;
+                        resolvedEnvConfig = preloadedEnv
                     } else {
-                        envConfigToUse = await envActions.initialize(); // Fallback to fetch
+                        console.log('Fetching envConfig via envActions.initialize()')
+                        resolvedEnvConfig = await envActions.initialize() // Fallback to fetch
                     }
                 }
 
-                // Initialize NDK with environment
-                await loadEnvAndNdk(envConfigToUse)
-
-                
-                const client = await createQueryClient()
-                setQueryClient(client)
-
-                const appRouter = createAppRouter(client, envConfigToUse)
-                setRouter(appRouter)
+                if (resolvedEnvConfig) {
+                    envActions.setEnv(resolvedEnvConfig) // Set in global store immediately
+                    setEnvConfig(resolvedEnvConfig) // Set in local state for dependent effects
+                    setIsEnvInitialized(true)
+                    console.log('Phase 1: Environment Configuration Initialized.', resolvedEnvConfig)
+                } else {
+                    throw new Error('Environment configuration could not be resolved.')
+                }
             } catch (err) {
-                console.error('Initialization error:', err)
-                setError(err instanceof Error ? err.message : 'Unknown error during initialization')
-            } finally {
-                setIsLoading(false)
+                console.error('Environment Initialization error:', err)
+                setError(err instanceof Error ? err.message : 'Unknown error during environment initialization')
             }
         }
 
-        initialize()
-    }, [initialEnvConfig]) // Depend on initialEnvConfig
+        if (!envConfig) {
+            // Only run if envConfig is not yet set (e.g. by initialEnvConfig prop)
+            initializeEnv()
+        } else {
+            // If initialEnvConfig was provided, set it in the store and mark env as initialized
+            envActions.setEnv(envConfig)
+            setIsEnvInitialized(true)
+            console.log('Phase 1: Environment Configuration Initialized using prop.', envConfig)
+        }
+    }, [initialEnvConfig, envConfig, isEnvInitialized]) // Added envConfig & isEnvInitialized to prevent re-runs if initialEnvConfig changes but envConfig is already set
 
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-screen">Initializing application...</div>
+    // Effect 2: Initialize Core App (NDK, QueryClient, Router) - depends on envConfig
+    useEffect(() => {
+        const initializeCoreApp = async () => {
+            if (!isEnvInitialized || !envConfig || isAppCoreInitialized) {
+                // Ensure env is ready and not already initialized
+                if (isAppCoreInitialized) console.log('Core app already initialized, skipping.')
+                else if (!isEnvInitialized || !envConfig)
+                    console.log('Waiting for env to be initialized before starting core app setup.')
+                return
+            }
+
+            console.log('Phase 2: Initializing Core Application (NDK, QueryClient, Router)...')
+            try {
+                await loadEnvAndNdk(envConfig) // NDK setup now uses the resolved envConfig
+
+                const client = await createQueryClient()
+                setQueryClient(client)
+
+                const appRouter = createAppRouter(client, envConfig)
+                setRouter(appRouter)
+                setIsAppCoreInitialized(true)
+                console.log('Phase 2: Core Application Initialized.')
+            } catch (err) {
+                console.error('Core Application Initialization error:', err)
+                setError(err instanceof Error ? err.message : 'Unknown error during core app initialization')
+            }
+        }
+
+        initializeCoreApp()
+    }, [isEnvInitialized, envConfig, isAppCoreInitialized]) // Depends on envConfig and its initialization status
+
+    if (!isEnvInitialized || !isAppCoreInitialized) {
+        const message = !isEnvInitialized ? 'Initializing environment...' : 'Initializing application core...'
+        return <div className="flex justify-center items-center h-screen">{message}</div>
     }
 
     if (error) {
@@ -157,7 +200,10 @@ export default function App({ initialEnvConfig }: AppProps) {
             <div className="flex justify-center items-center h-screen flex-col gap-2">
                 <div className="text-red-500">Error: {error}</div>
                 {isBrowser && (
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={() => window.location.reload()}>
+                    <button
+                        className="px-4 py-2 bg-blue-500 text-white rounded"
+                        onClick={() => window.location.reload()}
+                    >
                         Retry
                     </button>
                 )}
@@ -166,7 +212,9 @@ export default function App({ initialEnvConfig }: AppProps) {
     }
 
     if (!queryClient || !router) {
-        return <div className="flex justify-center items-center h-screen">Failed to initialize application components</div>
+        return (
+            <div className="flex justify-center items-center h-screen">Failed to initialize application components</div>
+        )
     }
 
     return (

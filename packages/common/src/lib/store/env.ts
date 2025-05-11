@@ -23,6 +23,9 @@ export const envActions = {
         envStore.setState((state) => ({ ...state, env }))
         return env
     },
+    setEnv: (env: EnvConfig) => {
+        envStore.setState((state) => ({ ...state, env }))
+    },
     getEnv: () => {
         return envStore.state.env
     },
