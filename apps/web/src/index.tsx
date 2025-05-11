@@ -4,7 +4,6 @@ import { config } from 'dotenv'
 import fs from 'fs'
 import { join } from 'path'
 import { renderToReadableStream } from 'react-dom/server'
-import { buildClient } from './server/build-client'
 import { generateOpenGraphTags } from './server/og'
 import { ServerApp } from './server/ServerApp'
 import { isBot, proxyIcecastRequest, serveStatic } from './server/utils'
@@ -70,7 +69,7 @@ async function setupFileWatcher() {
 }
 
 async function startServer() {
-    await buildClient()
+    // await buildClient()
 
     if (isDev) {
         await setupFileWatcher()
