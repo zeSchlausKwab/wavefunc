@@ -83,6 +83,7 @@ async function startServer() {
             // Serve /envConfig API endpoint
             '/envConfig': () => {
                 const envConfig = getServerEnvConfig()
+                console.log('envConfig', envConfig)
                 return new Response(JSON.stringify(envConfig), { headers: { 'Content-Type': 'application/json' } })
             },
         },

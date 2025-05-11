@@ -1,11 +1,10 @@
 import { useQueries } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouteContext } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import {
     AuthButton,
     authStore,
     cn,
-    envActions,
     getSpecificFeaturedListByDTag,
     HOMEPAGE_LAYOUT,
     ndkActions,
@@ -40,6 +39,9 @@ function Index() {
     const isMobileMedia = useMedia('(max-width: 640px)', false)
     const isMobile = isMobileMedia || isMobileWidth
 
+    // Get envConfig from route context
+    const { env: routeEnvConfig } = useRouteContext({ from: Route.id })
+
     // Add a resize listener for more reliable mobile detection
     useEffect(() => {
         const handleResize = () => {
@@ -66,42 +68,56 @@ function Index() {
         }
     }, [])
 
+    // Effect to set ndkReady and envReady based on NDK and Env store states
     useEffect(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk) {
-            console.error('NDK not available for zap event creation')
-            return
+        const checkNdkAndEnv = () => {
+            const ndkInstance = ndkActions.getNDK()
+            const isNdkReady = !!ndkInstance
+            // Use routeEnvConfig from context
+            const isEnvConfigReady = !!routeEnvConfig && !!routeEnvConfig.APP_PUBKEY
+
+            console.log('envConfig from route context in Index.tsx:', routeEnvConfig)
+
+            setNdkReady(isNdkReady)
+            setEnvReady(isEnvConfigReady)
+
+            if (isNdkReady && isEnvConfigReady && routeEnvConfig?.APP_PUBKEY) {
+                const tempEvent = new NDKEvent(ndkInstance)
+                tempEvent.pubkey = routeEnvConfig.APP_PUBKEY // Use from context
+                tempEvent.content = 'Wavefunc App'
+                tempEvent.kind = 0
+                setAppZapEventForDialog(tempEvent)
+            } else {
+                setAppZapEventForDialog(null)
+            }
         }
-        const env = envActions.getEnv()
-        if (!env?.APP_PUBKEY) {
-            console.error('APP_PUBKEY not available for zap event creation')
-            return
-        }
-        const tempEvent = new NDKEvent(ndk)
-        tempEvent.pubkey = env.APP_PUBKEY!
-        tempEvent.content = 'Wavefunc App'
-        tempEvent.kind = 0
-        setAppZapEventForDialog(tempEvent)
-    }, [ndkReady, envReady])
+
+        checkNdkAndEnv()
+        // This effect should ideally re-run if the underlying NDK/Env stores change.
+        // If ndkActions/envActions stores trigger re-renders of this component upon their initialization,
+        // this simple check on mount (and re-render) might be sufficient.
+        // Otherwise, a subscription mechanism to store changes would be more robust here.
+    }, [routeEnvConfig]) // Re-run if routeEnvConfig changes
 
     const featuredListQueries = useQueries({
         queries: homepageFeaturedListDTags.map((dTag) => ({
             queryKey: ['featured-list', dTag],
             queryFn: async () => {
                 const ndk = ndkActions.getNDK()
+                // routeEnvConfig is used here, should be defined if enabled is true
                 if (!ndk) {
-                    console.error('NDK not available for zap event creation')
-                    return
+                    console.error(`NDK not available for fetching list: ${dTag}`)
+                    throw new Error('NDK not available')
                 }
-                const env = envActions.getEnv()
-                if (!env?.APP_PUBKEY) {
-                    console.error('APP_PUBKEY not available for zap event creation')
-                    return
+                if (!routeEnvConfig?.APP_PUBKEY) {
+                    // Check routeEnvConfig from context
+                    console.error(`APP_PUBKEY not available in routeEnvConfig for fetching list: ${dTag}`)
+                    throw new Error('APP_PUBKEY not available in routeEnvConfig')
                 }
 
                 try {
                     console.log(`Fetching list: ${dTag}`)
-                    const result = await getSpecificFeaturedListByDTag(ndk, dTag, env.APP_PUBKEY, {
+                    const result = await getSpecificFeaturedListByDTag(ndk, dTag, routeEnvConfig.APP_PUBKEY, {
                         withStations: true,
                     })
                     console.log(`List ${dTag} fetched:`, !!result)
@@ -111,6 +127,7 @@ function Index() {
                     throw error
                 }
             },
+            enabled: ndkReady && envReady, // envReady now correctly reflects routeEnvConfig.APP_PUBKEY readiness
             staleTime: 1000 * 60 * 5,
             retry: 3,
             retryDelay: (attempt: number) => Math.min(attempt > 1 ? 2000 * 2 ** attempt : 1000, 30000),
@@ -121,8 +138,8 @@ function Index() {
         })),
     })
 
-    const isLoading = false // featuredListQueries.some((query) => query.isLoading) || initialLoad
-    const hasError = false // featuredListQueries.some((query) => query.isError) || queryError !== null
+    const isLoading = featuredListQueries.some((query) => query.isLoading && query.fetchStatus !== 'idle')
+    const hasError = featuredListQueries.some((query) => query.isError)
 
     const listForLayout1 = featuredListQueries[0]?.data ?? null
     const listForLayout2 = featuredListQueries[1]?.data ?? null
