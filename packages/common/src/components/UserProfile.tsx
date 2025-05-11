@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import { authStore, ndkActions } from '@wavefunc/common'
 import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
-
+import { Link } from '@tanstack/react-router'
 interface UserProfileProps {
     pubkey: string
     compact?: boolean
@@ -113,9 +113,9 @@ export function UserProfile({ pubkey, compact = true }: UserProfileProps) {
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div onClick={() => (window.location.href = `/profile/${pubkey}`)} className="cursor-pointer">
+                    <Link to={`/profile/${pubkey}`} className="cursor-pointer">
                         {profileContent}
-                    </div>
+                    </Link>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" align="start" className="max-w-[200px]">
                     {profile?.about && <p className="text-xs text-muted-foreground line-clamp-2">{profile.about}</p>}

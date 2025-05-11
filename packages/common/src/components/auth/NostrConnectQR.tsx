@@ -126,12 +126,20 @@ export function NostrConnectQR({ onError, onSuccess, autoLogin = true }: NostrCo
     const connectionUrl = useMemo(() => {
         if (!localPubkey || !env) return null
 
-        const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+        // Check if we're in a browser environment
+        const isBrowser = typeof window !== 'undefined'
+
+        // Only use window.location if in browser, otherwise fall back to env vars or defaults
+        const localMachineIp = env.VITE_PUBLIC_HOST || (isBrowser ? window.location.hostname : 'wavefunc.live')
         const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
         const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
         const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
         const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
-        const host = location.protocol + '//' + localMachineIp
+
+        // Use window.location.protocol if available, otherwise default to https
+        const protocol = isBrowser ? window.location.protocol : 'https:'
+        const host = protocol + '//' + localMachineIp
+
         const secret = Math.random().toString(36).substring(2, 15)
 
         setTempSecret(secret)
@@ -156,8 +164,11 @@ export function NostrConnectQR({ onError, onSuccess, autoLogin = true }: NostrCo
     const constructBunkerUrl = (event: NDKEvent) => {
         if (!env) return null
 
+        // Add browser check here too
+        const isBrowser = typeof window !== 'undefined'
+
         const baseUrl = `bunker://${event.pubkey}?`
-        const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+        const localMachineIp = env.VITE_PUBLIC_HOST || (isBrowser ? window.location.hostname : 'localhost')
         const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
         const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
         const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''

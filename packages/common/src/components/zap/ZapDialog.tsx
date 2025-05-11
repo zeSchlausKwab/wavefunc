@@ -256,7 +256,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             if (!ndk) throw new Error('NDK not available')
 
             // Set up subscription to listen for zap confirmation
-            const sub = subscribeToZapReceipts()
+            const sub = subscribeToZapReceipts(ndk)
             zapSubscriptionRef.current = sub
 
             // Configure NDK to use the wallet
@@ -407,7 +407,10 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                             variant="outline"
                             onClick={() => {
                                 onOpenChange(false)
-                                window.location.href = '/settings?tab=nwc'
+                                // Check if window exists before accessing it (for SSR)
+                                if (typeof window !== 'undefined') {
+                                    window.location.href = '/settings?tab=nwc'
+                                }
                             }}
                         >
                             Connect Wallet
