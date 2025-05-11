@@ -134,9 +134,19 @@ async function startServer() {
                 }
             }
 
-            const stationMatch = path.match(/^\/station\/([^\/]+)/)
-            const profileMatch = path.match(/^\/profile\/([^\/]+)/)
-            const isAppRoute = path === '/' || stationMatch || profileMatch
+            // Determine if the request is for a known static asset or API endpoint.
+            // If not, assume it's an application route that needs SSR.
+            const isStaticOrApiRoute =
+                path.startsWith('/dist/') ||
+                path.startsWith('/images/') ||
+                path === '/.well-known/nostr.json' ||
+                path.startsWith('/api/proxy/icecast')
+            // /envConfig is handled by the `routes` object, so it won't reach here.
+
+            // const stationMatch = path.match(/^\/station\/([^\/]+)/) // No longer needed for this check
+            // const profileMatch = path.match(/^\/profile\/([^\/]+)/) // No longer needed for this check
+            // const isAppRoute = path === '/' || stationMatch || profileMatch
+            const isAppRoute = !isStaticOrApiRoute
 
             if (isAppRoute) {
                 try {
