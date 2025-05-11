@@ -11,8 +11,11 @@ import { walletActions } from '@wavefunc/common'
 import { routeTree } from './routeTree.gen'
 import { envActions } from '@wavefunc/common'
 
+// Helper to check if running in browser
+const isBrowser = typeof window !== 'undefined';
+
 const loadEnvAndNdk = async (env: EnvConfig) => {
-    const localMachineIp = env.VITE_PUBLIC_HOST || window.location.hostname
+    const localMachineIp = env.VITE_PUBLIC_HOST || (isBrowser ? window.location.hostname : 'localhost')
     const wsProtocol = env.VITE_PUBLIC_APP_ENV === 'development' ? 'ws' : 'wss'
     const relayPrefix = env.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
     const PORT_OR_DEFAULT = env.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
@@ -38,23 +41,27 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
 
         // Only connect search NDK if not already connected
         const searchState = ndkState.searchNdk
-        if (!searchState.isConnected && !searchState.isConnecting) {
+        if (searchState && !searchState.isConnected && !searchState.isConnecting) {
             console.log('Connecting to search NDK')
             await ndkActions.connectSearchNdk()
+        } else if (!searchState) {
+            console.log('Search NDK state not found, skipping connection.');
         } else {
             console.log('Search NDK is already connected or connecting')
         }
 
         // Verify local relay connection - but only attempt once
-        setTimeout(() => {
-            const relays = ndkActions.getRelays()
-            const localRelayConnected = relays.some((r) => r.url === relay)
-            if (!localRelayConnected) {
-                console.warn('Local relay not connected - adding to relay list')
-                ndkActions.addRelay(relay)
-                // Don't call connect again, just add the relay - it will be used on next reconnect
-            }
-        }, 2000)
+        if (isBrowser) {
+            setTimeout(() => {
+                const relays = ndkActions.getRelays()
+                const localRelayConnected = relays.some((r) => r.url === relay)
+                if (!localRelayConnected) {
+                    console.warn('Local relay not connected - adding to relay list')
+                    ndkActions.addRelay(relay)
+                    // Don't call connect again, just add the relay - it will be used on next reconnect
+                }
+            }, 2000)
+        }
     } catch (err) {
         console.error('Error connecting to relays:', err)
     }
@@ -79,7 +86,11 @@ function createAppRouter(queryClient: QueryClient, env: EnvConfig) {
     })
 }
 
-export default function App() {
+interface AppProps {
+    initialEnvConfig?: EnvConfig;
+}
+
+export default function App({ initialEnvConfig }: AppProps) {
     const [queryClient, setQueryClient] = useState<QueryClient | null>(null)
     const [router, setRouter] = useState<any | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -91,16 +102,39 @@ export default function App() {
             try {
                 setIsLoading(true)
 
-                // Initialize environment using the env store
-                const envConfig = await envActions.initialize()
+                let envConfigToUse: EnvConfig;
+                if (initialEnvConfig) {
+                    console.log('Using initialEnvConfig from SSR');
+                    envConfigToUse = initialEnvConfig;
+                } else {
+                    console.log('Fetching envConfig on client');
+                    // Check if env config is already loaded by hydration script
+                    let preloadedEnv: EnvConfig | null = null;
+                    if (isBrowser) {
+                        const preloadedEnvScript = document.getElementById('env-config-hydration');
+                        if (preloadedEnvScript?.textContent) {
+                            try {
+                                preloadedEnv = JSON.parse(preloadedEnvScript.textContent);
+                                console.log('Using envConfig from hydration script');
+                            } catch (e) {
+                                console.error('Failed to parse preloaded env config from script', e);
+                            }
+                        }
+                    }
+                    if (preloadedEnv) {
+                        envConfigToUse = preloadedEnv;
+                    } else {
+                        envConfigToUse = await envActions.initialize(); // Fallback to fetch
+                    }
+                }
 
                 // Initialize NDK with environment
-                await loadEnvAndNdk(envConfig)
+                await loadEnvAndNdk(envConfigToUse)
 
                 const client = await createQueryClient()
                 setQueryClient(client)
 
-                const appRouter = createAppRouter(client, envConfig)
+                const appRouter = createAppRouter(client, envConfigToUse)
                 setRouter(appRouter)
             } catch (err) {
                 console.error('Initialization error:', err)
@@ -111,7 +145,7 @@ export default function App() {
         }
 
         initialize()
-    }, [])
+    }, [initialEnvConfig]) // Depend on initialEnvConfig
 
     if (isLoading) {
         return <div className="flex justify-center items-center h-screen">Initializing application...</div>
@@ -121,15 +155,17 @@ export default function App() {
         return (
             <div className="flex justify-center items-center h-screen flex-col gap-2">
                 <div className="text-red-500">Error: {error}</div>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={() => window.location.reload()}>
-                    Retry
-                </button>
+                {isBrowser && (
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={() => window.location.reload()}>
+                        Retry
+                    </button>
+                )}
             </div>
         )
     }
 
     if (!queryClient || !router) {
-        return <div className="flex justify-center items-center h-screen">Failed to initialize application</div>
+        return <div className="flex justify-center items-center h-screen">Failed to initialize application components</div>
     }
 
     return (
