@@ -1,13 +1,13 @@
+import type { EnvConfig } from '@wavefunc/common'
 import { file, serve } from 'bun'
 import { config } from 'dotenv'
 import fs from 'fs'
 import { join } from 'path'
 import { renderToReadableStream } from 'react-dom/server'
 import { buildClient } from './server/build-client'
-import { ServerApp } from './server/ServerApp'
 import { generateOpenGraphTags } from './server/og'
+import { ServerApp } from './server/ServerApp'
 import { isBot, proxyIcecastRequest, serveStatic } from './server/utils'
-import type { EnvConfig } from '@wavefunc/common'
 
 config({
     path: join(process.cwd(), '../../.env'),

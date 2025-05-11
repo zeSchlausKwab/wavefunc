@@ -1,7 +1,6 @@
-import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import App from '../App'
 import type { EnvConfig } from '@wavefunc/common'
+import App from '../App'
 
 interface ServerAppProps {
     envConfig: EnvConfig // Passed from server, App will use this
