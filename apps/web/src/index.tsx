@@ -79,6 +79,13 @@ async function startServer() {
     const serverPort = process.env.PORT || process.env.VITE_PUBLIC_WEB_PORT || '8080'
 
     const server = serve({
+        routes: {
+            // Serve /envConfig API endpoint
+            '/envConfig': () => {
+                const envConfig = getServerEnvConfig()
+                return new Response(JSON.stringify(envConfig), { headers: { 'Content-Type': 'application/json' } })
+            },
+        },
         fetch: async (req) => {
             const url = new URL(req.url)
             const path = url.pathname
@@ -90,14 +97,11 @@ async function startServer() {
                 const imagePath = path.replace('/images/', '')
                 return serveStatic(`images/${imagePath}`)
             }
+            // Serve .well-known/nostr.json - moved back here
             if (path === '/.well-known/nostr.json') {
                 return new Response(file(join(process.cwd(), 'public', '.well-known', 'nostr.json')))
             }
-
-            if (path === '/envConfig') {
-                const envConfig = getServerEnvConfig()
-                return new Response(JSON.stringify(envConfig), { headers: { 'Content-Type': 'application/json' } })
-            }
+            // /envConfig is now in `routes`
 
             if (path.startsWith('/api/proxy/icecast')) {
                 if (req.method !== 'GET') {
@@ -208,7 +212,7 @@ async function startServer() {
                 }
             }
 
-            console.log(`Unhandled path: ${path}, sending 404`)
+            console.log(`Unhandled path: ${path}, sending 404 from fetch handler`)
             return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/html' } })
         },
         development: isDev,
