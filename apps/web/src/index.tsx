@@ -1,5 +1,5 @@
 import type { EnvConfig } from '@wavefunc/common'
-import { file, serve } from 'bun'
+import { file, serve, spawnSync } from 'bun'
 import { config } from 'dotenv'
 import fs from 'fs'
 import { join } from 'path'
@@ -28,6 +28,26 @@ function getServerEnvConfig(): EnvConfig {
 
 async function startServer() {
     const serverPort = process.env.PORT || process.env.VITE_PUBLIC_WEB_PORT || '8080'
+
+    if (isDev) {
+        console.log('🔄 Starting development server...')
+        console.log('🛠️ Running development build script (apps/web/build.ts)...')
+        const buildProcess = spawnSync({
+            cmd: ['bun', 'build.ts'],
+            cwd: process.cwd(),
+            stdout: 'inherit',
+            stderr: 'inherit',
+            stdin: 'inherit',
+        })
+
+        if (buildProcess.exitCode === 0) {
+            console.log('✅ Development build script completed successfully.')
+        } else {
+            console.error(`❌ Development build script failed with exit code ${buildProcess.exitCode}.`)
+        }
+    } else {
+        console.log('🚀 Starting production server...')
+    }
 
     const server = serve({
         routes: {
