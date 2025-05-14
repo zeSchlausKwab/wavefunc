@@ -11,10 +11,9 @@ import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
 
 // Icons
-import { CheckCircle2, ChevronDown, ChevronUp, Edit, Plus } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Edit } from 'lucide-react'
 
 // Stores and utilities
-import { NDKEvent, NDKUser } from '@nostr-dev-kit/ndk'
 import type { Station } from '@wavefunc/common'
 import {
     cn,

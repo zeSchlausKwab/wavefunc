@@ -42,6 +42,32 @@ export function createCommentEvent(content: string, stationEvent: NDKEvent, pare
 }
 
 /**
+ * Create a simple kind 1 text note post that can be replied to
+ * @param content The post text content
+ * @param categories Optional array of category tags to add
+ * @returns Unsigned NDKEvent
+ */
+export function createSimplePostEvent(content: string, categories?: string[]): NDKEvent {
+    const tags: string[][] = []
+
+    // Add category tags if provided
+    if (categories && categories.length > 0) {
+        categories.forEach((category) => {
+            tags.push(['t', category])
+        })
+    }
+
+    // Create a standard kind 1 text note as per NIP-01
+    return new NDKEvent(undefined, {
+        kind: 1, // Standard text note kind
+        created_at: Math.floor(Date.now() / 1000),
+        content,
+        tags,
+        pubkey: '',
+    })
+}
+
+/**
  * Publish a comment
  * @param ndk NDK instance
  * @param commentEvent Comment event to publish
@@ -244,4 +270,80 @@ export function getReplies(comments: NDKEvent[], commentId: string): NDKEvent[] 
             return eTags.some((tag) => tag[1] === commentId)
         })
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+}
+
+/**
+ * Create a reply to a shoutbox post
+ * @param content The reply content
+ * @param parentEvent The event being replied to
+ * @returns Unsigned NDKEvent
+ */
+export function createShoutboxReply(content: string, parentEvent: NDKEvent): NDKEvent {
+    const ndk = parentEvent.ndk
+    const event = new NDKEvent(ndk)
+    event.kind = 1 // Kind 1 - standard text note
+    event.content = content
+    event.created_at = Math.floor(Date.now() / 1000)
+
+    // Extract category tags from parent to maintain consistency
+    const categoryTags = parentEvent.tags
+        .filter((tag) => tag[0] === 't' && ['bug', 'suggestion', 'greeting', 'general'].includes(tag[1]))
+        .map((tag) => [...tag]) // Create copies of the tags
+
+    // Core required tags
+    const tags = [
+        // Mark as reply to parent (NIP-10 compliant)
+        ['e', parentEvent.id || '', '', 'reply'],
+        // Reference parent author
+        ['p', parentEvent.pubkey || ''],
+        // Required tags for shoutbox
+        ['t', 'wavefunc'],
+        ['t', 'shoutbox'],
+    ]
+
+    // Add any category tags from parent
+    categoryTags.forEach((tag) => {
+        // Only add if not already in tags
+        if (!tags.some((t) => t[0] === 't' && t[1] === tag[1])) {
+            tags.push(tag)
+        }
+    })
+
+    event.tags = tags
+    return event
+}
+
+/**
+ * Get replies to a shoutbox post (kind 1 note)
+ * @param allPosts Array of all posts
+ * @param postId ID of the post to find replies for
+ * @returns NDKEvent[] Array of replies
+ */
+export function getShoutboxReplies(allPosts: NDKEvent[], postId: string): NDKEvent[] {
+    if (!postId || !allPosts || allPosts.length === 0) return []
+
+    return allPosts
+        .filter((event) => {
+            // Don't include the event itself
+            if (event.id === postId) return false
+
+            // Look for any e tags that reference the parent
+            const eTags = event.tags.filter((tag) => tag[0] === 'e')
+
+            // Consider an event a reply if:
+            // 1. It has an e-tag referencing the parent event, and
+            // 2. Either the tag has a "reply" marker (NIP-10),
+            //    or it's just referencing the parent event (more common)
+            return eTags.some((tag) => {
+                if (tag[1] !== postId) return false
+
+                // Check for NIP-10 reply marker
+                if (tag.length >= 4 && tag[3] === 'reply') return true
+
+                // If no marker, consider it a reply if this is the primary reference
+                // (first e-tag or only e-tag)
+                return eTags.indexOf(tag) === 0 || eTags.length === 1
+            })
+        })
+        .sort((a, b) => (a.created_at || 0) - (b.created_at || 0)) // Oldest first for replies
 }
