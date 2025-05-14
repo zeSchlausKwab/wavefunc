@@ -15,15 +15,16 @@ type ShoutboxCategory = 'all' | 'bug' | 'suggestion' | 'greeting' | 'general'
 const MAX_REPLY_FETCH_DEPTH = 5 // Max depth for fetching nested replies
 const REPLIES_FETCH_LIMIT_PER_DEPTH = 50 // Max replies to fetch per parent set per depth
 
-// Extended CommentItem props
+// Extended CommentItem props to accept specialized getReplies function
 interface ExtendedCommentItemProps {
     comment: NDKEvent
-    stationEvent: NDKEvent
-    stationId: string
-    naddr: string
-    allComments: NDKEvent[]
-    onReplyPosted?: () => void
-    getShoutboxReplies?: (comments: NDKEvent[], commentId: string) => NDKEvent[]
+    stationEvent: NDKEvent // The virtual shoutbox event
+    stationId: string      // ID of the virtual shoutbox event
+    // naddr is no longer needed by CommentItem
+    // allComments is no longer needed as CommentItem fetches its own replies
+    // onReplyPosted is handled by CommentItem internally for its replies
+    // getShoutboxReplies is no longer needed
+    initialExpandDepth: number // To control default expansion
 }
 
 export default function Shoutbox() {
@@ -177,18 +178,6 @@ export default function Shoutbox() {
         }
     }, [fetchedData, activeTab, filterEvents])
 
-    const getShoutboxReplies = useCallback((allEvents: NDKEvent[], parentId: string) => {
-        if (!parentId || !allEvents || allEvents.length === 0) return []
-        return allEvents
-            .filter((event) => {
-                if (event.id === parentId) return false
-                const eTags = event.tags.filter((tag) => tag[0].toLowerCase() === 'e')
-                const isReply = eTags.some((tag) => tag[1] === parentId)
-                return isReply
-            })
-            .sort((a, b) => (a.created_at || 0) - (b.created_at || 0))
-    }, [])
-
     const handleTabChange = (category: ShoutboxCategory) => {
         setActiveTab(category)
         filterEvents(rootEvents, category)
@@ -213,16 +202,15 @@ export default function Shoutbox() {
         )
     }
 
+    // Custom render function to pass initialExpandDepth
     const renderCommentItem = (event: NDKEvent) => {
         const props: ExtendedCommentItemProps = {
             comment: event,
-            stationEvent: shoutboxEvent,
-            stationId: shoutboxEvent.id || '',
-            naddr: shoutboxEvent.id || '',
-            allComments: shoutboxEvents,
-            onReplyPosted: handleCommentPosted,
-            getShoutboxReplies: getShoutboxReplies,
+            stationEvent: shoutboxEvent!, 
+            stationId: shoutboxEvent!.id || '',
+            initialExpandDepth: 2, 
         }
+
         return <CommentItem key={event.id} {...(props as any)} />
     }
 
