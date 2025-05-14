@@ -32,23 +32,6 @@ export default function ReplyToComment({ stationEvent, parentComment, onCommentP
 
             const commentEvent = createCommentEvent(content.trim(), stationEvent, parentComment)
 
-            const isShoutboxContext = stationEvent.tags.some((tag) => tag[0] === 't' && tag[1] === 'shoutbox')
-            if (isShoutboxContext) {
-                commentEvent.tags.push(['t', 'wavefunc'])
-                commentEvent.tags.push(['t', 'shoutbox'])
-                if (parentComment.kind === NDKKind.Text) {
-                    const parentCategoryTag = parentComment.tags.find(
-                        (tag: string[]) =>
-                            tag[0] === 't' && ['bug', 'suggestion', 'greeting', 'general'].includes(tag[1]),
-                    )
-                    if (parentCategoryTag) {
-                        if (!commentEvent.tags.some((t: string[]) => t[0] === 't' && t[1] === parentCategoryTag[1])) {
-                            commentEvent.tags.push([...parentCategoryTag])
-                        }
-                    }
-                }
-            }
-
             await publishComment(ndk, commentEvent)
 
             setContent('')

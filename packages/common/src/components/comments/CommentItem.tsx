@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { QueryKey } from '@tanstack/react-query'
 import { ndkActions } from '@wavefunc/common'
 import { Card, CardContent, CardFooter, CardHeader } from '@wavefunc/ui/components/ui/card'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { formatDistanceToNow } from 'date-fns'
 import { CornerDownRight, Loader2, MessageSquare } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
@@ -105,6 +106,18 @@ export default function CommentItem({ comment, stationEvent, stationId, initialE
         }
     }
 
+    const relevantTags = useMemo(() => {
+        return comment.tags.filter((tag) => tag[0] === 't' && tag[1]).map((tag) => ({ key: tag[0], value: tag[1] }))
+    }, [comment.tags])
+
+    const tagColorClasses = [
+        'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+        'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+        'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+        'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    ]
+
     return (
         <div className="relative">
             <Card className="bg-card mb-2 last:mb-0">
@@ -122,6 +135,19 @@ export default function CommentItem({ comment, stationEvent, stationId, initialE
 
                 <CardContent className="p-3 pt-1">
                     <p className="whitespace-pre-wrap break-words text-sm">{comment.content}</p>
+                    {relevantTags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                            {relevantTags.map((tag, index) => (
+                                <Badge
+                                    key={`${tag.key}-${tag.value}-${index}`}
+                                    variant="outline"
+                                    className={`text-xs ${tagColorClasses[index % tagColorClasses.length]}`}
+                                >
+                                    #{tag.value}
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
                 </CardContent>
 
                 <CardFooter className="p-2 pt-0 flex justify-between items-center">
