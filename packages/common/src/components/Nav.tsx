@@ -1,7 +1,7 @@
 import { NavigationMenu, NavigationMenuItem, NavigationMenuList } from '@wavefunc/ui/components/ui/navigation-menu'
 import { cn } from '@wavefunc/common'
 import { Link, useRouter } from '@tanstack/react-router'
-import { Disc, Headphones, Radio } from 'lucide-react'
+import { Disc, Headphones, Radio, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useMedia } from 'react-use'
 
@@ -10,6 +10,7 @@ const routes = [
     { href: '/discover', label: 'Discover', icon: <Disc className="h-4 w-4 mr-1.5" /> },
     { href: '/legacy', label: 'Legacy', icon: <Radio className="h-4 w-4 mr-1.5" /> },
     { href: '/about', label: 'About', icon: <Headphones className="h-4 w-4 mr-1.5" /> },
+    { href: '/community', label: 'Community', icon: <MessageCircle className="h-4 w-4 mr-1.5" /> },
 ]
 
 interface NavProps {

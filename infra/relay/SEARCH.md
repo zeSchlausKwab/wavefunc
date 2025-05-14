@@ -26,36 +26,39 @@ Radio stations in this system use the kind 31237 (as defined in RADIO_EVENT_KIND
 If your search isn't working properly, you can use the following tools to diagnose issues:
 
 1. Use `inspect_index.go` to examine the indexed data:
-   ```bash
-   go run inspect_index.go --query="station name"
-   ```
-   
-   Verify that all radio stations have `Kind: 31237` in the output.
+
+    ```bash
+    go run inspect_index.go --query="station name"
+    ```
+
+    Verify that all radio stations have `Kind: 31237` in the output.
 
 2. Use `check_stations.go` to verify database records:
-   ```bash
-   go run check_stations.go --dsn="postgres://user:password@localhost:5432/dbname"
-   ```
+
+    ```bash
+    go run check_stations.go --dsn="postgres://user:password@localhost:5432/dbname"
+    ```
 
 3. If issues are found, rebuild the index:
-   ```bash
-   rm -rf data/bluge_search
-   go run backfill_search.go --dsn="postgres://user:password@localhost:5432/dbname" --dir="./data"
-   ```
+    ```bash
+    rm -rf data/bluge_search
+    go run backfill_search.go --dsn="postgres://user:password@localhost:5432/dbname" --dir="./data"
+    ```
 
 ## Testing Search
 
 To test the search functionality, you can:
 
 1. Add test stations to the index:
-   ```bash
-   go run add_test_stations.go --dir="./data"
-   ```
+
+    ```bash
+    go run add_test_stations.go --dir="./data"
+    ```
 
 2. Inspect the index for specific queries:
-   ```bash
-   go run inspect_index.go --query="rock"
-   ```
+    ```bash
+    go run inspect_index.go --query="rock"
+    ```
 
 ## Backfill Process
 

@@ -192,9 +192,11 @@ bun publish:handler:live:direct [handler-id]
 ```
 
 Where:
+
 - `handler-id` is an optional identifier for the handler (if omitted, a timestamp-based ID will be generated)
 
 This command will:
+
 1. Create a NIP-89 handler event (kind 31990)
 2. Set the required tags according to the specification
 3. Sign it with your admin key
@@ -215,12 +217,13 @@ The API-based approach allows for additional validation and permission checks on
 The script publishes two events:
 
 1. **Kind 31990 (NIP-89 Handler)** - Declares your application as a handler for radio station events
-   - Contains information about supported kinds, URL templates, and app details
-   - Uses a d-tag to make it replaceable (can be updated later with same handler ID)
+
+    - Contains information about supported kinds, URL templates, and app details
+    - Uses a d-tag to make it replaceable (can be updated later with same handler ID)
 
 2. **Kind 0 (Metadata)** - Creates a profile for your application
-   - Contains basic profile information: name, picture, about, website, and NIP-05 identifier
-   - Follows the standard metadata format from NIP-01
+    - Contains basic profile information: name, picture, about, website, and NIP-05 identifier
+    - Follows the standard metadata format from NIP-01
 
 #### Configuration
 

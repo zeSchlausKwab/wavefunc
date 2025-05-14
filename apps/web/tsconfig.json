@@ -1,19 +1,19 @@
 {
-	"compilerOptions": {
-		"jsx": "react-jsx",
-		"allowJs": true,
-		"strict": true,
-		"strictNullChecks": true,
-		"moduleResolution": "bundler",
-		"module": "preserve",
-		"allowImportingTsExtensions": true,
-		"verbatimModuleSyntax": true,
-		"noEmit": true,
-		"baseUrl": ".",
-		"paths": {
-			"@/*": ["./src/*"],
-			"@wavefunc/common/*": ["../common/src/*"]
-		}
-	},
-	"include": ["**/*.ts", "**/*.tsx", "scripts/**/*.ts"]
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "allowJs": true,
+        "strict": true,
+        "strictNullChecks": true,
+        "moduleResolution": "bundler",
+        "module": "preserve",
+        "allowImportingTsExtensions": true,
+        "verbatimModuleSyntax": true,
+        "noEmit": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"],
+            "@wavefunc/common/*": ["../common/src/*"]
+        }
+    },
+    "include": ["**/*.ts", "**/*.tsx", "scripts/**/*.ts"]
 }
