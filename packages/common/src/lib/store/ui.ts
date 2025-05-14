@@ -26,7 +26,7 @@ const initialState: UIState = {
     },
     historyDrawer: {
         isOpen: false,
-    }
+    },
 }
 
 export const uiStore = new Store<UIState>(initialState)

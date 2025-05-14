@@ -16,7 +16,6 @@ export * from './types'
 export * from './nostr/service'
 export * from './nostr/reactions'
 export * from './nostr/featured'
-
 // Export constants
 export { RADIO_EVENT_KINDS } from './schemas/events'
 
@@ -66,10 +65,11 @@ export * from './components/station/StationGrid'
 export * from './components/CheckerPattern'
 export * from './components/radio/HistoryDrawer'
 export * from './components/radio/IcecastMetadataDisplay'
+export * from './components/comments/Shoutbox'
 // export * from './components/radio/RadioStationsList'
 // export * from './components/radio/GenreSelector'
 
 export * from './components/zap/ZapDialog'
 
 // Re-export NDKEvent as a value from the NDK package that common uses
-export { NDKEvent } from '@nostr-dev-kit/ndk';
+export { NDKEvent } from '@nostr-dev-kit/ndk'

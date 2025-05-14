@@ -95,7 +95,11 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
+            console.log('ndk', ndk)
+
             const user = ndk.getUser({ pubkey: event.pubkey })
+
+            console.log('user', user)
 
             try {
                 const zapInfo = await user.getZapInfo()

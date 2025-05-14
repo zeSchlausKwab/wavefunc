@@ -26,11 +26,11 @@ export const historyStore = new Store<HistoryState>(initialState)
  */
 const createSerializableStation = (station: Station): Station => {
     // Create a shallow copy of the station object
-    const { event, ...serializableStation } = station;
-    
+    const { event, ...serializableStation } = station
+
     // Return the copy without the event property
-    return serializableStation as Station;
-};
+    return serializableStation as Station
+}
 
 /**
  * Create a serializable copy of a history entry
@@ -38,9 +38,9 @@ const createSerializableStation = (station: Station): Station => {
 const createSerializableEntry = (entry: HistoryEntry): HistoryEntry => {
     return {
         ...entry,
-        station: createSerializableStation(entry.station)
-    };
-};
+        station: createSerializableStation(entry.station),
+    }
+}
 
 // Load history from localStorage
 export const loadHistory = (): void => {
@@ -62,10 +62,10 @@ export const loadHistory = (): void => {
 export const saveHistory = (): void => {
     try {
         const { entries } = historyStore.state
-        
+
         // Create serializable copies of all entries
-        const serializableEntries = entries.map(createSerializableEntry);
-        
+        const serializableEntries = entries.map(createSerializableEntry)
+
         // Save the serializable entries to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries: serializableEntries }))
     } catch (error) {
@@ -88,15 +88,10 @@ export const addToHistory = (station: Station): void => {
 
     historyStore.setState((state) => {
         // Remove this station if it already exists in history to avoid duplicates
-        const filteredEntries = state.entries.filter(
-            (entry) => entry.stationCoordinates !== stationCoordinates
-        )
+        const filteredEntries = state.entries.filter((entry) => entry.stationCoordinates !== stationCoordinates)
 
         // Add the new entry at the beginning
-        const newEntries = [
-            { station, timestamp, stationCoordinates },
-            ...filteredEntries,
-        ].slice(0, state.maxEntries) // Keep only the max number of entries
+        const newEntries = [{ station, timestamp, stationCoordinates }, ...filteredEntries].slice(0, state.maxEntries) // Keep only the max number of entries
 
         return {
             ...state,
@@ -121,4 +116,4 @@ export const clearHistory = (): void => {
         entries: [],
     }))
     saveHistory()
-} 
+}
