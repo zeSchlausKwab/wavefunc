@@ -24,8 +24,8 @@ declare module '@tanstack/react-router' {
 }
 
 const loadEnvAndNdk = async () => {
-    const ndk = ndkActions.initialize([...DEFAULT_RELAYS, 'ws://192.168.100.99:3002'])
-    ndkActions.initializeSearchNdk('ws://192.168.100.99:3002')
+    const ndk = ndkActions.initialize(['wss://relay.wavefunc.live'])
+    ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
     await ndkActions.connect()
     await ndkActions.connectSearchNdk()
 

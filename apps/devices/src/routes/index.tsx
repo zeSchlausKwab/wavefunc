@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { ndkActions, parseRadioEventWithSchema, RADIO_EVENT_KINDS, subscribeToRadioStations } from '@wavefunc/common'
 import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import type { Station } from '@wavefunc/common/src/types/station'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 // import { useMedia } from 'react-use'
 export const Route = createFileRoute('/')({
     component: Index,
@@ -56,32 +56,52 @@ function Index() {
         }
     }, [])
 
+    const genres = useMemo(() => {
+        const allTags = new Set<string>()
+        stations.forEach((station) =>
+            station.tags?.forEach((tag) => {
+                if (tag[0] === 't') {
+                    // Assuming 't' tags are genres
+                    allTags.add(tag[1])
+                }
+            }),
+        )
+        return Array.from(allTags).sort()
+    }, [stations])
+
+    const filteredStations = useMemo(() => {
+        if (!selectedGenre) {
+            return stations
+        }
+        return stations.filter((station) => station.tags?.some((tag) => tag[0] === 't' && tag[1] === selectedGenre))
+    }, [stations, selectedGenre])
+
     return (
         <div className="container py-4">
             <h1 className="text-2xl font-bold mb-4">Radio Stations</h1>
 
-            {/* Genre filter
+            {/* Genre filter */}
             <div className="mb-4 flex flex-wrap gap-2">
                 <button
-                    className={`px-3 py-1 rounded-md ${selectedGenre === null ? 'bg-primary text-white' : 'bg-gray-200'}`}
+                    className={`px-3 py-1 rounded-md ${selectedGenre === null ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                     onClick={() => setSelectedGenre(null)}
                 >
                     All
                 </button>
-                {genres.map((genre) => (
+                {genres.map((genre: string) => (
                     <button
                         key={genre}
-                        className={`px-3 py-1 rounded-md ${selectedGenre === genre ? 'bg-primary text-white' : 'bg-gray-200'}`}
+                        className={`px-3 py-1 rounded-md ${selectedGenre === genre ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                         onClick={() => setSelectedGenre(genre)}
                     >
                         {genre}
                     </button>
                 ))}
-            </div> */}
+            </div>
 
             {/* Stations list */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredStations.map((station) => (
+                {filteredStations.map((station: Station) => (
                     <RadioCard key={station.id} station={station} />
                 ))}
 
