@@ -31,5 +31,5 @@ export function RelaysSettings() {
         return <div className="flex justify-center py-8">Loading relay settings...</div>
     }
 
-    return <RelayDataTable columns={[]} data={relays} onRowsChange={setRelays} />
+    return <RelayDataTable data={relays} onRowsChange={setRelays} />
 }

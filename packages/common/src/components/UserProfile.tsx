@@ -1,11 +1,11 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/avatar'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { authStore, ndkActions } from '@wavefunc/common'
+import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/avatar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
 interface UserProfileProps {
     pubkey: string
     compact?: boolean
@@ -113,7 +113,7 @@ export function UserProfile({ pubkey, compact = true }: UserProfileProps) {
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Link to={`/profile/${pubkey}`} className="cursor-pointer">
+                    <Link to="/profile/$profileId" params={{ profileId: pubkey }} className="cursor-pointer">
                         {profileContent}
                     </Link>
                 </TooltipTrigger>

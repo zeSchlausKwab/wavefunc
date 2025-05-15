@@ -4,7 +4,7 @@ import { NDKEvent, NDKKind, NDKSubscriptionCacheUsage, type NDKFilter, type NDKS
 /**
  * Publish a reaction to an event
  */
-export async function publishReaction(ndk: NDK, event: NDKEvent, content: string): Promise<NDKEvent> {
+export async function publishReaction(event: NDKEvent, content: string): Promise<NDKEvent> {
     return event.react(content, true)
 }
 

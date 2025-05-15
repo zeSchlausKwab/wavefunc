@@ -1,9 +1,9 @@
-import { CardDescription, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
-import { cn } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { Link as RouterLink } from '@tanstack/react-router'
+import { cn } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common/src/types/station'
 import type { Stream } from '@wavefunc/common/src/types/stream'
+import { CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { CheckCircle2, CircleDashed, ExternalLink } from 'lucide-react'
 import { StreamSelector } from '../StreamSelector'
 
@@ -65,9 +65,6 @@ export const StationHeader = ({
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                     ) : null}
                 </div>
-                <CardDescription className={cn('mt-1 truncate', isMobile ? 'text-[8px]' : 'text-xs')}>
-                    {station.genre}
-                </CardDescription>
             </div>
             {/* Only show stream selector in header on desktop */}
             {!isFullWidth && !isMobile && streams && Array.isArray(streams) && streams.length > 1 && (

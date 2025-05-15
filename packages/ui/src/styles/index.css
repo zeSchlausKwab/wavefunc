@@ -1,4 +1,4 @@
+@import 'tailwindcss';
 @import './globals.css';
 
-@layer base {
-}
+/* Removed old @tailwind directives and empty @layer base {} */

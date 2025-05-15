@@ -15,10 +15,9 @@ export interface CategoryOption {
 interface ShoutboxCommentProps {
     onCommentPosted: () => void
     categories: CategoryOption[]
-    shoutboxEvent?: NDKEvent // Optional virtual shoutbox event
 }
 
-export default function ShoutboxComment({ onCommentPosted, categories, shoutboxEvent }: ShoutboxCommentProps) {
+export default function ShoutboxComment({ onCommentPosted, categories }: ShoutboxCommentProps) {
     const [content, setContent] = useState('')
     const [selectedCategory, setSelectedCategory] = useState<string>(categories[0]?.value || '')
     const [isSubmitting, setIsSubmitting] = useState(false)

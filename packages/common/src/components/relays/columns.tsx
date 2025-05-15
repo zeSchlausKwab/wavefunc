@@ -3,12 +3,6 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Checkbox } from '@wavefunc/ui/components/ui/checkbox'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@wavefunc/ui/components/ui/dropdown-menu'
 import { ChevronsUpDown, Trash2 } from 'lucide-react'
 
 // Define the relay data type

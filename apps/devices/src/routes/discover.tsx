@@ -1,5 +1,4 @@
 import { NDKKind } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
     cn,
@@ -281,7 +280,12 @@ function AdvancedFilters({
                         <Input
                             id="tags"
                             value={localFilters.tags?.join(', ') || ''}
-                            onChange={(e) => updateFilter('tags', e.target.value ? e.target.value.split(',').map(t => t.trim()) : null)}
+                            onChange={(e) =>
+                                updateFilter(
+                                    'tags',
+                                    e.target.value ? e.target.value.split(',').map((t) => t.trim()) : null,
+                                )
+                            }
                             className="col-span-3"
                             placeholder="e.g. music, talk, news"
                         />
@@ -342,12 +346,12 @@ function ActiveFilters({
     onClearFilters: () => void
 }) {
     const activeFilterEntries = Object.entries(filters).filter(([key, value]) => {
-        if (key === 'searchTerm' && typeof value === 'string' && value.trim() !== '') return true;
-        if (key === 'tags' && Array.isArray(value) && value.length > 0) return true;
-        if (key === 'languageCode' && typeof value === 'string' && value.trim() !== '') return true;
-        if (key === 'domain' && typeof value === 'string' && value.trim() !== '') return true;
-        return false;
-    });
+        if (key === 'searchTerm' && typeof value === 'string' && value.trim() !== '') return true
+        if (key === 'tags' && Array.isArray(value) && value.length > 0) return true
+        if (key === 'languageCode' && typeof value === 'string' && value.trim() !== '') return true
+        if (key === 'domain' && typeof value === 'string' && value.trim() !== '') return true
+        return false
+    })
 
     if (activeFilterEntries.length === 0) return null
 
@@ -395,18 +399,21 @@ function Index() {
     // Unique list of genres and languages from live stations
     const allGenres = useMemo(() => {
         const genres = new Set<string>()
-        liveStations.forEach((s) => s.tags?.forEach((tag) => {
-            if (tag[0] === 't') { // Assuming 't' is the tag type for genres
-                genres.add(tag[1])
-            }
-        }))
+        liveStations.forEach((s) =>
+            s.tags?.forEach((tag) => {
+                if (tag[0] === 't') {
+                    // Assuming 't' is the tag type for genres
+                    genres.add(tag[1])
+                }
+            }),
+        )
         return Array.from(genres).sort()
     }, [liveStations])
 
     const allLanguages = useMemo(() => {
         const languages = new Set<string>()
         liveStations.forEach((s) => {
-            s.languageCodes?.forEach(lang => languages.add(lang)) // Correctly use languageCodes array
+            s.languageCodes?.forEach((lang) => languages.add(lang)) // Correctly use languageCodes array
         })
         return Array.from(languages).sort()
     }, [liveStations])
@@ -426,7 +433,8 @@ function Index() {
         try {
             const ndk = ndkActions.getSearchNdk() // Get NDK instance
             if (!ndk) throw new Error('Search NDK not available')
-            const results = await searchRadioStations(ndk, { // Pass NDK as first argument
+            const results = await searchRadioStations({
+                // Pass NDK as first argument
                 searchTerm: filters.searchTerm,
                 tags: filters.tags || undefined,
                 languageCode: filters.languageCode || undefined,
@@ -444,18 +452,19 @@ function Index() {
     const handleSearchInputChange = (value: string) => {
         setFilters((prev) => ({ ...prev, searchTerm: value }))
         if (!value.trim()) {
-             // If search term is cleared, reset active search and show live stations
+            // If search term is cleared, reset active search and show live stations
             setActiveSearch(false)
             setSearchedStations([])
         }
     }
 
     const handleGenreSelect = (genre: string | null) => {
-        const newTags = genre ? [genre] : null;
+        const newTags = genre ? [genre] : null
         setFilters((prev) => ({ ...prev, tags: newTags }))
-        if (filters.searchTerm.trim() || activeSearch || newTags) { // Also search if newTags is not null
-             const newFilters = { ...filters, tags: newTags };
-             searchWithNewFilters(newFilters);
+        if (filters.searchTerm.trim() || activeSearch || newTags) {
+            // Also search if newTags is not null
+            const newFilters = { ...filters, tags: newTags }
+            searchWithNewFilters(newFilters)
         } else {
             // If no active search and no tags, just update the filter state
             // Potentially clear displayed stations if they were filtered by genre locally
@@ -467,26 +476,26 @@ function Index() {
 
     // Helper function to search with new filters
     const searchWithNewFilters = async (newFilters: SearchFilters) => {
-        setIsLoading(true);
-        setActiveSearch(true);
+        setIsLoading(true)
+        setActiveSearch(true)
         try {
             const ndk = ndkActions.getSearchNdk() // Get NDK instance
-            if (!ndk) throw new Error('Search NDK not available');
-            const results = await searchRadioStations(ndk, { // Pass NDK as first argument
+            if (!ndk) throw new Error('Search NDK not available')
+            const results = await searchRadioStations({
+                // Pass NDK as first argument
                 searchTerm: newFilters.searchTerm,
                 tags: newFilters.tags || undefined,
                 languageCode: newFilters.languageCode || undefined,
                 domain: newFilters.domain || undefined,
-            });
-            setSearchedStations(results);
+            })
+            setSearchedStations(results)
         } catch (error) {
-            console.error('Error searching stations:', error);
-            setSearchedStations([]);
+            console.error('Error searching stations:', error)
+            setSearchedStations([])
         } finally {
-            setIsLoading(false);
+            setIsLoading(false)
         }
-    };
-
+    }
 
     const handleFiltersChange = (newFilters: SearchFilters) => {
         setFilters(newFilters)
@@ -494,7 +503,7 @@ function Index() {
 
     // This function is called when 'Apply Filters' in the dialog is clicked
     const applyAllFilters = () => {
-        searchWithNewFilters(filters); // Use the helper
+        searchWithNewFilters(filters) // Use the helper
     }
 
     const removeFilter = (key: keyof SearchFilters) => {
@@ -504,7 +513,7 @@ function Index() {
             setActiveSearch(false)
             setSearchedStations([])
         } else {
-            searchWithNewFilters(newFilters);
+            searchWithNewFilters(newFilters)
         }
     }
 
@@ -522,18 +531,18 @@ function Index() {
 
     const displayedStations = useMemo(() => {
         let stationsToDisplay = activeSearch ? searchedStations : liveStations
-        stationsToDisplay = stationsToDisplay.filter(station => !deletedStationIds.has(station.id));
+        stationsToDisplay = stationsToDisplay.filter((station) => !deletedStationIds.has(station.id))
 
         if (!activeSearch && filters.tags && filters.tags.length > 0) {
             const selectedGenre = filters.tags[0]
             return stationsToDisplay.filter(
-                (station) => station.tags && station.tags.some(tag => tag[0] === 't' && tag[1] === selectedGenre) // Corrected genre filtering
+                (station) => station.tags && station.tags.some((tag) => tag[0] === 't' && tag[1] === selectedGenre), // Corrected genre filtering
             )
         }
         return stationsToDisplay
     }, [activeSearch, searchedStations, liveStations, filters.tags, deletedStationIds])
 
-    const hasActiveNonSearchTermFilters = !!(filters.tags?.length || filters.languageCode || filters.domain);
+    const hasActiveNonSearchTermFilters = !!(filters.tags?.length || filters.languageCode || filters.domain)
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -575,9 +584,9 @@ function Index() {
                 onOpenChange={setShowFiltersDialog}
                 filters={filters}
                 onFiltersChange={handleFiltersChange} // This updates the main filters state
-                onApplyFilters={applyAllFilters}    // This triggers the search with current filters
+                onApplyFilters={applyAllFilters} // This triggers the search with current filters
                 languages={allLanguages}
             />
         </div>
     )
-} 
+}

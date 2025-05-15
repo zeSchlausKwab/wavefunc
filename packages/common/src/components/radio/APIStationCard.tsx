@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter } from '@wavefunc/ui/components/ui/card'
 import { StreamSelector } from './StreamSelector'
 
 // Icons
-import { Plus, Radio } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 // Stores and utilities
 import type { Station } from '@wavefunc/common'

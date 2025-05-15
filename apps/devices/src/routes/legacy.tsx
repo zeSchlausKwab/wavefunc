@@ -65,7 +65,7 @@ function Legacy() {
         setIsSearchMode(true)
         setActiveTab('search')
         // searchRefetch() // TODO: Trigger search
-        console.log("Search triggered with query:", searchQuery, "Filters:", filters)
+        console.log('Search triggered with query:', searchQuery, 'Filters:', filters)
     }
 
     const resetSearch = () => {
@@ -80,7 +80,7 @@ function Legacy() {
             bitrateMin: 0,
             bitrateMax: 0,
         })
-        console.log("Search reset")
+        console.log('Search reset')
     }
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -272,7 +272,9 @@ function Legacy() {
                                         </div>
                                     </div>
                                     <div className="mt-4 flex justify-end gap-2">
-                                        <Button variant="ghost" onClick={resetSearch}>Reset Filters</Button>
+                                        <Button variant="ghost" onClick={resetSearch}>
+                                            Reset Filters
+                                        </Button>
                                         <Button onClick={searchStations}>Apply Filters</Button>
                                     </div>
                                 </div>
@@ -283,19 +285,46 @@ function Legacy() {
 
                 <Separator />
 
-                <Tabs defaultValue="top" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'top' | 'search')}>
+                <Tabs
+                    defaultValue="top"
+                    className="w-full"
+                    value={activeTab}
+                    onValueChange={(value) => setActiveTab(value as 'top' | 'search')}
+                >
                     <div className="flex justify-between items-center mb-4">
                         <TabsList>
-                            <TabsTrigger value="top" onClick={() => { setActiveTab('top'); setIsSearchMode(false) }}>
+                            <TabsTrigger
+                                value="top"
+                                onClick={() => {
+                                    setActiveTab('top')
+                                    setIsSearchMode(false)
+                                }}
+                            >
                                 <Headphones className="w-4 h-4 mr-2" />
                                 Top Stations
                             </TabsTrigger>
-                            <TabsTrigger value="search" onClick={() => { setActiveTab('search'); setIsSearchMode(true) }}>
+                            <TabsTrigger
+                                value="search"
+                                onClick={() => {
+                                    setActiveTab('search')
+                                    setIsSearchMode(true)
+                                }}
+                            >
                                 <Search className="w-4 h-4 mr-2" />
                                 Search Results
                             </TabsTrigger>
                         </TabsList>
-                        <Button variant="outline" onClick={isSearchMode ? searchStations : () => { /* refetchTop() */ }} disabled={isLoading}>
+                        <Button
+                            variant="outline"
+                            onClick={
+                                isSearchMode
+                                    ? searchStations
+                                    : () => {
+                                          /* refetchTop() */
+                                      }
+                            }
+                            disabled={isLoading}
+                        >
                             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                             Refresh
                         </Button>
@@ -312,7 +341,9 @@ function Legacy() {
                                     <APIStationCard key={station.stationuuid} station={station} />
                                 ))} */}
                                 {/* Placeholder for stations */}
-                                <p className="text-muted-foreground text-center col-span-full py-8">Station display area (TODO)</p>
+                                <p className="text-muted-foreground text-center col-span-full py-8">
+                                    Station display area (TODO)
+                                </p>
                             </div>
                         )}
                     </TabsContent>
@@ -327,8 +358,10 @@ function Legacy() {
                                 {/* {displayStations.map((station: Station) => (
                                     <APIStationCard key={station.stationuuid} station={station} />
                                 ))} */}
-                                 {/* Placeholder for stations */}
-                                <p className="text-muted-foreground text-center col-span-full py-8">Station display area (TODO)</p>
+                                {/* Placeholder for stations */}
+                                <p className="text-muted-foreground text-center col-span-full py-8">
+                                    Station display area (TODO)
+                                </p>
                             </div>
                         )}
                     </TabsContent>
@@ -351,4 +384,4 @@ function StationGridSkeleton() {
             ))}
         </div>
     )
-} 
+}

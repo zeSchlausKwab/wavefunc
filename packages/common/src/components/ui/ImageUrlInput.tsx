@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
 import { Input } from '@wavefunc/ui/components/ui/input'
-import { ImageIcon, AlertCircle } from 'lucide-react'
+import { AlertCircle, ImageIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 interface ImageUrlInputProps {
     value: string

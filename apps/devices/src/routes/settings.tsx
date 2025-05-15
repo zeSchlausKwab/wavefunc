@@ -20,20 +20,16 @@ function Settings() {
                     <div className="space-y-6">
                         <div>
                             <h3 className="text-lg font-medium mb-2">Device Information</h3>
-                            <p className="text-muted-foreground">
-                                Configure your device settings and preferences.
-                            </p>
+                            <p className="text-muted-foreground">Configure your device settings and preferences.</p>
                         </div>
-                        
+
                         {/* This would be populated with actual settings */}
                         <div className="border rounded-md p-4 bg-muted/20">
-                            <p className="text-sm text-muted-foreground">
-                                Settings would be displayed here
-                            </p>
+                            <p className="text-sm text-muted-foreground">Settings would be displayed here</p>
                         </div>
                     </div>
                 </CardContent>
             </Card>
         </div>
     )
-} 
+}

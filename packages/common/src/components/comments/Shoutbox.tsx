@@ -19,7 +19,7 @@ const REPLIES_FETCH_LIMIT_PER_DEPTH = 50 // Max replies to fetch per parent set 
 interface ExtendedCommentItemProps {
     comment: NDKEvent
     stationEvent: NDKEvent // The virtual shoutbox event
-    stationId: string      // ID of the virtual shoutbox event
+    stationId: string // ID of the virtual shoutbox event
     // naddr is no longer needed by CommentItem
     // allComments is no longer needed as CommentItem fetches its own replies
     // onReplyPosted is handled by CommentItem internally for its replies
@@ -29,7 +29,6 @@ interface ExtendedCommentItemProps {
 
 export default function Shoutbox() {
     const [activeTab, setActiveTab] = useState<ShoutboxCategory>('all')
-    const [shoutboxEvents, setShoutboxEvents] = useState<NDKEvent[]>([])
     const [rootEvents, setRootEvents] = useState<NDKEvent[]>([])
     const [filteredEvents, setFilteredEvents] = useState<NDKEvent[]>([])
     const [shoutboxEvent, setShoutboxEvent] = useState<NDKEvent | null>(null)
@@ -142,7 +141,6 @@ export default function Shoutbox() {
             const { rootPosts, allReplyEvents } = fetchedData
             const combinedEvents = [...rootPosts, ...allReplyEvents]
             combinedEvents.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-            setShoutboxEvents(combinedEvents)
             setRootEvents(rootPosts)
 
             const counts: Record<ShoutboxCategory, number> = {
@@ -206,9 +204,9 @@ export default function Shoutbox() {
     const renderCommentItem = (event: NDKEvent) => {
         const props: ExtendedCommentItemProps = {
             comment: event,
-            stationEvent: shoutboxEvent!, 
+            stationEvent: shoutboxEvent!,
             stationId: shoutboxEvent!.id || '',
-            initialExpandDepth: 2, 
+            initialExpandDepth: 2,
         }
 
         return <CommentItem key={event.id} {...(props as any)} />
@@ -224,11 +222,7 @@ export default function Shoutbox() {
                 </p>
             </div>
 
-            <ShoutboxComment
-                onCommentPosted={handleCommentPosted}
-                categories={categoryOptions}
-                shoutboxEvent={shoutboxEvent}
-            />
+            <ShoutboxComment onCommentPosted={handleCommentPosted} categories={categoryOptions} />
 
             <Tabs
                 defaultValue="all"

@@ -78,8 +78,12 @@ function Index() {
 
     return (
         <div className="container py-4">
-            <h1 className="text-2xl font-bold mb-4">Radio Stations</h1>
-
+            <div className="flex flex-row gap-4">
+                <h1 className="text-2xl font-bold mb-4">Radio Stations</h1>
+                <p className="text-sm text-gray-500">
+                    Discover and listen to a wide range of radio stations from around the world.
+                </p>
+            </div>
             {/* Genre filter */}
             <div className="mb-4 flex flex-wrap gap-2">
                 <button

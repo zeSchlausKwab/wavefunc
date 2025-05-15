@@ -4,12 +4,12 @@
 
 // Ensure global is defined in the browser
 if (typeof window !== 'undefined' && typeof global === 'undefined') {
-    (window as any).global = window;
+    ;(window as any).global = window
 }
 
 // Ensure process is defined
 if (typeof process === 'undefined') {
-    (window as any).process = { env: {} };
+    ;(window as any).process = { env: {} }
 }
 
-export {}; 
+export {}

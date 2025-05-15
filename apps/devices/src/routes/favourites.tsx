@@ -12,4 +12,4 @@ function Favourites() {
             <FavoritesManager />
         </div>
     )
-} 
+}

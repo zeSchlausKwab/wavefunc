@@ -284,9 +284,7 @@ export function SocialInteractionBar({
 
     const reactionMutation = useMutation({
         mutationFn: async (content: string) => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-            await publishReaction(ndk as any, event as any, content)
+            await publishReaction(event as any, content)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['reactions', event.id] })

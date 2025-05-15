@@ -1,12 +1,10 @@
-import { useState } from 'react'
+import type { NDKEvent } from '@nostr-dev-kit/ndk'
+import { createCommentEvent, ndkActions, publishComment } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Textarea } from '@wavefunc/ui/components/ui/textarea'
-import { createCommentEvent, publishComment } from '@wavefunc/common'
-import type { NDKEvent } from '@nostr-dev-kit/ndk'
-import { NDKKind } from '@nostr-dev-kit/ndk'
 import { Loader2, X } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
-import { ndkActions } from '@wavefunc/common'
 
 interface ReplyToCommentProps {
     stationEvent: NDKEvent

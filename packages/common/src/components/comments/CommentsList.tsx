@@ -121,15 +121,7 @@ export default function CommentsList({ stationEvent, stationId, commentsCount }:
 
             <div className="space-y-4 min-h-[100px]">
                 {rootComments.map((comment) => (
-                    <CommentItem
-                        key={comment.id}
-                        comment={comment}
-                        stationEvent={stationEvent}
-                        stationId={stationId}
-                        naddr={stationEvent.id || ''}
-                        allComments={allComments}
-                        onReplyPosted={handleCommentPosted}
-                    />
+                    <CommentItem key={comment.id} comment={comment} stationEvent={stationEvent} stationId={stationId} />
                 ))}
             </div>
         </div>

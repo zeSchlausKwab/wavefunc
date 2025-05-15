@@ -519,7 +519,6 @@ export function mapNostrEventToStation(event: NDKEvent | NostrEvent): Station {
  * @returns Promise<Station[]>
  */
 export async function searchRadioStations(
-    ndk: NDK,
     options: {
         searchTerm?: string
         tags?: string[]

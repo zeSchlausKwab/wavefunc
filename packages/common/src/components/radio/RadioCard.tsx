@@ -208,7 +208,7 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
-    const [commentsCount, setCommentsCount] = useState(0)
+    const [commentsCount, _] = useState(0)
     const [isAuthor, setIsAuthor] = useState(false)
 
     // Initialize selectedStreamId with the primary stream or first stream

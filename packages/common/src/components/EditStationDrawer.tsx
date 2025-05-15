@@ -523,7 +523,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
             }
 
             // Convert to our format
-            const { content, tags } = convertFromRadioBrowser(stationData)
+            const { content } = convertFromRadioBrowser(stationData)
 
             // Set form values
             setValue('name', stationData.name)

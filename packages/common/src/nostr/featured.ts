@@ -1,14 +1,7 @@
-import NDK, {
-    NDKEvent,
-    NDKKind,
-    NDKRelay,
-    NDKRelaySet,
-    NDKSubscriptionCacheUsage,
-    type NDKFilter,
-} from '@nostr-dev-kit/ndk'
-import { FEATURED_LIST_LABEL, parseFeaturedListEvent, type FeaturedList } from './favorites'
-import { getStationByCoordinates, mapNostrEventToStation } from './radio'
+import NDK, { NDKEvent, NDKKind, NDKRelay, NDKSubscriptionCacheUsage, type NDKFilter } from '@nostr-dev-kit/ndk'
 import type { Station } from '../types/station'
+import { FEATURED_LIST_LABEL, parseFeaturedListEvent, type FeaturedList } from './favorites'
+import { getStationByCoordinates } from './radio'
 
 /**
  * Subscribe to featured station lists

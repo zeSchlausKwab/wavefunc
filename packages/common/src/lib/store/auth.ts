@@ -393,38 +393,6 @@ export const authActions = {
             console.log(`Creating NIP46 signer with bunker URL: ${bunkerUrl.substring(0, 15)}...`)
             const signer = new NDKNip46Signer(ndk, bunkerUrl, localSigner)
 
-            // Add timeout protection for blockUntilReady
-            let signerReady = false
-            const timeoutMs = 15000 // 15 seconds
-
-            const signerReadyPromise = signer
-                .blockUntilReady()
-                .then(() => {
-                    signerReady = true
-                    console.log('NIP-46 signer ready')
-                    return true
-                })
-                .catch((err) => {
-                    console.error('NIP-46 signer initialization error:', err)
-                    // Even if there's an error, we might still be able to proceed
-                    // Some mobile clients don't implement the full protocol
-                    return false
-                })
-
-            const timeoutPromise = new Promise<boolean>((resolve) => {
-                setTimeout(() => {
-                    if (!signerReady) {
-                        console.warn('NIP-46 signer not ready after timeout - attempting to proceed anyway')
-                        resolve(false)
-                    } else {
-                        resolve(true)
-                    }
-                }, timeoutMs)
-            })
-
-            // Race between ready and timeout - but we'll proceed either way
-            const isReady = await Promise.race([signerReadyPromise, timeoutPromise])
-
             // Even if not fully ready, we'll set the signer and attempt to use it
             ndkActions.setSigner(signer)
 

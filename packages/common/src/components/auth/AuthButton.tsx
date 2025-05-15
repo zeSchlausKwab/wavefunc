@@ -1,8 +1,8 @@
-import { Button } from '@wavefunc/ui/components/ui/button'
 import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { authStore, uiActions } from '@wavefunc/common'
-import { Loader2, LogIn, Settings, UserCircle2 } from 'lucide-react'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Loader2, LogIn, Settings } from 'lucide-react'
 import { type ComponentPropsWithoutRef } from 'react'
 import { Profile } from '../Profile'
 

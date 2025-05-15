@@ -112,26 +112,26 @@ async function resolveStreamUrl(url: string): Promise<string> {
 /**
  * Try to fetch Icecast metadata from a stream URL
  */
-async function fetchIcecastMetadata(streamUrl: string): Promise<IcecastMetadata | null> {
-    try {
-        // Extract the base server URL
-        const url = new URL(streamUrl)
-        const serverBaseUrl = `${url.protocol}//${url.hostname}${url.port ? ':' + url.port : ''}`
+// async function fetchIcecastMetadata(streamUrl: string): Promise<IcecastMetadata | null> {
+//     try {
+//         // Extract the base server URL
+//         const url = new URL(streamUrl)
+//         const serverBaseUrl = `${url.protocol}//${url.hostname}${url.port ? ':' + url.port : ''}`
 
-        // Use our proxy endpoint to avoid CORS issues
-        const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(serverBaseUrl + '/status-json.xsl')}`
+//         // Use our proxy endpoint to avoid CORS issues
+//         const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(serverBaseUrl + '/status-json.xsl')}`
 
-        const response = await fetch(proxyUrl)
-        if (!response.ok) {
-            throw new Error(`Failed to fetch Icecast metadata: ${response.status}`)
-        }
+//         const response = await fetch(proxyUrl)
+//         if (!response.ok) {
+//             throw new Error(`Failed to fetch Icecast metadata: ${response.status}`)
+//         }
 
-        const data = await response.json()
-        return data as IcecastMetadata
-    } catch (error) {
-        return null
-    }
-}
+//         const data = await response.json()
+//         return data as IcecastMetadata
+//     } catch (error) {
+//         return null
+//     }
+// }
 
 export function RadioPlayer() {
     const { isPlaying, currentStation } = useStore(stationsStore)
@@ -151,7 +151,6 @@ export function RadioPlayer() {
     const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
     const [showListenersInfo, setShowListenersInfo] = useState(false)
     const [icecastMetadata, setIcecastMetadata] = useState<IcecastMetadata | null>(null)
-    const [icecastLoading, setIcecastLoading] = useState(false)
 
     useEffect(() => {
         loadHistory()
@@ -484,9 +483,6 @@ export function RadioPlayer() {
                                         onClick={toggleListenersInfo}
                                     >
                                         <Users className="h-4 w-4" />
-                                        {icecastLoading && (
-                                            <div className="absolute right-0 top-0 h-2 w-2 bg-blue-500 rounded-full animate-ping"></div>
-                                        )}
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Station Listeners & History</TooltipContent>

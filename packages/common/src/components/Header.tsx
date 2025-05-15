@@ -1,23 +1,19 @@
 // import { Button } from '@wavefunc/ui'
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui'
-import { authStore } from '@wavefunc/common'
-import { openCreateStationDrawer } from '@wavefunc/common'
-import { cn } from '@wavefunc/common'
-import { useStore } from '@tanstack/react-store'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, Menu, Plus, Radio } from 'lucide-react'
+import { useStore } from '@tanstack/react-store'
+import { authStore, cn, openCreateStationDrawer } from '@wavefunc/common'
+import { Button } from '@wavefunc/ui/components/ui/button'
+import { Menu, Plus, Radio } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { AuthButton } from './auth/AuthButton'
 import { Nav } from './Nav'
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 import { SiteLinks } from './SiteLinks'
 export function Header() {
     const authState = useStore(authStore)
     const [isNavOpen, setIsNavOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
-    const [showWarningTooltip, setShowWarningTooltip] = useState(false)
     const isMobile = useMedia('(max-width: 640px)')
 
     useEffect(() => {

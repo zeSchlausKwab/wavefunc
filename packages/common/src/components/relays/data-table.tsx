@@ -27,13 +27,12 @@ import { toast } from 'sonner'
 import { DEFAULT_RELAYS } from '@wavefunc/common'
 import { createColumns } from './columns'
 
-interface DataTableProps<TData, TValue> {
-    columns: ColumnDef<TData, TValue>[]
+interface DataTableProps<TData> {
     data: TData[]
     onRowsChange: (rows: TData[]) => void
 }
 
-export function RelayDataTable<TData, TValue>({ columns, data, onRowsChange }: DataTableProps<TData, TValue>) {
+export function RelayDataTable<TData>({ data, onRowsChange }: DataTableProps<TData>) {
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -64,7 +63,7 @@ export function RelayDataTable<TData, TValue>({ columns, data, onRowsChange }: D
     }
 
     // Use the createColumns function and pass the deleteRelay callback
-    const tableColumns = createColumns(deleteRelay) as ColumnDef<TData, TValue>[]
+    const tableColumns = createColumns(deleteRelay) as ColumnDef<TData>[]
 
     const table = useReactTable({
         data,

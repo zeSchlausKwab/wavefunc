@@ -22,10 +22,12 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     // Ensure the relays are properly initialized and connected
-    const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
+    // const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
+    const ndk = ndkActions.initialize([relay])
 
     // Initialize the search NDK with the local relay
-    ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
+    // ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
+    ndkActions.initializeSearchNdk([relay])
 
     // Connect to relays only if not already connected
     try {
