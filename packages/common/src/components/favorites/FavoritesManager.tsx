@@ -189,6 +189,7 @@ export function FavoritesManager() {
                                     languageCodes: parsedStation.languageCodes,
                                     pubkey: event.pubkey,
                                     created_at: event.created_at || Math.floor(Date.now() / 1000),
+                                    event,
                                 }
 
                                 newResolvedStations[favorite.event_id] = {
@@ -348,13 +349,7 @@ export function FavoritesManager() {
                                                     </div>
                                                 )
                                             }
-                                            return (
-                                                <RadioCard
-                                                    key={favorite.event_id}
-                                                    station={resolved.station}
-                                                    currentListId={list.id}
-                                                />
-                                            )
+                                            return <RadioCard key={favorite.event_id} station={resolved.station} />
                                         })
                                     ) : (
                                         <div className="text-center py-4 text-muted-foreground">

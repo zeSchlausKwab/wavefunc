@@ -66,6 +66,8 @@ export * from './components/CheckerPattern'
 export * from './components/radio/HistoryDrawer'
 export * from './components/radio/IcecastMetadataDisplay'
 export * from './components/comments/Shoutbox'
+export * from './components/AboutContainer'
+
 // export * from './components/radio/RadioStationsList'
 // export * from './components/radio/GenreSelector'
 

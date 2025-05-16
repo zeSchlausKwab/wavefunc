@@ -434,7 +434,7 @@ function Index() {
 
             try {
                 // First attempt with exact filters
-                const results = await searchRadioStations(ndk, {
+                const results = await searchRadioStations({
                     searchTerm: filters.searchTerm,
                     tags: filters.tags || undefined,
                     languageCode: filters.languageCode || undefined,
@@ -449,7 +449,7 @@ function Index() {
                 // If no results and we have a search term, try a more flexible search
                 if (filters.searchTerm && !filters.tags && !filters.languageCode && !filters.domain) {
                     // Try searching with the term as a tag instead
-                    const tagResults = await searchRadioStations(ndk, {
+                    const tagResults = await searchRadioStations({
                         searchTerm: '', // Clear search term
                         tags: [filters.searchTerm.toLowerCase()], // Use as tag
                     })
@@ -458,7 +458,7 @@ function Index() {
                         return tagResults
                     }
 
-                    const recentResults = await searchRadioStations(ndk, {
+                    const recentResults = await searchRadioStations({
                         since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30, // Last 30 days
                     })
 
