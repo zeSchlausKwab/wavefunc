@@ -1,15 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
-import { DEFAULT_RELAYS } from '@wavefunc/common'
+import type { AppRouterContext, EnvConfig } from '@wavefunc/common'
+import { authActions, createQueryClient, DEFAULT_RELAYS, envActions, ndkActions, walletActions } from '@wavefunc/common'
 import { StrictMode, useEffect, useState } from 'react'
 import '../styles/index.css'
-import { createQueryClient } from '@wavefunc/common'
-import type { AppRouterContext, EnvConfig } from '@wavefunc/common'
-import { authActions } from '@wavefunc/common'
-import { ndkActions } from '@wavefunc/common'
-import { walletActions } from '@wavefunc/common'
 import { routeTree } from './routeTree.gen'
-import { envActions } from '@wavefunc/common'
 
 // Helper to check if running in browser
 const isBrowser = typeof window !== 'undefined'
@@ -22,8 +17,8 @@ const loadEnvAndNdk = async (env: EnvConfig) => {
     const relay = `${wsProtocol}://${relayPrefix}${localMachineIp}${PORT_OR_DEFAULT}`
 
     // Ensure the relays are properly initialized and connected
-    // const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
-    const ndk = ndkActions.initialize([relay])
+    const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
+    // const ndk = ndkActions.initialize([relay])
 
     // Initialize the search NDK with the local relay
     // ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])

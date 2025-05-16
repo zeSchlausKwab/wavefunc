@@ -3,7 +3,7 @@
 /* Import font files */
 @font-face {
     font-family: 'Doto';
-    src: url('../src/assets/fonts/Doto-Regular.ttf') format('truetype');
+    src: url('../../src/assets/fonts/Doto-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
@@ -12,7 +12,7 @@
 
 @font-face {
     font-family: 'Doto';
-    src: url('../src/assets/fonts/Doto-Medium.ttf') format('truetype');
+    src: url('../../src/assets/fonts/Doto-Medium.ttf') format('truetype');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
@@ -20,7 +20,7 @@
 
 @font-face {
     font-family: 'Doto';
-    src: url('../src/assets/fonts/Doto-SemiBold.ttf') format('truetype');
+    src: url('../../src/assets/fonts/Doto-SemiBold.ttf') format('truetype');
     font-weight: 600;
     font-style: normal;
     font-display: swap;
@@ -28,7 +28,7 @@
 
 @font-face {
     font-family: 'Doto';
-    src: url('../src/assets/fonts/Doto-Bold.ttf') format('truetype');
+    src: url('../../src/assets/fonts/Doto-Bold.ttf') format('truetype');
     font-weight: 700;
     font-style: normal;
     font-display: swap;
@@ -36,7 +36,7 @@
 
 @font-face {
     font-family: 'Pixelify Sans';
-    src: url('../src/assets/fonts/PixelifySans-Regular.ttf') format('truetype');
+    src: url('../../src/assets/fonts/PixelifySans-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
@@ -44,7 +44,7 @@
 
 @font-face {
     font-family: 'Pixelify Sans';
-    src: url('../src/assets/fonts/PixelifySans-Medium.ttf') format('truetype');
+    src: url('../../src/assets/fonts/PixelifySans-Medium.ttf') format('truetype');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
@@ -52,7 +52,7 @@
 
 @font-face {
     font-family: 'Pixelify Sans';
-    src: url('../src/assets/fonts/PixelifySans-SemiBold.ttf') format('truetype');
+    src: url('../../src/assets/fonts/PixelifySans-SemiBold.ttf') format('truetype');
     font-weight: 600;
     font-style: normal;
     font-display: swap;
@@ -60,7 +60,7 @@
 
 @font-face {
     font-family: 'Pixelify Sans';
-    src: url('../src/assets/fonts/PixelifySans-Bold.ttf') format('truetype');
+    src: url('../../src/assets/fonts/PixelifySans-Bold.ttf') format('truetype');
     font-weight: 700;
     font-style: normal;
     font-display: swap;
@@ -68,7 +68,7 @@
 
 @font-face {
     font-family: 'Tiny5';
-    src: url('../src/assets/fonts/Tiny5-Regular.ttf') format('truetype');
+    src: url('../../src/assets/fonts/Tiny5-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
     font-display: swap;

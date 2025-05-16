@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
-import { authActions, createQueryClient, ndkActions, walletActions } from '@wavefunc/common'
+import { authActions, createQueryClient, DEFAULT_RELAYS, ndkActions, walletActions } from '@wavefunc/common'
 import { useEffect, useState } from 'react'
 import { routeTree } from './routeTree.gen'
 
 // Import required styles
-import '@wavefunc/ui/index.css'
+import './styles/index.css'
 
 // Create router with type assertions to work around type issues
 const router = createRouter({
@@ -24,10 +24,8 @@ declare module '@tanstack/react-router' {
 }
 
 const loadEnvAndNdk = async () => {
-    // const ndk = ndkActions.initialize(['wss://relay.wavefunc.live'])
-    // ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
-    const ndk = ndkActions.initialize(['ws://localhost:3002'])
-    ndkActions.initializeSearchNdk(['ws://localhost:3002'])
+    const ndk = ndkActions.initialize([...DEFAULT_RELAYS])
+    ndkActions.initializeSearchNdk(['wss://relay.wavefunc.live'])
     await ndkActions.connect()
     await ndkActions.connectSearchNdk()
 
