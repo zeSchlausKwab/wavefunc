@@ -10,7 +10,6 @@ const host = process.env.TAURI_DEV_HOST
 export default defineConfig(async () => ({
     plugins: [
         react(),
-        tailwindcss(),
         nodePolyfills({
             globals: {
                 Buffer: true, // can also be 'build', 'dev', or false
@@ -18,6 +17,7 @@ export default defineConfig(async () => ({
                 process: true,
             },
         }),
+        tailwindcss(),
     ],
     resolve: {
         alias: {
