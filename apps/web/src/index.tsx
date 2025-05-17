@@ -68,6 +68,9 @@ async function startServer() {
                 const imagePath = path.replace('/images/', '')
                 return serveStatic(`images/${imagePath}`)
             }
+            if (path === '/favicon.ico') {
+                return new Response(file(join(process.cwd(), 'public', 'favicon.ico')))
+            }
             if (path === '/.well-known/nostr.json') {
                 return new Response(file(join(process.cwd(), 'public', '.well-known', 'nostr.json')))
             }

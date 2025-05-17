@@ -15,10 +15,6 @@ export interface EnvConfig {
     VITE_PUBLIC_HOST?: string
     VITE_PUBLIC_WEB_PORT?: string
 
-    // New variables for configuring relays specifically for the devices app from .env
-    VITE_DEVICES_INITIAL_RELAYS?: string // Comma-separated list of main relays
-    VITE_DEVICES_SEARCH_RELAYS?: string // Comma-separated list of search relays
-
     // Allow any other VITE_ prefixed variables that might be present
     [key: string]: any
 }
