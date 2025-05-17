@@ -21,7 +21,7 @@ function getServerEnvConfig(): EnvConfig {
         VITE_PUBLIC_APP_ENV: process.env.VITE_PUBLIC_APP_ENV || 'development',
         VITE_PUBLIC_WEB_PORT: process.env.VITE_PUBLIC_WEB_PORT || '8080',
         VITE_PUBLIC_HOST: process.env.VITE_PUBLIC_HOST || 'localhost',
-        APP_PUBKEY: process.env.APP_PUBKEY || '',
+        VITE_APP_PUBKEY: process.env.VITE_APP_PUBKEY || '',
         // Add any other env vars that are part of EnvConfig
     }
 }

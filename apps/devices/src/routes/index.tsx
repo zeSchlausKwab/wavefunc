@@ -7,6 +7,5 @@ export const Route = createFileRoute('/')({
 
 function Index() {
     const { env: routeEnvConfig } = useRouteContext({ from: Route.id })
-    // console.log('envConfig from route context in devices/index.tsx:', routeEnvConfig)
-    return <LandingPageContainer appPubKey={routeEnvConfig?.APP_PUBKEY} />
+    return <LandingPageContainer appPubKey={routeEnvConfig?.VITE_APP_PUBKEY} />
 }
