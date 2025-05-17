@@ -16,6 +16,7 @@ export * from './types'
 export * from './nostr/service'
 export * from './nostr/reactions'
 export * from './nostr/featured'
+export * from './lib/init/app-init'
 // Export constants
 export { RADIO_EVENT_KINDS } from './schemas/events'
 
