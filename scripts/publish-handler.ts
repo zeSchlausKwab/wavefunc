@@ -1,13 +1,12 @@
 import NDK, { NDKEvent, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import * as dotenv from 'dotenv'
-import { nip19 } from 'nostr-tools'
 
 // Load .env
 dotenv.config({ path: '../.env' })
 
 // Get admin credentials
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY
-const APP_PUBKEY = process.env.APP_PUBKEY || ''
+const VITE_APP_PUBKEY = process.env.VITE_APP_PUBKEY || ''
 
 const DEFAULT_RELAYS = [
     'ws://localhost:3002',
@@ -22,8 +21,8 @@ if (!APP_PRIVATE_KEY) {
     throw Error('Missing APP_PRIVATE_KEY in .env!')
 }
 
-if (!APP_PUBKEY) {
-    throw Error('Missing APP_PUBKEY in .env!')
+if (!VITE_APP_PUBKEY) {
+    throw Error('Missing VITE_APP_PUBKEY in .env!')
 }
 
 // Handler ID - used for replaceable events
@@ -218,7 +217,7 @@ async function publishEventThroughAPI(event: NDKEvent): Promise<any> {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Admin-Pubkey': APP_PUBKEY,
+                'X-Admin-Pubkey': VITE_APP_PUBKEY,
                 'X-Admin-Timestamp': new Date().toISOString(),
                 // Note: in a production environment, you would sign this request
                 // But for simplicity, we're relying on the event's signature
@@ -272,7 +271,7 @@ async function createFeaturedListEvent(listData: (typeof featuredLists)[0]): Pro
         ...listData.tags.map((tag) => ['t', tag]),
 
         // Add attribution
-        ['p', APP_PUBKEY],
+        ['p', VITE_APP_PUBKEY],
     ]
 
     // Add station references as 'a' tags
@@ -431,7 +430,7 @@ async function publishHandlerEvent(): Promise<void> {
         console.log('- To see the profile, look for:')
         console.log(`  kind:0 author:${metadataEvent.pubkey}`)
         console.log('- To see the featured lists, look for:')
-        console.log(`  kind:30078 #l:featured_station_list author:${APP_PUBKEY}`)
+        console.log(`  kind:30078 #l:featured_station_list author:${VITE_APP_PUBKEY}`)
     } catch (error) {
         console.error('Failed to publish events:', error)
     } finally {

@@ -295,13 +295,13 @@ The relay uses NIP-42 authentication to secure admin endpoints. There are two au
 
 2. **NIP-42 WebSocket Authentication:**
     - For WebSocket connections, standard NIP-42 authentication is used
-    - Admin commands via WebSocket require authentication with a public key listed in `APP_PUBKEY`
+    - Admin commands via WebSocket require authentication with a public key listed in `VITE_APP_PUBKEY`
 
 ### Configuration
 
 To set up admin authentication:
 
-1. Add your admin public keys to the `APP_PUBKEY` environment variable (comma-separated)
+1. Add your admin public keys to the `VITE_APP_PUBKEY` environment variable (comma-separated)
 2. For API calls, set `ADMIN_PRIVATE_KEY` and `ADMIN_PUBKEY` in your environment
 
 ### Admin Endpoints

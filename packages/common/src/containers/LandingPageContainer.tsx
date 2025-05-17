@@ -92,8 +92,8 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
                     throw new Error('NDK not available')
                 }
                 if (!appPubKey) {
-                    console.error(`APP_PUBKEY not available for fetching list: ${dTag}`)
-                    throw new Error('APP_PUBKEY not available')
+                    console.error(`VITE_APP_PUBKEY not available for fetching list: ${dTag}`)
+                    throw new Error('VITE_APP_PUBKEY not available')
                 }
                 try {
                     const result = await getSpecificFeaturedListByDTag(ndk, dTag, appPubKey, {
@@ -306,11 +306,12 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
                     isOpen={isAppZapDialogOpen}
                     onOpenChange={setIsAppZapDialogOpen}
                     event={appZapEventForDialog}
-                    onZapComplete={() => { // Removed zapEvent type for simplicity if not used
+                    onZapComplete={() => {
+                        // Removed zapEvent type for simplicity if not used
                         toast.success('App zapped successfully!')
                     }}
                 />
             )}
         </div>
     )
-} 
+}

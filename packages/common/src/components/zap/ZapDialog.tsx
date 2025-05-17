@@ -94,12 +94,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
 
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
-
-            console.log('ndk', ndk)
-
             const user = ndk.getUser({ pubkey: event.pubkey })
-
-            console.log('user', user)
 
             try {
                 const zapInfo = await user.getZapInfo()
@@ -143,14 +138,10 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
                 since: startTimeRef.current - 5,
             }
 
-            console.log('filter', filter)
-
             const sub = ndk.subscribe(filter, {
                 closeOnEose: false,
                 cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
             })
-
-            console.log('sub', sub)
 
             sub.on('event', (zapEvent: NDKEvent) => {
                 const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
@@ -211,7 +202,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             if (!ndk) throw new Error('NDK not available')
 
             const sub = subscribeToZapReceipts(ndk)
-            console.log('sub', sub)
             zapSubscriptionRef.current = sub
 
             const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {

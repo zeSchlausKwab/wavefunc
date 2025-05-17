@@ -1,5 +1,4 @@
 import { NDKKind, type NostrEvent } from '@nostr-dev-kit/ndk'
-import { APP_PUBKEY } from '../../packages/common/src/nostr/radio'
 import { RADIO_EVENT_KINDS } from '../../packages/common/src/schemas/events'
 
 // Fixed handler ID for seeding purposes
@@ -9,7 +8,7 @@ const HANDLER_ID = 'seedhandler123'
 const seedClientTag = [
     'client',
     'NostrRadio',
-    `${NDKKind.AppHandler}:${APP_PUBKEY}:${HANDLER_ID}`,
+    `${NDKKind.AppHandler}:${VITE_APP_PUBKEY}:${HANDLER_ID}`,
     // No relay hint for seeding
 ]
 
@@ -52,7 +51,7 @@ function addClientTagToStations(stations: NostrEvent[]): NostrEvent[] {
 // Create a handler event for seeding
 export const seedHandlerEvent: NostrEvent = {
     kind: NDKKind.AppHandler,
-    pubkey: APP_PUBKEY,
+    pubkey: VITE_APP_PUBKEY,
     created_at: Math.floor(Date.now() / 1000),
     content: JSON.stringify({
         name: 'NostrRadio',

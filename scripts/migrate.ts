@@ -8,7 +8,7 @@ import stringSimilarity from 'string-similarity'
 // Load .env
 dotenv.config({ path: '../.env' })
 const PRIVATE_KEY = process.env.APP_PRIVATE_KEY
-const APP_PUBKEY = process.env.APP_PUBKEY
+const VITE_APP_PUBKEY = process.env.VITE_APP_PUBKEY
 if (!PRIVATE_KEY) {
     throw Error('Missing APP_PRIVATE_KEY in .env!')
 }
@@ -756,7 +756,7 @@ async function publishRadioStation(stationGroup: StationGroup) {
     const result = await publishStation(ndk as any, event, [
         'client',
         'Wavefunc',
-        `31990:${APP_PUBKEY}:wavefuncstationshandler`,
+        `31990:${VITE_APP_PUBKEY}:wavefuncstationshandler`,
         'wss://relay.wavefunc.live',
     ])
     // console.log(`✓ Published station: ${station.Name} with ${stationGroup.streams.length} streams (${result.id})`)

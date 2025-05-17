@@ -424,7 +424,7 @@ export function createHandlerEvent(): NostrEvent {
 
     return {
         kind: NDKKind.AppHandler,
-        pubkey: envActions.getEnv()?.APP_PUBKEY || '',
+        pubkey: envActions.getEnv()?.VITE_APP_PUBKEY || '',
         created_at: Math.floor(Date.now() / 1000),
         content: JSON.stringify({
             name: 'NostrRadio',
@@ -464,7 +464,7 @@ export async function publishHandlerEvent(ndk: NDK): Promise<NDKEvent> {
  */
 export function createClientTag(handlerEvent: NDKEvent, relayUrl?: string): string[] {
     const dTag = handlerEvent.tags.find((tag) => tag[0] === 'd')?.[1] || ''
-    const clientId = `${NDKKind.AppHandler}:${envActions.getEnv()?.APP_PUBKEY || ''}:${dTag}`
+    const clientId = `${NDKKind.AppHandler}:${envActions.getEnv()?.VITE_APP_PUBKEY || ''}:${dTag}`
 
     return ['client', 'NostrRadio', clientId, ...(relayUrl ? [relayUrl] : [])]
 }

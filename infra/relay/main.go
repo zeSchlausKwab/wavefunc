@@ -56,20 +56,20 @@ func main() {
 	}
 
 	// Load authorized admins from environment variables
-	adminPubKeys := os.Getenv("APP_PUBKEY")
-	log.Printf("APP_PUBKEY: %q", adminPubKeys)
+	adminPubKeys := os.Getenv("VITE_APP_PUBKEY")
+	log.Printf("VITE_APP_PUBKEY: %q", adminPubKeys)
 	if adminPubKeys != "" {
 		authorizedAdmins = strings.Split(adminPubKeys, ",")
-		log.Printf("Loaded %d authorized admin public keys from APP_PUBKEY", len(authorizedAdmins))
+		log.Printf("Loaded %d authorized admin public keys from VITE_APP_PUBKEY", len(authorizedAdmins))
 	} else {
-		log.Println("Warning: No authorized admin public keys configured. Set APP_PUBKEY environment variable for admin access.")
+		log.Println("Warning: No authorized admin public keys configured. Set VITE_APP_PUBKEY environment variable for admin access.")
 		authorizedAdmins = []string{}
 	}
 
 	relay := khatru.NewRelay()
 
 	relay.Info.Name = "Wavefunc Relay"
-	relay.Info.PubKey = os.Getenv("APP_PUBKEY")
+	relay.Info.PubKey = os.Getenv("VITE_APP_PUBKEY")
 	relay.Info.Description = "Wavefuncs indexed relay for things related to Internet Radio - https://wavefunc.live"
 	relay.Info.Icon = "https://wavefunc.live/images/logo.png"
 	relay.Info.AddSupportedNIP(50)

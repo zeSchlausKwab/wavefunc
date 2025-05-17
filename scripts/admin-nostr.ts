@@ -6,13 +6,13 @@ dotenv.config({ path: '../.env' })
 
 // Get admin credentials
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY
-const APP_PUBKEY = process.env.APP_PUBKEY || ''
+const VITE_APP_PUBKEY = process.env.VITE_APP_PUBKEY || ''
 
 if (!APP_PRIVATE_KEY) {
     throw Error('Missing ADMIN_PRIVATE_KEY in .env!')
 }
 
-if (!APP_PUBKEY) {
+if (!VITE_APP_PUBKEY) {
     throw Error('Missing ADMIN_PUBKEY in .env!')
 }
 
@@ -52,7 +52,7 @@ async function adminApiCall(endpoint: string, method: 'GET' | 'POST' = 'GET', bo
     // Create headers with authentication
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-Admin-Pubkey': APP_PUBKEY,
+        'X-Admin-Pubkey': VITE_APP_PUBKEY,
         'X-Admin-Timestamp': timestamp,
     }
 
@@ -173,7 +173,7 @@ Commands:
 Environment variables:
   VITE_PUBLIC_RELAY_URL  URL of the relay (default: http://localhost:3002)
   APP_PRIVATE_KEY      Private key for authentication
-  APP_PUBKEY           Public key corresponding to the private key
+  VITE_APP_PUBKEY           Public key corresponding to the private key
 `)
             break
     }
