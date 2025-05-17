@@ -1,5 +1,3 @@
-// import { Button } from '@wavefunc/ui'
-// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui'
 import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { authStore, cn, openCreateStationDrawer } from '@wavefunc/common'
@@ -10,6 +8,8 @@ import { useMedia } from 'react-use'
 import { AuthButton } from './auth/AuthButton'
 import { Nav } from './Nav'
 import { SiteLinks } from './SiteLinks'
+import { Sheet, SheetContent, SheetTrigger } from '@wavefunc/ui/components/ui/sheet'
+
 export function Header() {
     const authState = useStore(authStore)
     const [isNavOpen, setIsNavOpen] = useState(false)
@@ -51,37 +51,27 @@ export function Header() {
                     <div className="hidden sm:flex">
                         <Nav />
                     </div>
-
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className={cn(
-                            'sm:hidden border-2 border-black',
-                            'hover:bg-green-500 hover:text-white transition-colors',
-                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                        )}
-                        onClick={() => setIsNavOpen(!isNavOpen)}
-                    >
-                        <IconWrapper icon={Menu} />
-                    </Button>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <SiteLinks />
-
-                    {authState.isAuthenticated && (
-                        <Button
-                            variant="default"
-                            size="icon"
-                            className={cn(
-                                'bg-green-500 hover:bg-green-600 text-white h-9 w-9',
-                                'border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                'transition-transform hover:translate-y-[-2px]',
+                    {!isMobile && (
+                        <>
+                            <SiteLinks />
+                            {authState.isAuthenticated && (
+                                <Button
+                                    variant="default"
+                                    size="icon"
+                                    className={cn(
+                                        'bg-green-500 hover:bg-green-600 text-white h-9 w-9',
+                                        'border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                        'transition-transform hover:translate-y-[-2px]',
+                                    )}
+                                    onClick={handleCreateStation}
+                                >
+                                    <IconWrapper icon={Plus} className="h-4 w-4" />
+                                </Button>
                             )}
-                            onClick={handleCreateStation}
-                        >
-                            <IconWrapper icon={Plus} className="h-4 w-4" />
-                        </Button>
+                        </>
                     )}
 
                     <AuthButton
@@ -93,19 +83,47 @@ export function Header() {
                             'transition-transform hover:translate-y-[-2px]',
                         )}
                     />
+
+                    {isMobile && (
+                        <Sheet open={isNavOpen} onOpenChange={setIsNavOpen}>
+                            <SheetTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className={cn(
+                                        'border-2 border-black',
+                                        'hover:bg-green-500 hover:text-white transition-colors',
+                                        'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                    )}
+                                >
+                                    <IconWrapper icon={Menu} />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="top" className={cn('sm:hidden border-black pt-4 bg-background')}>
+                                <Nav onNavigate={() => setIsNavOpen(false)} />
+                                <div className="mt-4 pt-4 border-t border-dashed border-gray-700 flex flex-col gap-2">
+                                    <SiteLinks />
+                                </div>
+                                {authState.isAuthenticated && (
+                                    <div className="mt-4 pt-4 border-t border-dashed border-gray-700">
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
+                                            onClick={() => {
+                                                handleCreateStation()
+                                                setIsNavOpen(false)
+                                            }}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Create New Station
+                                        </Button>
+                                    </div>
+                                )}
+                            </SheetContent>
+                        </Sheet>
+                    )}
                 </div>
             </div>
-
-            {isMobile && isNavOpen && (
-                <div
-                    className={cn(
-                        'sm:hidden mt-4 border-t-2 border-black pt-4',
-                        'animate-in slide-in-from-top duration-300',
-                    )}
-                >
-                    <Nav onNavigate={() => setIsNavOpen(false)} />
-                </div>
-            )}
         </header>
     )
 }

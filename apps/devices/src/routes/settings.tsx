@@ -1,35 +1,86 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
+import { authStore } from '@wavefunc/common'
+import { ProfileSettings } from '@wavefunc/common'
+import { RelaysSettings } from '@wavefunc/common'
+import { NWCWalletSettings } from '@wavefunc/common'
+import { CashuWalletSettings } from '@wavefunc/common'
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
-import { Settings as SettingsIcon } from 'lucide-react'
+import { useStore } from '@tanstack/react-store'
+import { Network, User, Wallet } from 'lucide-react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/settings')({
     component: Settings,
 })
 
 function Settings() {
-    return (
-        <div className="container mx-auto py-8">
-            <Card className="max-w-4xl mx-auto">
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <SettingsIcon className="h-6 w-6 text-primary" />
-                        <CardTitle className="text-2xl font-bold">Device Settings</CardTitle>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="text-lg font-medium mb-2">Device Information</h3>
-                            <p className="text-muted-foreground">Configure your device settings and preferences.</p>
-                        </div>
+    const [activeTab, setActiveTab] = useState('profile')
+    const authState = useStore(authStore)
 
-                        {/* This would be populated with actual settings */}
-                        <div className="border rounded-md p-4 bg-muted/20">
-                            <p className="text-sm text-muted-foreground">Settings would be displayed here</p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+    const renderUserIdentity = () => {
+        if (authState.isAuthenticated) {
+            const pubkey = authState.user?.pubkey || ''
+            return (
+                <div className="mb-6 p-4 bg-muted rounded-lg">
+                    <h3 className="font-medium mb-2 flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Your Identity
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-1">Public Key:</p>
+                    <code className="text-xs bg-background p-2 rounded block overflow-x-auto">{pubkey}</code>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        {authState.isAuthenticated
+                            ? 'You are signed in with your Nostr identity.'
+                            : 'You are browsing anonymously. Sign in to save your settings.'}
+                    </p>
+                </div>
+            )
+        }
+        return null
+    }
+
+    return (
+        <div className="container max-w-3xl py-10">
+            <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+            {renderUserIdentity()}
+
+            <Tabs defaultValue="profile" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-4 w-full mb-8">
+                    <TabsTrigger value="profile" className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Profile
+                    </TabsTrigger>
+                    <TabsTrigger value="relays" className="flex items-center gap-2">
+                        <Network className="h-4 w-4" />
+                        Relays
+                    </TabsTrigger>
+                    <TabsTrigger value="nwc" className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        NWC
+                    </TabsTrigger>
+                    {/* <TabsTrigger value="cashu" className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        Cashu
+                    </TabsTrigger> */}
+                </TabsList>
+
+                <TabsContent value="profile">
+                    <ProfileSettings />
+                </TabsContent>
+
+                <TabsContent value="relays">
+                    <RelaysSettings />
+                </TabsContent>
+
+                <TabsContent value="nwc">
+                    <NWCWalletSettings />
+                </TabsContent>
+
+                <TabsContent value="cashu">
+                    <CashuWalletSettings />
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

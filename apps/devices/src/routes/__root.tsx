@@ -1,13 +1,20 @@
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
-import type { AppRouterContext } from '@wavefunc/common'
-import { Header, LoginDialog, RadioPlayer } from '@wavefunc/common'
+import { useStore } from '@tanstack/react-store'
+import type { AppRouterContext, Station } from '@wavefunc/common'
+import { EditStationDrawer, Header, HistoryDrawer, LoginDialog, RadioPlayer, uiStore } from '@wavefunc/common'
 import { Toaster } from '@wavefunc/ui/components/ui/sonner'
 
 function Providers({ children }: { children: React.ReactNode }) {
+    const drawer = useStore(uiStore, (state) => state.stationDrawer)
+    const station = drawer.station as Station | undefined
+    const isOpen = drawer.isOpen
+
     return (
         <>
             {children}
             <Toaster />
+            <EditStationDrawer isOpen={isOpen} station={station} />
+            <HistoryDrawer />
         </>
     )
 }

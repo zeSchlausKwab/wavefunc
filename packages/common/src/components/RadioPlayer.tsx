@@ -27,6 +27,7 @@ import {
     VolumeX,
     History,
     Users,
+    MoreVertical,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 // import { MusicRecognitionButton } from './MusicRecognitionButton'
@@ -151,6 +152,7 @@ export function RadioPlayer() {
     const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
     const [showListenersInfo, setShowListenersInfo] = useState(false)
     const [icecastMetadata, setIcecastMetadata] = useState<IcecastMetadata | null>(null)
+    const [showMoreMenu, setShowMoreMenu] = useState(false)
 
     useEffect(() => {
         loadHistory()
@@ -306,6 +308,7 @@ export function RadioPlayer() {
     const toggleVolumeControl = () => setShowVolumeControl(!showVolumeControl)
     const toggleTechnicalInfo = () => setShowTechnicalInfo(!showTechnicalInfo)
     const toggleListenersInfo = () => setShowListenersInfo(!showListenersInfo)
+    const toggleMoreMenu = () => setShowMoreMenu(!showMoreMenu)
 
     const VolumeIcon = audioVolume === 0 ? VolumeX : audioVolume < 0.5 ? Volume1 : Volume2
 
@@ -466,8 +469,30 @@ export function RadioPlayer() {
                     {/* Volume control */}
                     {renderVolumeControl()}
 
-                    {/* Listeners button - only show if Icecast metadata is available */}
-                    {hasIcecastListeners && (
+                    {/* Desktop: Individual Listeners, Tech Info, History Buttons */}
+                    <div className="hidden md:flex items-center gap-3">
+                        {hasIcecastListeners && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className={cn(
+                                                'h-9 w-9 border-2 border-black',
+                                                'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                                'transition-transform hover:translate-y-[-2px]',
+                                                showListenersInfo && 'bg-blue-100',
+                                            )}
+                                            onClick={toggleListenersInfo}
+                                        >
+                                            <Users className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Station Listeners & History</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -478,60 +503,104 @@ export function RadioPlayer() {
                                             'h-9 w-9 border-2 border-black',
                                             'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
                                             'transition-transform hover:translate-y-[-2px]',
-                                            showListenersInfo && 'bg-blue-100',
+                                            showTechnicalInfo && 'bg-gray-100',
                                         )}
-                                        onClick={toggleListenersInfo}
+                                        onClick={toggleTechnicalInfo}
                                     >
-                                        <Users className="h-4 w-4" />
+                                        <Headphones className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Station Listeners & History</TooltipContent>
+                                <TooltipContent>Station Technical Info</TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
-                    )}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className={cn(
+                                            'h-9 w-9 border-2 border-black',
+                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                            'transition-transform hover:translate-y-[-2px]',
+                                        )}
+                                        onClick={openHistoryDrawer}
+                                    >
+                                        <History className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Play History</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
 
-                    {/* Technical info button */}
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className={cn(
-                                        'h-9 w-9 border-2 border-black',
-                                        'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                        'transition-transform hover:translate-y-[-2px]',
-                                        showTechnicalInfo && 'bg-gray-100',
-                                    )}
-                                    onClick={toggleTechnicalInfo}
-                                >
-                                    <Headphones className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Station Technical Info</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    {/* Mobile: "More" button */}
+                    <div className="flex md:hidden items-center relative">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={toggleMoreMenu}
+                                        className={cn(
+                                            'h-9 w-9 border-2 border-black',
+                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
+                                            'transition-transform hover:translate-y-[-2px]',
+                                        )}
+                                    >
+                                        <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>More Options</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
 
-                    {/* History button */}
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
+                        {/* "More" Menu Popover (Mobile only) */}
+                        {showMoreMenu && (
+                            <div
+                                className={cn(
+                                    'absolute bottom-full right-0 mb-2 p-2 bg-background w-56 z-10',
+                                    'border-2 border-black rounded-md shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]',
+                                    'animate-in fade-in-50 slide-in-from-bottom-5',
+                                    'flex flex-col gap-1',
+                                )}
+                            >
+                                {hasIcecastListeners && (
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
+                                        onClick={() => {
+                                            toggleListenersInfo()
+                                            setShowMoreMenu(false)
+                                        }}
+                                    >
+                                        <Users className="h-4 w-4 mr-2" /> Station Listeners
+                                    </Button>
+                                )}
                                 <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className={cn(
-                                        'h-9 w-9 border-2 border-black',
-                                        'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                        'transition-transform hover:translate-y-[-2px]',
-                                    )}
-                                    onClick={openHistoryDrawer}
+                                    variant="ghost"
+                                    className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
+                                    onClick={() => {
+                                        toggleTechnicalInfo()
+                                        setShowMoreMenu(false)
+                                    }}
                                 >
-                                    <History className="h-4 w-4" />
+                                    <Headphones className="h-4 w-4 mr-2" /> Technical Info
                                 </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Play History</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
+                                    onClick={() => {
+                                        openHistoryDrawer()
+                                        setShowMoreMenu(false)
+                                    }}
+                                >
+                                    <History className="h-4 w-4 mr-2" /> Play History
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
