@@ -8,7 +8,7 @@ import { useMedia } from 'react-use'
 import { AuthButton } from './auth/AuthButton'
 import { Nav } from './Nav'
 import { SiteLinks } from './SiteLinks'
-import { Sheet, SheetContent, SheetTrigger } from '@wavefunc/ui/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
 
 export function Header() {
     const authState = useStore(authStore)
@@ -100,6 +100,9 @@ export function Header() {
                                 </Button>
                             </SheetTrigger>
                             <SheetContent side="top" className={cn('sm:hidden border-black pt-4 bg-background')}>
+                                <SheetHeader>
+                                    <SheetTitle className="sr-only">Main Navigation</SheetTitle>
+                                </SheetHeader>
                                 <Nav onNavigate={() => setIsNavOpen(false)} />
                                 <div className="mt-4 pt-4 border-t border-dashed border-gray-700 flex flex-col gap-2">
                                     <SiteLinks />

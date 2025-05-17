@@ -1,15 +1,10 @@
-import { LoginDialog } from '@wavefunc/common'
-import { EditStationDrawer } from '@wavefunc/common'
-import { Header } from '@wavefunc/common'
-import { RadioPlayer } from '@wavefunc/common'
-import { Toaster } from '@wavefunc/ui/components/ui/sonner'
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import type { AppRouterContext } from '@wavefunc/common'
-import { uiStore } from '@wavefunc/common'
-import type { Station } from '@wavefunc/common/src/types/station'
-import { CheckerPattern } from '@wavefunc/common'
+import { EditStationDrawer, Header, LoginDialog, RadioPlayer, uiStore } from '@wavefunc/common'
 import { HistoryDrawer } from '@wavefunc/common/src/components/radio/HistoryDrawer'
+import type { Station } from '@wavefunc/common/src/types/station'
+import { Toaster } from '@wavefunc/ui/components/ui/sonner'
 
 function Providers({ children }: { children: React.ReactNode }) {
     const drawer = useStore(uiStore, (state) => state.stationDrawer)
@@ -30,7 +25,7 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
     component: () => (
         <Providers>
             <div className="relative min-h-screen flex flex-col bg-zinc-100">
-                <CheckerPattern className="[mask-image:radial-gradient(900px_circle_at_center,white,transparent)]" />
+                {/* <CheckerPattern className="[mask-image:radial-gradient(900px_circle_at_center,white,transparent)]" /> */}
                 <HeadContent />
                 <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
                     <Header />
