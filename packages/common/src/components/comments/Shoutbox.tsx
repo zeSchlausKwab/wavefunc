@@ -229,7 +229,7 @@ export default function Shoutbox() {
                 value={activeTab}
                 onValueChange={(value) => handleTabChange(value as ShoutboxCategory)}
             >
-                <TabsList className="grid grid-cols-5 mb-4">
+                <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-8">
                     <TabsTrigger value="all" className="flex items-center justify-center gap-1.5">
                         All{' '}
                         <Badge variant="secondary" className="ml-1">

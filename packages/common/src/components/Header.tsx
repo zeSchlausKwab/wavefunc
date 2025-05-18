@@ -37,7 +37,7 @@ export function Header() {
         <header className={cn('py-4 px-6 border-b-4 border-black bg-background relative z-40')}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-8">
-                    <Link to="/" className="w-20">
+                    <Link to="/" className="w-18">
                         <AnimatedLogo />
                     </Link>
 
