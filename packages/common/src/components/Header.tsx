@@ -3,6 +3,7 @@ import { useStore } from '@tanstack/react-store'
 import { authStore, cn, openCreateStationDrawer } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Menu, Plus, Radio } from 'lucide-react'
+import { AnimatedLogo } from './AnimatedLogo'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { AuthButton } from './auth/AuthButton'
@@ -36,16 +37,8 @@ export function Header() {
         <header className={cn('py-4 px-6 border-b-4 border-black bg-background relative z-40')}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-8">
-                    <Link
-                        to="/"
-                        className="font-heading text-2xl flex items-center gap-2 hover:text-green-500 transition-colors"
-                    >
-                        <Radio className="h-6 w-6" />
-                        {!isMobile ? (
-                            <span className="font-bold tracking-tight">WaveF(u)nc</span>
-                        ) : (
-                            <span className="font-bold tracking-tight">Wf()</span>
-                        )}
+                    <Link to="/" className="w-20">
+                        <AnimatedLogo />
                     </Link>
 
                     <div className="hidden sm:flex">
