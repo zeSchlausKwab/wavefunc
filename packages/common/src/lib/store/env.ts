@@ -2,7 +2,7 @@ import { Store } from '@tanstack/store'
 
 export interface EnvConfig {
     VITE_PUBLIC_HOST: string
-    VITE_PUBLIC_APP_ENV: string
+    VITE_PUBLIC_APP_ENV: string // Change type to string
     VITE_APP_PUBKEY: string // App's public key for NIP-78 app-specific data
     [key: string]: string // Allow other env variables
 }

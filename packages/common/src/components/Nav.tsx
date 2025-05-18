@@ -1,4 +1,4 @@
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { cn } from '@wavefunc/common'
 import { NavigationMenu, NavigationMenuItem, NavigationMenuList } from '@wavefunc/ui/components/ui/navigation-menu'
 import { Disc, Headphones, MessageCircle, Radio } from 'lucide-react'
@@ -17,9 +17,7 @@ interface NavProps {
 }
 
 export function Nav({ onNavigate }: NavProps) {
-    const router = useRouter()
     const isMobile = useMedia('(max-width: 640px)')
-    const currentPath = router.state.location.pathname
 
     const handleNavClick = () => {
         if (onNavigate && isMobile) {

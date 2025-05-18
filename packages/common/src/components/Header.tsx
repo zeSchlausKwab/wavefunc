@@ -2,14 +2,14 @@ import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { authStore, cn, openCreateStationDrawer } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { Menu, Plus, Radio } from 'lucide-react'
-import { AnimatedLogo } from './AnimatedLogo'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@wavefunc/ui/components/ui/sheet'
+import { Menu, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
+import { AnimatedLogo } from './AnimatedLogo'
 import { AuthButton } from './auth/AuthButton'
 import { Nav } from './Nav'
 import { SiteLinks } from './SiteLinks'
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@wavefunc/ui/components/ui/sheet'
 
 export function Header() {
     const authState = useStore(authStore)

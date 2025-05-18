@@ -14,7 +14,7 @@ export interface InitializeAppCoreOptions {
  * This function is intended to be called after environment variables are set.
  */
 export async function initializeAppCore(options: InitializeAppCoreOptions): Promise<void> {
-    const { env, initialRelaysOverride, searchRelaysOverride } = options
+    const { initialRelaysOverride, searchRelaysOverride } = options
 
     // Determine relays to use
     const initialRelaysToUse = initialRelaysOverride || DEFAULT_RELAYS

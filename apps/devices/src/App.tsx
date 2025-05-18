@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { createQueryClient, envActions, initializeAppCore, type EnvConfig as CoreEnvConfig } from '@wavefunc/common'
 import { StrictMode, useEffect, useState } from 'react'
 import { routeTree } from './routeTree.gen'
@@ -94,7 +94,12 @@ function App() {
             }
             console.log('[DevicesApp] Phase 2: Initializing Core Application...')
             try {
-                await initializeAppCore({ env: envConfig })
+                await initializeAppCore({
+                    env: {
+                        ...envConfig,
+                        VITE_PUBLIC_APP_ENV: envConfig.VITE_PUBLIC_APP_ENV as 'development' | 'production' | undefined,
+                    },
+                })
 
                 const client = await createQueryClient()
                 setQueryClient(client)
