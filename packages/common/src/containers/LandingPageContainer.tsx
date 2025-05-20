@@ -18,11 +18,11 @@ import RadioCard from '@wavefunc/common/src/components/radio/RadioCard'
 import { getLastPlayedStation, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { setCurrentStation } from '@wavefunc/common/src/lib/store/stations'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { ExternalLink, Headphones, Info, Loader2, Music, Plus, Radio, UserPlus, Zap } from 'lucide-react'
+import { Headphones, Info, Loader2, Music, Plus, Radio, UserPlus, Zap } from 'lucide-react'
+import { nip19 } from 'nostr-tools'
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { toast } from 'sonner'
-import { nip19 } from 'nostr-tools'
 
 const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', 'electronic']
 const DEV_NPUB = 'npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf'
