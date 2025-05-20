@@ -22,6 +22,7 @@ import { ExternalLink, Headphones, Info, Loader2, Music, Plus, Radio, UserPlus, 
 import { useEffect, useState } from 'react'
 import { useMedia } from 'react-use'
 import { toast } from 'sonner'
+import { nip19 } from 'nostr-tools'
 
 const homepageFeaturedListDTags = ['psych-alternative-indie', 'drone-ambient', 'electronic']
 const DEV_NPUB = 'npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf'
@@ -51,6 +52,7 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
     const [queryError, setQueryError] = useState<string | null>(null)
     const [ndkReady, setNdkReady] = useState(false)
     const [envReady, setEnvReady] = useState(false)
+    const [isFollowingDev, setIsFollowingDev] = useState(false)
 
     useEffect(() => {
         loadHistory()
@@ -84,7 +86,7 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
 
     const featuredListQueries = useQueries({
         queries: homepageFeaturedListDTags.map((dTag) => ({
-            queryKey: ['featured-list', dTag, appPubKey], // Add appPubKey to queryKey
+            queryKey: ['featured-list', dTag, appPubKey],
             queryFn: async () => {
                 const ndk = ndkActions.getNDK()
                 if (!ndk) {
@@ -126,6 +128,61 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
 
     const handleCreateStation = () => {
         openCreateStationDrawer()
+    }
+
+    const handleFollowDev = async () => {
+        if (!authState.isAuthenticated || !ndkReady) {
+            toast.error('Please log in to follow the developer.')
+            return
+        }
+
+        const ndk = ndkActions.getNDK()
+        if (!ndk || !ndk.signer) {
+            toast.error('NDK or signer not available. Cannot follow.')
+            return
+        }
+
+        let devHexPubKey = ''
+        try {
+            const decodeResult = nip19.decode(DEV_NPUB)
+            if (decodeResult.type === 'npub') {
+                devHexPubKey = decodeResult.data
+            } else {
+                throw new Error('Invalid npub for dev')
+            }
+        } catch (error) {
+            console.error('Error decoding DEV_NPUB:', error)
+            toast.error('Could not decode developer public key.')
+            return
+        }
+
+        if (!devHexPubKey) {
+            toast.error('Developer public key is invalid.')
+            return
+        }
+
+        setIsFollowingDev(true)
+        toast.info('Attempting to follow the dev...')
+
+        try {
+            const currentUser = await ndk.signer.user()
+            const devUserToFollow = ndk.getUser({ pubkey: devHexPubKey })
+
+            await currentUser.follow(devUserToFollow)
+
+            toast.success('Successfully followed the dev!')
+        } catch (error) {
+            console.error('Error following dev:', error)
+            if (error instanceof Error && error.message.toLowerCase().includes('already following')) {
+                toast.info('You are already following the dev.')
+            } else if (error instanceof Error) {
+                toast.error(`Failed to follow dev: ${error.message}`)
+            } else {
+                toast.error('Failed to follow dev. Unknown error.')
+            }
+        } finally {
+            setIsFollowingDev(false)
+        }
     }
 
     const renderWelcomeCard = () => {
@@ -185,28 +242,22 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
                     Consider supporting the app and its developer to keep the music playing!
                 </p>
                 <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                    <Button
-                        variant="outline"
-                        className="flex-1 justify-center border-yellow-500 hover:border-yellow-600 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
-                        onClick={() => setIsAppZapDialogOpen(true)}
-                        title={'Zap the App!'}
-                    >
+                    <Button variant="outline" onClick={() => setIsAppZapDialogOpen(true)} title={'Zap the App!'}>
                         <Zap className={cn('h-5 w-5 mr-2 text-yellow-500')} /> Zap the App
                     </Button>
-                    <a
-                        href={`https://njump.me/${DEV_NPUB}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1"
+                    <Button
+                        variant="outline"
+                        onClick={handleFollowDev}
+                        disabled={!authState.isAuthenticated || !ndkReady || isFollowingDev}
+                        title={!authState.isAuthenticated ? 'Login to follow' : 'Follow ze dev on Nostr'}
                     >
-                        <Button
-                            variant="outline"
-                            className="w-full justify-center border-blue-500 hover:border-blue-600 hover:bg-blue-50 text-blue-700 hover:text-blue-800"
-                        >
-                            <UserPlus className="h-5 w-5 mr-2 text-blue-500" /> Follow ze dev
-                            <ExternalLink className="h-4 w-4 ml-2 opacity-70" />
-                        </Button>
-                    </a>
+                        {isFollowingDev ? (
+                            <Loader2 className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
+                        ) : (
+                            <UserPlus className="h-5 w-5 mr-2 text-blue-500" />
+                        )}
+                        {isFollowingDev ? 'Following...' : 'Follow ze dev'}
+                    </Button>
                 </div>
             </div>
         )
@@ -307,7 +358,6 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
                     onOpenChange={setIsAppZapDialogOpen}
                     event={appZapEventForDialog}
                     onZapComplete={() => {
-                        // Removed zapEvent type for simplicity if not used
                         toast.success('App zapped successfully!')
                     }}
                 />

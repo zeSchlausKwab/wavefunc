@@ -1,3 +1,9 @@
 package live.wavefunc.app
 
-class MainActivity : TauriActivity()
+import android.os.Bundle
+
+class MainActivity : TauriActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+    }
+}
