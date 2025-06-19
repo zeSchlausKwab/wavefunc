@@ -17,6 +17,18 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
         return null
     }
 
+    // Check if musicbrainz has any meaningful data
+    const hasRecordingData = musicbrainz.recording && Object.keys(musicbrainz.recording).length > 0
+    const hasArtistsData = musicbrainz.artists && musicbrainz.artists.length > 0
+    const hasReleaseData = musicbrainz.release && Object.keys(musicbrainz.release).length > 0
+    const hasReleaseGroupData = musicbrainz['release-group'] && Object.keys(musicbrainz['release-group']).length > 0
+    const hasLabelsData = musicbrainz.labels && musicbrainz.labels.length > 0
+
+    const hasData = hasRecordingData || hasArtistsData || hasReleaseData || hasReleaseGroupData || hasLabelsData
+    if (!hasData) {
+        return null
+    }
+
     const formatDuration = (ms?: number) => {
         if (!ms) return null
         const minutes = Math.floor(ms / 60000)
@@ -59,18 +71,20 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                                     <span>{formatDuration(musicbrainz.recording.length)}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">MBID</span>
-                                <a
-                                    href={`https://musicbrainz.org/recording/${musicbrainz.recording.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                >
-                                    {musicbrainz.recording.id.slice(0, 8)}...
-                                    <ExternalLink className="h-3 w-3" />
-                                </a>
-                            </div>
+                            {musicbrainz.recording.id && (
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">MBID</span>
+                                    <a
+                                        href={`https://musicbrainz.org/recording/${musicbrainz.recording.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                                    >
+                                        {musicbrainz.recording.id.slice(0, 8)}...
+                                        <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -110,7 +124,7 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                                                 View <ExternalLink className="h-3 w-3" />
                                             </a>
                                         </div>
-                                        {index < musicbrainz.artists.length - 1 && (
+                                        {index < (musicbrainz.artists?.length || 0) - 1 && (
                                             <Separator className="my-2" />
                                         )}
                                     </div>
@@ -146,18 +160,20 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                                         <span>{musicbrainz.release.country}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">MBID</span>
-                                    <a
-                                        href={`https://musicbrainz.org/release/${musicbrainz.release.id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                    >
-                                        {musicbrainz.release.id.slice(0, 8)}...
-                                        <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                </div>
+                                {musicbrainz.release.id && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">MBID</span>
+                                        <a
+                                            href={`https://musicbrainz.org/release/${musicbrainz.release.id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                                        >
+                                            {musicbrainz.release.id.slice(0, 8)}...
+                                            <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>
@@ -183,31 +199,33 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                                         {musicbrainz['release-group']['primary-type']}
                                     </Badge>
                                 </div>
-                                {musicbrainz['release-group']['secondary-types'] && 
-                                 musicbrainz['release-group']['secondary-types'].length > 0 && (
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Secondary</span>
-                                        <div className="flex gap-1">
-                                            {musicbrainz['release-group']['secondary-types'].map((type) => (
-                                                <Badge key={type} variant="outline" className="text-xs">
-                                                    {type}
-                                                </Badge>
-                                            ))}
+                                {musicbrainz['release-group']['secondary-types'] &&
+                                    musicbrainz['release-group']['secondary-types'].length > 0 && (
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Secondary</span>
+                                            <div className="flex gap-1">
+                                                {musicbrainz['release-group']['secondary-types'].map((type) => (
+                                                    <Badge key={type} variant="outline" className="text-xs">
+                                                        {type}
+                                                    </Badge>
+                                                ))}
+                                            </div>
                                         </div>
+                                    )}
+                                {musicbrainz['release-group'].id && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">MBID</span>
+                                        <a
+                                            href={`https://musicbrainz.org/release-group/${musicbrainz['release-group'].id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                                        >
+                                            {musicbrainz['release-group'].id.slice(0, 8)}...
+                                            <ExternalLink className="h-3 w-3" />
+                                        </a>
                                     </div>
                                 )}
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">MBID</span>
-                                    <a
-                                        href={`https://musicbrainz.org/release-group/${musicbrainz['release-group'].id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                    >
-                                        {musicbrainz['release-group'].id.slice(0, 8)}...
-                                        <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                </div>
                             </div>
                         </div>
                     </>
@@ -242,12 +260,10 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                                         {labelInfo['catalog-number'] && (
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Catalog #</span>
-                                                <span className="text-sm font-mono">
-                                                    {labelInfo['catalog-number']}
-                                                </span>
+                                                <span className="text-sm font-mono">{labelInfo['catalog-number']}</span>
                                             </div>
                                         )}
-                                        {index < musicbrainz.labels.length - 1 && (
+                                        {index < (musicbrainz.labels?.length || 0) - 1 && (
                                             <Separator className="my-2" />
                                         )}
                                     </div>

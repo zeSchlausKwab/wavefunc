@@ -9,7 +9,7 @@
         "packages/*"
     ],
     "scripts": {
-        "dev": "bun run dev:relay & sleep 3 && bun run dev:web & bun run dev:dvmcp",
+        "dev": "bun run dev:relay & sleep 2 && bun run dev:web & sleep 2 && bun run dev:dvmcp",
         "dev:web": "bun run --cwd apps/web dev",
         "dev:relay": "bun run --cwd infra/relay dev",
         "dev:dvmcp": "bun run --cwd infra/dvmcp-server dev",

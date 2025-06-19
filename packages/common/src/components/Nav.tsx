@@ -1,12 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import { cn } from '@wavefunc/common'
 import { NavigationMenu, NavigationMenuItem, NavigationMenuList } from '@wavefunc/ui/components/ui/navigation-menu'
-import { Disc, Headphones, MessageCircle, Radio } from 'lucide-react'
+import { BookOpen, Disc, Headphones, MessageCircle, Radio } from 'lucide-react'
 import { useMedia } from 'react-use'
 
 const routes = [
     { href: '/favourites', label: 'Favourites', icon: <Radio className="h-4 w-4 mr-1.5" /> },
     { href: '/discover', label: 'Discover', icon: <Disc className="h-4 w-4 mr-1.5" /> },
+    { href: '/library', label: 'Library', icon: <BookOpen className="h-4 w-4 mr-1.5" /> },
     { href: '/legacy', label: 'Legacy', icon: <Radio className="h-4 w-4 mr-1.5" /> },
     { href: '/about', label: 'About', icon: <Headphones className="h-4 w-4 mr-1.5" /> },
     { href: '/community', label: 'Community', icon: <MessageCircle className="h-4 w-4 mr-1.5" /> },
