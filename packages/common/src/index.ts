@@ -16,7 +16,8 @@ export * from './types'
 export * from './nostr/service'
 export * from './nostr/reactions'
 export * from './nostr/featured'
-export * from './lib/init/app-init'
+export * from './lib/init/initialization-manager'
+export * from './lib/init/use-initialization'
 // Export constants
 export { RADIO_EVENT_KINDS } from './schemas/events'
 
@@ -69,11 +70,18 @@ export * from './components/radio/HistoryDrawer'
 export * from './components/radio/IcecastMetadataDisplay'
 export * from './components/comments/Shoutbox'
 export * from './components/AboutContainer'
+export * from './components/LibraryContainer'
+export * from './components/DiscogsMetadata'
+export * from './components/MusicRecognitionButton'
 
 // export * from './components/radio/RadioStationsList'
 // export * from './components/radio/GenreSelector'
 
 export * from './components/zap/ZapDialog'
+
+// Services
+export * from './services/music-metadata'
+export { createDVMCPService, getDVMCPService, setupNWCPayments } from './services/dvmcp'
 
 // Re-export NDKEvent as a value from the NDK package that common uses
 export { NDKEvent } from '@nostr-dev-kit/ndk'

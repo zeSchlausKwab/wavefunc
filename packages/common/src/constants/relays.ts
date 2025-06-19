@@ -11,3 +11,6 @@ export const DEFAULT_RELAYS = [
     'wss://relay.nostr.net',
     'wss://relay.damus.io',
 ]
+
+// Local development relay for DVMCP communication
+export const LOCAL_DVMCP_RELAY = 'ws://192.168.218.8:3002'
