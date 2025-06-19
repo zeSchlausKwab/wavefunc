@@ -163,21 +163,8 @@ export function LibraryContainer() {
     }
 
     const getToolCost = (toolName: string): string => {
-        const costs: Record<string, string> = {
-            'music-recognition': 'Free',
-            'discogs-search': 'Free',
-            'discogs-release': '3 sats',
-            'musicbrainz-search-recording': '1 sat',
-            'musicbrainz-search-release': '1 sat',
-            'musicbrainz-search-artist': '1 sat',
-            'musicbrainz-search-label': '1 sat',
-            'musicbrainz-get-recording': '2 sats',
-            'musicbrainz-get-release': '2 sats',
-            'musicbrainz-get-artist': '2 sats',
-            'musicbrainz-get-label': '2 sats',
-            'radio-search': '3 sats',
-        }
-        return costs[toolName] || 'Unknown'
+        // Tool costs are determined by the DVMCP server configuration
+        return 'Variable'
     }
 
     const handleSearch = async () => {
