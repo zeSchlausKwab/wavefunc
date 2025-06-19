@@ -12,4 +12,4 @@ export function ProgressToast({ progress, timeRemaining }: { progress: number; t
             <Progress value={progress} className="w-full" />
         </div>
     )
-} 
+}

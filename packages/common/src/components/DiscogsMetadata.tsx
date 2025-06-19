@@ -38,20 +38,14 @@ export function DiscogsMetadata({ result, className }: DiscogsMetadataProps) {
                 {discogs.images && discogs.images.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto">
                         {discogs.images.slice(0, 3).map((image, index) => (
-                            <div
-                                key={index}
-                                className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-md"
-                            >
+                            <div key={index} className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-md">
                                 <img
                                     src={image.uri150}
                                     alt={`${discogs.title} - Image ${index + 1}`}
                                     className="h-full w-full object-cover"
                                 />
                                 {image.type === 'primary' && (
-                                    <Badge
-                                        variant="secondary"
-                                        className="absolute bottom-1 left-1 px-1 py-0 text-xs"
-                                    >
+                                    <Badge variant="secondary" className="absolute bottom-1 left-1 px-1 py-0 text-xs">
                                         Primary
                                     </Badge>
                                 )}
@@ -71,7 +65,7 @@ export function DiscogsMetadata({ result, className }: DiscogsMetadataProps) {
                             <span className="font-medium">{discogs.year}</span>
                         </div>
                     )}
-                    
+
                     {discogs.country && (
                         <div className="flex items-center justify-between">
                             <span className="flex items-center gap-2 text-muted-foreground">
@@ -98,9 +92,7 @@ export function DiscogsMetadata({ result, className }: DiscogsMetadataProps) {
                     {discogs.lowest_price && (
                         <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">Lowest Price</span>
-                            <span className="font-medium text-green-600">
-                                {formatPrice(discogs.lowest_price)}
-                            </span>
+                            <span className="font-medium text-green-600">{formatPrice(discogs.lowest_price)}</span>
                         </div>
                     )}
                 </div>
@@ -200,7 +192,7 @@ export function DiscogsMetadata({ result, className }: DiscogsMetadataProps) {
                             className={cn(
                                 'inline-flex items-center justify-center gap-2 w-full',
                                 'rounded-md bg-[#333333] px-3 py-2 text-sm font-semibold text-white',
-                                'hover:bg-[#333333]/90 transition-colors'
+                                'hover:bg-[#333333]/90 transition-colors',
                             )}
                         >
                             View on Discogs <ExternalLink className="h-4 w-4" />

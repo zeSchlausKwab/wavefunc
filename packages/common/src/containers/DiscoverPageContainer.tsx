@@ -398,7 +398,6 @@ interface SearchFilters {
     domain: string | null
 }
 
-
 export function DiscoverPageContainer() {
     // Search state
     const [searchTerm, setSearchTerm] = useState('')
@@ -571,7 +570,6 @@ export function DiscoverPageContainer() {
         return realtimeStations
     }, [searchResults, realtimeStations, filters]) // Added filters to dependency array
 
-
     // Extract unique genres from stations
     const genres = useMemo(() => {
         // Collect all t tags from all stations
@@ -645,4 +643,4 @@ export function DiscoverPageContainer() {
             )}
         </div>
     )
-} 
+}

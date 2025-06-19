@@ -120,10 +120,11 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
                             ((result.musicbrainz.recording && Object.keys(result.musicbrainz.recording).length > 0) ||
                                 (result.musicbrainz.artists && result.musicbrainz.artists.length > 0) ||
                                 (result.musicbrainz.release && Object.keys(result.musicbrainz.release).length > 0) ||
-                                (result.musicbrainz['release-group'] && Object.keys(result.musicbrainz['release-group']).length > 0) ||
+                                (result.musicbrainz['release-group'] &&
+                                    Object.keys(result.musicbrainz['release-group']).length > 0) ||
                                 (result.musicbrainz.labels && result.musicbrainz.labels.length > 0)) && (
-                            <MusicBrainzMetadata result={result} className="mt-4" />
-                        )}
+                                <MusicBrainzMetadata result={result} className="mt-4" />
+                            )}
                     </div>
                 )}
             </DialogContent>

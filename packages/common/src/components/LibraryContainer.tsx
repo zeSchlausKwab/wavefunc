@@ -1,33 +1,30 @@
-import { useState } from 'react'
-import { createDVMCPService } from '../services/dvmcp'
-import { ndkActions } from '../lib/store/ndk'
+import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
 import { Input } from '@wavefunc/ui/components/ui/input'
 import { Label } from '@wavefunc/ui/components/ui/label'
-import { Textarea } from '@wavefunc/ui/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
-import { Badge } from '@wavefunc/ui/components/ui/badge'
-import { Separator } from '@wavefunc/ui/components/ui/separator'
 import { ScrollArea } from '@wavefunc/ui/components/ui/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
+import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import {
-    Search,
-    Music,
+    Album,
+    Calendar,
+    Clock,
+    Database,
     Disc,
     ExternalLink,
-    Loader2,
-    Album,
-    Headphones,
-    Database,
-    Globe,
     Hash,
-    Calendar,
+    Loader2,
     MapPin,
+    Music,
+    Search,
     Tag,
     Users,
-    Clock,
 } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { ndkActions } from '../lib/store/ndk'
+import { createDVMCPService, getDVMCPService } from '../services/dvmcp'
 
 interface SearchFormData {
     artist: string
@@ -116,7 +113,31 @@ export function LibraryContainer() {
 
         setIsLoading(true)
         try {
-            const dvmcpService = createDVMCPService(ndk)
+            // Get the singleton service instance instead of creating new ones
+            let dvmcpService = getDVMCPService()
+            if (!dvmcpService) {
+                dvmcpService = createDVMCPService(ndk)
+            }
+
+            console.log('[LibraryContainer] NDK connected relays:', Array.from(ndk.pool.relays.keys()))
+            console.log('[LibraryContainer] NDK explicit relay URLs:', ndk.explicitRelayUrls)
+
+            // Check if local DVMCP relay is connected
+            const localDvmcpRelay = 'ws://192.168.218.8:3002'
+            const isLocalRelayConnected = Array.from(ndk.pool.relays.keys()).includes(localDvmcpRelay)
+            console.log('[LibraryContainer] Local DVMCP relay connected:', isLocalRelayConnected)
+
+            if (!isLocalRelayConnected) {
+                console.log('[LibraryContainer] Adding local DVMCP relay...')
+                try {
+                    ndk.addExplicitRelay(localDvmcpRelay)
+                    await ndk.connect()
+                    console.log('[LibraryContainer] Local DVMCP relay added and connected')
+                } catch (error) {
+                    console.warn('[LibraryContainer] Failed to add local DVMCP relay:', error)
+                }
+            }
+
             const result = await dvmcpService.callTool(toolName, args)
 
             // Debug: Log the raw result to see the structure
