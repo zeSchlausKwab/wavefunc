@@ -1,12 +1,11 @@
 import type { EnvConfig } from '@wavefunc/common'
 import { file, serve, spawnSync } from 'bun'
 import { config } from 'dotenv'
-import fs from 'fs'
 import { join } from 'path'
 import { renderToReadableStream } from 'react-dom/server'
 import { generateOpenGraphTags } from './server/og'
 import { ServerApp } from './server/ServerApp'
-import { isBot, proxyIcecastRequest, serveStatic } from './server/utils'
+import { proxyIcecastRequest, serveStatic } from './server/utils'
 
 config({
     path: join(process.cwd(), '../../.env'),
@@ -32,12 +31,11 @@ async function startServer() {
     if (isDev) {
         console.log('🔄 Starting development server...')
         console.log('🛠️ Running development build script (apps/web/build.ts)...')
-        const buildProcess = spawnSync({
-            cmd: ['bun', 'build.ts'],
+        const buildProcess = spawnSync(['bun', 'build.ts'], {
             cwd: process.cwd(),
-            stdout: 'inherit',
-            stderr: 'inherit',
-            stdin: 'inherit',
+            stdout: 'pipe',
+            stderr: 'pipe',
+            stdin: 'ignore',
         })
 
         if (buildProcess.exitCode === 0) {
