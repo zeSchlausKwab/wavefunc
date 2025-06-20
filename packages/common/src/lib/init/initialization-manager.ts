@@ -1,6 +1,7 @@
 import type { EnvConfig } from '../../config/env'
 import type { QueryClient } from '@tanstack/react-query'
 import { DEFAULT_RELAYS, LOCAL_DVMCP_RELAY, ndkActions, walletActions, authActions, envActions } from '@wavefunc/common'
+import { initializeQueryClient } from '../../queries/query-client'
 
 export interface InitializationOptions {
     initialEnvConfig?: EnvConfig
@@ -109,8 +110,14 @@ class AppInitializationManager {
             throw new Error('Environment configuration could not be resolved.')
         }
 
-        // Set in global env store
-        envActions.setEnv(resolvedEnvConfig)
+        // Set in global env store - ensure required fields are properly typed
+        const storeConfig = {
+            ...resolvedEnvConfig,
+            VITE_PUBLIC_HOST: resolvedEnvConfig.VITE_PUBLIC_HOST || 'localhost',
+            VITE_PUBLIC_APP_ENV: resolvedEnvConfig.VITE_PUBLIC_APP_ENV || 'development',
+            VITE_APP_PUBKEY: resolvedEnvConfig.VITE_APP_PUBKEY || '',
+        }
+        envActions.setEnv(storeConfig as any)
         this.envConfig = resolvedEnvConfig
 
         console.log('[InitManager] Environment Configuration Initialized:', resolvedEnvConfig)
@@ -186,6 +193,16 @@ class AppInitializationManager {
         this.updateState({ phase: 'services', progress: 60 })
         console.log('[InitManager] Phase 3: Initializing Services...')
 
+        // Initialize TanStack Query Client
+        try {
+            console.log('[InitManager] Initializing TanStack Query Client...')
+            this.queryClient = initializeQueryClient()
+            console.log('[InitManager] TanStack Query Client initialized')
+        } catch (err) {
+            console.error('[InitManager] TanStack Query Client initialization failed:', err)
+            throw new Error('Failed to initialize query client')
+        }
+
         const ndk = ndkActions.getNDK()
         if (!ndk) {
             console.warn('[InitManager] NDK not available for service initialization')
@@ -260,11 +277,13 @@ class AppInitializationManager {
             // Phase 2: NDK
             await this.withRetry(() => this.initializeNDK(envConfig, options), 'ndk')
 
-            // Phase 3: Services
+            // Phase 3: Services (includes Query Client initialization)
             await this.withRetry(() => this.initializeServices(envConfig), 'services')
 
-            // Phase 4: Query Client
-            const queryClient = await this.withRetry(() => this.initializeQueryClient(), 'queryClient')
+            // Ensure query client was initialized
+            if (!this.queryClient) {
+                throw new Error('Query client not initialized properly')
+            }
 
             // Complete
             this.updateState({
@@ -278,7 +297,7 @@ class AppInitializationManager {
 
             return {
                 envConfig,
-                queryClient,
+                queryClient: this.queryClient,
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error'

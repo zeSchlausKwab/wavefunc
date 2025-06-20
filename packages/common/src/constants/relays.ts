@@ -12,5 +12,6 @@ export const DEFAULT_RELAYS = [
     'wss://relay.damus.io',
 ]
 
+// TODO: this is a hack to get the local relay working. We should use the NOSTR_RELAY_URLS from env or fix this in general
 // Local development relay for DVMCP communication
-export const LOCAL_DVMCP_RELAY = 'ws://192.168.218.8:3002'
+export const LOCAL_DVMCP_RELAY = 'ws://192.168.0.163:3002'

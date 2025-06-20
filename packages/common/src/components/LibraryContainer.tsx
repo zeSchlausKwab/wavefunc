@@ -14,6 +14,7 @@ import { SearchForm } from './library/SearchForm'
 import { SearchResultCard } from './library/SearchResultCard'
 import type { SearchFormData, SearchResult, SearchType, ToolResult } from './library/types'
 import { buildLookupArgs, buildSearchArgs, extractSearchResults, getLookupToolName, getToolName } from './library/utils'
+import { LOCAL_DVMCP_RELAY } from '../constants/relays'
 
 export function LibraryContainer() {
     const [activeTab, setActiveTab] = useState('search')
@@ -35,10 +36,13 @@ export function LibraryContainer() {
 
     const callDVMCPTool = async (toolName: string, args: Record<string, any>) => {
         const ndk = ndkActions.getNDK()
+        await ndk?.connect()
         if (!ndk) {
             toast.error('NDK not available')
             return null
         }
+
+        console.log('[LibraryContainer] NDK connected relays:', Array.from(ndk.pool.relays.keys()))
 
         setIsLoading(true)
         try {
@@ -52,14 +56,14 @@ export function LibraryContainer() {
             console.log('[LibraryContainer] NDK explicit relay URLs:', ndk.explicitRelayUrls)
 
             // Check if local DVMCP relay is connected
-            const localDvmcpRelay = 'ws://192.168.218.8:3002'
-            const isLocalRelayConnected = Array.from(ndk.pool.relays.keys()).includes(localDvmcpRelay)
+            // TODO: Use NOSTR_RELAY_URLS from env or fix this in general
+            const isLocalRelayConnected = Array.from(ndk.pool.relays.keys()).includes(LOCAL_DVMCP_RELAY)
             console.log('[LibraryContainer] Local DVMCP relay connected:', isLocalRelayConnected)
 
             if (!isLocalRelayConnected) {
                 console.log('[LibraryContainer] Adding local DVMCP relay...')
                 try {
-                    ndk.addExplicitRelay(localDvmcpRelay)
+                    ndk.addExplicitRelay(LOCAL_DVMCP_RELAY)
                     await ndk.connect()
                     console.log('[LibraryContainer] Local DVMCP relay added and connected')
                 } catch (error) {

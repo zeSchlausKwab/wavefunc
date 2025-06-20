@@ -161,7 +161,7 @@
       "name": "@wavefunc/dvmcp-server",
       "version": "1.0.0",
       "dependencies": {
-        "@dvmcp/bridge": "0.2.2",
+        "@dvmcp/bridge": "0.2.3",
         "@modelcontextprotocol/sdk": "^0.5.0",
         "@nostr-dev-kit/ndk": "^2.14.4",
         "@wavefunc/common": "workspace:*",
@@ -299,9 +299,9 @@
 
     "@cashu/crypto": ["@cashu/crypto@0.3.4", "", { "dependencies": { "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@scure/bip32": "^1.5.0", "@scure/bip39": "^1.4.0", "buffer": "^6.0.3" } }, "sha512-mfv1Pj4iL1PXzUj9NKIJbmncCLMqYfnEDqh/OPxAX0nNBt6BOnVJJLjLWFlQeYxlnEfWABSNkrqPje1t5zcyhA=="],
 
-    "@dvmcp/bridge": ["@dvmcp/bridge@0.2.2", "", { "dependencies": { "@dvmcp/commons": "^0.2.5", "@getalby/lightning-tools": "^5.1.2", "@modelcontextprotocol/sdk": "^1.11.4", "@types/yargs": "^17.0.33", "dotenv": "^16.5.0", "nostr-tools": "^2.13.0", "yaml": "^2.8.0", "yargs": "^17.7.2" }, "peerDependencies": { "typescript": "^5.8.3" }, "bin": { "dvmcp-bridge": "cli.ts" } }, "sha512-tNkvxChnf6k9qmPcDxA4RL7oVc7zh7QcgyJ6artcFnOPYEkrMR9IQ9IoPHihv5sP8ZHyJxbFdKa6wlDykmHh1w=="],
+    "@dvmcp/bridge": ["@dvmcp/bridge@0.2.3", "", { "dependencies": { "@dvmcp/commons": "^0.2.6", "@getalby/lightning-tools": "^5.1.2", "@modelcontextprotocol/sdk": "^1.11.4", "@types/yargs": "^17.0.33", "nostr-tools": "^2.13.0", "yaml": "^2.8.0", "yargs": "^17.7.2" }, "peerDependencies": { "typescript": "^5.8.3" }, "bin": { "dvmcp-bridge": "cli.ts" } }, "sha512-+LepgUIxZH2at3A8wujYQ/8Yy0e+4eBXSKRJ7wF4fIiNTs0PFoagt5ks6B8atz6MZCRtTxHmXvXYUAnRnCcd8w=="],
 
-    "@dvmcp/commons": ["@dvmcp/commons@0.2.5", "", { "dependencies": { "@noble/hashes": "^1.8.0", "debug": "^4.4.1", "nostr-tools": "^2.13.0", "yaml": "^2.8.0" }, "peerDependencies": { "@types/debug": "^4.1.12", "typescript": "^5.8.3" } }, "sha512-460XcteqzImEiv9gn85TtkOsJ3nwE+5l2m1Iye2b+ZaHfKGx10zzUkjw/EJtO1K7n8x7tUdW0xBWtf39C/febg=="],
+    "@dvmcp/commons": ["@dvmcp/commons@0.2.6", "", { "dependencies": { "@noble/hashes": "^1.8.0", "debug": "^4.4.1", "nostr-tools": "^2.13.0", "yaml": "^2.8.0" }, "peerDependencies": { "@types/debug": "^4.1.12", "typescript": "^5.8.3" } }, "sha512-uC0Vk6LEtEkxphIATMIx9yV95swhrvxvihbs8qwQzgOFnOdy8YSfxBUCi4d4SMCC+qU4YvLZR1yABVoRScg9VA=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-wCIboOL2yXZym2cgm6mlA742s9QeJ8DjGVaL39dLN4rRwrOgOyYSnOaFPhKZGLb2ngj4EyfAFjsNJwPXZvseag=="],
 
@@ -1495,11 +1495,7 @@
 
     "@dvmcp/bridge/@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.12.0", "", { "dependencies": { "ajv": "^6.12.6", "content-type": "^1.0.5", "cors": "^2.8.5", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "express": "^5.0.1", "express-rate-limit": "^7.5.0", "pkce-challenge": "^5.0.0", "raw-body": "^3.0.0", "zod": "^3.23.8", "zod-to-json-schema": "^3.24.1" } }, "sha512-m//7RlINx1F3sz3KqwY1WWzVgTcYX52HYk4bJ1hkBXV3zccAEth+jRvG8DBRrdaQuRsPAJOx2MH3zaHNCKL7Zg=="],
 
-    "@dvmcp/bridge/nostr-tools": ["nostr-tools@2.14.2", "", { "dependencies": { "@noble/ciphers": "^0.5.1", "@noble/curves": "1.2.0", "@noble/hashes": "1.3.1", "@scure/base": "1.1.1", "@scure/bip32": "1.3.1", "@scure/bip39": "1.2.1", "nostr-wasm": "0.1.0" }, "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-YOIOn5EdJ2Kq5sQW5Zh4wOcqzR6kUyrCDHG4+mVD2szzthsyOTpiWX0yrwaRZGlHJG6q83vkhg95qc2W201XTQ=="],
-
     "@dvmcp/bridge/yaml": ["yaml@2.8.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-4lLa/EcQCB0cJkyts+FpIRx5G/llPxfP6VQU5KByHEhLxY3IJCH0f0Hy1MHI8sClTvsIb8qwRJ6R/ZdlDJ/leQ=="],
-
-    "@dvmcp/commons/nostr-tools": ["nostr-tools@2.14.2", "", { "dependencies": { "@noble/ciphers": "^0.5.1", "@noble/curves": "1.2.0", "@noble/hashes": "1.3.1", "@scure/base": "1.1.1", "@scure/bip32": "1.3.1", "@scure/bip39": "1.2.1", "nostr-wasm": "0.1.0" }, "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-YOIOn5EdJ2Kq5sQW5Zh4wOcqzR6kUyrCDHG4+mVD2szzthsyOTpiWX0yrwaRZGlHJG6q83vkhg95qc2W201XTQ=="],
 
     "@dvmcp/commons/yaml": ["yaml@2.8.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-4lLa/EcQCB0cJkyts+FpIRx5G/llPxfP6VQU5KByHEhLxY3IJCH0f0Hy1MHI8sClTvsIb8qwRJ6R/ZdlDJ/leQ=="],
 
@@ -1723,18 +1719,6 @@
 
     "@babel/helper-compilation-targets/lru-cache/yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
-    "@dvmcp/bridge/nostr-tools/@noble/curves": ["@noble/curves@1.2.0", "", { "dependencies": { "@noble/hashes": "1.3.2" } }, "sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw=="],
-
-    "@dvmcp/bridge/nostr-tools/@noble/hashes": ["@noble/hashes@1.3.1", "", {}, "sha512-EbqwksQwz9xDRGfDST86whPBgM65E0OH/pCgqW0GBVzO22bNE+NuIbeTb714+IfSjU3aRk47EUvXIb5bTsenKA=="],
-
-    "@dvmcp/bridge/nostr-tools/@scure/base": ["@scure/base@1.1.1", "", {}, "sha512-ZxOhsSyxYwLJj3pLZCefNitxsj093tb2vq90mp2txoYeBqbcjDjqFhyM8eUjq/uFm6zJ+mUuqxlS2FkuSY1MTA=="],
-
-    "@dvmcp/commons/nostr-tools/@noble/curves": ["@noble/curves@1.2.0", "", { "dependencies": { "@noble/hashes": "1.3.2" } }, "sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw=="],
-
-    "@dvmcp/commons/nostr-tools/@noble/hashes": ["@noble/hashes@1.3.1", "", {}, "sha512-EbqwksQwz9xDRGfDST86whPBgM65E0OH/pCgqW0GBVzO22bNE+NuIbeTb714+IfSjU3aRk47EUvXIb5bTsenKA=="],
-
-    "@dvmcp/commons/nostr-tools/@scure/base": ["@scure/base@1.1.1", "", {}, "sha512-ZxOhsSyxYwLJj3pLZCefNitxsj093tb2vq90mp2txoYeBqbcjDjqFhyM8eUjq/uFm6zJ+mUuqxlS2FkuSY1MTA=="],
-
     "@nostr-dev-kit/ndk-cache-dexie/@nostr-dev-kit/ndk/@noble/hashes": ["@noble/hashes@1.7.2", "", {}, "sha512-biZ0NUSxyjLLqo6KxEJ1b+C2NAx0wtDoFvCaXHGgUkeHzf3Xc1xKumFKREuT7f7DARNZ/slvYUwFG6B0f2b6hQ=="],
 
     "@nostr-dev-kit/ndk-cache-dexie/nostr-tools/@noble/curves": ["@noble/curves@1.2.0", "", { "dependencies": { "@noble/hashes": "1.3.2" } }, "sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw=="],
@@ -1866,10 +1850,6 @@
     "nano-css/css-tree/mdn-data": ["mdn-data@2.0.14", "", {}, "sha512-dn6wd0uw5GsdswPFfsgMp5NSB0/aDe6fK94YJV/AJDYXL6HVLWBsxeq7js7Ad+mU2K9LAlwpk6kN2D5mwCPVow=="],
 
     "nostr-tools/@noble/curves/@noble/hashes": ["@noble/hashes@1.3.2", "", {}, "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ=="],
-
-    "@dvmcp/bridge/nostr-tools/@noble/curves/@noble/hashes": ["@noble/hashes@1.3.2", "", {}, "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ=="],
-
-    "@dvmcp/commons/nostr-tools/@noble/curves/@noble/hashes": ["@noble/hashes@1.3.2", "", {}, "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ=="],
 
     "@nostr-dev-kit/ndk-cache-dexie/nostr-tools/@noble/curves/@noble/hashes": ["@noble/hashes@1.3.2", "", {}, "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ=="],
 
