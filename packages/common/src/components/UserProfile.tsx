@@ -1,8 +1,7 @@
-import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
-import { authStore, ndkActions } from '@wavefunc/common'
+import { authStore } from '@wavefunc/common'
+import { useProfile } from '../queries'
 import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@wavefunc/ui/components/ui/tooltip'
 import { CheckCircle2, Globe, Shield, XCircle } from 'lucide-react'
@@ -11,56 +10,11 @@ interface UserProfileProps {
     compact?: boolean
 }
 
-interface ProfileData {
-    name?: string
-    displayName?: string
-    about?: string
-    picture?: string
-    website?: string
-    nip05?: string
-    nip05Verified?: boolean
-}
-
-// @ts-ignore
 export function UserProfile({ pubkey, compact = true }: UserProfileProps) {
     const authState = useStore(authStore)
     const isMe = authState.user?.pubkey === pubkey
 
-    const { data: profile, isLoading } = useQuery({
-        queryKey: ['user-profile', pubkey],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            const user = ndk.getUser({ pubkey })
-            const userProfile = await user.fetchProfile({
-                cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-            })
-
-            // Check NIP05 if available
-            let nip05Verified = false
-            if (userProfile?.nip05) {
-                try {
-                    // For now, we'll just show the NIP05 without verification
-                    // as the NDK methods for NIP05 verification seem to be in flux
-                    nip05Verified = true
-                } catch (error) {
-                    console.error('Error checking NIP05:', error)
-                }
-            }
-
-            return {
-                name: userProfile?.name,
-                displayName: userProfile?.displayName,
-                about: userProfile?.about,
-                picture: userProfile?.picture,
-                website: userProfile?.website,
-                nip05: userProfile?.nip05,
-                nip05Verified,
-            } as ProfileData
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-    })
+    const { data: profile, isLoading } = useProfile(pubkey)
 
     if (isLoading) {
         return (

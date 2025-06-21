@@ -163,30 +163,14 @@ export function isReplyToComment(comment: NDKEvent, parentCommentId?: string): b
         return false
     }
 
-    // Now find e-tags that might reference a comment
-    for (const tag of comment.tags) {
-        if (tag[0].toLowerCase() === 'e') {
-            // If we're looking for a specific parent
-            if (parentCommentId && tag[1] === parentCommentId) {
-                return true
-            }
-
-            // Skip the station reference (usually has a corresponding K tag with 31237)
-            const isStationReference = comment.tags.some(
-                (t) => t[0].toLowerCase() === 'k' && t[1] === '31237' && t[0].toLowerCase() === 'e',
-            )
-
-            if (!isStationReference) {
-                // This is likely a reference to a comment
-                // If we weren't looking for a specific parent, any non-station e-tag means this is a reply
-                if (!parentCommentId) {
-                    return true
-                }
-            }
-        }
+    // If we're looking for a specific parent, check if this comment references it
+    if (parentCommentId) {
+        return comment.tags.some((tag) => tag[0].toLowerCase() === 'e' && tag[1] === parentCommentId)
     }
 
-    return false
+    // The presence of k-tag with COMMENT_KIND (1111) means this is a reply
+    // This tag is only added when parentComment is provided in createCommentEvent
+    return true
 }
 
 /**

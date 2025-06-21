@@ -53,6 +53,8 @@ export const queryKeys = {
 
     reactions: {
         all: ['reactions'] as const,
+        lists: () => [...queryKeys.reactions.all, 'list'] as const,
+        list: (eventId: string) => [...queryKeys.reactions.lists(), eventId] as const,
         byEvent: (eventId: string) => [...queryKeys.reactions.all, 'event', eventId] as const,
         byStation: (naddr: string) => [...queryKeys.reactions.all, 'station', naddr] as const,
         summary: (eventId: string) => [...queryKeys.reactions.byEvent(eventId), 'summary'] as const,

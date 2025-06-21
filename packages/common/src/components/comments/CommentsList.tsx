@@ -1,10 +1,39 @@
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useComments } from '../../queries'
-import { getRootComments } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { MessageSquare, RefreshCw } from 'lucide-react'
 import CommentItem from './CommentItem'
 import CreateComment from './CreateComment'
+
+// Helper function to filter root comments (fixed logic)
+function isReplyToComment(comment: NDKEvent, parentCommentId?: string): boolean {
+    const COMMENT_KIND = 1111
+
+    // First, look for k-tags with COMMENT_KIND (1111)
+    const commentKindTags = comment.tags.filter(
+        (tag) => tag[0].toLowerCase() === 'k' && tag[1] === COMMENT_KIND.toString(),
+    )
+
+    if (commentKindTags.length === 0) {
+        // No k-tag with comment kind, so this is not a reply
+        return false
+    }
+
+    // If we're looking for a specific parent, check if this comment references it
+    if (parentCommentId) {
+        return comment.tags.some((tag) => tag[0].toLowerCase() === 'e' && tag[1] === parentCommentId)
+    }
+
+    // The presence of k-tag with COMMENT_KIND (1111) means this is a reply
+    // This tag is only added when parentComment is provided in createCommentEvent
+    return true
+}
+
+function getRootComments(events: NDKEvent[]): NDKEvent[] {
+    return events
+        .filter((comment) => !isReplyToComment(comment))
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+}
 
 interface CommentsListProps {
     stationEvent: NDKEvent
