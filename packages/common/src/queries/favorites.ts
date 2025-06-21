@@ -9,6 +9,7 @@ import { queryKeys } from './query-keys'
 import { withNDKDependency, withQueryErrorHandling } from './query-client'
 import { ndkActions } from '../lib/store/ndk'
 import type { Station } from '../types/station'
+import { parseRadioEventWithSchema } from '../nostr/radio'
 import {
     fetchFavoritesLists,
     publishFavoritesList,
@@ -16,6 +17,7 @@ import {
     removeStationFromFavorites,
     type FavoritesList,
 } from '../nostr/favorites'
+import { RADIO_EVENT_KINDS } from '../schemas/events'
 
 interface CreateFavoritesListInput {
     name: string
@@ -393,12 +395,224 @@ export const favoritesQueries = {
                     return []
                 }
 
-                // Return the station references for now
-                // Convert favorites to stations (this would need actual implementation)
-                return [] as Station[]
+                // Resolve each favorite to a Station object
+                const resolvedStations: Station[] = []
+
+                for (const favorite of list.favorites) {
+                    // Skip invalid favorites
+                    if (!favorite.event_id) {
+                        console.warn('Skipping invalid favorite:', favorite)
+                        continue
+                    }
+
+                    try {
+                        let event = null
+
+                        // Try to fetch by naddr first (more specific)
+                        if (favorite.naddr) {
+                            try {
+                                const parts = favorite.naddr.split(':')
+                                if (parts.length >= 3 && parts[0] === String(RADIO_EVENT_KINDS.STREAM)) {
+                                    const [kind, pubkey, identifier] = parts
+
+                                    const filter = {
+                                        kinds: [Number(kind)],
+                                        authors: [pubkey],
+                                        '#d': [identifier],
+                                    }
+
+                                    const events = await ndk.fetchEvents(filter)
+                                    const foundEvent = Array.from(events)[0]
+
+                                    if (foundEvent) {
+                                        event = foundEvent
+                                    }
+                                } else if (favorite.naddr.startsWith('naddr')) {
+                                    event = await ndk.fetchEvent(favorite.naddr)
+                                } else {
+                                    event = await ndk.fetchEvent(favorite.naddr)
+                                }
+                            } catch (error) {
+                                console.error(`Failed to fetch by naddr (${favorite.naddr}):`, error)
+                            }
+                        }
+
+                        // Fallback to event_id if naddr didn't work
+                        if (!event && favorite.event_id && !favorite.event_id.startsWith('naddr')) {
+                            try {
+                                event = await ndk.fetchEvent(favorite.event_id)
+                            } catch (error) {
+                                console.error(`Failed to fetch by event_id (${favorite.event_id}):`, error)
+                            }
+                        }
+
+                        if (event) {
+                            try {
+                                const parsedStation = parseRadioEventWithSchema(event)
+
+                                // Create the Station object
+                                const station: Station = {
+                                    id: favorite.event_id,
+                                    naddr: favorite.naddr,
+                                    name: parsedStation.name,
+                                    description: parsedStation.description,
+                                    website: parsedStation.website,
+                                    streams: parsedStation.streams,
+                                    tags: parsedStation.eventTags || event.tags,
+                                    imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
+                                    countryCode: parsedStation.countryCode,
+                                    languageCodes: parsedStation.languageCodes,
+                                    pubkey: event.pubkey,
+                                    created_at: event.created_at || Math.floor(Date.now() / 1000),
+                                    event,
+                                }
+
+                                resolvedStations.push(station)
+                            } catch (parseError) {
+                                console.error(`Error parsing station data for ${favorite.event_id}:`, parseError)
+                                // Skip this station but continue with others
+                            }
+                        } else {
+                            console.warn(`No event found for station ${favorite.event_id}`)
+                            // Skip this station but continue with others
+                        }
+                    } catch (fetchError) {
+                        console.error(`Error fetching station ${favorite.event_id}:`, fetchError)
+                        // Skip this station but continue with others
+                    }
+                }
+
+                return resolvedStations
             }, `fetchFavoritesListStations(${listId})`)
         }),
         enabled: !!listId && !!ndkActions.getNDK(),
-        staleTime: 3 * 60 * 1000,
+        staleTime: 5 * 60 * 1000, // 5 minutes - stations don't change often
     }),
 } as const
+
+/**
+ * Hook to get resolved stations for all user's favorites lists
+ */
+export function useResolvedFavoriteStations(
+    userPubkey: string,
+    options?: Partial<UseQueryOptions<Record<string, Station[]>>>,
+) {
+    return useQuery({
+        queryKey: queryKeys.favorites.resolved(userPubkey),
+        ...withNDKDependency(async () => {
+            return withQueryErrorHandling(async () => {
+                const ndk = ndkActions.getNDK()!
+
+                // Get all the user's favorites lists
+                const favoritesLists = await fetchFavoritesLists(ndk, { pubkey: userPubkey })
+
+                if (favoritesLists.length === 0) {
+                    return {}
+                }
+
+                // Resolve stations for each list
+                const resolvedStationsByList: Record<string, Station[]> = {}
+
+                for (const list of favoritesLists) {
+                    if (!list.favorites || list.favorites.length === 0) {
+                        resolvedStationsByList[list.id] = []
+                        continue
+                    }
+
+                    const resolvedStations: Station[] = []
+
+                    for (const favorite of list.favorites) {
+                        // Skip invalid favorites
+                        if (!favorite.event_id) {
+                            console.warn('Skipping invalid favorite:', favorite)
+                            continue
+                        }
+
+                        try {
+                            let event = null
+
+                            // Try to fetch by naddr first (more specific)
+                            if (favorite.naddr) {
+                                try {
+                                    const parts = favorite.naddr.split(':')
+                                    if (parts.length >= 3 && parts[0] === String(RADIO_EVENT_KINDS.STREAM)) {
+                                        const [kind, pubkey, identifier] = parts
+
+                                        const filter = {
+                                            kinds: [Number(kind)],
+                                            authors: [pubkey],
+                                            '#d': [identifier],
+                                        }
+
+                                        const events = await ndk.fetchEvents(filter)
+                                        const foundEvent = Array.from(events)[0]
+
+                                        if (foundEvent) {
+                                            event = foundEvent
+                                        }
+                                    } else if (favorite.naddr.startsWith('naddr')) {
+                                        event = await ndk.fetchEvent(favorite.naddr)
+                                    } else {
+                                        event = await ndk.fetchEvent(favorite.naddr)
+                                    }
+                                } catch (error) {
+                                    console.error(`Failed to fetch by naddr (${favorite.naddr}):`, error)
+                                }
+                            }
+
+                            // Fallback to event_id if naddr didn't work
+                            if (!event && favorite.event_id && !favorite.event_id.startsWith('naddr')) {
+                                try {
+                                    event = await ndk.fetchEvent(favorite.event_id)
+                                } catch (error) {
+                                    console.error(`Failed to fetch by event_id (${favorite.event_id}):`, error)
+                                }
+                            }
+
+                            if (event) {
+                                try {
+                                    const parsedStation = parseRadioEventWithSchema(event)
+
+                                    // Create the Station object
+                                    const station: Station = {
+                                        id: favorite.event_id,
+                                        naddr: favorite.naddr,
+                                        name: parsedStation.name,
+                                        description: parsedStation.description,
+                                        website: parsedStation.website,
+                                        streams: parsedStation.streams,
+                                        tags: parsedStation.eventTags || event.tags,
+                                        imageUrl: event.tags.find((t) => t[0] === 'thumbnail')?.[1] || '',
+                                        countryCode: parsedStation.countryCode,
+                                        languageCodes: parsedStation.languageCodes,
+                                        pubkey: event.pubkey,
+                                        created_at: event.created_at || Math.floor(Date.now() / 1000),
+                                        event,
+                                    }
+
+                                    resolvedStations.push(station)
+                                } catch (parseError) {
+                                    console.error(`Error parsing station data for ${favorite.event_id}:`, parseError)
+                                    // Skip this station but continue with others
+                                }
+                            } else {
+                                console.warn(`No event found for station ${favorite.event_id}`)
+                                // Skip this station but continue with others
+                            }
+                        } catch (fetchError) {
+                            console.error(`Error fetching station ${favorite.event_id}:`, fetchError)
+                            // Skip this station but continue with others
+                        }
+                    }
+
+                    resolvedStationsByList[list.id] = resolvedStations
+                }
+
+                return resolvedStationsByList
+            }, `fetchResolvedFavoriteStations(${userPubkey})`)
+        }),
+        enabled: !!userPubkey && !!ndkActions.getNDK(),
+        staleTime: 5 * 60 * 1000, // 5 minutes - stations don't change often
+        ...options,
+    })
+}

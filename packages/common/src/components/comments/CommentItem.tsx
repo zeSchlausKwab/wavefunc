@@ -1,7 +1,5 @@
 import { NDKEvent } from '@nostr-dev-kit/ndk'
-import type { QueryKey } from '@tanstack/react-query'
-import { useQuery } from '@tanstack/react-query'
-import { ndkActions } from '@wavefunc/common'
+import { useCommentReplies } from '@wavefunc/common'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Card, CardContent, CardFooter, CardHeader } from '@wavefunc/ui/components/ui/card'
 import { formatDistanceToNow } from 'date-fns'
@@ -22,33 +20,14 @@ export default function CommentItem({ comment, stationEvent, stationId, initialE
     const [isReplyFormOpen, setIsReplyFormOpen] = useState(false)
     const [showReplies, setShowReplies] = useState(initialExpandDepth > 0)
 
-    const ndk = ndkActions.getNDK()
-
-    const queryKey: QueryKey = useMemo(() => ['comment-replies', comment.id], [comment.id])
-
-    const fetchRepliesFn = async (): Promise<NDKEvent[]> => {
-        if (!ndk || !comment.id) return []
-        const filter = {
-            kinds: [1111],
-            '#e': [comment.id],
-            limit: 50,
-        }
-        const fetchedReplyEvents = await ndk.fetchEvents(filter)
-        const repliesArray = Array.from(fetchedReplyEvents.values())
-        repliesArray.sort((a, b) => (a.created_at || 0) - (b.created_at || 0))
-        return repliesArray
-    }
-
+    // Use the new useCommentReplies hook instead of manual NDK operations
     const {
         data: repliesData,
         isLoading: isLoadingReplies,
         refetch: refetchReplies,
         isFetched,
-    } = useQuery<NDKEvent[], Error>({
-        queryKey: queryKey,
-        queryFn: fetchRepliesFn,
-        enabled: !!ndk && !!comment.id,
-        staleTime: 1000 * 60 * 5,
+    } = useCommentReplies(comment.id || '', {
+        enabled: !!comment.id,
     })
 
     const numReplies = repliesData?.length || 0

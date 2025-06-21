@@ -3,8 +3,8 @@ import { queryKeys } from './query-keys'
 import { withQueryErrorHandling } from './query-client'
 import { ndkActions } from '../lib/store/ndk'
 import type { Station } from '../types/station'
-import { publishStation, updateStation } from '../nostr/publish'
-import type { NostrEvent } from '@nostr-dev-kit/ndk'
+import { publishStation, updateStation, deleteStation } from '../nostr/publish'
+import { NDKEvent, NDKKind, type NostrEvent } from '@nostr-dev-kit/ndk'
 import { parseRadioEventWithSchema } from '../nostr/radio'
 
 // Helper function to convert NDKEvent to Station
@@ -75,7 +75,12 @@ interface UpdateStationMutationContext {
 
 interface DeleteStationMutationContext {
     previousStation?: Station
-    naddr: string
+    eventId: string
+}
+
+interface ShoutboxPostInput {
+    content: string
+    category: string
 }
 
 /**
@@ -275,47 +280,66 @@ export function useDeleteStation(
     const queryClient = useQueryClient()
 
     return useMutation({
-        mutationFn: async (naddr: string) => {
+        mutationFn: async (eventId: string) => {
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()
                 if (!ndk) {
                     throw new Error('NDK not available')
                 }
 
-                // TODO: Implement deleteStation function in publish.ts
-                // This would involve publishing a deletion event (kind 5)
-                throw new Error('Delete station not implemented yet')
+                // Use the deleteStation function from nostr/publish.ts
+                await deleteStation(ndk, eventId)
             }, 'deleteStation')
         },
 
-        onMutate: async (naddr: string): Promise<DeleteStationMutationContext> => {
-            // Cancel any outgoing refetches
-            await queryClient.cancelQueries({ queryKey: queryKeys.stations.detail(naddr) })
+        onMutate: async (eventId: string): Promise<DeleteStationMutationContext> => {
+            // Find the station by eventId to get its naddr for cache operations
+            let stationNaddr: string | undefined
+            let previousStation: Station | undefined
 
-            // Snapshot the previous station
-            const previousStation = queryClient.getQueryData<Station>(queryKeys.stations.detail(naddr))
-
-            // Remove from cache optimistically
-            queryClient.removeQueries({ queryKey: queryKeys.stations.detail(naddr) })
-
-            // Remove from any lists
-            queryClient.setQueriesData<Station[]>({ queryKey: queryKeys.stations.lists() }, (old) => {
-                if (!old) return old
-                return old.filter((station) => station.naddr !== naddr)
+            // Search through all cached stations to find the one with this eventId
+            queryClient.getQueriesData<Station[]>({ queryKey: queryKeys.stations.lists() }).forEach(([, data]) => {
+                if (data) {
+                    const station = data.find((s) => s.id === eventId)
+                    if (station) {
+                        previousStation = station
+                        stationNaddr = station.naddr
+                    }
+                }
             })
 
-            return { previousStation, naddr }
+            // If we found the station, remove it from cache
+            if (stationNaddr) {
+                // Cancel any outgoing refetches
+                await queryClient.cancelQueries({ queryKey: queryKeys.stations.detail(stationNaddr) })
+
+                // Remove from individual cache
+                queryClient.removeQueries({ queryKey: queryKeys.stations.detail(stationNaddr) })
+
+                // Remove from any lists
+                queryClient.setQueriesData<Station[]>({ queryKey: queryKeys.stations.lists() }, (old) => {
+                    if (!old) return old
+                    return old.filter((station) => station.id !== eventId)
+                })
+            }
+
+            return { previousStation, eventId }
         },
 
-        onError: (err, naddr, context) => {
+        onError: (err, eventId, context) => {
             // If the mutation fails, restore the station
             if (context?.previousStation) {
-                queryClient.setQueryData(queryKeys.stations.detail(naddr), context.previousStation)
+                const station = context.previousStation
+
+                // Restore to individual cache if it has naddr
+                if (station.naddr) {
+                    queryClient.setQueryData(queryKeys.stations.detail(station.naddr), station)
+                }
 
                 // Add back to lists
                 queryClient.setQueriesData<Station[]>({ queryKey: queryKeys.stations.lists() }, (old) => {
-                    if (!old) return [context.previousStation!]
-                    return [context.previousStation!, ...old]
+                    if (!old) return [station]
+                    return [station, ...old]
                 })
             }
         },
@@ -375,3 +399,45 @@ export const stationMutations = {
         ...options,
     }),
 } as const
+
+/**
+ * Mutation hook for posting to the shoutbox
+ */
+export function useCreateShoutboxPost(options?: Partial<UseMutationOptions<NDKEvent, Error, ShoutboxPostInput>>) {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async ({ content, category }: ShoutboxPostInput) => {
+            return withQueryErrorHandling(async () => {
+                const ndk = ndkActions.getNDK()
+                if (!ndk) {
+                    throw new Error('NDK not available')
+                }
+
+                // Create a new Kind 1 text note event
+                const event = new NDKEvent(ndk)
+                event.kind = NDKKind.Text
+                event.content = content.trim()
+                event.created_at = Math.floor(Date.now() / 1000)
+
+                // Add the required tags for shoutbox posts
+                event.tags = [
+                    ['t', 'wavefunc'],
+                    ['t', 'shoutbox'],
+                    ['t', category],
+                ]
+
+                // Sign and publish the event
+                await event.sign()
+                await event.publish()
+
+                return event
+            }, 'createShoutboxPost')
+        },
+        onSuccess: () => {
+            // Invalidate shoutbox messages to refetch with new post
+            queryClient.invalidateQueries({ queryKey: queryKeys.shoutbox.messages() })
+        },
+        ...options,
+    })
+}

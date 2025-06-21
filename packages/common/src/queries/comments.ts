@@ -144,6 +144,35 @@ export function useCommentThread(rootCommentId: string, options?: Partial<UseQue
 }
 
 /**
+ * Hook to fetch replies to a comment (returns NDKEvent[] for compatibility with CommentItem)
+ */
+export function useCommentReplies(commentId: string, options?: Partial<UseQueryOptions<NDKEvent[]>>) {
+    return useQuery({
+        queryKey: queryKeys.comments.replies(commentId),
+        ...withNDKDependency(async () => {
+            return withQueryErrorHandling(async () => {
+                const ndk = ndkActions.getNDK()!
+
+                // Fetch all replies to the comment using COMMENT_KIND (1111)
+                const events = await ndk.fetchEvents({
+                    kinds: [1111], // Comment events - using COMMENT_KIND
+                    '#e': [commentId],
+                    limit: 50,
+                })
+
+                // Convert to array and sort by creation time (oldest first)
+                const repliesArray = Array.from(events).sort((a, b) => (a.created_at || 0) - (b.created_at || 0))
+
+                return repliesArray
+            }, `fetchCommentReplies(${commentId})`)
+        }),
+        enabled: !!commentId && !!ndkActions.getNDK(),
+        staleTime: 5 * 60 * 1000, // 5 minutes - replies don't change as frequently
+        ...options,
+    })
+}
+
+/**
  * Mutation hook for creating a new comment
  */
 export function useCreateComment(
@@ -273,6 +302,27 @@ export function useCreateComment(
 
                 if (commentData.replyTo) {
                     queryClient.invalidateQueries({ queryKey: queryKeys.comments.thread(commentData.replyTo) })
+                    queryClient.invalidateQueries({ queryKey: queryKeys.comments.replies(commentData.replyTo) })
+                }
+
+                if (commentData.parentComment?.id) {
+                    queryClient.invalidateQueries({
+                        queryKey: queryKeys.comments.replies(commentData.parentComment.id),
+                    })
+                }
+
+                // Check if this is a shoutbox reply by looking at parent event tags
+                const parentEvent = commentData.parentComment || commentData.stationEvent
+                if (parentEvent) {
+                    const isShoutboxEvent = parentEvent.tags.some(
+                        (tag) => tag[0] === 't' && (tag[1] === 'wavefunc' || tag[1] === 'shoutbox'),
+                    )
+                    if (isShoutboxEvent) {
+                        queryClient.invalidateQueries({ queryKey: queryKeys.shoutbox.messages() })
+                        if (parentEvent.id) {
+                            queryClient.invalidateQueries({ queryKey: queryKeys.shoutbox.replies(parentEvent.id) })
+                        }
+                    }
                 }
             }, 500)
         },
@@ -378,5 +428,28 @@ export const commentQueries = {
         }),
         enabled: !!rootCommentId && !!ndkActions.getNDK(),
         staleTime: 30 * 1000,
+    }),
+
+    // Comment replies (returns NDKEvent[])
+    replies: (commentId: string) => ({
+        queryKey: queryKeys.comments.replies(commentId),
+        ...withNDKDependency(async () => {
+            return withQueryErrorHandling(async () => {
+                const ndk = ndkActions.getNDK()!
+
+                const events = await ndk.fetchEvents({
+                    kinds: [1111], // COMMENT_KIND
+                    '#e': [commentId],
+                    limit: 50,
+                })
+
+                // Convert to array and sort by creation time (oldest first)
+                const repliesArray = Array.from(events).sort((a, b) => (a.created_at || 0) - (b.created_at || 0))
+
+                return repliesArray
+            }, `fetchCommentReplies(${commentId})`)
+        }),
+        enabled: !!commentId && !!ndkActions.getNDK(),
+        staleTime: 5 * 60 * 1000, // 5 minutes
     }),
 } as const

@@ -41,6 +41,7 @@ export const queryKeys = {
         byUser: (pubkey: string) => [...queryKeys.favorites.lists(), pubkey] as const,
         list: (listId: string) => [...queryKeys.favorites.all, 'detail', listId] as const,
         stations: (listId: string) => [...queryKeys.favorites.list(listId), 'stations'] as const,
+        resolved: (userPubkey: string) => [...queryKeys.favorites.all, 'resolved', userPubkey] as const,
     },
 
     // Comments and reactions
@@ -49,6 +50,7 @@ export const queryKeys = {
         byEvent: (eventId: string) => [...queryKeys.comments.all, 'event', eventId] as const,
         byStation: (naddr: string) => [...queryKeys.comments.all, 'station', naddr] as const,
         thread: (rootId: string) => [...queryKeys.comments.all, 'thread', rootId] as const,
+        replies: (commentId: string) => [...queryKeys.comments.all, 'replies', commentId] as const,
     },
 
     reactions: {
@@ -75,6 +77,13 @@ export const queryKeys = {
         byEvent: (eventId: string) => [...queryKeys.zaps.all, 'event', eventId] as const,
         receipts: (eventId: string, since?: number) => [...queryKeys.zaps.byEvent(eventId), 'receipts', since] as const,
         summary: (eventId: string) => [...queryKeys.zaps.byEvent(eventId), 'summary'] as const,
+    },
+
+    // Shoutbox messages
+    shoutbox: {
+        all: ['shoutbox'] as const,
+        messages: () => [...queryKeys.shoutbox.all, 'messages'] as const,
+        replies: (parentEventId: string) => [...queryKeys.shoutbox.all, 'replies', parentEventId] as const,
     },
 
     // Radio browser API
@@ -115,12 +124,14 @@ export type FavoritesQueryKey =
     | readonly ['favorites', 'list', string]
     | readonly ['favorites', 'detail', string]
     | readonly ['favorites', 'stations', string]
+    | readonly ['favorites', 'resolved', string]
 
 export type CommentsQueryKey =
     | readonly ['comments']
     | readonly ['comments', 'event', string]
     | readonly ['comments', 'station', string]
     | readonly ['comments', 'thread', string]
+    | readonly ['comments', 'replies', string]
 
 export type ReactionsQueryKey =
     | readonly ['reactions']
@@ -141,6 +152,11 @@ export type ZapQueryKey =
     | readonly ['zaps', 'event', string, 'receipts', number?]
     | readonly ['zaps', 'event', string, 'summary']
 
+export type ShoutboxQueryKey =
+    | readonly ['shoutbox']
+    | readonly ['shoutbox', 'messages']
+    | readonly ['shoutbox', 'replies', string]
+
 export type RadioBrowserQueryKey =
     | readonly ['radioBrowser']
     | readonly ['radioBrowser', 'search', Record<string, any>]
@@ -159,4 +175,5 @@ export type QueryKey =
     | ReactionsQueryKey
     | DVMCPQueryKey
     | ZapQueryKey
+    | ShoutboxQueryKey
     | RadioBrowserQueryKey
