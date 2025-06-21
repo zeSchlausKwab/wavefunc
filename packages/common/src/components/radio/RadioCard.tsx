@@ -1,6 +1,7 @@
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { useStore } from '@tanstack/react-store'
-import { useEffect, useMemo, useState } from 'react'
+import { useComments } from '@wavefunc/common'
+import { useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
 
 // UI Components
@@ -11,14 +12,14 @@ import { FavoritesDropdown } from '../station/FavoritesDropdown'
 import { StreamSelector } from './StreamSelector'
 
 // Icons
-import { CheckCircle2, ChevronDown, ChevronUp, Edit } from 'lucide-react'
+import { ChevronDown, ChevronUp, Edit } from 'lucide-react'
 
 // Stores and utilities
 import type { Station } from '@wavefunc/common'
 import {
+    authStore,
     cn,
     getStationBackgroundColor,
-    ndkActions,
     openEditStationDrawer,
     playStation,
     stationsStore,
@@ -208,8 +209,12 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
     const isMobile = useMedia('(max-width: 640px)')
 
     const [isExpanded, setIsExpanded] = useState(false)
-    const [commentsCount, _] = useState(0)
-    const [isAuthor, setIsAuthor] = useState(false)
+
+    // Get real comment count from query using station ID
+    const { data: stationComments = [] } = useComments(station.id || '', {
+        enabled: Boolean(station.id && station.event),
+    })
+    const commentsCount = stationComments.length
 
     // Initialize selectedStreamId with the primary stream or first stream
     const initialStreamId = useMemo(() => {
@@ -251,24 +256,9 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
     // Generate background color based on station name
     const cardBackgroundColor = useMemo(() => getStationBackgroundColor(station.name || '', 0.9), [station.name])
 
-    // Get current user and check if user is author
-    useEffect(() => {
-        const getUser = async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk || !ndk.signer) return
-
-            try {
-                const currentUser = await ndk.signer.user()
-                if (currentUser && station.pubkey) {
-                    setIsAuthor(currentUser.pubkey === station.pubkey)
-                }
-            } catch (error) {
-                console.error('Error getting user:', error)
-            }
-        }
-
-        getUser()
-    }, [station.pubkey])
+    // Check if current user is the station author using auth store
+    const user = useStore(authStore, (state) => state.user)
+    const isAuthor = user?.pubkey === station.pubkey
 
     // Stream handler
     const handleStreamSelect = (stream: Stream) => {
@@ -333,7 +323,6 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
     // Determine if card should be rendered as expanded (full width)
     const isFullWidth = isExpanded && station.event !== undefined
     const hasStreams = station.streams && Array.isArray(station.streams) && station.streams.length > 0
-    const hasNostrEvent = Boolean(station.event)
 
     return (
         <Card
@@ -352,12 +341,6 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                 isMobile={isMobile}
                 isFullWidth={isFullWidth}
             />
-
-            {hasNostrEvent && (
-                <div className="absolute bottom-2 left-2 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center z-10">
-                    <CheckCircle2 className="w-4 h-4" />
-                </div>
-            )}
             <div ref={contentRef} className="flex flex-col h-full">
                 <div className="flex flex-row justify-between flex-grow">
                     {/* Station image */}
@@ -402,16 +385,14 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                                         isMobile ? 'w-full justify-between mt-1' : 'space-x-1',
                                     )}
                                 >
-                                    {hasNostrEvent ? (
-                                        <SocialInteractionBar
-                                            event={station.event!}
-                                            authorPubkey={station.pubkey}
-                                            commentsCount={commentsCount}
-                                            onCommentClick={toggleComments}
-                                            compact={true}
-                                            naddr={station.naddr || ''}
-                                        />
-                                    ) : null}
+                                    <SocialInteractionBar
+                                        event={station.event!}
+                                        authorPubkey={station.pubkey}
+                                        commentsCount={commentsCount}
+                                        onCommentClick={toggleComments}
+                                        compact={true}
+                                        naddr={station.naddr || ''}
+                                    />
                                 </div>
 
                                 <div
@@ -434,12 +415,10 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                                         </div>
                                     )}
 
-                                    {hasNostrEvent && station && station.id && (
-                                        <FavoritesDropdown station={station} currentListId={currentListId} />
-                                    )}
+                                    <FavoritesDropdown station={station} currentListId={currentListId} />
 
                                     {/* Expand button (mobile only) */}
-                                    {isMobile && hasNostrEvent && (
+                                    {isMobile && (
                                         <ExpandButton
                                             isExpanded={isExpanded}
                                             setIsExpanded={setIsExpanded}
@@ -454,7 +433,7 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                 </div>
 
                 {/* Expanded content section */}
-                {isExpanded && hasNostrEvent && (
+                {isExpanded && (
                     <>
                         <ExpandedContent
                             station={station}
@@ -475,11 +454,7 @@ export default function RadioCard({ station, currentListId }: RadioCardProps) {
                         {/* Comments section - Always visible when expanded */}
                         <div ref={commentsRef} className={cn('bg-gray-50 border-t', isMobile ? 'p-3' : 'p-4')}>
                             {station.id && station.event ? (
-                                <CommentsList
-                                    stationId={station.id}
-                                    stationEvent={station.event}
-                                    commentsCount={commentsCount}
-                                />
+                                <CommentsList stationId={station.id} stationEvent={station.event} />
                             ) : (
                                 <div className="text-center py-4 text-muted-foreground">
                                     Cannot load comments for this station.

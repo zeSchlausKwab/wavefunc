@@ -1,15 +1,10 @@
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/components/ui/card'
-import { ndkActions, ndkStore, RADIO_EVENT_KINDS } from '@wavefunc/common'
+import { authStore, RADIO_EVENT_KINDS, parseRadioEventWithSchema, ndkActions } from '@wavefunc/common'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
-import type { Station } from '@wavefunc/common'
-import {
-    type FavoritesList,
-    fetchFavoritesLists,
-    subscribeToFavoritesLists,
-    parseRadioEventWithSchema,
-} from '@wavefunc/common'
+import type { FavoritesList, Station } from '@wavefunc/common'
+import { useFavoritesLists } from '../../queries'
 import { Edit, Heart, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { EditFavoritesListDrawer } from './EditFavoritesListDrawer'
@@ -28,60 +23,14 @@ interface ResolvedStation {
 }
 
 export function FavoritesManager() {
-    const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [selectedFavoritesList, setSelectedFavoritesList] = useState<FavoritesList | undefined>()
-    const [isLoading, setIsLoading] = useState(false)
     const [resolvedStations, setResolvedStations] = useState<Record<string, ResolvedStation>>({})
-    const { ndk } = useStore(ndkStore)
+    const user = useStore(authStore, (state) => state.user)
+    const userPubkey = user?.pubkey
 
-    useEffect(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk) {
-            console.error('NDK not initialized')
-            return
-        }
-        const pubkey = ndk?.activeUser?.pubkey
-
-        if (!pubkey) {
-            setFavoritesLists([])
-            setResolvedStations({})
-            return
-        }
-
-        setIsLoading(true)
-
-        // Fetch all favorites lists for the user
-        fetchFavoritesLists(ndk, { pubkey })
-            .then((lists) => {
-                setFavoritesLists(lists)
-            })
-            .catch((error) => {
-                console.error('Error fetching favorites lists:', error)
-            })
-            .finally(() => {
-                setIsLoading(false)
-            })
-
-        // Subscribe to updates to favorites lists
-        const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
-            setFavoritesLists((prev) => {
-                const index = prev.findIndex((list) => list.id === favoritesList.id)
-                if (index >= 0) {
-                    const newLists = [...prev]
-                    newLists[index] = favoritesList
-                    return newLists
-                }
-                return [...prev, favoritesList]
-            })
-        })
-
-        return () => {
-            subscription?.stop()
-            setFavoritesLists([])
-            setResolvedStations({})
-        }
-    }, [ndk?.activeUser?.pubkey]) // Depend on pubkey changes
+    // Use the new query hook
+    const { data: favoritesLists = [], isLoading, error } = useFavoritesLists(userPubkey || '')
 
     // Effect to resolve stations when favorites lists change
     useEffect(() => {
@@ -90,7 +39,7 @@ export function FavoritesManager() {
             console.error('NDK not initialized')
             return
         }
-        if (!ndk?.activeUser?.pubkey || favoritesLists.length === 0) {
+        if (!userPubkey || favoritesLists.length === 0) {
             return
         }
 
@@ -229,7 +178,7 @@ export function FavoritesManager() {
         }
 
         resolveStations()
-    }, [favoritesLists, ndk?.activeUser?.pubkey])
+    }, [favoritesLists, userPubkey])
 
     const handleCreateNewList = () => {
         setSelectedFavoritesList(undefined)
@@ -258,6 +207,15 @@ export function FavoritesManager() {
 
             {isLoading ? (
                 <div className="text-center">Loading favorites lists...</div>
+            ) : error ? (
+                <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                        <p className="text-red-500 mb-2">Failed to load favorites lists</p>
+                        <p className="text-sm text-muted-foreground">
+                            {error instanceof Error ? error.message : 'Unknown error'}
+                        </p>
+                    </CardContent>
+                </Card>
             ) : favoritesLists.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-10 text-center">

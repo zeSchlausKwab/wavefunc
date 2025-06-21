@@ -6,6 +6,7 @@ import { ndkActions } from '../lib/store/ndk'
 import { mapNostrEventToStation } from '../nostr/radio'
 import type { Station } from '../types/station'
 import type { NostrComment as Comment } from '../types/comment'
+import { useRealtimeZaps } from './zaps'
 
 /**
  * Hook to enable real-time updates for radio stations
@@ -126,9 +127,9 @@ export function useRealtimeComments() {
 
         console.log('[Realtime] Setting up comment subscription')
 
-        // Subscribe to comment events (kind 1 with #e or #a tags)
+        // Subscribe to comment events (kind 1111 with #e or #a tags)
         const sub = ndk.subscribe({
-            kinds: [1 as NDKKind],
+            kinds: [1111 as NDKKind], // COMMENT_KIND
             limit: 0, // Get all new events from now on
         })
 
@@ -148,8 +149,9 @@ export function useRealtimeComments() {
                     content: event.content,
                     pubkey: event.pubkey,
                     created_at: event.created_at,
-                    rootId: referencedEvent,
+                    rootId: referencedStation || referencedEvent, // Prefer station naddr over event ID
                     parentId: event.tags.find((tag) => tag[0] === 'e' && tag[3] === 'reply')?.[1],
+                    event, // Include the full NDK event
                 }
 
                 // Update comment queries
@@ -162,18 +164,37 @@ export function useRealtimeComments() {
                         if (exists) return oldData
 
                         // Add new comment and sort by creation time
-                        return [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
+                        const newData = [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
+                        console.log(
+                            '[Realtime] Updated event comments cache. Event:',
+                            referencedEvent,
+                            'Count:',
+                            newData.length,
+                        )
+                        return newData
                     })
                 }
 
                 if (referencedStation) {
+                    console.log('[Realtime] Updating station comments cache for:', referencedStation)
                     queryClient.setQueryData<Comment[]>(queryKeys.comments.byStation(referencedStation), (oldData) => {
+                        console.log(
+                            '[Realtime] Previous comments:',
+                            oldData?.length || 0,
+                            'Adding new comment:',
+                            comment.id,
+                        )
                         if (!oldData) return [comment]
 
                         const exists = oldData.some((c) => c.id === comment.id)
-                        if (exists) return oldData
+                        if (exists) {
+                            console.log('[Realtime] Comment already exists, skipping')
+                            return oldData
+                        }
 
-                        return [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
+                        const newData = [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
+                        console.log('[Realtime] Updated comments count:', newData.length)
+                        return newData
                     })
                 }
 
@@ -363,6 +384,10 @@ export function useRealtimeSync() {
     useRealtimeReactions()
     useRealtimeProfiles()
     useRealtimeFavorites()
+
+    // Enable general zap monitoring (without specific event filter)
+    // Individual components can use useRealtimeZaps(eventId) for targeted monitoring
+    useRealtimeZaps()
 }
 
 /**

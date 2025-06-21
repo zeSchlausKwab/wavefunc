@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import {
+    authStore,
     fetchStation,
     ndkActions,
     openEditStationDrawer,
@@ -73,9 +74,9 @@ export const Route = createFileRoute('/station/$naddr')({
 
 function StationPage() {
     const { naddr } = Route.useParams()
-    const [user, setUser] = React.useState<NDKUser | null>(null)
     const [selectedStreamId, setSelectedStreamId] = React.useState<number | undefined>(undefined)
     const isPlaying = useStore(stationsStore, (state) => state.isPlaying)
+    const user = useStore(authStore, (state) => state.user)
     const ndk = ndkActions.getNDK()
 
     const {
@@ -89,22 +90,6 @@ function StationPage() {
         retry: 3,
         retryDelay: 1000,
     })
-
-    React.useEffect(() => {
-        const getUser = async () => {
-            if (station?.pubkey) {
-                const ndk = ndkActions.getNDK()
-                if (!ndk) {
-                    throw new Error('NDK not initialized')
-                }
-                const userObj = await ndk.signer?.user()
-                if (userObj) {
-                    setUser(userObj as unknown as NDKUser)
-                }
-            }
-        }
-        getUser()
-    }, [station?.pubkey])
 
     const handleStreamSelect = React.useCallback((stream: Stream) => {
         setSelectedStreamId(stream.quality.bitrate)

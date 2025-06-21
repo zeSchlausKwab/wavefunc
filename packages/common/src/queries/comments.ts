@@ -37,9 +37,9 @@ export function useComments(eventId: string, options?: Partial<UseQueryOptions<C
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
 
-                // Fetch existing comments
+                // Fetch existing comments using COMMENT_KIND (1111)
                 const events = await ndk.fetchEvents({
-                    kinds: [1], // Comment events
+                    kinds: [1111], // Comment events - using COMMENT_KIND
                     '#e': [eventId], // References the target event
                     limit: 100,
                 })
@@ -52,6 +52,7 @@ export function useComments(eventId: string, options?: Partial<UseQueryOptions<C
                     created_at: event.created_at,
                     rootId: eventId,
                     parentId: event.tags.find((tag) => tag[0] === 'e' && tag[3] === 'reply')?.[1],
+                    event, // Include the full NDKEvent for compatibility
                 }))
 
                 // Sort by creation time (oldest first for thread-like display)
@@ -74,9 +75,9 @@ export function useStationComments(naddr: string, options?: Partial<UseQueryOpti
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
 
-                // Fetch comments that reference the station
+                // Fetch comments that reference the station using COMMENT_KIND (1111)
                 const events = await ndk.fetchEvents({
-                    kinds: [1], // Comment events
+                    kinds: [1111], // Comment events - using COMMENT_KIND
                     '#a': [naddr], // References the station by naddr
                     limit: 100,
                 })
@@ -110,9 +111,9 @@ export function useCommentThread(rootCommentId: string, options?: Partial<UseQue
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
 
-                // Fetch all replies to the root comment
+                // Fetch all replies to the root comment using COMMENT_KIND (1111)
                 const events = await ndk.fetchEvents({
-                    kinds: [1],
+                    kinds: [1111], // Comment events - using COMMENT_KIND
                     '#e': [rootCommentId],
                     limit: 50,
                 })
@@ -145,7 +146,9 @@ export function useCommentThread(rootCommentId: string, options?: Partial<UseQue
 /**
  * Mutation hook for creating a new comment
  */
-export function useCreateComment(options?: Partial<UseMutationOptions<Comment, Error, CreateCommentInput, CommentMutationContext>>) {
+export function useCreateComment(
+    options?: Partial<UseMutationOptions<Comment, Error, CreateCommentInput, CommentMutationContext>>,
+) {
     const queryClient = useQueryClient()
 
     return useMutation({
@@ -240,27 +243,38 @@ export function useCreateComment(options?: Partial<UseMutationOptions<Comment, E
                     queryClient.setQueryData<Comment[]>(queryKey, (old) => {
                         if (!old) return [newComment]
 
-                        return old.map((comment) =>
-                            comment.id === context.optimisticComment?.id ? newComment : comment,
-                        )
+                        // Remove optimistic comment and add real one
+                        const withoutOptimistic = old.filter((comment) => comment.id !== context.optimisticComment?.id)
+
+                        // Check if real comment already exists
+                        const alreadyExists = withoutOptimistic.some((comment) => comment.id === newComment.id)
+                        if (alreadyExists) {
+                            return withoutOptimistic
+                        }
+
+                        // Add the new comment and sort by creation time
+                        return [...withoutOptimistic, newComment].sort((a, b) => a.created_at - b.created_at)
                     })
                 }
             }
         },
 
         onSettled: (data, error, commentData) => {
-            // Invalidate related queries
-            if (commentData.eventId) {
-                queryClient.invalidateQueries({ queryKey: queryKeys.comments.byEvent(commentData.eventId) })
-            }
+            // Small delay to ensure the comment has been processed by relays
+            setTimeout(() => {
+                // Invalidate related queries
+                if (commentData.eventId) {
+                    queryClient.invalidateQueries({ queryKey: queryKeys.comments.byEvent(commentData.eventId) })
+                }
 
-            if (commentData.stationNaddr) {
-                queryClient.invalidateQueries({ queryKey: queryKeys.comments.byStation(commentData.stationNaddr) })
-            }
+                if (commentData.stationNaddr) {
+                    queryClient.invalidateQueries({ queryKey: queryKeys.comments.byStation(commentData.stationNaddr) })
+                }
 
-            if (commentData.replyTo) {
-                queryClient.invalidateQueries({ queryKey: queryKeys.comments.thread(commentData.replyTo) })
-            }
+                if (commentData.replyTo) {
+                    queryClient.invalidateQueries({ queryKey: queryKeys.comments.thread(commentData.replyTo) })
+                }
+            }, 500)
         },
 
         ...options,
@@ -279,7 +293,7 @@ export const commentQueries = {
                 const ndk = ndkActions.getNDK()!
 
                 const events = await ndk.fetchEvents({
-                    kinds: [1],
+                    kinds: [1111], // COMMENT_KIND
                     '#e': [eventId],
                     limit: 100,
                 })
@@ -309,7 +323,7 @@ export const commentQueries = {
                 const ndk = ndkActions.getNDK()!
 
                 const events = await ndk.fetchEvents({
-                    kinds: [1],
+                    kinds: [1111], // COMMENT_KIND
                     '#a': [naddr],
                     limit: 100,
                 })
@@ -339,7 +353,7 @@ export const commentQueries = {
                 const ndk = ndkActions.getNDK()!
 
                 const events = await ndk.fetchEvents({
-                    kinds: [1],
+                    kinds: [1111], // COMMENT_KIND
                     '#e': [rootCommentId],
                     limit: 50,
                 })

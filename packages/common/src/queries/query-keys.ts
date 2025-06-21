@@ -67,6 +67,14 @@ export const queryKeys = {
         history: () => [...queryKeys.dvmcp.all, 'history'] as const,
     },
 
+    // Zaps and Lightning payments
+    zaps: {
+        all: ['zaps'] as const,
+        byEvent: (eventId: string) => [...queryKeys.zaps.all, 'event', eventId] as const,
+        receipts: (eventId: string, since?: number) => [...queryKeys.zaps.byEvent(eventId), 'receipts', since] as const,
+        summary: (eventId: string) => [...queryKeys.zaps.byEvent(eventId), 'summary'] as const,
+    },
+
     // Radio browser API
     radioBrowser: {
         all: ['radioBrowser'] as const,
@@ -81,7 +89,7 @@ export const queryKeys = {
 } as const
 
 // Type helpers for query keys
-export type StationQueryKey = 
+export type StationQueryKey =
     | readonly ['stations']
     | readonly ['stations', 'list']
     | readonly ['stations', 'list', Record<string, any>]
@@ -125,6 +133,12 @@ export type DVMCPQueryKey =
     | readonly ['dvmcp', 'lookup', string, string]
     | readonly ['dvmcp', 'realtime']
 
+export type ZapQueryKey =
+    | readonly ['zaps']
+    | readonly ['zaps', 'event', string]
+    | readonly ['zaps', 'event', string, 'receipts', number?]
+    | readonly ['zaps', 'event', string, 'summary']
+
 export type RadioBrowserQueryKey =
     | readonly ['radioBrowser']
     | readonly ['radioBrowser', 'search', Record<string, any>]
@@ -142,4 +156,5 @@ export type QueryKey =
     | CommentsQueryKey
     | ReactionsQueryKey
     | DVMCPQueryKey
+    | ZapQueryKey
     | RadioBrowserQueryKey

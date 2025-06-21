@@ -4,13 +4,13 @@ import { NDKEvent } from '@nostr-dev-kit/ndk'
 import {
     closeStationDrawer,
     deleteStation as commonDeleteStation,
-    updateStation as commonUpdateStation,
     convertFromRadioBrowser,
     createRadioEvent,
-    ndkActions,
     StationSchema,
     type Station,
     type StationFormData,
+    usePublishStation,
+    useUpdateStation,
 } from '@wavefunc/common'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
@@ -300,6 +300,37 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
         closeStationDrawer()
     }
 
+    // Mutation hooks
+    const publishStation = usePublishStation({
+        onSuccess: () => {
+            handleClose()
+            toast('Station created', {
+                description: 'Station created successfully',
+            })
+        },
+        onError: (error) => {
+            console.error('Error creating station:', error)
+            toast('Error', {
+                description: 'Failed to create station. Please try again.',
+            })
+        },
+    })
+
+    const updateStation = useUpdateStation({
+        onSuccess: () => {
+            handleClose()
+            toast('Station updated', {
+                description: 'Your changes have been saved successfully.',
+            })
+        },
+        onError: (error) => {
+            console.error('Error updating station:', error)
+            toast('Error', {
+                description: 'Failed to update station. Please try again.',
+            })
+        },
+    })
+
     const {
         control,
         handleSubmit,
@@ -364,20 +395,13 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const streams = watch('streams')
 
     const onSubmit = async (data: StationFormData) => {
-        // TODO: wrap everything in react-query, this is not reactive
-        try {
-            setSubmitError(null)
-            const ndk = ndkActions.getNDK()
+        setSubmitError(null)
 
-            if (!ndk) {
-                throw new Error('NDK not initialized')
-            }
-
-            if (station?.naddr) {
-                console.log('Updating existing station:', station.id)
-
-                // @ts-ignore
-                const ndkEvent = await updateStation(ndk, station, {
+        if (station?.naddr) {
+            console.log('Updating existing station:', station.id)
+            updateStation.mutate({
+                station,
+                updatedData: {
                     name: data.name,
                     description: data.description,
                     website: data.website,
@@ -386,56 +410,28 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     countryCode: data.countryCode,
                     languageCodes: data.languageCodes,
                     tags: data.tags,
-                    streamingServerUrl: data.streamingServerUrl,
-                })
-
-                console.log('Station updated successfully:', ndkEvent)
-
-                handleClose()
-                toast('Station updated', {
-                    description: 'Your changes have been saved successfully.',
-                })
-            } else {
-                console.log('Creating new station')
-
-                const event = createRadioEvent(
-                    {
-                        description: data.description,
-                        streams: data.streams,
-                        streamingServerUrl: data.streamingServerUrl || undefined,
-                    },
-                    [
-                        ['name', data.name],
-                        ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
-                        ...(data.website ? [['website', data.website]] : []),
-                        ...data.tags.map((tag) => ['t', tag]),
-                        ...data.languageCodes.map((code) => ['language', code]),
-                        ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
-                    ],
-                )
-
-                const ndkEvent = new NDKEvent(ndk, event)
-
-                if (ndkEvent) {
-                    await ndkEvent.publish()
-                    console.log('Station created successfully:', ndkEvent)
-                    toast('Station created', {
-                        description: 'Station created successfully',
-                    })
-                    handleClose()
-                }
-            }
-        } catch (error) {
-            console.error('Error creating/updating station:', error)
-            const errorMessage =
-                error instanceof Error ? error.message : 'Failed to save the station. Please try again.'
-            setSubmitError(errorMessage)
-            toast('Error', {
-                description: errorMessage,
-                style: {
-                    background: 'red',
                 },
             })
+        } else {
+            console.log('Creating new station')
+
+            const event = createRadioEvent(
+                {
+                    description: data.description,
+                    streams: data.streams,
+                    streamingServerUrl: data.streamingServerUrl || undefined,
+                },
+                [
+                    ['name', data.name],
+                    ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
+                    ...(data.website ? [['website', data.website]] : []),
+                    ...data.tags.map((tag) => ['t', tag]),
+                    ...data.languageCodes.map((code) => ['language', code]),
+                    ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
+                ],
+            )
+
+            publishStation.mutate(event)
         }
     }
 
@@ -907,8 +903,16 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         </div>
 
                         <div className="flex justify-between space-x-2">
-                            <Button type="submit" className="bg-primary text-white" disabled={isSubmitting}>
-                                {isSubmitting ? 'Saving...' : station ? 'Save Changes' : 'Create Station'}
+                            <Button
+                                type="submit"
+                                className="bg-primary text-white"
+                                disabled={publishStation.isPending || updateStation.isPending}
+                            >
+                                {publishStation.isPending || updateStation.isPending
+                                    ? 'Saving...'
+                                    : station
+                                      ? 'Save Changes'
+                                      : 'Create Station'}
                             </Button>
                             <div className="flex space-x-2">
                                 {station && (

@@ -66,7 +66,7 @@ export function useFavoritesList(listId: string, options?: Partial<UseQueryOptio
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
                 const lists = await fetchFavoritesLists(ndk)
-                return lists.find(list => list.id === listId) || null
+                return lists.find((list) => list.id === listId) || null
             }, `fetchFavoritesList(${listId})`)
         }),
         enabled: !!listId && !!ndkActions.getNDK(),
@@ -87,7 +87,7 @@ export function useFavoritesListStations(listId: string, options?: Partial<UseQu
 
                 // First get the favorites list
                 const lists = await fetchFavoritesLists(ndk)
-                const list = lists.find(l => l.id === listId)
+                const list = lists.find((l) => l.id === listId)
 
                 if (!list || !list.favorites?.length) {
                     return []
@@ -191,13 +191,16 @@ export function useAddToFavoritesList(
                 // Convert result back to FavoritesList
                 return {
                     ...favoritesList,
-                    favorites: [...favoritesList.favorites, {
-                        event_id: station.id!,
-                        name: station.name,
-                        added_at: Math.floor(Date.now() / 1000),
-                        naddr: station.naddr,
-                        pubkey: station.pubkey,
-                    }],
+                    favorites: [
+                        ...favoritesList.favorites,
+                        {
+                            event_id: station.id!,
+                            name: station.name,
+                            added_at: Math.floor(Date.now() / 1000),
+                            naddr: station.naddr,
+                            pubkey: station.pubkey,
+                        },
+                    ],
                 } as FavoritesList
             }, 'addToFavoritesList')
         },
@@ -283,7 +286,7 @@ export function useRemoveFromFavoritesList(
                 // Return updated favorites list
                 return {
                     ...favoritesList,
-                    favorites: favoritesList.favorites.filter(fav => fav.event_id !== stationId),
+                    favorites: favoritesList.favorites.filter((fav) => fav.event_id !== stationId),
                 } as FavoritesList
             }, 'removeFromFavoritesList')
         },
@@ -369,7 +372,7 @@ export const favoritesQueries = {
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
                 const lists = await fetchFavoritesLists(ndk)
-                return lists.find(l => l.id === listId) || null
+                return lists.find((l) => l.id === listId) || null
             }, `fetchFavoritesList(${listId})`)
         }),
         enabled: !!listId && !!ndkActions.getNDK(),
@@ -384,7 +387,7 @@ export const favoritesQueries = {
                 const ndk = ndkActions.getNDK()!
 
                 const lists = await fetchFavoritesLists(ndk)
-                const list = lists.find(l => l.id === listId)
+                const list = lists.find((l) => l.id === listId)
 
                 if (!list || !list.favorites?.length) {
                     return []

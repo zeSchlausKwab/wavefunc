@@ -1,7 +1,7 @@
 import { createRootRouteWithContext, HeadContent, Outlet } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import type { AppRouterContext } from '@wavefunc/common'
-import { EditStationDrawer, Header, LoginDialog, RadioPlayer, uiStore } from '@wavefunc/common'
+import { EditStationDrawer, Header, LoginDialog, RadioPlayer, uiStore, useRealtimeSync } from '@wavefunc/common'
 import { HistoryDrawer } from '@wavefunc/common/src/components/radio/HistoryDrawer'
 import type { Station } from '@wavefunc/common/src/types/station'
 import { Toaster } from '@wavefunc/ui/components/ui/sonner'
@@ -10,6 +10,9 @@ function Providers({ children }: { children: React.ReactNode }) {
     const drawer = useStore(uiStore, (state) => state.stationDrawer)
     const station = drawer.station as Station | undefined
     const isOpen = drawer.isOpen
+
+    // Enable real-time synchronization across all queries
+    useRealtimeSync()
 
     return (
         <>

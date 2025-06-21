@@ -1,11 +1,13 @@
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { ndkActions } from '@wavefunc/common'
+import { ndkActions, authStore } from '@wavefunc/common'
 import { cn } from '@wavefunc/common'
-import { NDKEvent, NDKSubscription, NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
+import { NDKEvent } from '@nostr-dev-kit/ndk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchReactions, publishReaction } from '@wavefunc/common'
+import { useZapReceiptsWithRealtime, useZapSummary } from '@wavefunc/common'
 import { Heart, MessageCircle, Zap } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useStore } from '@tanstack/react-store'
 import { toast } from 'sonner'
 import { ShareStationButton } from '../ShareStationButton'
 import { ZapDialog } from '../zap/ZapDialog'
@@ -109,18 +111,16 @@ export function SocialInteractionBar({
     compact = false,
 }: SocialInteractionBarProps) {
     const queryClient = useQueryClient()
-
-    const [userPubkey, setUserPubkey] = useState<string | undefined>()
+    const user = useStore(authStore, (state) => state.user)
+    const userPubkey = user?.pubkey
     const [hasUserReacted, setHasUserReacted] = useState(false)
     const [hasUserZapped, setHasUserZapped] = useState(false)
     const [isZapDialogOpen, setIsZapDialogOpen] = useState(false)
     const [canAuthorReceiveZaps, setCanAuthorReceiveZaps] = useState<boolean | null>(null)
     const [checkingZapCapability, setCheckingZapCapability] = useState(false)
     const [recentlyZapped, setRecentlyZapped] = useState(false)
-    const [localZaps, setLocalZaps] = useState<NDKEvent[]>([])
 
-    const zapSubscriptionRef = useRef<NDKSubscription | null>(null)
-
+    // Use the new query system for reactions (keeping old approach for now)
     const { data: reactions = [] } = useQuery({
         queryKey: ['reactions', event.id],
         queryFn: async () => {
@@ -131,91 +131,19 @@ export function SocialInteractionBar({
         enabled: !!event.id,
     })
 
-    const { data: zaps = [], isLoading: isLoadingZaps } = useQuery({
-        queryKey: ['zaps', event.id],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            const filter = {
-                kinds: [9735],
-                '#e': [event.id],
-            }
-
-            try {
-                const events = await ndk.fetchEvents(filter, {
-                    cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
-                })
-                return Array.from(events)
-            } catch (error) {
-                console.error('Failed to fetch zaps:', error)
-                return []
-            }
-        },
+    // Use the new zap query hooks with real-time updates
+    const { data: zapReceipts = [] } = useZapReceiptsWithRealtime(event.id || '', undefined, {
         enabled: !!event.id,
     })
 
-    useEffect(() => {
-        if (!event?.id) return
+    const { data: zapSummary } = useZapSummary(event.id || '', {
+        enabled: !!event.id,
+    })
 
-        const ndk = ndkActions.getNDK()
-        if (!ndk) return
-
-        if (zapSubscriptionRef.current) {
-            zapSubscriptionRef.current.stop()
-            zapSubscriptionRef.current = null
-        }
-
-        const filter = {
-            kinds: [9735],
-            '#e': [event.id],
-            since: Math.floor(Date.now() / 1000) - 10,
-        }
-
-        const sub = ndk.subscribe(filter, {
-            closeOnEose: false,
-            cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-        })
-
-        sub.on('event', (zapEvent: NDKEvent) => {
-            setLocalZaps((current) => {
-                if (current.some((e) => e.id === zapEvent.id)) return current
-                return [...current, zapEvent]
-            })
-
-            queryClient.invalidateQueries({ queryKey: ['zaps', event.id] })
-
-            if (userPubkey) {
-                const isFromUser = checkIfZapIsFromUser(zapEvent, userPubkey)
-
-                if (isFromUser) {
-                    setHasUserZapped(true)
-                    setRecentlyZapped(true)
-                    setTimeout(() => setRecentlyZapped(false), 3000)
-                }
-            }
-        })
-
-        zapSubscriptionRef.current = sub
-
-        return () => {
-            if (zapSubscriptionRef.current) {
-                zapSubscriptionRef.current.stop()
-                zapSubscriptionRef.current = null
-            }
-        }
-    }, [event?.id, queryClient, userPubkey])
-
-    const allZaps = [
-        ...zaps,
-        ...localZaps.filter((localZap) => !zaps.some((fetchedZap) => fetchedZap.id === localZap.id)),
-    ]
-
-    const totalZapAmount = allZaps.reduce((total, zapEvent) => {
-        return total + extractZapAmount(zapEvent)
-    }, 0)
-
-    const formattedZapAmount = totalZapAmount > 0 ? formatSatsAmount(totalZapAmount) : allZaps.length > 0 ? '?' : ''
+    // Extract zap data from the new query system
+    const totalZapAmount = zapSummary?.total || 0
+    const zapCount = zapSummary?.count || zapReceipts.length
+    const formattedZapAmount = totalZapAmount > 0 ? formatSatsAmount(totalZapAmount) : zapCount > 0 ? '?' : ''
 
     useEffect(() => {
         const checkZapCapability = async () => {
@@ -241,44 +169,22 @@ export function SocialInteractionBar({
     }, [event?.pubkey])
 
     useEffect(() => {
-        if (!userPubkey || allZaps.length === 0) return
+        if (!userPubkey || zapReceipts.length === 0) return
 
-        const userHasZapped = allZaps.some((zapEvent) => checkIfZapIsFromUser(zapEvent, userPubkey))
+        const userHasZapped = zapReceipts.some((receipt) => {
+            // Check if this zap was sent by the current user
+            return receipt.sender === userPubkey
+        })
 
         setHasUserZapped(userHasZapped)
-    }, [allZaps, userPubkey])
+    }, [zapReceipts, userPubkey])
 
     useEffect(() => {
-        const getUserPubkey = async () => {
-            const ndk = ndkActions.getNDK()
-            const user = await ndk?.signer?.user()
-            setUserPubkey(user?.pubkey)
-        }
-        getUserPubkey()
-
         if (userPubkey && reactions.length > 0) {
             const hasUserReacted = reactions.some((event) => event.pubkey === userPubkey && event.content === '❤️')
             setHasUserReacted(hasUserReacted)
         }
     }, [reactions, userPubkey])
-
-    const checkIfZapIsFromUser = (zapEvent: NDKEvent, userPk: string): boolean => {
-        const hasPTag = zapEvent.tags.some((tag) => (tag[0] === 'P' || tag[0] === 'p') && tag[1] === userPk)
-
-        if (hasPTag) return true
-
-        const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
-        if (descriptionTag) {
-            try {
-                const zapRequest = JSON.parse(descriptionTag)
-                return zapRequest.pubkey === userPk
-            } catch (error) {
-                // Ignore parsing errors
-            }
-        }
-
-        return false
-    }
 
     const likeCount = reactions.filter((event) => event.content === '❤️').length
 
@@ -312,14 +218,8 @@ export function SocialInteractionBar({
         setTimeout(() => setRecentlyZapped(false), 3000)
         setHasUserZapped(true)
 
-        if (zapEvent) {
-            setLocalZaps((current) => {
-                if (current.some((e) => e.id === zapEvent.id)) return current
-                return [...current, zapEvent]
-            })
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['zaps', event.id] })
+        // Invalidate zap queries to refresh the data
+        queryClient.invalidateQueries({ queryKey: ['zaps'] })
     }
 
     // CSS classes
@@ -340,9 +240,9 @@ export function SocialInteractionBar({
         let tooltip = 'Send a zap'
 
         if (totalZapAmount > 0) {
-            tooltip += ` (${Math.round(totalZapAmount)} sats from ${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
-        } else if (allZaps.length > 0) {
-            tooltip += ` (${allZaps.length} zap${allZaps.length !== 1 ? 's' : ''})`
+            tooltip += ` (${Math.round(totalZapAmount)} sats from ${zapCount} zap${zapCount !== 1 ? 's' : ''})`
+        } else if (zapCount > 0) {
+            tooltip += ` (${zapCount} zap${zapCount !== 1 ? 's' : ''})`
         }
 
         return tooltip
@@ -363,13 +263,7 @@ export function SocialInteractionBar({
                     <Zap className={zapButtonClassName} />
                     {compact && (
                         <span className={cn('text-xs ml-1', (hasUserZapped || recentlyZapped) && 'text-yellow-400')}>
-                            {isLoadingZaps ? (
-                                <span className="animate-pulse">···</span>
-                            ) : totalZapAmount > 0 ? (
-                                formattedZapAmount
-                            ) : (
-                                allZaps.length.toString()
-                            )}
+                            {totalZapAmount > 0 ? formattedZapAmount : zapCount.toString()}
                         </span>
                     )}
                 </Button>

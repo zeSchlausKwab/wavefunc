@@ -64,8 +64,14 @@ export function useStations(filters: Record<string, any> = {}, options?: Partial
         ...withNDKDependency(async () => {
             return withQueryErrorHandling(async () => {
                 const ndk = ndkActions.getNDK()!
+
+                console.log('[useStations] Fetching stations with filters:', filters)
+
+                // Use the existing fetchRadioStations function which has proper filtering
                 const events = await fetchRadioStations(ndk)
-                return Array.from(events).map((event) => {
+                console.log('[useStations] Found', events.length, 'station events')
+
+                let stations = events.map((event) => {
                     const parsed = parseRadioEventWithSchema(event)
                     return {
                         ...parsed,
@@ -76,8 +82,17 @@ export function useStations(filters: Record<string, any> = {}, options?: Partial
                         createdAt: new Date(event.created_at * 1000),
                         tags: event.tags as string[][],
                         event,
+                        naddr: event.encode(), // Add naddr for consistency
                     } as Station
                 })
+
+                // Apply limit if specified
+                if (filters.limit && typeof filters.limit === 'number') {
+                    stations = stations.slice(0, filters.limit)
+                }
+
+                console.log('[useStations] Returning', stations.length, 'valid stations')
+                return stations
             }, `fetchStations`)
         }),
         staleTime: 2 * 60 * 1000, // 2 minutes for lists

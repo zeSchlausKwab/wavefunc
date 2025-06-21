@@ -1,5 +1,6 @@
 import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
 import { useQuery } from '@tanstack/react-query'
+import { withQueryErrorHandling } from '../../queries/query-client'
 import { ndkActions } from '@wavefunc/common'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
@@ -61,66 +62,62 @@ export default function Shoutbox() {
         refetch,
     } = useQuery({
         queryKey: ['shoutbox-messages'],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
+        queryFn: () => {
+            return withQueryErrorHandling(async () => {
+                const ndk = ndkActions.getNDK()!
 
-            // Step 1: Fetch Kind 1 root posts
-            const rootPostsFilter = {
-                kinds: [NDKKind.Text],
-                '#t': ['wavefunc', 'shoutbox'],
-                limit: 50,
-            }
-            const fetchedRootEvents = await ndk.fetchEvents(rootPostsFilter)
-            let rootPosts = Array.from(fetchedRootEvents.values()).filter((event) => {
-                if (event.kind !== NDKKind.Text) return false
-                const eTags = event.tags.filter((tag) => tag[0].toLowerCase() === 'e')
-                const isNip10Reply = eTags.some((tag) => tag.length >= 4 && (tag[3] === 'reply' || tag[3] === 'root'))
-                return !isNip10Reply
-            })
-            rootPosts.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-
-            // Step 2: Iteratively fetch Kind 1111 replies
-            const allFetchedReplies: NDKEvent[] = []
-            let parentEventIdsToFetchRepliesFor = rootPosts.map((event) => event.id)
-            const fetchedReplyIds = new Set<string>() // To avoid re-fetching or processing same reply
-
-            for (let depth = 0; depth < MAX_REPLY_FETCH_DEPTH; depth++) {
-                if (parentEventIdsToFetchRepliesFor.length === 0) {
-                    console.log(`No more parent IDs to fetch replies for at depth ${depth}. Breaking.`)
-                    break
+                // Step 1: Fetch Kind 1 root posts
+                const rootPostsFilter = {
+                    kinds: [NDKKind.Text],
+                    '#t': ['wavefunc', 'shoutbox'],
+                    limit: 50,
                 }
+                const fetchedRootEvents = await ndk.fetchEvents(rootPostsFilter)
+                let rootPosts = Array.from(fetchedRootEvents.values()).filter((event) => {
+                    if (event.kind !== NDKKind.Text) return false
+                    const eTags = event.tags.filter((tag) => tag[0].toLowerCase() === 'e')
+                    const isNip10Reply = eTags.some(
+                        (tag) => tag.length >= 4 && (tag[3] === 'reply' || tag[3] === 'root'),
+                    )
+                    return !isNip10Reply
+                })
+                rootPosts.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
 
-                const repliesFilter = {
-                    kinds: [1111],
-                    '#e': parentEventIdsToFetchRepliesFor,
-                    limit: parentEventIdsToFetchRepliesFor.length * REPLIES_FETCH_LIMIT_PER_DEPTH, // Limit per iteration based on parents
-                }
-                const newRepliesCollection = await ndk.fetchEvents(repliesFilter)
-                const newRepliesArray = Array.from(newRepliesCollection.values())
+                // Step 2: Iteratively fetch Kind 1111 replies
+                const allFetchedReplies: NDKEvent[] = []
+                let parentEventIdsToFetchRepliesFor = rootPosts.map((event) => event.id)
+                const fetchedReplyIds = new Set<string>()
 
-                const trulyNewReplies: NDKEvent[] = []
-                for (const reply of newRepliesArray) {
-                    if (!fetchedReplyIds.has(reply.id)) {
-                        trulyNewReplies.push(reply)
-                        allFetchedReplies.push(reply)
-                        fetchedReplyIds.add(reply.id)
+                for (let depth = 0; depth < MAX_REPLY_FETCH_DEPTH; depth++) {
+                    if (parentEventIdsToFetchRepliesFor.length === 0) break
+
+                    const repliesFilter = {
+                        kinds: [1111],
+                        '#e': parentEventIdsToFetchRepliesFor,
+                        limit: parentEventIdsToFetchRepliesFor.length * REPLIES_FETCH_LIMIT_PER_DEPTH,
                     }
+                    const newRepliesCollection = await ndk.fetchEvents(repliesFilter)
+                    const newRepliesArray = Array.from(newRepliesCollection.values())
+
+                    const trulyNewReplies: NDKEvent[] = []
+                    for (const reply of newRepliesArray) {
+                        if (!fetchedReplyIds.has(reply.id)) {
+                            trulyNewReplies.push(reply)
+                            allFetchedReplies.push(reply)
+                            fetchedReplyIds.add(reply.id)
+                        }
+                    }
+
+                    if (trulyNewReplies.length === 0) break
+                    parentEventIdsToFetchRepliesFor = trulyNewReplies.map((event) => event.id)
                 }
 
-                if (trulyNewReplies.length === 0) {
-                    console.log(`No new unique replies found at depth ${depth}. Breaking.`)
-                    break
-                }
-                parentEventIdsToFetchRepliesFor = trulyNewReplies.map((event) => event.id)
-            }
-            console.log(`Total fetched replies after all depths: ${allFetchedReplies.length}`)
-
-            return { rootPosts, allReplyEvents: allFetchedReplies }
+                return { rootPosts, allReplyEvents: allFetchedReplies }
+            }, 'fetchShoutboxMessages')
         },
-        staleTime: 1000 * 60,
-        refetchInterval: 1000 * 60 * 5, // Longer refetch interval for this complex query
         enabled: !!shoutboxEvent,
+        staleTime: 2 * 60 * 1000, // 2 minutes
+        refetchInterval: 5 * 60 * 1000, // 5 minutes
     })
 
     const filterEvents = useCallback((eventsToFilter: NDKEvent[], category: ShoutboxCategory) => {
