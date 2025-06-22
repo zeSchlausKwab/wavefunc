@@ -20,18 +20,13 @@ export function useRealtimeStations() {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up station subscription')
-
-        // Subscribe to radio station events (kind 30311)
         const sub = ndk.subscribe({
-            kinds: [30311 as NDKKind],
+            kinds: [31237 as NDKKind],
             limit: 0, // Get all new events from now on
         })
 
         sub.on('event', (event: NDKEvent) => {
             try {
-                console.log('[Realtime] Received station event:', event.id)
-
                 // Convert event to station object
                 const station = mapNostrEventToStation(event)
                 if (!station) return
@@ -104,12 +99,7 @@ export function useRealtimeStations() {
             }
         })
 
-        sub.on('eose', () => {
-            console.log('[Realtime] Station subscription end of stored events')
-        })
-
         return () => {
-            console.log('[Realtime] Cleaning up station subscription')
             sub.stop()
         }
     }, [queryClient])
@@ -125,8 +115,6 @@ export function useRealtimeComments() {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up comment subscription')
-
         // Subscribe to comment events (kind 1111 with #e or #a tags)
         const sub = ndk.subscribe({
             kinds: [1111 as NDKKind], // COMMENT_KIND
@@ -140,8 +128,6 @@ export function useRealtimeComments() {
                 const referencedStation = event.tags.find((tag) => tag[0] === 'a')?.[1]
 
                 if (!referencedEvent && !referencedStation) return
-
-                console.log('[Realtime] Received comment event:', event.id)
 
                 // Create comment object
                 const comment: Comment = {
@@ -165,35 +151,20 @@ export function useRealtimeComments() {
 
                         // Add new comment and sort by creation time
                         const newData = [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
-                        console.log(
-                            '[Realtime] Updated event comments cache. Event:',
-                            referencedEvent,
-                            'Count:',
-                            newData.length,
-                        )
                         return newData
                     })
                 }
 
                 if (referencedStation) {
-                    console.log('[Realtime] Updating station comments cache for:', referencedStation)
                     queryClient.setQueryData<Comment[]>(queryKeys.comments.byStation(referencedStation), (oldData) => {
-                        console.log(
-                            '[Realtime] Previous comments:',
-                            oldData?.length || 0,
-                            'Adding new comment:',
-                            comment.id,
-                        )
                         if (!oldData) return [comment]
 
                         const exists = oldData.some((c) => c.id === comment.id)
                         if (exists) {
-                            console.log('[Realtime] Comment already exists, skipping')
                             return oldData
                         }
 
                         const newData = [...oldData, comment].sort((a, b) => a.created_at - b.created_at)
-                        console.log('[Realtime] Updated comments count:', newData.length)
                         return newData
                     })
                 }
@@ -215,7 +186,6 @@ export function useRealtimeComments() {
         })
 
         return () => {
-            console.log('[Realtime] Cleaning up comment subscription')
             sub.stop()
         }
     }, [queryClient])
@@ -231,9 +201,6 @@ export function useRealtimeReactions() {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up reaction subscription')
-
-        // Subscribe to reaction events (kind 7)
         const sub = ndk.subscribe({
             kinds: [7 as NDKKind],
             limit: 0,
@@ -241,15 +208,11 @@ export function useRealtimeReactions() {
 
         sub.on('event', (event: NDKEvent) => {
             try {
-                // Get the referenced event
                 const referencedEvent = event.tags.find((tag) => tag[0] === 'e')?.[1]
                 const referencedStation = event.tags.find((tag) => tag[0] === 'a')?.[1]
 
                 if (!referencedEvent && !referencedStation) return
 
-                console.log('[Realtime] Received reaction event:', event.id)
-
-                // Invalidate reaction queries to trigger refetch
                 if (referencedEvent) {
                     queryClient.invalidateQueries({
                         queryKey: queryKeys.reactions.byEvent(referencedEvent),
@@ -270,7 +233,6 @@ export function useRealtimeReactions() {
         })
 
         return () => {
-            console.log('[Realtime] Cleaning up reaction subscription')
             sub.stop()
         }
     }, [queryClient])
@@ -286,9 +248,6 @@ export function useRealtimeProfiles() {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up profile subscription')
-
-        // Subscribe to profile metadata events (kind 0)
         const sub = ndk.subscribe({
             kinds: [0 as NDKKind],
             limit: 0,
@@ -296,8 +255,6 @@ export function useRealtimeProfiles() {
 
         sub.on('event', (event: NDKEvent) => {
             try {
-                console.log('[Realtime] Received profile event:', event.pubkey)
-
                 // Invalidate all profile-related queries for this pubkey
                 queryClient.invalidateQueries({
                     queryKey: queryKeys.profiles.detail(event.pubkey),
@@ -316,7 +273,6 @@ export function useRealtimeProfiles() {
         })
 
         return () => {
-            console.log('[Realtime] Cleaning up profile subscription')
             sub.stop()
         }
     }, [queryClient])
@@ -332,19 +288,13 @@ export function useRealtimeFavorites() {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up favorites subscription')
-
-        // Subscribe to favorites list events (kind 30001 for bookmarks/favorites)
         const sub = ndk.subscribe({
-            kinds: [30001 as NDKKind],
+            kinds: [30078 as NDKKind],
             limit: 0,
         })
 
         sub.on('event', (event: NDKEvent) => {
             try {
-                console.log('[Realtime] Received favorites event:', event.id)
-
-                // Invalidate favorites queries for this user
                 queryClient.invalidateQueries({
                     queryKey: queryKeys.favorites.byUser(event.pubkey),
                 })
@@ -366,7 +316,6 @@ export function useRealtimeFavorites() {
         })
 
         return () => {
-            console.log('[Realtime] Cleaning up favorites subscription')
             sub.stop()
         }
     }, [queryClient])

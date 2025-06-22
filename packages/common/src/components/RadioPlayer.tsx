@@ -113,30 +113,6 @@ async function resolveStreamUrl(url: string): Promise<string> {
     return url
 }
 
-/**
- * Try to fetch Icecast metadata from a stream URL
- */
-// async function fetchIcecastMetadata(streamUrl: string): Promise<IcecastMetadata | null> {
-//     try {
-//         // Extract the base server URL
-//         const url = new URL(streamUrl)
-//         const serverBaseUrl = `${url.protocol}//${url.hostname}${url.port ? ':' + url.port : ''}`
-
-//         // Use our proxy endpoint to avoid CORS issues
-//         const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(serverBaseUrl + '/status-json.xsl')}`
-
-//         const response = await fetch(proxyUrl)
-//         if (!response.ok) {
-//             throw new Error(`Failed to fetch Icecast metadata: ${response.status}`)
-//         }
-
-//         const data = await response.json()
-//         return data as IcecastMetadata
-//     } catch (error) {
-//         return null
-//     }
-// }
-
 export function RadioPlayer() {
     const { isPlaying, currentStation } = useStore(stationsStore)
     const hasNext = useHasNext()
@@ -184,17 +160,6 @@ export function RadioPlayer() {
             .then((url) => {
                 setResolvedStreamUrl(url)
                 setError(undefined)
-
-                // After resolving URL, try to fetch Icecast metadata
-                // setIcecastLoading(true)
-                // return fetchIcecastMetadata(url)
-                //     .then((data) => {
-                //         setIcecastMetadata(data)
-                //         setIcecastLoading(false)
-                //     })
-                //     .catch(() => {
-                //         setIcecastLoading(false)
-                //     })
             })
             .catch((err) => {
                 console.error('Error resolving stream URL:', err)
@@ -202,28 +167,6 @@ export function RadioPlayer() {
                 setIsBuffering(false)
             })
     }, [streamUrl])
-
-    // Periodically refresh Icecast metadata when playing
-    // useEffect(() => {
-    //     if (!isPlaying || !resolvedStreamUrl) return
-
-    //     const refreshIcecast = async () => {
-    //         try {
-    //             const data = await fetchIcecastMetadata(resolvedStreamUrl)
-    //             setIcecastMetadata(data)
-    //         } catch (error) {
-    //             console.error('Error refreshing Icecast metadata:', error)
-    //         }
-    //     }
-
-    //     // Initial fetch
-    //     refreshIcecast()
-
-    //     // Set up polling every 30 seconds
-    //     const interval = setInterval(refreshIcecast, 30000)
-
-    //     return () => clearInterval(interval)
-    // }, [isPlaying, resolvedStreamUrl])
 
     useEffect(() => {
         if (isPlaying && currentStation) {
@@ -498,46 +441,6 @@ export function RadioPlayer() {
                                 </Tooltip>
                             </TooltipProvider>
                         )}
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className={cn(
-                                            'h-9 w-9 border-2 border-black',
-                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                            'transition-transform hover:translate-y-[-2px]',
-                                            showTechnicalInfo && 'bg-gray-100',
-                                        )}
-                                        onClick={toggleTechnicalInfo}
-                                    >
-                                        <Headphones className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Station Technical Info</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className={cn(
-                                            'h-9 w-9 border-2 border-black',
-                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                            'transition-transform hover:translate-y-[-2px]',
-                                            showDiscogsSearch && 'bg-purple-100',
-                                        )}
-                                        onClick={toggleDiscogsSearch}
-                                    >
-                                        <Music className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Discogs Music Search</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>

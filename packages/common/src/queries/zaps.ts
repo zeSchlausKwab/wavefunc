@@ -93,8 +93,6 @@ export function useZapReceipts(
                     throw new Error('NDK not available')
                 }
 
-                console.log('[Zaps] Fetching zap receipts for event:', eventId)
-
                 const filter = {
                     kinds: [9735 as NDKKind],
                     '#e': [eventId],
@@ -175,9 +173,6 @@ export function useRealtimeZaps(eventId?: string) {
         const ndk = ndkActions.getNDK()
         if (!ndk) return
 
-        console.log('[Realtime] Setting up zap subscription for event:', eventId)
-
-        // Subscribe to zap receipt events (kind 9735)
         const filter = {
             kinds: [9735 as NDKKind],
             limit: 0, // Get all new events from now on
@@ -188,8 +183,6 @@ export function useRealtimeZaps(eventId?: string) {
 
         sub.on('event', (event: NDKEvent) => {
             try {
-                console.log('[Realtime] Received zap event:', event.id)
-
                 // If we're listening for a specific event, parse and update that cache
                 if (eventId) {
                     const receipt = parseZapReceipt(event, eventId)
@@ -241,7 +234,6 @@ export function useRealtimeZaps(eventId?: string) {
         })
 
         return () => {
-            console.log('[Realtime] Cleaning up zap subscription')
             sub.stop()
         }
     }, [queryClient, eventId])

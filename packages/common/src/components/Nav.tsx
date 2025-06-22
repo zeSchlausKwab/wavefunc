@@ -9,8 +9,8 @@ const routes = [
     { href: '/discover', label: 'Discover', icon: <Disc className="h-4 w-4 mr-1.5" /> },
     { href: '/library', label: 'Library', icon: <BookOpen className="h-4 w-4 mr-1.5" /> },
     { href: '/legacy', label: 'Legacy', icon: <Radio className="h-4 w-4 mr-1.5" /> },
-    { href: '/about', label: 'About', icon: <Headphones className="h-4 w-4 mr-1.5" /> },
     { href: '/community', label: 'Community', icon: <MessageCircle className="h-4 w-4 mr-1.5" /> },
+    { href: '/about', label: 'About', icon: <Headphones className="h-4 w-4 mr-1.5" /> },
 ]
 
 interface NavProps {

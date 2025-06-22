@@ -8,16 +8,13 @@ import NDK, { type NDKUserProfile } from '@nostr-dev-kit/ndk'
  */
 export async function fetchProfileByPubkey(ndk: NDK, pubkey: string): Promise<NDKUserProfile | null> {
     try {
-        console.log(`Fetching profile for pubkey: ${pubkey}`)
         const user = ndk.getUser({ pubkey })
         const profile = await user.fetchProfile()
 
         if (!profile) {
-            console.log(`No profile found for pubkey: ${pubkey}`)
             return null
         }
 
-        console.log(`Profile found: ${profile.name || 'Unnamed'}`)
         return {
             name: profile.name,
             displayName: profile.displayName,
