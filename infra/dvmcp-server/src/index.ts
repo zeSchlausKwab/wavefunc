@@ -2,11 +2,22 @@ import dotenv from 'dotenv'
 import { spawn } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-dotenv.config({ path: '../../.env' })
+// Load environment variables from the project root (only in development)
+const projectRoot = path.resolve(__dirname, '../../../')
+const envPath = path.join(projectRoot, '.env')
+
+// Only try to load .env file if it exists (for local development)
+if (fs.existsSync(envPath)) {
+    console.log(`Loading .env file from: ${envPath}`)
+    dotenv.config({ path: envPath })
+} else {
+    console.log('No .env file found - using environment variables from system')
+}
 
 async function startDVMCPBridge() {
     const requiredEnvVars = [
@@ -17,9 +28,12 @@ async function startDVMCPBridge() {
         'DVM_LIGHTNING_ZAP_RELAYS',
     ]
 
+    console.log('Environment check:')
     for (const varName of requiredEnvVars) {
-        if (!process.env[varName]) {
-            console.error(`${varName} environment variable is required`)
+        const isSet = !!process.env[varName]
+        console.log(`- ${varName}: ${isSet ? '✓ Set' : '✗ Missing'}`)
+        if (!isSet) {
+            console.error(`ERROR: ${varName} environment variable is required`)
             process.exit(1)
         }
     }
