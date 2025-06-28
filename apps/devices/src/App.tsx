@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
-import { createQueryClient, envActions, initializeAppCore, type EnvConfig as CoreEnvConfig } from '@wavefunc/common'
+import { createQueryClient, envActions, type EnvConfig as CoreEnvConfig } from '@wavefunc/common'
 import { StrictMode, useEffect, useState } from 'react'
 import { routeTree } from './routeTree.gen'
 
