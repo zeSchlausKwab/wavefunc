@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@wavefunc/ui/component
 import { Separator } from '@wavefunc/ui/components/ui/separator'
 import { cn } from '@wavefunc/common'
 import type { RecognitionResult } from '@wavefunc/common/src/types/recognition'
-import { ExternalLink, Music, Users, Disc } from 'lucide-react'
+import { ExternalLink, Music, Users, Disc, Calendar, MapPin } from 'lucide-react'
 
 interface MusicBrainzMetadataProps {
     result: RecognitionResult
@@ -18,13 +18,11 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
     }
 
     // Check if musicbrainz has any meaningful data
-    const hasRecordingData = musicbrainz.recording && Object.keys(musicbrainz.recording).length > 0
-    const hasArtistsData = musicbrainz.artists && musicbrainz.artists.length > 0
-    const hasReleaseData = musicbrainz.release && Object.keys(musicbrainz.release).length > 0
-    const hasReleaseGroupData = musicbrainz['release-group'] && Object.keys(musicbrainz['release-group']).length > 0
-    const hasLabelsData = musicbrainz.labels && musicbrainz.labels.length > 0
+    const hasRecordingData = musicbrainz.recording?.recordings && musicbrainz.recording.recordings.length > 0
+    const hasReleaseData = musicbrainz.release?.releases && musicbrainz.release.releases.length > 0
 
-    const hasData = hasRecordingData || hasArtistsData || hasReleaseData || hasReleaseGroupData || hasLabelsData
+    const hasData = hasRecordingData || hasReleaseData
+
     if (!hasData) {
         return null
     }
@@ -42,232 +40,197 @@ export function MusicBrainzMetadata({ result, className }: MusicBrainzMetadataPr
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Music className="h-5 w-5 text-blue-600" />
                     MusicBrainz Metadata
+                    <Badge variant="secondary" className="text-xs">
+                        {musicbrainz.recording?.count || 0} recordings, {musicbrainz.release?.count || 0} releases
+                    </Badge>
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
                 {/* Recording Information */}
-                {musicbrainz.recording && (
-                    <div className="space-y-2">
+                {hasRecordingData && (
+                    <div className="space-y-3">
                         <div className="flex items-center gap-2">
                             <Disc className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-sm">Recording</span>
+                            <span className="font-medium text-sm">Recordings</span>
                         </div>
-                        <div className="grid gap-1 text-sm pl-6">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Title</span>
-                                <span className="font-medium">{musicbrainz.recording.title}</span>
-                            </div>
-                            {musicbrainz.recording.disambiguation && (
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Note</span>
-                                    <span className="text-orange-600 text-xs">
-                                        {musicbrainz.recording.disambiguation}
-                                    </span>
+                        <div className="space-y-4 pl-6">
+                            {musicbrainz.recording!.recordings.slice(0, 3).map((recording, index) => (
+                                <div key={recording.id} className="space-y-2">
+                                    <div className="grid gap-1 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Title</span>
+                                            <span className="font-medium">{recording.title}</span>
+                                        </div>
+                                        {recording.disambiguation && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Note</span>
+                                                <span className="text-orange-600 text-xs">
+                                                    {recording.disambiguation}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {recording.length && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Length</span>
+                                                <span>{formatDuration(recording.length)}</span>
+                                            </div>
+                                        )}
+                                        {recording.score && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Match Score</span>
+                                                <Badge
+                                                    variant={recording.score === 100 ? 'default' : 'secondary'}
+                                                    className="text-xs"
+                                                >
+                                                    {recording.score}%
+                                                </Badge>
+                                            </div>
+                                        )}
+                                        {recording['artist-credit'] && recording['artist-credit'].length > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Artist</span>
+                                                <span className="text-sm">
+                                                    {recording['artist-credit'].map((ac) => ac.name).join(' & ')}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">MBID</span>
+                                            <a
+                                                href={`https://musicbrainz.org/recording/${recording.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
+                                            >
+                                                {recording.id.slice(0, 8)}...
+                                                <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {index < Math.min(musicbrainz.recording!.recordings.length, 3) - 1 && (
+                                        <Separator className="my-2" />
+                                    )}
                                 </div>
-                            )}
-                            {musicbrainz.recording.length && (
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Length</span>
-                                    <span>{formatDuration(musicbrainz.recording.length)}</span>
-                                </div>
-                            )}
-                            {musicbrainz.recording.id && (
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">MBID</span>
-                                    <a
-                                        href={`https://musicbrainz.org/recording/${musicbrainz.recording.id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                    >
-                                        {musicbrainz.recording.id.slice(0, 8)}...
-                                        <ExternalLink className="h-3 w-3" />
-                                    </a>
+                            ))}
+                            {musicbrainz.recording!.recordings.length > 3 && (
+                                <div className="text-xs text-muted-foreground">
+                                    ... and {musicbrainz.recording!.recordings.length - 3} more recordings
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* Artists Information */}
-                {musicbrainz.artists && musicbrainz.artists.length > 0 && (
-                    <>
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">Artists</span>
-                            </div>
-                            <div className="grid gap-2 pl-6">
-                                {musicbrainz.artists.map((artist, index) => (
-                                    <div key={artist.id} className="space-y-1">
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1">
-                                                <div className="font-medium text-sm">{artist.name}</div>
-                                                {artist['sort-name'] !== artist.name && (
-                                                    <div className="text-xs text-muted-foreground">
-                                                        Sort: {artist['sort-name']}
-                                                    </div>
-                                                )}
-                                                {artist.disambiguation && (
-                                                    <Badge variant="outline" className="text-xs">
-                                                        {artist.disambiguation}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <a
-                                                href={`https://musicbrainz.org/artist/${artist.id}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                            >
-                                                View <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        </div>
-                                        {index < (musicbrainz.artists?.length || 0) - 1 && (
-                                            <Separator className="my-2" />
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
-                )}
-
                 {/* Release Information */}
-                {musicbrainz.release && (
+                {hasReleaseData && (
                     <>
-                        <Separator />
-                        <div className="space-y-2">
+                        {hasRecordingData && <Separator />}
+                        <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Disc className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">Release</span>
+                                <span className="font-medium text-sm">Releases</span>
                             </div>
-                            <div className="grid gap-1 text-sm pl-6">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Title</span>
-                                    <span className="font-medium">{musicbrainz.release.title}</span>
-                                </div>
-                                {musicbrainz.release.date && (
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Date</span>
-                                        <span>{musicbrainz.release.date}</span>
-                                    </div>
-                                )}
-                                {musicbrainz.release.country && (
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Country</span>
-                                        <span>{musicbrainz.release.country}</span>
-                                    </div>
-                                )}
-                                {musicbrainz.release.id && (
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">MBID</span>
-                                        <a
-                                            href={`https://musicbrainz.org/release/${musicbrainz.release.id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                        >
-                                            {musicbrainz.release.id.slice(0, 8)}...
-                                            <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* Release Group Information */}
-                {musicbrainz['release-group'] && (
-                    <>
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Disc className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">Release Group</span>
-                            </div>
-                            <div className="grid gap-1 text-sm pl-6">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Title</span>
-                                    <span className="font-medium">{musicbrainz['release-group'].title}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Type</span>
-                                    <Badge variant="secondary" className="text-xs">
-                                        {musicbrainz['release-group']['primary-type']}
-                                    </Badge>
-                                </div>
-                                {musicbrainz['release-group']['secondary-types'] &&
-                                    musicbrainz['release-group']['secondary-types'].length > 0 && (
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Secondary</span>
-                                            <div className="flex gap-1">
-                                                {musicbrainz['release-group']['secondary-types'].map((type) => (
-                                                    <Badge key={type} variant="outline" className="text-xs">
-                                                        {type}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                {musicbrainz['release-group'].id && (
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">MBID</span>
-                                        <a
-                                            href={`https://musicbrainz.org/release-group/${musicbrainz['release-group'].id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
-                                        >
-                                            {musicbrainz['release-group'].id.slice(0, 8)}...
-                                            <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* Labels Information */}
-                {musicbrainz.labels && musicbrainz.labels.length > 0 && (
-                    <>
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Badge className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">Labels</span>
-                            </div>
-                            <div className="grid gap-2 pl-6">
-                                {musicbrainz.labels.map((labelInfo, index) => (
-                                    <div key={index} className="space-y-1">
-                                        {labelInfo.label && (
+                            <div className="space-y-4 pl-6">
+                                {musicbrainz.release!.releases.slice(0, 3).map((release, index) => (
+                                    <div key={release.id} className="space-y-2">
+                                        <div className="grid gap-1 text-sm">
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Label</span>
+                                                <span className="text-muted-foreground">Title</span>
+                                                <span className="font-medium">{release.title}</span>
+                                            </div>
+                                            {release.status && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Status</span>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {release.status}
+                                                    </Badge>
+                                                </div>
+                                            )}
+                                            {release.date && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Date</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <Calendar className="h-3 w-3" />
+                                                        <span>{release.date}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {release.country && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Country</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <MapPin className="h-3 w-3" />
+                                                        <span>{release.country}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {release.score && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Match Score</span>
+                                                    <Badge
+                                                        variant={release.score === 100 ? 'default' : 'secondary'}
+                                                        className="text-xs"
+                                                    >
+                                                        {release.score}%
+                                                    </Badge>
+                                                </div>
+                                            )}
+                                            {release['artist-credit'] && release['artist-credit'].length > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Artist</span>
+                                                    <span className="text-sm">
+                                                        {release['artist-credit'].map((ac) => ac.name).join(' & ')}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {release['release-group'] && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Type</span>
+                                                    <div className="flex gap-1">
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {release['release-group']['primary-type']}
+                                                        </Badge>
+                                                        {release['release-group']['secondary-types']?.map((type) => (
+                                                            <Badge key={type} variant="outline" className="text-xs">
+                                                                {type}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {release['label-info'] && release['label-info'].length > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-muted-foreground">Label</span>
+                                                    <span className="text-sm">
+                                                        {release['label-info'][0].label.name}
+                                                        {release['label-info'][0]['catalog-number'] &&
+                                                            ` (${release['label-info'][0]['catalog-number']})`}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">MBID</span>
                                                 <a
-                                                    href={`https://musicbrainz.org/label/${labelInfo.label.id}`}
+                                                    href={`https://musicbrainz.org/release/${release.id}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs"
                                                 >
-                                                    {labelInfo.label.name}
+                                                    {release.id.slice(0, 8)}...
                                                     <ExternalLink className="h-3 w-3" />
                                                 </a>
                                             </div>
-                                        )}
-                                        {labelInfo['catalog-number'] && (
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Catalog #</span>
-                                                <span className="text-sm font-mono">{labelInfo['catalog-number']}</span>
-                                            </div>
-                                        )}
-                                        {index < (musicbrainz.labels?.length || 0) - 1 && (
+                                        </div>
+                                        {index < Math.min(musicbrainz.release!.releases.length, 3) - 1 && (
                                             <Separator className="my-2" />
                                         )}
                                     </div>
                                 ))}
+                                {musicbrainz.release!.releases.length > 3 && (
+                                    <div className="text-xs text-muted-foreground">
+                                        ... and {musicbrainz.release!.releases.length - 3} more releases
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>

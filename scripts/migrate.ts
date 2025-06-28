@@ -25,7 +25,7 @@ const conn = mysql.createPool({
 // Setup NDK with a signer
 const signer = new NDKPrivateKeySigner(PRIVATE_KEY)
 // const relayUrls = ['wss://relay.wavefunc.live']
-const relayUrls = ['ws://192.168.0.166:3002']
+const relayUrls = ['ws://192.168.0.163:3002']
 
 const ndk = new NDK({
     explicitRelayUrls: relayUrls,

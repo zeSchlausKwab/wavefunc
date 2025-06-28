@@ -1,10 +1,9 @@
-import { Button } from '@wavefunc/ui/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@wavefunc/ui/components/ui/dialog'
 import { cn } from '@wavefunc/common'
-import type { RecognitionResult } from '@wavefunc/common/src/types/recognition'
-import { ExternalLink } from 'lucide-react'
 import { DiscogsMetadata } from '@wavefunc/common/src/components/DiscogsMetadata'
 import { MusicBrainzMetadata } from '@wavefunc/common/src/components/MusicBrainzMetadata'
+import type { RecognitionResult } from '@wavefunc/common/src/types/recognition'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@wavefunc/ui/components/ui/dialog'
+import { ExternalLink } from 'lucide-react'
 
 interface RecognitionResultDialogProps {
     result: RecognitionResult | null
@@ -116,15 +115,7 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
                         </div>
 
                         {result.discogs && <DiscogsMetadata result={result} className="mt-4" />}
-                        {result.musicbrainz &&
-                            ((result.musicbrainz.recording && Object.keys(result.musicbrainz.recording).length > 0) ||
-                                (result.musicbrainz.artists && result.musicbrainz.artists.length > 0) ||
-                                (result.musicbrainz.release && Object.keys(result.musicbrainz.release).length > 0) ||
-                                (result.musicbrainz['release-group'] &&
-                                    Object.keys(result.musicbrainz['release-group']).length > 0) ||
-                                (result.musicbrainz.labels && result.musicbrainz.labels.length > 0)) && (
-                                <MusicBrainzMetadata result={result} className="mt-4" />
-                            )}
+                        {result.musicbrainz && <MusicBrainzMetadata result={result} className="mt-4" />}
                     </div>
                 )}
             </DialogContent>

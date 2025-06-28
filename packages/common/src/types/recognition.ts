@@ -72,38 +72,78 @@ export interface RecognitionResult {
     }
     musicbrainz?: {
         recording?: {
-            id: string
-            title: string
-            length?: number
-            disambiguation?: string
+            created: string
+            count: number
+            offset: number
+            recordings: Array<{
+                id: string
+                score: number
+                title: string
+                length?: number
+                disambiguation?: string
+                'artist-credit': Array<{
+                    name: string
+                    artist: {
+                        id: string
+                        name: string
+                        'sort-name': string
+                        disambiguation?: string
+                    }
+                }>
+                releases?: Array<{
+                    id: string
+                    title: string
+                    status: string
+                    'release-group': {
+                        id: string
+                        title: string
+                        'primary-type': string
+                        'secondary-types'?: string[]
+                    }
+                }>
+            }>
         }
         release?: {
-            id: string
-            title: string
-            date?: string
-            country?: string
-            barcode?: string
-            status?: string
-        }
-        artists?: Array<{
-            id: string
-            name: string
-            'sort-name': string
-            disambiguation?: string
-        }>
-        'release-group'?: {
-            id: string
-            title: string
-            'primary-type': string
-            'secondary-types'?: string[]
-        }
-        labels?: Array<{
-            'catalog-number'?: string
-            label?: {
+            created: string
+            count: number
+            offset: number
+            releases: Array<{
                 id: string
-                name: string
-            }
-        }>
+                score: number
+                title: string
+                status: string
+                date?: string
+                country?: string
+                'artist-credit': Array<{
+                    name: string
+                    joinphrase?: string
+                    artist: {
+                        id: string
+                        name: string
+                        'sort-name': string
+                        disambiguation?: string
+                    }
+                }>
+                'release-group': {
+                    id: string
+                    title: string
+                    'primary-type': string
+                    'secondary-types'?: string[]
+                }
+                'label-info'?: Array<{
+                    'catalog-number'?: string
+                    label: {
+                        id: string
+                        name: string
+                    }
+                }>
+                media?: Array<{
+                    id: string
+                    format?: string
+                    'track-count': number
+                }>
+            }>
+        }
     }
 }
 

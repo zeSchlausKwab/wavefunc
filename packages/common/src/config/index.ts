@@ -64,6 +64,17 @@ export const config = {
         env: getEnvVar('VITE_PUBLIC_APP_ENV', 'development'),
         isProd: getEnvVar('VITE_PUBLIC_APP_ENV', 'development') === 'production',
         isDev: getEnvVar('VITE_PUBLIC_APP_ENV', 'development') === 'development',
+        pubkey: getEnvVar('VITE_APP_PUBKEY', ''),
+        privateKey: getEnvVar('APP_PRIVATE_KEY', ''),
+        userAgent: getEnvVar('APP_USER_AGENT', 'WaveFunc/1.0'),
+        baseUrl: getEnvVar('PUBLIC_BASE_URL', 'https://wavefunc.live'),
+        logoUrl: getEnvVar('APP_LOGO_URL', 'https://wavefunc.live/images/logo.png'),
+        nip05Verification: getEnvVar('NIP05_VERIFICATION', 'Wavefunc@wavefunc.live'),
+    },
+
+    publicKeys: {
+        featured: getEnvVar('FEATURED_STATIONS_PUBKEY', ''),
+        dvmcpFallback: getEnvVar('DVMCP_FALLBACK_PUBKEY', ''),
     },
 
     web: {
@@ -75,49 +86,103 @@ export const config = {
         port: getEnvVarAsNumber('VITE_PUBLIC_API_PORT', 3001),
     },
 
-    databases: {
-        primary: {
-            connectionString: getEnvVar(
-                'POSTGRES_CONNECTION_STRING',
-                'postgres://postgres:postgres@localhost:5432/nostr?sslmode=disable',
-            ),
-            host: getEnvVar('POSTGRES_HOST', 'localhost'),
-            port: getEnvVarAsNumber('POSTGRES_PORT', 5432),
-            user: getEnvVar('POSTGRES_USER', 'postgres'),
-            password: getEnvVar('POSTGRES_PASSWORD', 'postgres'),
-            database: getEnvVar('POSTGRES_DB', 'nostr'),
-        },
-
-        secondary: {
-            connectionString: getEnvVar(
-                'POSTGRES_SECONDARY_CONNECTION_STRING',
-                'postgres://postgres:postgres@localhost:5433/nostr_events?sslmode=disable',
-            ),
-            host: getEnvVar('POSTGRES_SECONDARY_HOST', 'localhost'),
-            port: getEnvVarAsNumber('POSTGRES_SECONDARY_PORT', 5433),
-            user: getEnvVar('POSTGRES_SECONDARY_USER', 'postgres'),
-            password: getEnvVar('POSTGRES_SECONDARY_PASSWORD', 'postgres'),
-            database: getEnvVar('POSTGRES_SECONDARY_DB', 'nostr_events'),
-        },
+    database: {
+        connectionString: getEnvVar(
+            'POSTGRES_CONNECTION_STRING',
+            'postgres://postgres:postgres@localhost:5432/nostr?sslmode=disable',
+        ),
+        host: getEnvVar('POSTGRES_HOST', 'localhost'),
+        port: getEnvVarAsNumber('POSTGRES_PORT', 5432),
+        user: getEnvVar('POSTGRES_USER', 'postgres'),
+        password: getEnvVar('POSTGRES_PASSWORD', 'postgres'),
+        database: getEnvVar('POSTGRES_DB', 'nostr'),
     },
 
     relay: {
         port: getEnvVarAsNumber('VITE_PUBLIC_RELAY_PORT', 3002),
-        pubkey: getEnvVar('PUBLIC_RELAY_PUBKEY', ''),
-        contact: getEnvVar('PUBLIC_RELAY_CONTACT', 'relay@example.com'),
+        privateKey: getEnvVar('RELAY_PRIVATE_KEY', ''),
+    },
+
+    nostr: {
+        relayUrls: getEnvVar('NOSTR_RELAY_URLS', '').split(',').filter(Boolean),
+        defaultRelayUrls: getEnvVar('DEFAULT_RELAY_URLS', '').split(',').filter(Boolean),
+        connectRelayUrl: getEnvVar('NOSTR_CONNECT_RELAY_URL', 'wss://relay.nsec.app/'),
     },
 
     dvm: {
         privateKey: getEnvVar('DVM_PRIVATE_KEY', ''),
+        relayUrls: getEnvVar('DVM_RELAY_URLS', ''),
+        lightningAddress: getEnvVar('DVM_LIGHTNING_ADDRESS', ''),
+        zapRelays: getEnvVar('DVM_LIGHTNING_ZAP_RELAYS', ''),
     },
 
     audd: {
         apiToken: getEnvVar('AUDD_API_TOKEN', ''),
+        apiUrl: getEnvVar('AUDD_API_URL', 'https://api.audd.io/'),
+    },
+
+    discogs: {
+        personalAccessToken: getEnvVar('DISCOGS_PA_TOKEN', ''),
+        apiUrl: getEnvVar('DISCOGS_API_URL', 'https://api.discogs.com/'),
+    },
+
+    musicbrainz: {
+        apiUrl: getEnvVar('MUSICBRAINZ_API_URL', 'https://musicbrainz.org/ws/2/'),
+    },
+
+    radioBrowser: {
+        apiUrl: getEnvVar('RADIO_BROWSER_API_URL', 'https://de2.api.radio-browser.info/json/stations'),
+    },
+
+    defaults: {
+        stationImageUrl: getEnvVar('DEFAULT_STATION_IMAGE_URL', 'https://picsum.photos/seed/no-station/200/200'),
+        featuredImageUrl: getEnvVar(
+            'DEFAULT_FEATURED_IMAGE_URL',
+            'https://images.wallpaperscraft.ru/image/single/gitarist_muzykant_kontsert_122198_1920x1080.jpg',
+        ),
     },
 
     services: {
         blossom: {
             url: getEnvVar('PUBLIC_BLOSSOM_URL', 'http://localhost:3004'),
+        },
+    },
+
+    // Composed/derived configurations
+    urls: {
+        // Local development URLs
+        get localRelay() {
+            const host = getEnvVar('VITE_PUBLIC_HOST', 'localhost')
+            const port = getEnvVarAsNumber('VITE_PUBLIC_RELAY_PORT', 3002)
+            return `ws://${host}:${port}`
+        },
+
+        get localApi() {
+            const host = getEnvVar('VITE_PUBLIC_HOST', 'localhost')
+            const port = getEnvVarAsNumber('VITE_PUBLIC_API_PORT', 3001)
+            return `http://${host}:${port}`
+        },
+
+        get localWeb() {
+            const host = getEnvVar('VITE_PUBLIC_HOST', 'localhost')
+            const port = getEnvVarAsNumber('VITE_PUBLIC_WEB_PORT', 8080)
+            return `http://${host}:${port}`
+        },
+
+        // Application URLs
+        get stationUrl() {
+            const baseUrl = getEnvVar('PUBLIC_BASE_URL', 'https://wavefunc.live')
+            return (bech32: string) => `${baseUrl}/station/${bech32}`
+        },
+
+        get profileUrl() {
+            const baseUrl = getEnvVar('PUBLIC_BASE_URL', 'https://wavefunc.live')
+            return (bech32: string) => `${baseUrl}/profile/${bech32}`
+        },
+
+        get adminApiEndpoint() {
+            const baseUrl = getEnvVar('PUBLIC_BASE_URL', 'https://wavefunc.live')
+            return `${baseUrl.replace('https://', 'wss://').replace('http://', 'ws://')}/admin/publish-handler`
         },
     },
 

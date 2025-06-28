@@ -53,110 +53,27 @@ export function useMusicRecognition() {
     const handleRecognitionResult = async (enrichedResult: any) => {
         console.log('[Music Recognition] Received enriched result:', enrichedResult)
 
-        // Handle the case where the result is already in the expected format
-        let recognition = enrichedResult
-
-        // If the result has a nested recognition object, extract it
-        if (enrichedResult.recognition) {
-            recognition = enrichedResult.recognition
-        }
+        // Check if the data has the expected structure from DVMCP service
+        const recognition = enrichedResult.recognition || enrichedResult
 
         if (!recognition.title || !recognition.artist) {
             throw new Error('Invalid recognition data - missing title or artist')
         }
 
-        // Create the enhanced result with the enriched data from DVMCP
-        const enhancedResult: RecognitionResult = {
-            ...recognition,
+        // Normalize the data structure to match RecognitionResult interface
+        const normalizedResult: RecognitionResult = {
+            title: recognition.title,
+            artist: recognition.artist,
+            album: recognition.album,
+            release_date: recognition.release_date,
+            song_link: recognition.song_link,
+            apple_music: recognition.apple_music,
+            spotify: recognition.spotify,
+            discogs: enrichedResult.discogs?.results?.[0] || null,
+            musicbrainz: enrichedResult.musicbrainz,
         }
 
-        // Add Discogs data if available and has meaningful content
-        if (enrichedResult.discogs && enrichedResult.discogs.results && enrichedResult.discogs.results.length > 0) {
-            const discogsRelease = enrichedResult.discogs.results[0]
-            enhancedResult.discogs = {
-                id: discogsRelease.id,
-                title: discogsRelease.title,
-                year: discogsRelease.year,
-                country: discogsRelease.country,
-                genres: discogsRelease.genre,
-                styles: discogsRelease.style,
-                labels: discogsRelease.label?.map((labelName: string, index: number) => ({
-                    name: labelName,
-                    catno: discogsRelease.catno || '',
-                })),
-                formats: discogsRelease.format?.map((formatName: string) => ({
-                    name: formatName,
-                    descriptions: discogsRelease.formats?.[0]?.descriptions || [],
-                })),
-                images: discogsRelease.thumb
-                    ? [
-                          {
-                              type: 'primary' as const,
-                              uri: discogsRelease.cover_image || discogsRelease.thumb,
-                              uri150: discogsRelease.thumb,
-                              width: 150,
-                              height: 150,
-                          },
-                      ]
-                    : undefined,
-                uri: `https://www.discogs.com${discogsRelease.uri}`,
-                community: discogsRelease.community
-                    ? {
-                          in_wantlist: discogsRelease.community.want || 0,
-                          in_collection: discogsRelease.community.have || 0,
-                      }
-                    : undefined,
-            }
-        }
-
-        // Add MusicBrainz data if available and has meaningful content
-        if (enrichedResult.musicbrainz) {
-            const mb = enrichedResult.musicbrainz
-            const hasRecordingData = mb.recording && Object.keys(mb.recording).length > 0
-            const hasReleaseData = mb.release && Object.keys(mb.release).length > 0
-            const hasArtistsData = mb.artists && mb.artists.length > 0
-
-            if (hasRecordingData || hasReleaseData || hasArtistsData) {
-                enhancedResult.musicbrainz = {
-                    recording: hasRecordingData
-                        ? {
-                              id: mb.recording.id,
-                              title: mb.recording.title,
-                              length: mb.recording.length,
-                              disambiguation: mb.recording.disambiguation,
-                          }
-                        : undefined,
-                    artists: hasArtistsData
-                        ? mb.artists.map((artist: any) => ({
-                              id: artist.id,
-                              name: artist.name,
-                              'sort-name': artist['sort-name'],
-                              disambiguation: artist.disambiguation,
-                          }))
-                        : undefined,
-                    release: hasReleaseData
-                        ? {
-                              id: mb.release.id,
-                              title: mb.release.title,
-                              date: mb.release.date,
-                              country: mb.release.country,
-                          }
-                        : undefined,
-                    'release-group':
-                        mb['release-group'] && Object.keys(mb['release-group']).length > 0
-                            ? {
-                                  id: mb['release-group'].id,
-                                  title: mb['release-group'].title,
-                                  'primary-type': mb['release-group']['primary-type'],
-                                  'secondary-types': mb['release-group']['secondary-types'],
-                              }
-                            : undefined,
-                    labels: mb.labels && mb.labels.length > 0 ? mb.labels : undefined,
-                }
-            }
-        }
-
-        setResult(enhancedResult)
+        setResult(normalizedResult)
         toast.success('Song Recognized! 🎵', {
             description: `${recognition.title} by ${recognition.artist}`,
         })

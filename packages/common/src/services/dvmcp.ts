@@ -29,7 +29,7 @@ const TOOLS_LIST_KIND = 31317
 
 export interface DVMCPResponse {
     type: 'audd_response' | 'audd_error' | 'music_recognition_result' | 'music_recognition_error'
-    result?: RecognitionResult | any // Allow enriched result format
+    result?: RecognitionResult
     error?: string
     error_code?: number
 }

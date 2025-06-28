@@ -21,19 +21,26 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 
     // Handle browser environment (Vite uses import.meta.env)
     if (isBrowser) {
-        // // For browser, try to get from import.meta.env
-        // // Note: Vite prefixes env vars with VITE_
-        // const viteKey = key.startsWith('VITE_') ? key : `VITE_${key}`
-        // // @ts-ignore - import.meta.env exists in Vite but TypeScript doesn't know about it
-        // value = import.meta.env[viteKey] || import.meta.env[key]
-        // // For PUBLIC_ variables, also check without the prefix
-        // if (!value && key.startsWith('PUBLIC_')) {
-        //     const unprefixedKey = key.replace('PUBLIC_', '')
-        //     // @ts-ignore
-        //     value = import.meta.env[`VITE_${unprefixedKey}`] || import.meta.env[unprefixedKey]
-        // }
+        // For browser, try to get from import.meta.env
+        // Note: Vite only exposes env vars that start with VITE_ to the browser
+        // @ts-ignore - import.meta.env exists in Vite but TypeScript doesn't know about it
+        value = import.meta.env[key]
+
+        // If the key doesn't start with VITE_, try the VITE_ prefixed version
+        if (!value && !key.startsWith('VITE_')) {
+            // @ts-ignore
+            value = import.meta.env[`VITE_${key}`]
+        }
+
+        // For PUBLIC_ variables, also check the VITE_PUBLIC_ version
+        if (!value && key.startsWith('PUBLIC_')) {
+            const vitePublicKey = key.replace('PUBLIC_', 'VITE_PUBLIC_')
+            // @ts-ignore
+            value = import.meta.env[vitePublicKey]
+        }
     } else {
-        // Node.js environment
+        // Node.js environment - check both process.env and Bun.env
+        value = process.env[key] || (typeof Bun !== 'undefined' ? Bun.env[key] : undefined)
     }
 
     // Use default value if provided and value is undefined
@@ -74,22 +81,6 @@ export function getEnvVarAsNumber(key: string, defaultValue?: number): number {
 export function getEnvVarAsBoolean(key: string, defaultValue?: boolean): boolean {
     const stringValue = getEnvVar(key, defaultValue?.toString()).toLowerCase()
     return stringValue === 'true' || stringValue === '1' || stringValue === 'yes'
-}
-
-/**
- * Gets a database connection string
- * @returns The primary database connection string
- */
-export function getPrimaryDbConnectionString(): string {
-    return getEnvVar('POSTGRES_CONNECTION_STRING')
-}
-
-/**
- * Gets the secondary database connection string
- * @returns The secondary database connection string
- */
-export function getSecondaryDbConnectionString(): string {
-    return getEnvVar('POSTGRES_SECONDARY_CONNECTION_STRING')
 }
 
 /**

@@ -1,11 +1,4 @@
 export interface EnvConfig {
-    // Standard Vite variables (available in import.meta.env)
-    BASE_URL?: string
-    MODE?: 'development' | 'production' | string
-    DEV?: boolean
-    PROD?: boolean
-    SSR?: boolean
-
     // Wavefunc specific variables - must be VITE_ prefixed in .env files
     // This is the primary pubkey for the specific application instance (web vs. devices)
     VITE_APP_PUBKEY?: string

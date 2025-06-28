@@ -1,21 +1,13 @@
 import NDK, { NDKEvent, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import * as dotenv from 'dotenv'
+import { config } from '../packages/common/src/config'
 
 // Load .env
 dotenv.config({ path: '../.env' })
 
 // Get admin credentials
-const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY
-const VITE_APP_PUBKEY = process.env.VITE_APP_PUBKEY || ''
-
-const DEFAULT_RELAYS = [
-    'ws://localhost:3002',
-    // 'wss://relay.wavefunc.live',
-    // 'wss://relay.nostr.band',
-    // 'wss://nos.lol',
-    // 'wss://relay.nostr.net',
-    // 'wss://relay.damus.io',
-]
+const APP_PRIVATE_KEY = config.app.privateKey
+const VITE_APP_PUBKEY = config.app.pubkey
 
 if (!APP_PRIVATE_KEY) {
     throw Error('Missing APP_PRIVATE_KEY in .env!')
@@ -36,18 +28,16 @@ const publishFeatured = args.includes('--featured')
 
 // Get relay URL from environment or use default
 const relayUrls = useLiveRelay
-    ? process.env.VITE_PUBLIC_RELAY_URL
-        ? [process.env.VITE_PUBLIC_RELAY_URL]
-        : DEFAULT_RELAYS
-    : ['ws://localhost:3002'] // Default to local relay for testing
+    ? config.nostr.defaultRelayUrls.length > 0
+        ? config.nostr.defaultRelayUrls
+        : config.nostr.relayUrls
+    : [config.urls.localRelay] // Default to local relay for testing
 
 // For display purposes
 const primaryRelayUrl = relayUrls[0]
 
 // API endpoint URL
-const apiEndpoint = useLiveRelay
-    ? 'https://relay.wavefunc.live/admin/publish-handler'
-    : 'http://localhost:3002/admin/publish-handler'
+const apiEndpoint = useLiveRelay ? config.urls.adminApiEndpoint : `${config.urls.localApi}/admin/publish-handler`
 
 // Setup NDK with a signer for proper Nostr signatures
 const signer = new NDKPrivateKeySigner(APP_PRIVATE_KEY)
@@ -77,7 +67,7 @@ const handlerContent = {
     // Application identity
     name: 'NostrRadio', // Required: Identifier name
     display_name: 'Wavefunc Radio', // Required: Human-readable name
-    picture: 'https://wavefunc.live/images/logo.png', // Required: App icon URL
+    picture: config.app.logoUrl, // Required: App icon URL
     about: 'A radio station directory and player built on Nostr', // Required: Description
 
     // NIP-90 capabilities (optional)
@@ -99,8 +89,8 @@ const profileContent = {
     display_name: handlerContent.display_name,
     picture: handlerContent.picture,
     about: handlerContent.about,
-    website: 'https://wavefunc.live',
-    nip05: 'Wavefunc@wavefunc.live', // NIP-05 verification
+    website: config.app.baseUrl,
+    nip05: config.app.nip05Verification, // NIP-05 verification
 }
 
 /**
@@ -114,7 +104,7 @@ const featuredLists = [
         name: 'Psych, Alternative, and Indie',
         description: 'The finest psych, alternative, and indie radio stations from around the world',
         topic: 'psych-alternative-indie',
-        image: 'https://images.wallpaperscraft.ru/image/single/gitarist_muzykant_kontsert_122198_1920x1080.jpg',
+        image: config.defaults.featuredImageUrl,
         tags: ['psych', 'alternative', 'indie', 'featured'],
         stations: [
             {
@@ -151,7 +141,7 @@ const featuredLists = [
         name: 'Drone & Ambient',
         description: 'Beautiful drone and ambient music stations for focus and relaxation',
         topic: 'drone-ambient',
-        image: 'https://images.wallpaperscraft.ru/image/single/gitarist_muzykant_kontsert_122198_1920x1080.jpg',
+        image: config.defaults.featuredImageUrl,
         tags: ['drone', 'ambient', 'featured'],
         stations: [
             {
@@ -174,7 +164,7 @@ const featuredLists = [
         name: 'Electro & IDM',
         description: 'Electronic beats and rhythms to get you moving',
         topic: 'electronic',
-        image: 'https://images.wallpaperscraft.ru/image/single/gitarist_muzykant_kontsert_122198_1920x1080.jpg',
+        image: config.defaults.featuredImageUrl,
         tags: ['electronic', 'dance', 'techno', 'house', 'featured'],
         stations: [
             {
@@ -349,8 +339,8 @@ async function publishHandlerEvent(): Promise<void> {
 
             // web-tags provide URL templates for opening the application with Nostr identifiers
             // Format: ["web", "<url-with-placeholder>", "<identifier-type>"]
-            ['web', 'https://wavefunc.live/station/<bech32>', 'naddr'], // For a specific station
-            ['web', 'https://wavefunc.live/profile/<bech32>', 'npub'], // For browsing stations
+            ['web', `${config.app.baseUrl}/station/<bech32>`, 'naddr'], // For a specific station
+            ['web', `${config.app.baseUrl}/profile/<bech32>`, 'npub'], // For browsing stations
         ]
 
         // Sign the event (this sets the ID and signature)
@@ -362,7 +352,9 @@ async function publishHandlerEvent(): Promise<void> {
         metadataEvent.content = JSON.stringify(profileContent)
 
         // Metadata events don't require tags, but we can add some helpful ones
-        metadataEvent.tags = [['r', 'https://relay.wavefunc.live']]
+        metadataEvent.tags = [
+            ['r', config.nostr.defaultRelayUrls[0] || config.nostr.relayUrls[0] || 'wss://relay.wavefunc.live'],
+        ]
 
         // Sign the metadata event
         await metadataEvent.sign()

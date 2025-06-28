@@ -3,6 +3,8 @@
  * Provides unified access to music recognition and metadata APIs
  */
 
+import { config } from '../config'
+
 export interface MusicRecognitionResult {
     artist?: string
     title?: string
@@ -25,12 +27,87 @@ export interface MusicRecognitionResult {
     }
 }
 
+export interface MusicBrainzRecordingResponse {
+    created: string
+    count: number
+    offset: number
+    recordings: Array<{
+        id: string
+        score: number
+        title: string
+        length?: number
+        disambiguation?: string
+        'artist-credit': Array<{
+            name: string
+            artist: {
+                id: string
+                name: string
+                'sort-name': string
+                disambiguation?: string
+            }
+        }>
+        releases?: Array<{
+            id: string
+            title: string
+            status: string
+            'release-group': {
+                id: string
+                title: string
+                'primary-type': string
+                'secondary-types'?: string[]
+            }
+        }>
+    }>
+}
+
+export interface MusicBrainzReleaseResponse {
+    created: string
+    count: number
+    offset: number
+    releases: Array<{
+        id: string
+        score: number
+        title: string
+        status: string
+        date?: string
+        country?: string
+        'artist-credit': Array<{
+            name: string
+            joinphrase?: string
+            artist: {
+                id: string
+                name: string
+                'sort-name': string
+                disambiguation?: string
+            }
+        }>
+        'release-group': {
+            id: string
+            title: string
+            'primary-type': string
+            'secondary-types'?: string[]
+        }
+        'label-info'?: Array<{
+            'catalog-number'?: string
+            label: {
+                id: string
+                name: string
+            }
+        }>
+        media?: Array<{
+            id: string
+            format?: string
+            'track-count': number
+        }>
+    }>
+}
+
 export interface EnrichedMusicMetadata {
     recognition?: MusicRecognitionResult
     discogs?: any
     musicbrainz?: {
-        recording?: any
-        release?: any
+        recording?: MusicBrainzRecordingResponse
+        release?: MusicBrainzReleaseResponse
     }
 }
 
@@ -55,7 +132,7 @@ export class AuddClient {
         formData.append('url', audioUrl)
         formData.append('return', 'apple_music,spotify')
 
-        const response = await fetch('https://api.audd.io/', {
+        const response = await fetch(config.audd.apiUrl, {
             method: 'POST',
             body: formData,
         })
@@ -100,7 +177,7 @@ export class DiscogsClient {
             page: page.toString(),
         })
 
-        const response = await fetch(`https://api.discogs.com/database/search?${searchParams}`, {
+        const response = await fetch(`${config.discogs.apiUrl}database/search?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -120,7 +197,7 @@ export class DiscogsClient {
             throw new Error('Invalid release ID')
         }
 
-        const response = await fetch(`https://api.discogs.com/releases/${releaseId}`, {
+        const response = await fetch(`${config.discogs.apiUrl}releases/${releaseId}`, {
             headers: this.getHeaders(),
         })
 
@@ -140,7 +217,7 @@ export class MusicBrainzClient {
 
     private getHeaders(): HeadersInit {
         return {
-            'User-Agent': 'WaveFunc/1.0 (https://wavefunc.live)',
+            'User-Agent': `${config.app.userAgent} (${config.app.baseUrl})`,
             Accept: 'application/json',
         }
     }
@@ -167,7 +244,7 @@ export class MusicBrainzClient {
             fmt: 'json',
         })
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/recording?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}recording?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -194,7 +271,7 @@ export class MusicBrainzClient {
             fmt: 'json',
         })
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/release?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}release?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -217,7 +294,7 @@ export class MusicBrainzClient {
             searchParams.set('inc', includes.join('+'))
         }
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/recording/${recordingId}?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}recording/${recordingId}?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -240,7 +317,7 @@ export class MusicBrainzClient {
             searchParams.set('inc', includes.join('+'))
         }
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/release/${releaseId}?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}release/${releaseId}?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -264,7 +341,7 @@ export class MusicBrainzClient {
             fmt: 'json',
         })
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/artist?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}artist?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -287,7 +364,7 @@ export class MusicBrainzClient {
             searchParams.set('inc', includes.join('+'))
         }
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/artist/${artistId}?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}artist/${artistId}?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -311,7 +388,7 @@ export class MusicBrainzClient {
             fmt: 'json',
         })
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/label?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}label?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
@@ -334,7 +411,7 @@ export class MusicBrainzClient {
             searchParams.set('inc', includes.join('+'))
         }
 
-        const response = await fetch(`https://musicbrainz.org/ws/2/label/${labelId}?${searchParams}`, {
+        const response = await fetch(`${config.musicbrainz.apiUrl}label/${labelId}?${searchParams}`, {
             headers: this.getHeaders(),
         })
 
