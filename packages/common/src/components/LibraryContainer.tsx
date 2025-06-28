@@ -14,7 +14,7 @@ import { SearchForm } from './library/SearchForm'
 import { SearchResultCard } from './library/SearchResultCard'
 import type { SearchFormData, SearchResult, SearchType, ToolResult } from './library/types'
 import { buildLookupArgs, buildSearchArgs, extractSearchResults, getLookupToolName, getToolName } from './library/utils'
-import { LOCAL_DVMCP_RELAY } from '../constants/relays'
+import { getLocalDvmcpRelay, getDefaultRelays } from '../constants/relays'
 
 export function LibraryContainer() {
     const [activeTab, setActiveTab] = useState('search')
@@ -36,7 +36,7 @@ export function LibraryContainer() {
 
     const callDVMCPTool = async (toolName: string, args: Record<string, any>) => {
         const ndk = ndkActions.getNDK()
-        await ndk?.connect()
+        // await ndk?.connect()
         if (!ndk) {
             toast.error('NDK not available')
             return null
@@ -55,20 +55,25 @@ export function LibraryContainer() {
             console.log('[LibraryContainer] NDK connected relays:', Array.from(ndk.pool.relays.keys()))
             console.log('[LibraryContainer] NDK explicit relay URLs:', ndk.explicitRelayUrls)
 
-            // Check if local DVMCP relay is connected
-            // TODO: Use NOSTR_RELAY_URLS from env or fix this in general
-            const isLocalRelayConnected = Array.from(ndk.pool.relays.keys()).includes(LOCAL_DVMCP_RELAY)
-            console.log('[LibraryContainer] Local DVMCP relay connected:', isLocalRelayConnected)
+            // Only add local DVMCP relay if no default relays are configured
+            const defaultRelays = getDefaultRelays()
+            if (defaultRelays.length === 0) {
+                const localDvmcpRelay = getLocalDvmcpRelay()
+                const isLocalRelayConnected = Array.from(ndk.pool.relays.keys()).includes(localDvmcpRelay)
+                console.log('[LibraryContainer] Local DVMCP relay connected:', isLocalRelayConnected)
 
-            if (!isLocalRelayConnected) {
-                console.log('[LibraryContainer] Adding local DVMCP relay...')
-                try {
-                    ndk.addExplicitRelay(LOCAL_DVMCP_RELAY)
-                    await ndk.connect()
-                    console.log('[LibraryContainer] Local DVMCP relay added and connected')
-                } catch (error) {
-                    console.warn('[LibraryContainer] Failed to add local DVMCP relay:', error)
+                if (!isLocalRelayConnected) {
+                    console.log('[LibraryContainer] Adding local DVMCP relay...')
+                    try {
+                        ndk.addExplicitRelay(localDvmcpRelay)
+                        await ndk.connect()
+                        console.log('[LibraryContainer] Local DVMCP relay added and connected')
+                    } catch (error) {
+                        console.warn('[LibraryContainer] Failed to add local DVMCP relay:', error)
+                    }
                 }
+            } else {
+                console.log('[LibraryContainer] Using default relays, skipping local DVMCP relay addition')
             }
 
             const result = await dvmcpService.callTool(toolName, args)
@@ -116,7 +121,11 @@ export function LibraryContainer() {
         const toolName = getToolName(searchType)
         const args = buildSearchArgs(searchType, formData)
 
+        console.log('[LibraryContainer] Calling DVMCP tool:', toolName, args, 'with searchType:', searchType)
+
         const result = await callDVMCPTool(toolName, args)
+
+        console.log('[LibraryContainer] Result:', result)
         if (result) {
             console.log(`[LibraryContainer] Processing result for ${searchType}:`, result)
             const extractedResults = extractSearchResults(result, searchType)

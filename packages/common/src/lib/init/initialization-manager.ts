@@ -1,7 +1,16 @@
 import type { EnvConfig } from '../../config/env'
 import type { QueryClient } from '@tanstack/react-query'
-import { DEFAULT_RELAYS, LOCAL_DVMCP_RELAY, ndkActions, walletActions, authActions, envActions } from '@wavefunc/common'
+import {
+    getDefaultRelays,
+    getLocalDvmcpRelay,
+    ndkActions,
+    walletActions,
+    authActions,
+    envActions,
+    createDVMCPService,
+} from '@wavefunc/common'
 import { initializeQueryClient } from '../../queries/query-client'
+import { createQueryClient } from '../queryClient'
 
 export interface InitializationOptions {
     initialEnvConfig?: EnvConfig
@@ -69,7 +78,14 @@ class AppInitializationManager {
         const relayPrefix = envConfig.VITE_PUBLIC_APP_ENV === 'development' ? '' : 'relay.'
         const portSuffix = envConfig.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
 
-        return `${wsProtocol}://${relayPrefix}${localMachineIp}${portSuffix}`
+        const relayUrl = `${wsProtocol}://${relayPrefix}${localMachineIp}${portSuffix}`
+        console.log('[InitManager] Created relay URL:', relayUrl, { 
+            host: envConfig.VITE_PUBLIC_HOST, 
+            isBrowser, 
+            hostname: isBrowser ? window.location.hostname : 'N/A',
+            computed: localMachineIp 
+        })
+        return relayUrl
     }
 
     private async initializeEnvironment(options: InitializationOptions): Promise<EnvConfig> {
@@ -128,19 +144,33 @@ class AppInitializationManager {
         this.updateState({ phase: 'ndk', progress: 30 })
         console.log('[InitManager] Phase 2: Initializing NDK...')
 
+        // Determine which relays to use - prioritize DEFAULT_RELAY_URLS over local relay
+        const defaultRelays = getDefaultRelays()
         const localRelay = this.createRelayUrl(envConfig)
+        
+        console.log('[InitManager] Relay configuration:', {
+            defaultRelays,
+            localRelay,
+            environment: envConfig.VITE_PUBLIC_APP_ENV,
+            defaultRelayCount: defaultRelays.length
+        })
+        
+        // Use DEFAULT_RELAY_URLS if configured, otherwise fall back to local relay in development
+        let initialRelays = options.initialRelaysOverride || 
+            (defaultRelays.length > 0 ? defaultRelays : 
+                (envConfig.VITE_PUBLIC_APP_ENV === 'development' ? [localRelay] : defaultRelays))
+        let searchRelays = options.searchRelaysOverride || 
+            (defaultRelays.length > 0 ? defaultRelays : 
+                (envConfig.VITE_PUBLIC_APP_ENV === 'development' ? [localRelay] : defaultRelays))
 
-        // Determine which relays to use - include DVMCP relay for development
-        let initialRelays = options.initialRelaysOverride || [localRelay]
-        let searchRelays = options.searchRelaysOverride || [localRelay]
-
-        // Add local DVMCP relay in development for better DVMCP communication
-        if (envConfig.VITE_PUBLIC_APP_ENV === 'development') {
-            if (!initialRelays.includes(LOCAL_DVMCP_RELAY)) {
-                initialRelays = [...initialRelays, LOCAL_DVMCP_RELAY]
+        // Add local DVMCP relay only if no default relays are configured
+        if (envConfig.VITE_PUBLIC_APP_ENV === 'development' && defaultRelays.length === 0) {
+            const localDvmcpRelay = getLocalDvmcpRelay()
+            if (localDvmcpRelay !== localRelay && !initialRelays.includes(localDvmcpRelay)) {
+                initialRelays = [...initialRelays, localDvmcpRelay]
             }
-            if (!searchRelays.includes(LOCAL_DVMCP_RELAY)) {
-                searchRelays = [...searchRelays, LOCAL_DVMCP_RELAY]
+            if (localDvmcpRelay !== localRelay && !searchRelays.includes(localDvmcpRelay)) {
+                searchRelays = [...searchRelays, localDvmcpRelay]
             }
         }
 
@@ -172,8 +202,8 @@ class AppInitializationManager {
                 console.log('[InitManager] Search NDK connection initiated')
             }
 
-            // Add local relay to NDK if not present (for development)
-            if (typeof window !== 'undefined' && envConfig.VITE_PUBLIC_APP_ENV === 'development') {
+            // Add local relay to NDK only if no default relays are configured
+            if (typeof window !== 'undefined' && envConfig.VITE_PUBLIC_APP_ENV === 'development' && defaultRelays.length === 0) {
                 setTimeout(() => {
                     const relays = ndkActions.getRelays()
                     const localRelayConnected = relays.some((r) => r.url === localRelay)
@@ -230,7 +260,6 @@ class AppInitializationManager {
         // Initialize DVMCP service
         try {
             console.log('[InitManager] Creating DVMCP service...')
-            const { createDVMCPService } = await import('../../services/dvmcp')
             createDVMCPService(ndk)
             console.log('[InitManager] DVMCP service created')
         } catch (err) {
@@ -242,7 +271,6 @@ class AppInitializationManager {
 
     private async initializeQueryClient(): Promise<QueryClient> {
         console.log('[InitManager] Phase 4: Initializing Query Client...')
-        const { createQueryClient } = await import('../queryClient')
         const queryClient = await createQueryClient()
         this.queryClient = queryClient
         console.log('[InitManager] Query Client initialized')

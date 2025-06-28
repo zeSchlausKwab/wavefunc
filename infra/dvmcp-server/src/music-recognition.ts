@@ -1,23 +1,21 @@
 #!/usr/bin/env node
 
-import dotenv from 'dotenv'
+// Load .env file for local development, otherwise use variables from DVMCP bridge
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
-// Load environment variables from the project root (only in development)
 const projectRoot = path.resolve(__dirname, '../../../')
 const envPath = path.join(projectRoot, '.env')
 
-// Only try to load .env file if it exists (for local development)
 if (fs.existsSync(envPath)) {
-    console.log(`Loading .env file from: ${envPath}`)
+    console.log('Loading .env file for local development')
+    const { default: dotenv } = await import('dotenv')
     dotenv.config({ path: envPath })
 } else {
-    console.log('No .env file found - using environment variables from system')
+    console.log('Using environment variables from DVMCP bridge')
 }
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -31,6 +29,9 @@ const DISCOGS_TOKEN = process.env.DISCOGS_PA_TOKEN
 console.log('Environment check:')
 console.log(`- AUDD_API_TOKEN: ${AUDD_API_TOKEN ? '✓ Set' : '✗ Missing'}`)
 console.log(`- DISCOGS_PA_TOKEN: ${DISCOGS_TOKEN ? '✓ Set' : '✗ Missing'}`)
+console.log('Raw environment variable values:')
+console.log(`- process.env.AUDD_API_TOKEN = "${process.env.AUDD_API_TOKEN}"`)
+console.log(`- process.env.DISCOGS_PA_TOKEN = "${process.env.DISCOGS_PA_TOKEN}"`)
 
 if (!AUDD_API_TOKEN) {
     console.error('ERROR: AUDD_API_TOKEN environment variable is required')

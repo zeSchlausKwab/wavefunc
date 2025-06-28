@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 
-import dotenv from 'dotenv'
+// Load .env file for local development, otherwise use variables from DVMCP bridge
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
-// Load environment variables from the project root
 const projectRoot = path.resolve(__dirname, '../../../')
-dotenv.config({ path: path.join(projectRoot, '.env') })
+const envPath = path.join(projectRoot, '.env')
+
+if (fs.existsSync(envPath)) {
+    console.log('Loading .env file for local development')
+    const { default: dotenv } = await import('dotenv')
+    dotenv.config({ path: envPath })
+} else {
+    console.log('Using environment variables from DVMCP bridge')
+}
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -18,8 +25,11 @@ import { DiscogsClient, MusicBrainzClient } from '../../../packages/common/src/s
 
 const DISCOGS_TOKEN = process.env.DISCOGS_PA_TOKEN
 
+console.log('Environment check:')
+console.log(`- DISCOGS_PA_TOKEN: ${DISCOGS_TOKEN ? '✓ Set' : '✗ Missing'}`)
+
 if (!DISCOGS_TOKEN) {
-    console.warn('DISCOGS_PA_TOKEN environment variable not set - Discogs features will be disabled')
+    console.warn('WARNING: DISCOGS_PA_TOKEN environment variable not set - Discogs features will be disabled')
 }
 
 // Create clients using extracted methods from commons
@@ -542,9 +552,18 @@ process.on('SIGINT', async () => {
 
 // Start server
 async function main() {
-    const transport = new StdioServerTransport()
-    await server.connect(transport)
-    console.error('[MCP] Music Metadata Server running on stdio')
+    try {
+        console.log('[MCP] Starting Music Metadata Server...')
+        const transport = new StdioServerTransport()
+        await server.connect(transport)
+        console.error('[MCP] Music Metadata Server running on stdio')
+    } catch (error) {
+        console.error('[MCP] Failed to start server:', error)
+        process.exit(1)
+    }
 }
 
-main().catch(console.error)
+main().catch((error) => {
+    console.error('[MCP] Fatal error:', error)
+    process.exit(1)
+})

@@ -1,4 +1,3 @@
-import dotenv from 'dotenv'
 import { spawn } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -7,16 +6,16 @@ import fs from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Load environment variables from the project root (only in development)
+// Load .env file for local development only
 const projectRoot = path.resolve(__dirname, '../../../')
 const envPath = path.join(projectRoot, '.env')
 
-// Only try to load .env file if it exists (for local development)
 if (fs.existsSync(envPath)) {
-    console.log(`Loading .env file from: ${envPath}`)
+    console.log('Loading .env file for local development')
+    const { default: dotenv } = await import('dotenv')
     dotenv.config({ path: envPath })
 } else {
-    console.log('No .env file found - using environment variables from system')
+    console.log('Using environment variables from deployment platform')
 }
 
 async function startDVMCPBridge() {
@@ -24,6 +23,7 @@ async function startDVMCPBridge() {
         'DVM_PRIVATE_KEY',
         'DVM_RELAY_URLS',
         'AUDD_API_TOKEN',
+        'DISCOGS_PA_TOKEN',
         'DVM_LIGHTNING_ADDRESS',
         'DVM_LIGHTNING_ZAP_RELAYS',
     ]
@@ -44,11 +44,34 @@ async function startDVMCPBridge() {
     const zapRelays = process.env.DVM_LIGHTNING_ZAP_RELAYS!
 
     const configPath = path.join(__dirname, '../config.dvmcp.yml')
+    const processedConfigPath = path.join(__dirname, '../config.processed.yml')
+
+    // Read the config file and replace environment variables
+    const configContent = fs.readFileSync(configPath, 'utf8')
+
+    // Find the full path to bun executable
+    const bunPath = process.env.BUN_INSTALL
+        ? `${process.env.BUN_INSTALL}/bin/bun`
+        : process.execPath.includes('bun')
+          ? process.execPath
+          : 'bun'
+
+    console.log(`Using bun path: ${bunPath}`)
+
+    const processedConfig = configContent
+        .replace(/\$\{DVM_PRIVATE_KEY\}/g, privateKey)
+        .replace(/\$\{DVM_LIGHTNING_ADDRESS\}/g, lightningAddress)
+        .replace(/\$\{AUDD_API_TOKEN\}/g, process.env.AUDD_API_TOKEN || '')
+        .replace(/\$\{DISCOGS_PA_TOKEN\}/g, process.env.DISCOGS_PA_TOKEN || '')
+        .replace(/command: 'bun'/g, `command: '${bunPath}'`)
+
+    // Write the processed config to a temporary file
+    fs.writeFileSync(processedConfigPath, processedConfig)
 
     const args = [
         'dvmcp-bridge',
         '--config-path',
-        configPath,
+        processedConfigPath,
         '--verbose',
         '--nostr.privateKey',
         privateKey,
@@ -71,6 +94,10 @@ async function startDVMCPBridge() {
     const cleanup = () => {
         console.log('\nShutting down DVMCP bridge...')
         bridge.kill()
+        // Clean up the temporary config file
+        if (fs.existsSync(processedConfigPath)) {
+            fs.unlinkSync(processedConfigPath)
+        }
         process.exit(0)
     }
 
