@@ -3,14 +3,14 @@ import type NDK from '@nostr-dev-kit/ndk'
 import { NDKEvent } from '@nostr-dev-kit/ndk'
 import {
     closeStationDrawer,
-    deleteStation as commonDeleteStation,
-    updateStation as commonUpdateStation,
     convertFromRadioBrowser,
     createRadioEvent,
-    ndkActions,
     StationSchema,
     type Station,
     type StationFormData,
+    usePublishStation,
+    useUpdateStation,
+    useDeleteStation,
 } from '@wavefunc/common'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
@@ -107,10 +107,6 @@ const emptyStream = {
 // Wrapper functions to handle NDK type compatibility
 const updateStation = (ndk: NDK, station: Station, data: any) => {
     return commonUpdateStation(ndk as any, station, data)
-}
-
-const deleteStation = (ndk: NDK, stationId: string) => {
-    return commonDeleteStation(ndk as any, stationId)
 }
 
 // Helper functions for stream URL parsing
@@ -292,13 +288,60 @@ async function detectStreamingServerUrl(streams: { url: string }[]): Promise<{ u
  * Map a Nostr event to a Station object for editing
  */
 export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
-    const [isDeleting, setIsDeleting] = React.useState(false)
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false)
     const [isImporting, setIsImporting] = React.useState(false)
     const [importName, setImportName] = React.useState('')
     const [streamingServerUrlError, setStreamingServerUrlError] = React.useState<string | null>(null)
     const handleClose = () => {
         closeStationDrawer()
     }
+
+    // Mutation hooks
+    const publishStation = usePublishStation({
+        onSuccess: () => {
+            handleClose()
+            toast('Station created', {
+                description: 'Station created successfully',
+            })
+        },
+        onError: (error) => {
+            console.error('Error creating station:', error)
+            toast('Error', {
+                description: 'Failed to create station. Please try again.',
+            })
+        },
+    })
+
+    const updateStation = useUpdateStation({
+        onSuccess: () => {
+            handleClose()
+            toast('Station updated', {
+                description: 'Your changes have been saved successfully.',
+            })
+        },
+        onError: (error) => {
+            console.error('Error updating station:', error)
+            toast('Error', {
+                description: 'Failed to update station. Please try again.',
+            })
+        },
+    })
+
+    const deleteStationMutation = useDeleteStation({
+        onSuccess: () => {
+            setIsDeleteConfirmOpen(false)
+            handleClose()
+            toast('Station deleted', {
+                description: 'Station has been removed successfully',
+            })
+        },
+        onError: (error) => {
+            console.error('Error deleting station:', error)
+            toast('Error', {
+                description: 'Failed to delete the station. Please try again.',
+            })
+        },
+    })
 
     const {
         control,
@@ -364,20 +407,13 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const streams = watch('streams')
 
     const onSubmit = async (data: StationFormData) => {
-        // TODO: wrap everything in react-query, this is not reactive
-        try {
-            setSubmitError(null)
-            const ndk = ndkActions.getNDK()
+        setSubmitError(null)
 
-            if (!ndk) {
-                throw new Error('NDK not initialized')
-            }
-
-            if (station?.naddr) {
-                console.log('Updating existing station:', station.id)
-
-                // @ts-ignore
-                const ndkEvent = await updateStation(ndk, station, {
+        if (station?.naddr) {
+            console.log('Updating existing station:', station.id)
+            updateStation.mutate({
+                station,
+                updatedData: {
                     name: data.name,
                     description: data.description,
                     website: data.website,
@@ -386,56 +422,28 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     countryCode: data.countryCode,
                     languageCodes: data.languageCodes,
                     tags: data.tags,
-                    streamingServerUrl: data.streamingServerUrl,
-                })
-
-                console.log('Station updated successfully:', ndkEvent)
-
-                handleClose()
-                toast('Station updated', {
-                    description: 'Your changes have been saved successfully.',
-                })
-            } else {
-                console.log('Creating new station')
-
-                const event = createRadioEvent(
-                    {
-                        description: data.description,
-                        streams: data.streams,
-                        streamingServerUrl: data.streamingServerUrl || undefined,
-                    },
-                    [
-                        ['name', data.name],
-                        ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
-                        ...(data.website ? [['website', data.website]] : []),
-                        ...data.tags.map((tag) => ['t', tag]),
-                        ...data.languageCodes.map((code) => ['language', code]),
-                        ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
-                    ],
-                )
-
-                const ndkEvent = new NDKEvent(ndk, event)
-
-                if (ndkEvent) {
-                    await ndkEvent.publish()
-                    console.log('Station created successfully:', ndkEvent)
-                    toast('Station created', {
-                        description: 'Station created successfully',
-                    })
-                    handleClose()
-                }
-            }
-        } catch (error) {
-            console.error('Error creating/updating station:', error)
-            const errorMessage =
-                error instanceof Error ? error.message : 'Failed to save the station. Please try again.'
-            setSubmitError(errorMessage)
-            toast('Error', {
-                description: errorMessage,
-                style: {
-                    background: 'red',
                 },
             })
+        } else {
+            console.log('Creating new station')
+
+            const event = createRadioEvent(
+                {
+                    description: data.description,
+                    streams: data.streams,
+                    streamingServerUrl: data.streamingServerUrl || undefined,
+                },
+                [
+                    ['name', data.name],
+                    ...(data.thumbnail ? [['thumbnail', data.thumbnail]] : []),
+                    ...(data.website ? [['website', data.website]] : []),
+                    ...data.tags.map((tag) => ['t', tag]),
+                    ...data.languageCodes.map((code) => ['language', code]),
+                    ...(data.countryCode ? [['countryCode', data.countryCode]] : []),
+                ],
+            )
+
+            publishStation.mutate(event)
         }
     }
 
@@ -453,29 +461,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
     const handleDeleteStation = async () => {
         if (!station || !station.id) return
 
-        try {
-            const ndk = ndkActions.getNDK()
-
-            if (!ndk) {
-                throw new Error('NDK not initialized')
-            }
-
-            await deleteStation(ndk, station.id)
-            toast('Station deleted', {
-                description: 'Station has been removed successfully',
-            })
-            handleClose()
-        } catch (error) {
-            console.error('Error deleting station:', error)
-            toast('Error', {
-                description: 'Failed to delete the station. Please try again.',
-                style: {
-                    background: 'red',
-                },
-            })
-        } finally {
-            setIsDeleting(false)
-        }
+        deleteStationMutation.mutate(station.id)
     }
 
     const handleStreamUrlPaste = async (index: number, url: string) => {
@@ -649,7 +635,7 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                     </SheetDescription>
                 </SheetHeader>
 
-                {isDeleting ? (
+                {isDeleteConfirmOpen ? (
                     <div className="mt-6 space-y-4">
                         <div className="flex items-center space-x-2 text-destructive">
                             <AlertCircle className="h-5 w-5" />
@@ -659,11 +645,20 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                             This action cannot be undone. The station will be permanently deleted.
                         </p>
                         <div className="flex space-x-2 mt-6">
-                            <Button variant="destructive" onClick={handleDeleteStation} className="mr-2">
+                            <Button
+                                variant="destructive"
+                                onClick={handleDeleteStation}
+                                disabled={deleteStationMutation.isPending}
+                                className="mr-2"
+                            >
                                 <Trash className="h-4 w-4 mr-2" />
-                                Yes, Delete Station
+                                {deleteStationMutation.isPending ? 'Deleting...' : 'Yes, Delete Station'}
                             </Button>
-                            <Button variant="outline" onClick={() => setIsDeleting(false)}>
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsDeleteConfirmOpen(false)}
+                                disabled={deleteStationMutation.isPending}
+                            >
                                 Cancel
                             </Button>
                         </div>
@@ -907,12 +902,24 @@ export function EditStationDrawer({ station, isOpen }: EditStationDrawerProps) {
                         </div>
 
                         <div className="flex justify-between space-x-2">
-                            <Button type="submit" className="bg-primary text-white" disabled={isSubmitting}>
-                                {isSubmitting ? 'Saving...' : station ? 'Save Changes' : 'Create Station'}
+                            <Button
+                                type="submit"
+                                className="bg-primary text-white"
+                                disabled={publishStation.isPending || updateStation.isPending}
+                            >
+                                {publishStation.isPending || updateStation.isPending
+                                    ? 'Saving...'
+                                    : station
+                                      ? 'Save Changes'
+                                      : 'Create Station'}
                             </Button>
                             <div className="flex space-x-2">
                                 {station && (
-                                    <Button type="button" onClick={() => setIsDeleting(true)} variant="destructive">
+                                    <Button
+                                        type="button"
+                                        onClick={() => setIsDeleteConfirmOpen(true)}
+                                        variant="destructive"
+                                    >
                                         <Trash className="mr-2 h-4 w-4" />
                                         Delete
                                     </Button>

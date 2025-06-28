@@ -1,3 +1,5 @@
+import type { NDKEvent } from '@nostr-dev-kit/ndk'
+
 export interface NostrComment {
     id: string // Event id
     pubkey: string // Author's pubkey
@@ -17,6 +19,9 @@ export interface NostrComment {
     replies?: NostrComment[] // Replies to this comment
     replyingTo?: string // ID of the user this is replying to (for UI)
     isReplyOpen?: boolean // Whether the reply form is open
+
+    // Query system compatibility
+    event?: NDKEvent // Full NDKEvent object for compatibility with existing components
 }
 
 export interface NostrCommentWithReplies extends NostrComment {

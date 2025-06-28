@@ -3,48 +3,86 @@
 
 declare module 'bun' {
     interface Env {
-        // App environment
+        // =============================================================================
+        // APPLICATION SETTINGS
+        // =============================================================================
         VITE_PUBLIC_APP_ENV: string
+        VITE_APP_PUBKEY: string
+        APP_PRIVATE_KEY: string
 
-        // Primary Database
+        // Public Keys & Identifiers
+        FEATURED_STATIONS_PUBKEY: string
+        DVMCP_FALLBACK_PUBKEY: string
+
+        // App Metadata
+        APP_USER_AGENT: string
+        PUBLIC_BASE_URL: string
+        APP_LOGO_URL: string
+        DEFAULT_STATION_IMAGE_URL: string
+        DEFAULT_FEATURED_IMAGE_URL: string
+        NIP05_VERIFICATION: string
+
+        // =============================================================================
+        // NETWORK CONFIGURATION
+        // =============================================================================
+        VITE_PUBLIC_HOST: string
+        VITE_PUBLIC_WEB_PORT: string
+        VITE_PUBLIC_API_PORT: string
+        VITE_PUBLIC_RELAY_PORT: string
+
+        // =============================================================================
+        // NOSTR RELAY CONFIGURATION
+        // =============================================================================
+        RELAY_PRIVATE_KEY: string
+        NOSTR_RELAY_URLS: string
+        DEFAULT_RELAY_URLS: string
+        NOSTR_CONNECT_RELAY_URL: string
+
+        // =============================================================================
+        // DATABASE CONFIGURATION
+        // =============================================================================
+
+        // Primary Database (Nostr relay event storage)
+        POSTGRES_HOST: string
+        POSTGRES_PORT: string
         POSTGRES_USER: string
         POSTGRES_PASSWORD: string
         POSTGRES_DB: string
-        POSTGRES_PORT: string
-        POSTGRES_HOST: string
         POSTGRES_CONNECTION_STRING: string
 
-        // Secondary Database
-        POSTGRES_SECONDARY_USER: string
-        POSTGRES_SECONDARY_PASSWORD: string
-        POSTGRES_SECONDARY_DB: string
-        POSTGRES_SECONDARY_PORT: string
-        POSTGRES_SECONDARY_HOST: string
-        POSTGRES_SECONDARY_CONNECTION_STRING: string
-
-        // Relay Configuration
-        VITE_PUBLIC_RELAY_PORT: string
-        PUBLIC_RELAY_PUBKEY: string
-        PUBLIC_RELAY_CONTACT: string
-
-        // Public settings
-        VITE_PUBLIC_HOST: string
-        VITE_PUBLIC_API_PORT: string
-        VITE_PUBLIC_WEB_PORT: string
-
-        // DVM Configuration
+        // =============================================================================
+        // DVM (Data Verification Method) CONFIGURATION
+        // =============================================================================
         DVM_PRIVATE_KEY: string
+        DVM_RELAY_URLS: string
+        DVM_LIGHTNING_ADDRESS: string
+        DVM_LIGHTNING_ZAP_RELAYS: string
 
-        // AudD Configuration
+        // =============================================================================
+        // EXTERNAL SERVICES
+        // =============================================================================
+
+        // Music Recognition (AudD API)
         AUDD_API_TOKEN: string
+        AUDD_API_URL: string
 
-        // Blossom Configuration
+        // Music Metadata (Discogs API)
+        DISCOGS_PA_TOKEN: string
+        DISCOGS_API_URL: string
+
+        // MusicBrainz API
+        MUSICBRAINZ_API_URL: string
+
+        // Radio Browser API
+        RADIO_BROWSER_API_URL: string
+
+        // File Storage (Blossom Server)
         PUBLIC_BLOSSOM_URL: string
-        PUBLIC_BLOSSOM_PORT: string
 
-        // Add any other environment variables your application uses
-        // For optional environment variables, use the following pattern:
-        // OPTIONAL_VAR?: string;
+        // =============================================================================
+        // DEVELOPMENT SETTINGS
+        // =============================================================================
+        TAURI_DEV_HOST?: string
     }
 }
 

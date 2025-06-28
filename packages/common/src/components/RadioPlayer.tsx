@@ -28,6 +28,7 @@ import {
     History,
     Users,
     MoreVertical,
+    Music,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 // import { MusicRecognitionButton } from './MusicRecognitionButton'
@@ -36,6 +37,8 @@ import { StreamTechnicalInfo } from './radio/StreamTechnicalInfo'
 import { addToHistory, loadHistory } from '@wavefunc/common/src/lib/store/history'
 import { openHistoryDrawer } from '@wavefunc/common/src/lib/store/ui'
 import { IcecastMetadataDisplay } from '@wavefunc/common/src/components/radio/IcecastMetadataDisplay'
+import { MusicRecognitionButton } from './MusicRecognitionButton'
+import { DiscogsMusicSearch } from './DiscogsMusicSearch'
 
 // Define Icecast metadata types
 export interface IcecastSong {
@@ -110,30 +113,6 @@ async function resolveStreamUrl(url: string): Promise<string> {
     return url
 }
 
-/**
- * Try to fetch Icecast metadata from a stream URL
- */
-// async function fetchIcecastMetadata(streamUrl: string): Promise<IcecastMetadata | null> {
-//     try {
-//         // Extract the base server URL
-//         const url = new URL(streamUrl)
-//         const serverBaseUrl = `${url.protocol}//${url.hostname}${url.port ? ':' + url.port : ''}`
-
-//         // Use our proxy endpoint to avoid CORS issues
-//         const proxyUrl = `/api/proxy/icecast?url=${encodeURIComponent(serverBaseUrl + '/status-json.xsl')}`
-
-//         const response = await fetch(proxyUrl)
-//         if (!response.ok) {
-//             throw new Error(`Failed to fetch Icecast metadata: ${response.status}`)
-//         }
-
-//         const data = await response.json()
-//         return data as IcecastMetadata
-//     } catch (error) {
-//         return null
-//     }
-// }
-
 export function RadioPlayer() {
     const { isPlaying, currentStation } = useStore(stationsStore)
     const hasNext = useHasNext()
@@ -151,6 +130,7 @@ export function RadioPlayer() {
     const [showVolumeControl, setShowVolumeControl] = useState(false)
     const [showTechnicalInfo, setShowTechnicalInfo] = useState(false)
     const [showListenersInfo, setShowListenersInfo] = useState(false)
+    const [showDiscogsSearch, setShowDiscogsSearch] = useState(false)
     const [icecastMetadata, setIcecastMetadata] = useState<IcecastMetadata | null>(null)
     const [showMoreMenu, setShowMoreMenu] = useState(false)
 
@@ -180,17 +160,6 @@ export function RadioPlayer() {
             .then((url) => {
                 setResolvedStreamUrl(url)
                 setError(undefined)
-
-                // After resolving URL, try to fetch Icecast metadata
-                // setIcecastLoading(true)
-                // return fetchIcecastMetadata(url)
-                //     .then((data) => {
-                //         setIcecastMetadata(data)
-                //         setIcecastLoading(false)
-                //     })
-                //     .catch(() => {
-                //         setIcecastLoading(false)
-                //     })
             })
             .catch((err) => {
                 console.error('Error resolving stream URL:', err)
@@ -198,28 +167,6 @@ export function RadioPlayer() {
                 setIsBuffering(false)
             })
     }, [streamUrl])
-
-    // Periodically refresh Icecast metadata when playing
-    // useEffect(() => {
-    //     if (!isPlaying || !resolvedStreamUrl) return
-
-    //     const refreshIcecast = async () => {
-    //         try {
-    //             const data = await fetchIcecastMetadata(resolvedStreamUrl)
-    //             setIcecastMetadata(data)
-    //         } catch (error) {
-    //             console.error('Error refreshing Icecast metadata:', error)
-    //         }
-    //     }
-
-    //     // Initial fetch
-    //     refreshIcecast()
-
-    //     // Set up polling every 30 seconds
-    //     const interval = setInterval(refreshIcecast, 30000)
-
-    //     return () => clearInterval(interval)
-    // }, [isPlaying, resolvedStreamUrl])
 
     useEffect(() => {
         if (isPlaying && currentStation) {
@@ -308,6 +255,7 @@ export function RadioPlayer() {
     const toggleVolumeControl = () => setShowVolumeControl(!showVolumeControl)
     const toggleTechnicalInfo = () => setShowTechnicalInfo(!showTechnicalInfo)
     const toggleListenersInfo = () => setShowListenersInfo(!showListenersInfo)
+    const toggleDiscogsSearch = () => setShowDiscogsSearch(!showDiscogsSearch)
     const toggleMoreMenu = () => setShowMoreMenu(!showMoreMenu)
 
     const VolumeIcon = audioVolume === 0 ? VolumeX : audioVolume < 0.5 ? Volume1 : Volume2
@@ -464,7 +412,7 @@ export function RadioPlayer() {
                         </div>
                     )}
 
-                    {/* {audioRef.current && <MusicRecognitionButton audioElement={audioRef.current} />} */}
+                    <MusicRecognitionButton />
 
                     {/* Volume control */}
                     {renderVolumeControl()}
@@ -493,26 +441,6 @@ export function RadioPlayer() {
                                 </Tooltip>
                             </TooltipProvider>
                         )}
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className={cn(
-                                            'h-9 w-9 border-2 border-black',
-                                            'shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]',
-                                            'transition-transform hover:translate-y-[-2px]',
-                                            showTechnicalInfo && 'bg-gray-100',
-                                        )}
-                                        onClick={toggleTechnicalInfo}
-                                    >
-                                        <Headphones className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Station Technical Info</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -592,6 +520,16 @@ export function RadioPlayer() {
                                     variant="ghost"
                                     className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
                                     onClick={() => {
+                                        toggleDiscogsSearch()
+                                        setShowMoreMenu(false)
+                                    }}
+                                >
+                                    <Music className="h-4 w-4 mr-2" /> Discogs Search
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start text-left h-auto py-2 px-3 flex items-center gap-2 hover:bg-gray-700"
+                                    onClick={() => {
                                         openHistoryDrawer()
                                         setShowMoreMenu(false)
                                     }}
@@ -619,6 +557,13 @@ export function RadioPlayer() {
             {showListenersInfo && icecastMetadata && (
                 <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200 text-xs animate-in slide-in-from-bottom-5">
                     <IcecastMetadataDisplay metadata={icecastMetadata} />
+                </div>
+            )}
+
+            {/* Discogs music search panel */}
+            {showDiscogsSearch && (
+                <div className="mt-2 p-3 bg-purple-50 rounded-md border border-purple-200 animate-in slide-in-from-bottom-5">
+                    <DiscogsMusicSearch />
                 </div>
             )}
         </div>

@@ -1,9 +1,9 @@
-import { authStore } from '@wavefunc/common'
-import { ndkActions } from '@wavefunc/common'
+import { authStore, ndkActions } from '@wavefunc/common'
 import { uiActions } from '@wavefunc/common'
-import { NDKSubscriptionCacheUsage, type NDKUserProfile } from '@nostr-dev-kit/ndk'
+import { type NDKUserProfile } from '@nostr-dev-kit/ndk'
 import { useStore } from '@tanstack/react-store'
 import { updateUserProfile } from '@wavefunc/common'
+import { useProfile } from '../../queries'
 import { Check, Globe, Loader2, LogIn, Save, User, Zap } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
@@ -16,10 +16,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@wavefunc/ui/components/ui/
 import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 
 export function ProfileSettings() {
-    const [isProfileLoading, setIsProfileLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [saveSuccess, setSaveSuccess] = useState(false)
     const authState = useStore(authStore)
+
+    // Use the profile query hook instead of manual fetching
+    const { data: fetchedProfile, isLoading: isProfileLoading } = useProfile(authState.user?.pubkey || '', {
+        enabled: !!authState.user?.pubkey,
+    })
 
     const [profile, setProfile] = useState<NDKUserProfile>({
         name: '',
@@ -112,38 +116,23 @@ export function ProfileSettings() {
         }
     }
 
+    // Update local profile state when fetchedProfile changes
     useEffect(() => {
-        const fetchUserProfile = async () => {
-            if (!authState.user?.pubkey) return
-
-            setIsProfileLoading(true)
-            try {
-                const ndk = ndkActions.getNDK()
-                if (!ndk) return
-
-                const user = ndk.getUser({ pubkey: authState.user.pubkey })
-                const fetchedProfile = await user.fetchProfile({
-                    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-                })
-
-                if (fetchedProfile) {
-                    setProfile(fetchedProfile)
-                }
-            } catch (error) {
-                console.error('Failed to fetch profile:', error)
-                toast('Error', {
-                    description: 'Failed to load profile data',
-                    style: {
-                        background: 'red',
-                    },
-                })
-            } finally {
-                setIsProfileLoading(false)
-            }
+        if (fetchedProfile) {
+            setProfile({
+                name: fetchedProfile.name || '',
+                displayName: fetchedProfile.displayName || '',
+                about: fetchedProfile.about || '',
+                picture: fetchedProfile.picture || '',
+                image: fetchedProfile.picture || '', // Keep image in sync with picture
+                banner: fetchedProfile.banner || '',
+                website: fetchedProfile.website || '',
+                nip05: fetchedProfile.nip05 || '',
+                lud06: fetchedProfile.lud06 || '',
+                lud16: fetchedProfile.lud16 || '',
+            })
         }
-
-        fetchUserProfile()
-    }, [authState.user?.pubkey])
+    }, [fetchedProfile])
 
     const resetProfile = () => {
         setProfile({

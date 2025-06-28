@@ -1,13 +1,19 @@
-// export const defaultRelays: string[] = ['ws://192.168.254.160:3002']
+import { config } from '../config'
 
-// export const defaultRelays: string[] = ["wss://relay.wavefunc.live"];
+// Default Nostr Connect relays (used for NIP-46 remote signing)
+export const defaultNostrConnectRelays = [config.nostr.connectRelayUrl]
 
-export const defaultNostrConnectRelays = ['wss://relay.nsec.app/']
+// Default relay list for general Nostr communication
+export const DEFAULT_RELAYS =
+    config.nostr.defaultRelayUrls.length > 0
+        ? config.nostr.defaultRelayUrls
+        : [
+              'wss://relay.wavefunc.live',
+              'wss://relay.nostr.band',
+              'wss://nos.lol',
+              'wss://relay.nostr.net',
+              'wss://relay.damus.io',
+          ]
 
-export const DEFAULT_RELAYS = [
-    'wss://relay.wavefunc.live',
-    'wss://relay.nostr.band',
-    'wss://nos.lol',
-    'wss://relay.nostr.net',
-    'wss://relay.damus.io',
-]
+// Local development relay - composed from environment configuration
+export const LOCAL_DVMCP_RELAY = config.urls.localRelay

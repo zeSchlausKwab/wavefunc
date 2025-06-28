@@ -23,5 +23,20 @@
         "noUnusedLocals": false,
         "noUnusedParameters": false,
         "noPropertyAccessFromIndexSignature": false
-    }
+    },
+    "exclude": [
+        "node_modules",
+        "dist",
+        "build",
+        ".next",
+        "release-builds",
+        "**/target/**",
+        "**/gen/**",
+        "**/android/**",
+        "**/.tauri/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/*.min.js",
+        "coverage"
+    ]
 }

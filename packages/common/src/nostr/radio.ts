@@ -264,7 +264,8 @@ export function subscribeToRadioStations(ndk: NDK, onEvent?: (event: NDKEvent) =
 export async function fetchRadioStations(ndk: NDK): Promise<NDKEvent[]> {
     const filter = {
         kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-        since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 7, // Last 7 days
+        // Remove since filter to get all stations, not just recent ones
+        limit: 50, // Add reasonable limit to prevent too many results
     }
 
     const events = await ndk.fetchEvents(filter)

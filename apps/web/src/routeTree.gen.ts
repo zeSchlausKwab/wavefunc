@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
+import { Route as LibraryImport } from './routes/library'
 import { Route as LegacyImport } from './routes/legacy'
 import { Route as FavouritesImport } from './routes/favourites'
 import { Route as DiscoverImport } from './routes/discover'
@@ -26,6 +27,12 @@ import { Route as ProfileProfileIdImport } from './routes/profile.$profileId'
 const SettingsRoute = SettingsImport.update({
     id: '/settings',
     path: '/settings',
+    getParentRoute: () => rootRoute,
+} as any)
+
+const LibraryRoute = LibraryImport.update({
+    id: '/library',
+    path: '/library',
     getParentRoute: () => rootRoute,
 } as any)
 
@@ -123,6 +130,13 @@ declare module '@tanstack/react-router' {
             preLoaderRoute: typeof LegacyImport
             parentRoute: typeof rootRoute
         }
+        '/library': {
+            id: '/library'
+            path: '/library'
+            fullPath: '/library'
+            preLoaderRoute: typeof LibraryImport
+            parentRoute: typeof rootRoute
+        }
         '/settings': {
             id: '/settings'
             path: '/settings'
@@ -156,6 +170,7 @@ export interface FileRoutesByFullPath {
     '/discover': typeof DiscoverRoute
     '/favourites': typeof FavouritesRoute
     '/legacy': typeof LegacyRoute
+    '/library': typeof LibraryRoute
     '/settings': typeof SettingsRoute
     '/profile/$profileId': typeof ProfileProfileIdRoute
     '/station/$naddr': typeof StationNaddrRoute
@@ -168,6 +183,7 @@ export interface FileRoutesByTo {
     '/discover': typeof DiscoverRoute
     '/favourites': typeof FavouritesRoute
     '/legacy': typeof LegacyRoute
+    '/library': typeof LibraryRoute
     '/settings': typeof SettingsRoute
     '/profile/$profileId': typeof ProfileProfileIdRoute
     '/station/$naddr': typeof StationNaddrRoute
@@ -181,6 +197,7 @@ export interface FileRoutesById {
     '/discover': typeof DiscoverRoute
     '/favourites': typeof FavouritesRoute
     '/legacy': typeof LegacyRoute
+    '/library': typeof LibraryRoute
     '/settings': typeof SettingsRoute
     '/profile/$profileId': typeof ProfileProfileIdRoute
     '/station/$naddr': typeof StationNaddrRoute
@@ -195,6 +212,7 @@ export interface FileRouteTypes {
         | '/discover'
         | '/favourites'
         | '/legacy'
+        | '/library'
         | '/settings'
         | '/profile/$profileId'
         | '/station/$naddr'
@@ -206,6 +224,7 @@ export interface FileRouteTypes {
         | '/discover'
         | '/favourites'
         | '/legacy'
+        | '/library'
         | '/settings'
         | '/profile/$profileId'
         | '/station/$naddr'
@@ -217,6 +236,7 @@ export interface FileRouteTypes {
         | '/discover'
         | '/favourites'
         | '/legacy'
+        | '/library'
         | '/settings'
         | '/profile/$profileId'
         | '/station/$naddr'
@@ -230,6 +250,7 @@ export interface RootRouteChildren {
     DiscoverRoute: typeof DiscoverRoute
     FavouritesRoute: typeof FavouritesRoute
     LegacyRoute: typeof LegacyRoute
+    LibraryRoute: typeof LibraryRoute
     SettingsRoute: typeof SettingsRoute
     ProfileProfileIdRoute: typeof ProfileProfileIdRoute
     StationNaddrRoute: typeof StationNaddrRoute
@@ -242,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
     DiscoverRoute: DiscoverRoute,
     FavouritesRoute: FavouritesRoute,
     LegacyRoute: LegacyRoute,
+    LibraryRoute: LibraryRoute,
     SettingsRoute: SettingsRoute,
     ProfileProfileIdRoute: ProfileProfileIdRoute,
     StationNaddrRoute: StationNaddrRoute,
@@ -261,6 +283,7 @@ export const routeTree = rootRoute._addFileChildren(rootRouteChildren)._addFileT
         "/discover",
         "/favourites",
         "/legacy",
+        "/library",
         "/settings",
         "/profile/$profileId",
         "/station/$naddr"
@@ -283,6 +306,9 @@ export const routeTree = rootRoute._addFileChildren(rootRouteChildren)._addFileT
     },
     "/legacy": {
       "filePath": "legacy.tsx"
+    },
+    "/library": {
+      "filePath": "library.tsx"
     },
     "/settings": {
       "filePath": "settings.tsx"

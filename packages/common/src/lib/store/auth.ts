@@ -214,7 +214,23 @@ export const authActions = {
                 return
             }
 
-            // Don't try extension login automatically - it requires user interaction
+            // Try browser extension login if auto-login is enabled and no other stored credentials
+            if (autoLogin) {
+                console.log('Attempting automatic browser extension login...')
+                try {
+                    // Check if browser extension is available
+                    if (typeof window !== 'undefined' && window.nostr) {
+                        await authActions.loginWithExtension(true)
+                        return
+                    } else {
+                        console.log('Browser extension not available')
+                    }
+                } catch (error) {
+                    console.log('Browser extension auto-login failed:', error)
+                    // Continue to set isAuthenticating to false
+                }
+            }
+
             authStore.setState((state) => ({ ...state, isAuthenticating: false }))
         } catch (error) {
             console.error('Authentication failed:', error)

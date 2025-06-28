@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { RadioBrowserParams, RadioStation, UseRadioBrowserConfig } from '@wavefunc/common/src/types/radioBrowser'
 import type { Station } from '@wavefunc/common/src/types/station'
+import { config } from '@wavefunc/common/src/config'
 
 // Default config
 const defaultConfig: UseRadioBrowserConfig = {
@@ -11,7 +12,7 @@ const defaultConfig: UseRadioBrowserConfig = {
     },
     enabled: false,
     transformResponse: true,
-    baseUrl: 'https://de2.api.radio-browser.info/json/stations',
+    baseUrl: config.radioBrowser.apiUrl,
 }
 
 /**
@@ -79,7 +80,7 @@ export function transformToStation(radioStations: RadioStation[]): Station[] {
             name: baseStation.name,
             description: baseStation.tags ? baseStation.tags.split(',').slice(0, 3).join(', ') : '',
             website: baseStation.homepage || '',
-            imageUrl: baseStation.favicon || 'https://picsum.photos/seed/no-station/200/200',
+            imageUrl: baseStation.favicon || config.defaults.stationImageUrl,
             pubkey: '',
             countryCode: baseStation.countrycode,
             languageCodes,

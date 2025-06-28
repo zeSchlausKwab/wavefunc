@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import md5 from 'md5'
-import crypto from 'crypto'
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
@@ -60,8 +59,21 @@ export function getStationBackgroundColor(stationName: string, lightenFactor: nu
 export function generateSecretToken(length: number = 12): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
     let result = ''
+
+    // Use Web Crypto API for browser compatibility
     const randomValues = new Uint8Array(length)
-    crypto.getRandomValues(randomValues)
+    if (typeof window !== 'undefined' && window.crypto) {
+        // Browser environment
+        window.crypto.getRandomValues(randomValues)
+    } else if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+        // Node.js 19+ or other environments with global crypto
+        globalThis.crypto.getRandomValues(randomValues)
+    } else {
+        // Fallback for older environments
+        for (let i = 0; i < length; i++) {
+            randomValues[i] = Math.floor(Math.random() * 256)
+        }
+    }
 
     for (let i = 0; i < length; i++) {
         result += chars.charAt(randomValues[i] % chars.length)

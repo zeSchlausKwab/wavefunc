@@ -9,13 +9,14 @@
         "packages/*"
     ],
     "scripts": {
-        "dev": "bun run dev:web & bun run dev:relay",
-        "dev:clean": "./scripts/dev.sh",
+        "dev": "bun run dev:relay & sleep 2 && bun run dev:web & sleep 2 && bun run dev:dvmcp",
         "dev:web": "bun run --cwd apps/web dev",
         "dev:relay": "bun run --cwd infra/relay dev",
+        "dev:dvmcp": "bun run --cwd infra/dvmcp-server dev",
         "start:web": "bun run --cwd apps/web start",
+        "start:dvmcp": "bun run --cwd infra/dvmcp-server start",
         "build": "bun run --cwd apps/web build",
-        "build-devices": "cd apps/devices && bun tauri build --bundles dmg && bun tauri android build --apk",
+        "build-devices": "cd apps/devices && VITE_PUBLIC_APP_ENV=production VITE_PUBLIC_HOST=wavefunc.live bun tauri build --bundles dmg && VITE_PUBLIC_APP_ENV=production VITE_PUBLIC_HOST=wavefunc.live bun tauri android build --apk",
         "test": "bun test",
         "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
         "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,css,scss}\"",
@@ -31,27 +32,29 @@
         "publish:handler:live:direct": "bun run scripts/publish-handler.ts --live --direct"
     },
     "devDependencies": {
-        "@types/bun": "^1.2.5",
-        "@types/node": "^22.13.11",
+        "@types/bun": "^1.2.15",
+        "@types/node": "^24.0.0",
         "prettier": "3.5.3",
-        "typescript": "^5.8.2"
+        "typescript": "^5.8.3"
     },
     "peerDependencies": {
         "typescript": "^5"
     },
     "dependencies": {
-        "@nostr-dev-kit/ndk": "^2.14.4",
-        "@nostr-dev-kit/ndk-wallet": "^0.5.1",
+        "@nostr-dev-kit/ndk": "^2.14.29",
+        "@nostr-dev-kit/ndk-wallet": "^0.6.2",
         "@planetscale/database": "^1.19.0",
         "@types/string-similarity": "^4.0.2",
+        "dotenv": "^16.5.0",
         "mysql2": "^3.14.1",
-        "nostr-tools": "^2.12.0",
+        "nostr-tools": "^2.15.0",
         "react": "19.1.0",
         "react-dom": "19.1.0",
         "string-similarity": "^4.0.4"
     },
     "resolutions": {
         "react": "19.1.0",
-        "react-dom": "19.1.0"
+        "react-dom": "19.1.0",
+        "@nostr-dev-kit/ndk": "^2.14.4"
     }
 }

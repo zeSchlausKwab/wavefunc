@@ -1,9 +1,9 @@
 import {
     addStationToFavorites,
-    fetchFavoritesLists,
-    subscribeToFavoritesLists,
     updateFavoritesList,
-    useNDK,
+    useFavoritesLists,
+    authStore,
+    ndkActions,
     type FavoritesList,
 } from '@wavefunc/common'
 import type { Station } from '@wavefunc/common/src/types/station'
@@ -11,6 +11,7 @@ import { Button } from '@wavefunc/ui/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wavefunc/ui/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useStore } from '@tanstack/react-store'
 import { toast } from 'sonner'
 
 interface FavoritesDropdownProps {
@@ -20,50 +21,11 @@ interface FavoritesDropdownProps {
 
 export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownProps) {
     const [selectedListId, setSelectedListId] = useState<string>('')
-    const [isLoading, setIsLoading] = useState(false)
-    const [favoritesLists, setFavoritesLists] = useState<FavoritesList[]>([])
-    const { ndk } = useNDK()
+    const user = useStore(authStore, (state) => state.user)
+    const userPubkey = user?.pubkey
 
-    useEffect(() => {
-        const pubkey = ndk?.activeUser?.pubkey
-
-        if (!pubkey || !ndk) {
-            setFavoritesLists([])
-            return
-        }
-
-        setIsLoading(true)
-
-        const subscription = subscribeToFavoritesLists(ndk, { pubkey }, (favoritesList) => {
-            setFavoritesLists((prev) => {
-                const index = prev.findIndex((list) => list.id === favoritesList.id)
-
-                if (index >= 0) {
-                    const newLists = [...prev]
-                    newLists[index] = favoritesList
-                    return newLists
-                }
-
-                return [...prev, favoritesList]
-            })
-        })
-
-        fetchFavoritesLists(ndk, { pubkey })
-            .then((lists) => {
-                setFavoritesLists(lists)
-            })
-            .catch((error) => {
-                console.error('Error fetching favorites lists:', error)
-            })
-            .finally(() => {
-                setIsLoading(false)
-            })
-
-        return () => {
-            subscription?.stop()
-            setFavoritesLists([])
-        }
-    }, [ndk?.activeUser?.pubkey])
+    // Use the favorites query hook
+    const { data: favoritesLists = [], isLoading } = useFavoritesLists(userPubkey || '')
 
     useEffect(() => {
         if (favoritesLists.length > 0) {
@@ -76,11 +38,12 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
     }, [favoritesLists, currentListId])
 
     const handleAddToFavorites = async () => {
-        if (!selectedListId) return
+        if (!selectedListId || !userPubkey) return
 
         try {
-            if (!ndk?.activeUser?.pubkey) {
-                console.log('No user logged in')
+            const ndk = ndkActions.getNDK()
+            if (!ndk) {
+                console.log('NDK not available')
                 return
             }
 
@@ -103,11 +66,12 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
     }
 
     const handleRemoveFromFavorites = async () => {
-        if (!currentListId) return
+        if (!currentListId || !userPubkey) return
 
         try {
-            if (!ndk?.activeUser?.pubkey) {
-                console.log('No user logged in')
+            const ndk = ndkActions.getNDK()
+            if (!ndk) {
+                console.log('NDK not available')
                 return
             }
 
@@ -146,7 +110,7 @@ export function FavoritesDropdown({ station, currentListId }: FavoritesDropdownP
         )
     }
 
-    if (!ndk?.activeUser?.pubkey) {
+    if (!userPubkey) {
         return (
             <div className="flex flex-col w-full">
                 <div className="flex items-center space-x-1">

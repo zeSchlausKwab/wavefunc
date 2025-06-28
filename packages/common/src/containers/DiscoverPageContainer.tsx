@@ -1,14 +1,4 @@
-import { NDKKind } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
-import {
-    cn,
-    mapNostrEventToStation,
-    ndkActions,
-    RADIO_EVENT_KINDS,
-    searchRadioStations,
-    type NDKFilter,
-    type Station,
-} from '@wavefunc/common'
+import { cn, useStations, useStationSearch, type Station } from '@wavefunc/common'
 import StationGrid from '@wavefunc/common/src/components/station/StationGrid'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
@@ -19,120 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Filter, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from 'react-use'
-
-// Component for real-time stations from subscription
-function useRadioStations() {
-    const [stations, setStations] = useState<Station[]>([])
-    const [deletedStationIds, setDeletedStationIds] = useState<Set<string>>(new Set())
-
-    // Subscribe to deleted station events (kind 5)
-    useEffect(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk) return
-
-        const sub = ndk.subscribe(
-            {
-                kinds: [5],
-            },
-            { closeOnEose: false },
-        )
-
-        // Use a more generic handler that works with any NDK version
-        sub.on('event', (event: any) => {
-            try {
-                // Work with raw event data to avoid version conflicts
-                const rawEvent = event.rawEvent ? event.rawEvent() : event
-                const deletedIds = rawEvent.tags
-                    .filter((tag: string[]) => tag[0] === 'e')
-                    .map((tag: string[]) => tag[1])
-
-                if (deletedIds.length > 0) {
-                    // Update deleted IDs set
-                    setDeletedStationIds((prev) => {
-                        const newSet = new Set(prev)
-                        deletedIds.forEach((id: string) => newSet.add(id))
-                        return newSet
-                    })
-
-                    // Remove deleted stations from the list
-                    setStations((prev) => prev.filter((station) => !deletedIds.includes(station.id)))
-                }
-            } catch (error) {
-                console.error('Error processing deletion event:', error)
-            }
-        })
-
-        return () => {
-            sub.stop()
-        }
-    }, [])
-
-    // Process an incoming station event
-    const processNewStationEvent = (event: any) => {
-        try {
-            // Use the mapNostrEventToStation function to get a complete Station object
-            const station = mapNostrEventToStation(event)
-
-            setStations((prevStations) => {
-                // Check if we already have this station
-                const exists = prevStations.some((s) => s.id === station.id)
-                if (exists) return prevStations
-
-                return [...prevStations, station]
-            })
-        } catch (e) {
-            console.error('Error processing station event:', e)
-        }
-    }
-
-    // Subscribe to radio station events
-    useEffect(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk) return
-
-        // Use a Set to track processed event IDs within this component
-        const processedEvents = new Set<string>()
-
-        // Subscribe to radio stations but handle the callback manually to avoid type issues
-        const filter = {
-            kinds: [RADIO_EVENT_KINDS.STREAM as NDKKind],
-            limit: 12,
-        } as NDKFilter
-
-        // Create subscription without a callback
-        const subscription = ndk.subscribe(filter, {
-            closeOnEose: false,
-        })
-
-        // Add event handler separately to avoid the type mismatch in the function signature
-        subscription.on('event', (event: any) => {
-            // Get the raw event data which is compatible across NDK versions
-            const rawEvent = event.rawEvent ? event.rawEvent() : event
-
-            // Skip processing if we've already handled this event
-            if (rawEvent && rawEvent.id && processedEvents.has(rawEvent.id)) {
-                return
-            }
-
-            // Mark the event as processed if it has an ID
-            if (rawEvent && rawEvent.id) {
-                processedEvents.add(rawEvent.id)
-
-                // Process using the raw event data
-                processNewStationEvent(event)
-            }
-        })
-
-        return () => {
-            subscription.stop()
-        }
-    }, []) // Empty dependency array - only run once
-
-    return {
-        stations,
-        deletedStationIds,
-    }
-}
 
 // Genre selector component
 function GenreSelector({
@@ -398,7 +274,6 @@ interface SearchFilters {
     domain: string | null
 }
 
-
 export function DiscoverPageContainer() {
     // Search state
     const [searchTerm, setSearchTerm] = useState('')
@@ -421,59 +296,15 @@ export function DiscoverPageContainer() {
     // Responsive state
     const isMobile = useMedia('(max-width: 640px)')
 
-    // Use Tanstack Query to fetch stations with search parameters
-    const { data: searchResults, isLoading } = useQuery({
-        queryKey: ['stations', 'search', filters],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) return []
+    // Use the station search hook for better performance and caching
+    const searchOptions = {
+        tags: filters.tags || undefined,
+        languageCode: filters.languageCode || undefined,
+        domain: filters.domain || undefined,
+    }
 
-            try {
-                // First attempt with exact filters
-                const results = await searchRadioStations({
-                    searchTerm: filters.searchTerm,
-                    tags: filters.tags || undefined,
-                    languageCode: filters.languageCode || undefined,
-                    domain: filters.domain || undefined,
-                })
-
-                // If we got results, return them
-                if (results.length > 0) {
-                    return results
-                }
-
-                // If no results and we have a search term, try a more flexible search
-                if (filters.searchTerm && !filters.tags && !filters.languageCode && !filters.domain) {
-                    // Try searching with the term as a tag instead
-                    const tagResults = await searchRadioStations({
-                        searchTerm: '', // Clear search term
-                        tags: [filters.searchTerm.toLowerCase()], // Use as tag
-                    })
-
-                    if (tagResults.length > 0) {
-                        return tagResults
-                    }
-
-                    const recentResults = await searchRadioStations({
-                        since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30, // Last 30 days
-                    })
-
-                    return recentResults
-                }
-
-                return results
-            } catch (error) {
-                console.error('❌ Error during search:', error)
-                return []
-            }
-        },
-        enabled:
-            Boolean(filters.searchTerm) ||
-            Boolean(filters.tags) ||
-            Boolean(filters.languageCode) ||
-            Boolean(filters.domain),
-        refetchOnWindowFocus: false,
-        staleTime: 1000 * 60 * 5, // 5 minutes
+    const { data: searchResults, isLoading } = useStationSearch(filters.searchTerm, searchOptions, {
+        enabled: Boolean(filters.searchTerm) || Boolean(filters.languageCode) || Boolean(filters.domain),
     })
 
     // Handle search button click
@@ -552,8 +383,8 @@ export function DiscoverPageContainer() {
         })
     }
 
-    // Get real-time station updates from subscription
-    const { stations: realtimeStations } = useRadioStations()
+    // Get stations using the new query hook (includes real-time updates)
+    const { data: realtimeStations = [], isLoading: isLoadingStations } = useStations({ limit: 12 })
 
     // Combine search results with real-time stations
     const allStations = useMemo(() => {
@@ -570,7 +401,6 @@ export function DiscoverPageContainer() {
         // Otherwise show real-time stations
         return realtimeStations
     }, [searchResults, realtimeStations, filters]) // Added filters to dependency array
-
 
     // Extract unique genres from stations
     const genres = useMemo(() => {
@@ -636,7 +466,7 @@ export function DiscoverPageContainer() {
                 languages={languages}
             />
 
-            {isLoading ? (
+            {isLoading || isLoadingStations ? (
                 <div className="flex justify-center my-8">
                     <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
                 </div>
@@ -645,4 +475,4 @@ export function DiscoverPageContainer() {
             )}
         </div>
     )
-} 
+}

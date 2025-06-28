@@ -1,22 +1,9 @@
-import { Nip05Badge } from '@wavefunc/common'
+import { Nip05Badge, useProfile } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
-import { ndkActions } from '@wavefunc/common'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { NDKSubscriptionCacheUsage } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, CheckCircle2, MessageCircle, Minus, Plus, Share2, Zap } from 'lucide-react'
 import { useState } from 'react'
-
-interface UserProfile {
-    name?: string
-    displayName?: string
-    about?: string
-    picture?: string
-    banner?: string
-    website?: string
-    nip05?: string
-}
 
 // Utility functions
 function truncateText(text: string, maxLength: number): string {
@@ -50,31 +37,7 @@ function ProfilePage() {
     const [showFullAbout, setShowFullAbout] = useState(false)
     const navigate = useNavigate()
 
-    const { data: profile, isLoading } = useQuery({
-        queryKey: ['profile-detail', profileId],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            const user = ndk.getUser({ pubkey: profileId })
-            const userProfile = await user.fetchProfile({
-                cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-            })
-
-            if (!userProfile) return null
-
-            return {
-                name: userProfile.name || 'Anonymous',
-                displayName: userProfile.displayName,
-                about: userProfile.about,
-                picture: userProfile.picture,
-                banner: userProfile.banner,
-                website: userProfile.website,
-                nip05: userProfile.nip05,
-            } as UserProfile
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-    })
+    const { data: profile, isLoading } = useProfile(profileId)
 
     if (isLoading) {
         return (
@@ -153,7 +116,7 @@ function ProfilePage() {
                         )}
                         <div className="flex items-center gap-2">
                             <h2 className="text-2xl font-bold text-white">
-                                {truncateText(profile?.name ?? 'Unnamed user', 50)}
+                                {truncateText(profile?.name || profile?.displayName || 'Unnamed user', 50)}
                             </h2>
                             <Nip05Badge userId={profileId} />
                         </div>

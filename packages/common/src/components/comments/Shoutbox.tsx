@@ -1,6 +1,5 @@
 import { NDKEvent, NDKKind } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
-import { ndkActions } from '@wavefunc/common'
+import { useShoutboxMessages, ndkActions } from '@wavefunc/common'
 import { Badge } from '@wavefunc/ui/components/ui/badge'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
@@ -12,8 +11,6 @@ import ShoutboxComment from './ShoutboxComment'
 
 // Define the shoutbox categories
 type ShoutboxCategory = 'all' | 'bug' | 'suggestion' | 'greeting' | 'general'
-const MAX_REPLY_FETCH_DEPTH = 5 // Max depth for fetching nested replies
-const REPLIES_FETCH_LIMIT_PER_DEPTH = 50 // Max replies to fetch per parent set per depth
 
 // Extended CommentItem props to accept specialized getReplies function
 interface ExtendedCommentItemProps {
@@ -54,72 +51,13 @@ export default function Shoutbox() {
         setShoutboxEvent(virtualEvent)
     }, [])
 
+    // Use the new shoutbox messages hook
     const {
         isLoading,
         error,
         data: fetchedData,
         refetch,
-    } = useQuery({
-        queryKey: ['shoutbox-messages'],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            // Step 1: Fetch Kind 1 root posts
-            const rootPostsFilter = {
-                kinds: [NDKKind.Text],
-                '#t': ['wavefunc', 'shoutbox'],
-                limit: 50,
-            }
-            const fetchedRootEvents = await ndk.fetchEvents(rootPostsFilter)
-            let rootPosts = Array.from(fetchedRootEvents.values()).filter((event) => {
-                if (event.kind !== NDKKind.Text) return false
-                const eTags = event.tags.filter((tag) => tag[0].toLowerCase() === 'e')
-                const isNip10Reply = eTags.some((tag) => tag.length >= 4 && (tag[3] === 'reply' || tag[3] === 'root'))
-                return !isNip10Reply
-            })
-            rootPosts.sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-
-            // Step 2: Iteratively fetch Kind 1111 replies
-            const allFetchedReplies: NDKEvent[] = []
-            let parentEventIdsToFetchRepliesFor = rootPosts.map((event) => event.id)
-            const fetchedReplyIds = new Set<string>() // To avoid re-fetching or processing same reply
-
-            for (let depth = 0; depth < MAX_REPLY_FETCH_DEPTH; depth++) {
-                if (parentEventIdsToFetchRepliesFor.length === 0) {
-                    console.log(`No more parent IDs to fetch replies for at depth ${depth}. Breaking.`)
-                    break
-                }
-
-                const repliesFilter = {
-                    kinds: [1111],
-                    '#e': parentEventIdsToFetchRepliesFor,
-                    limit: parentEventIdsToFetchRepliesFor.length * REPLIES_FETCH_LIMIT_PER_DEPTH, // Limit per iteration based on parents
-                }
-                const newRepliesCollection = await ndk.fetchEvents(repliesFilter)
-                const newRepliesArray = Array.from(newRepliesCollection.values())
-
-                const trulyNewReplies: NDKEvent[] = []
-                for (const reply of newRepliesArray) {
-                    if (!fetchedReplyIds.has(reply.id)) {
-                        trulyNewReplies.push(reply)
-                        allFetchedReplies.push(reply)
-                        fetchedReplyIds.add(reply.id)
-                    }
-                }
-
-                if (trulyNewReplies.length === 0) {
-                    console.log(`No new unique replies found at depth ${depth}. Breaking.`)
-                    break
-                }
-                parentEventIdsToFetchRepliesFor = trulyNewReplies.map((event) => event.id)
-            }
-            console.log(`Total fetched replies after all depths: ${allFetchedReplies.length}`)
-
-            return { rootPosts, allReplyEvents: allFetchedReplies }
-        },
-        staleTime: 1000 * 60,
-        refetchInterval: 1000 * 60 * 5, // Longer refetch interval for this complex query
+    } = useShoutboxMessages({
         enabled: !!shoutboxEvent,
     })
 

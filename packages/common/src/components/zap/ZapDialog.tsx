@@ -13,11 +13,10 @@ import { Label } from '@wavefunc/ui/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wavefunc/ui/components/ui/tabs'
 import { ndkActions } from '@wavefunc/common'
 import { walletStore } from '@wavefunc/common'
+import { useZapReceiptsWithRealtime } from '@wavefunc/common'
 import NDK, {
     NDKEvent,
     NDKPrivateKeySigner,
-    NDKSubscription,
-    NDKSubscriptionCacheUsage,
     NDKZapper,
     type LnPaymentInfo,
     type NDKPaymentConfirmationLN,
@@ -49,21 +48,55 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
     const [nwcZapStatus, setNwcZapStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
     const [nwcZapError, setNwcZapError] = useState<string | null>(null)
 
-    const zapSubscriptionRef = useRef<NDKSubscription | null>(null)
     const startTimeRef = useRef<number>(0)
     const resolvePaymentRef = useRef<((value: NDKPaymentConfirmationLN) => void) | null>(null)
 
     const walletState = useStore(walletStore)
+
+    // Use the new zap receipts hook with real-time updates
+    const { data: zapReceipts = [] } = useZapReceiptsWithRealtime(event.id || '', startTimeRef.current, {
+        enabled: isOpen && Boolean(event.id),
+    })
+
+    // Handle incoming zap receipts
+    useEffect(() => {
+        if (!zapReceipts.length || !paymentPending) return
+
+        // Look for recent zaps that match our criteria
+        const recentZaps = zapReceipts.filter((receipt) => {
+            const isRecent = receipt.created_at >= startTimeRef.current - 10
+            // Could also check if it's our zap by comparing with expected amount
+            return isRecent
+        })
+
+        if (recentZaps.length > 0) {
+            const latestZap = recentZaps[0]
+            setPaymentComplete(true)
+            setPaymentPending(false)
+            setNwcZapStatus('success')
+
+            if (resolvePaymentRef.current) {
+                const confirmation: NDKPaymentConfirmationLN = {
+                    preimage: latestZap.preimage || 'query-detected-' + Math.random().toString(36).substring(2, 8),
+                }
+                resolvePaymentRef.current(confirmation)
+                resolvePaymentRef.current = null
+            }
+
+            onZapComplete?.(event) // Pass the original event since we don't have the full NDKEvent from receipt
+            toast.success('Zap successful! 🤙')
+
+            setTimeout(() => {
+                onOpenChange(false)
+            }, 1500)
+        }
+    }, [zapReceipts, paymentPending, event, onZapComplete, onOpenChange])
 
     useEffect(() => {
         if (isOpen) {
             fetchRecipientDetails()
         } else {
             resetState()
-        }
-
-        return () => {
-            cleanupSubscription()
         }
     }, [isOpen, event])
 
@@ -74,15 +107,7 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         setErrorMessage(null)
         setNwcZapStatus('idle')
         setNwcZapError(null)
-        cleanupSubscription()
         resolvePaymentRef.current = null
-    }
-
-    const cleanupSubscription = () => {
-        if (zapSubscriptionRef.current) {
-            zapSubscriptionRef.current.stop()
-            zapSubscriptionRef.current = null
-        }
     }
 
     const fetchRecipientDetails = useCallback(async () => {
@@ -128,68 +153,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
         }
     }, [event])
 
-    const subscribeToZapReceipts = useCallback(
-        (ndk: NDK) => {
-            startTimeRef.current = Math.floor(Date.now() / 1000)
-
-            const filter = {
-                kinds: [9735],
-                '#e': [event.id],
-                since: startTimeRef.current - 5,
-            }
-
-            const sub = ndk.subscribe(filter, {
-                closeOnEose: false,
-                cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-            })
-
-            sub.on('event', (zapEvent: NDKEvent) => {
-                const descriptionTag = zapEvent.tags.find((t) => t[0] === 'description')?.[1]
-                let isOurZap = false
-
-                if (descriptionTag) {
-                    try {
-                        const zapRequest = JSON.parse(descriptionTag)
-                        isOurZap = zapRequest.tags?.some(
-                            (tag: string[]) =>
-                                (tag[0] === 'e' && tag[1] === event.id) ||
-                                (tag[0] === 'a' && tag[1]?.includes(event.id)),
-                        )
-                    } catch (error) {
-                        console.error('Failed to parse zap request:', error)
-                    }
-                }
-
-                const isRecentZap = zapEvent.created_at && zapEvent.created_at >= startTimeRef.current - 10
-
-                if (isOurZap || isRecentZap) {
-                    setPaymentComplete(true)
-                    setPaymentPending(false)
-                    setNwcZapStatus('success')
-
-                    if (resolvePaymentRef.current) {
-                        const confirmation: NDKPaymentConfirmationLN = {
-                            preimage: zapEvent.tags.find((t) => t[0] === 'preimage')?.[1] || 'unknown',
-                        }
-                        resolvePaymentRef.current(confirmation)
-                        resolvePaymentRef.current = null
-                    }
-
-                    onZapComplete?.(zapEvent)
-                    toast.success('Zap successful! 🤙')
-
-                    setTimeout(() => {
-                        onOpenChange(false)
-                        sub.stop()
-                    }, 1500)
-                }
-            })
-
-            return sub
-        },
-        [event, onZapComplete, onOpenChange],
-    )
-
     const generateInvoice = async () => {
         try {
             setLoading(true)
@@ -201,8 +164,8 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            const sub = subscribeToZapReceipts(ndk)
-            zapSubscriptionRef.current = sub
+            // Set the start time for zap receipt filtering
+            startTimeRef.current = Math.floor(Date.now() / 1000)
 
             const lnPay = async (payment: NDKZapDetails<LnPaymentInfo>) => {
                 setInvoice(payment.pr)
@@ -230,7 +193,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             setErrorMessage('Failed to generate invoice: ' + (error instanceof Error ? error.message : 'Unknown error'))
             setLoading(false)
             setInvoice(null)
-            cleanupSubscription()
         }
     }
 
@@ -249,9 +211,8 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             const ndk = ndkActions.getNDK()
             if (!ndk) throw new Error('NDK not available')
 
-            // Set up subscription to listen for zap confirmation
-            const sub = subscribeToZapReceipts(ndk)
-            zapSubscriptionRef.current = sub
+            // Set the start time for zap receipt filtering
+            startTimeRef.current = Math.floor(Date.now() / 1000)
 
             // Configure NDK to use the wallet
             // @ts-ignore
@@ -272,7 +233,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
             console.error('Failed to send zap with NWC:', error)
             setNwcZapStatus('error')
             setNwcZapError(error instanceof Error ? error.message : 'Failed to send zap using wallet')
-            cleanupSubscription()
         }
     }
 
@@ -294,7 +254,6 @@ export function ZapDialog({ isOpen, onOpenChange, event, onZapComplete }: ZapDia
 
                 onZapComplete?.()
                 onOpenChange(false)
-                cleanupSubscription()
             }
         }, 10000)
     }

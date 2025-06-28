@@ -1,10 +1,10 @@
 import type { NDKEvent } from '@nostr-dev-kit/ndk'
-import { createCommentEvent, ndkActions, publishComment } from '@wavefunc/common'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { Loader2, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useCreateComment } from '../../queries'
 
 interface ReplyToCommentProps {
     stationEvent: NDKEvent
@@ -15,33 +15,30 @@ interface ReplyToCommentProps {
 
 export default function ReplyToComment({ stationEvent, parentComment, onCommentPosted, onClose }: ReplyToCommentProps) {
     const [content, setContent] = useState('')
-    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-
-        if (!content.trim() || isSubmitting) return
-
-        setIsSubmitting(true)
-
-        try {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            const commentEvent = createCommentEvent(content.trim(), stationEvent, parentComment)
-
-            await publishComment(ndk, commentEvent)
-
+    const createCommentMutation = useCreateComment({
+        onSuccess: () => {
             setContent('')
             onCommentPosted()
             if (onClose) onClose()
             toast.success('Reply posted')
-        } catch (error) {
+        },
+        onError: (error) => {
             toast.error('Failed to post reply')
             console.error(error)
-        } finally {
-            setIsSubmitting(false)
-        }
+        },
+    })
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!content.trim() || createCommentMutation.isPending) return
+
+        createCommentMutation.mutate({
+            content: content.trim(),
+            stationEvent,
+            parentComment,
+        })
     }
 
     return (
@@ -60,7 +57,7 @@ export default function ReplyToComment({ stationEvent, parentComment, onCommentP
                             e.preventDefault()
                             onClose()
                         }}
-                        disabled={isSubmitting}
+                        disabled={createCommentMutation.isPending}
                     >
                         <X className="h-4 w-4" />
                     </Button>
@@ -73,12 +70,12 @@ export default function ReplyToComment({ stationEvent, parentComment, onCommentP
                 placeholder="Write a reply..."
                 className="resize-none mb-2 text-sm"
                 rows={3}
-                disabled={isSubmitting}
+                disabled={createCommentMutation.isPending}
             />
 
             <div className="flex justify-end">
-                <Button type="submit" size="sm" disabled={!content.trim() || isSubmitting}>
-                    {isSubmitting ? (
+                <Button type="submit" size="sm" disabled={!content.trim() || createCommentMutation.isPending}>
+                    {createCommentMutation.isPending ? (
                         <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Posting...

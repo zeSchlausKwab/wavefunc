@@ -1,95 +1,58 @@
 import { NDKEvent } from '@nostr-dev-kit/ndk'
-import { useQuery } from '@tanstack/react-query'
-import { fetchStationComments, getRootComments, ndkActions, subscribeToComments } from '@wavefunc/common'
+import { useComments } from '../../queries'
 import { Button } from '@wavefunc/ui/components/ui/button'
 import { MessageSquare, RefreshCw } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
 import CommentItem from './CommentItem'
 import CreateComment from './CreateComment'
+
+// Helper function to filter root comments (fixed logic)
+function isReplyToComment(comment: NDKEvent, parentCommentId?: string): boolean {
+    const COMMENT_KIND = 1111
+
+    // First, look for k-tags with COMMENT_KIND (1111)
+    const commentKindTags = comment.tags.filter(
+        (tag) => tag[0].toLowerCase() === 'k' && tag[1] === COMMENT_KIND.toString(),
+    )
+
+    if (commentKindTags.length === 0) {
+        // No k-tag with comment kind, so this is not a reply
+        return false
+    }
+
+    // If we're looking for a specific parent, check if this comment references it
+    if (parentCommentId) {
+        return comment.tags.some((tag) => tag[0].toLowerCase() === 'e' && tag[1] === parentCommentId)
+    }
+
+    // The presence of k-tag with COMMENT_KIND (1111) means this is a reply
+    // This tag is only added when parentComment is provided in createCommentEvent
+    return true
+}
+
+function getRootComments(events: NDKEvent[]): NDKEvent[] {
+    return events
+        .filter((comment) => !isReplyToComment(comment))
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+}
 
 interface CommentsListProps {
     stationEvent: NDKEvent
     stationId: string
-    commentsCount: number
 }
 
-export default function CommentsList({ stationEvent, stationId, commentsCount }: CommentsListProps) {
-    const [allComments, setAllComments] = useState<NDKEvent[]>([])
-    const processedIds = useRef(new Set<string>())
-    const subscriptionRef = useRef<{ stop: () => void } | null>(null)
-
-    // Load all comments for the station
-    const { isLoading, error, isError, refetch } = useQuery({
-        queryKey: ['station-comments', stationId, commentsCount],
-        queryFn: async () => {
-            const ndk = ndkActions.getNDK()
-            if (!ndk) throw new Error('NDK not available')
-
-            // Fetch all comments for this station
-            const comments = await fetchStationComments(ndk, stationId)
-
-            // Update our processed IDs set to avoid duplicates
-            comments.forEach((comment) => {
-                if (comment.id) processedIds.current.add(comment.id)
-            })
-
-            // Update state with all comments
-            setAllComments(comments)
-
-            return comments
-        },
-        staleTime: 1000 * 60, // 1 minute
-        retry: 1,
-    })
-
-    // Subscribe to new comments
-    useEffect(() => {
-        const ndk = ndkActions.getNDK()
-        if (!ndk) return
-
-        // Clean up previous subscription
-        if (subscriptionRef.current) {
-            subscriptionRef.current.stop()
-            subscriptionRef.current = null
-        }
-
-        // Reset state when station changes
-        processedIds.current.clear()
-
-        // Subscribe to all new comments
-        const subscription = subscribeToComments(ndk, stationId, (newComment) => {
-            if (!newComment.id) return
-
-            // Skip if we've already processed this comment
-            if (processedIds.current.has(newComment.id)) return
-            processedIds.current.add(newComment.id)
-
-            // Add new comment to our state
-            setAllComments((prev) => {
-                // Double-check it's not already in the list
-                if (prev.some((c) => c.id === newComment.id)) return prev
-                return [...prev, newComment]
-            })
-        })
-
-        // Store subscription for cleanup
-        subscriptionRef.current = subscription
-
-        return () => {
-            if (subscriptionRef.current) {
-                subscriptionRef.current.stop()
-                subscriptionRef.current = null
-            }
-        }
-    }, [stationId])
+export default function CommentsList({ stationEvent, stationId }: CommentsListProps) {
+    // Use the query hook with event ID (like before refactoring)
+    const { data: allComments = [], isLoading, error, isError, refetch } = useComments(stationId)
 
     // When new comment is posted, refresh the list
     const handleCommentPosted = () => {
         refetch()
     }
 
-    // Get only root comments for the first level of display
-    const rootComments = allComments.length > 0 ? getRootComments(allComments) : []
+    // Convert NostrComment objects to NDKEvents for getRootComments function
+    const commentEvents: NDKEvent[] = allComments.map((comment) => comment.event).filter(Boolean) as NDKEvent[]
+
+    const rootComments = commentEvents.length > 0 ? getRootComments(commentEvents) : []
 
     return (
         <div className="w-full space-y-4">
@@ -121,7 +84,13 @@ export default function CommentsList({ stationEvent, stationId, commentsCount }:
 
             <div className="space-y-4 min-h-[100px]">
                 {rootComments.map((comment) => (
-                    <CommentItem key={comment.id} comment={comment} stationEvent={stationEvent} stationId={stationId} />
+                    <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        stationEvent={stationEvent}
+                        stationId={stationId}
+                        initialExpandDepth={3}
+                    />
                 ))}
             </div>
         </div>
