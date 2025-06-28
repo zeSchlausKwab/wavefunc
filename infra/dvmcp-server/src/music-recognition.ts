@@ -3,13 +3,22 @@
 import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Load environment variables from the project root
+// Load environment variables from the project root (only in development)
 const projectRoot = path.resolve(__dirname, '../../../')
-dotenv.config({ path: path.join(projectRoot, '.env') })
+const envPath = path.join(projectRoot, '.env')
+
+// Only try to load .env file if it exists (for local development)
+if (fs.existsSync(envPath)) {
+    console.log(`Loading .env file from: ${envPath}`)
+    dotenv.config({ path: envPath })
+} else {
+    console.log('No .env file found - using environment variables from system')
+}
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -19,13 +28,18 @@ import { MusicMetadataService } from '../../../packages/common/src/services/musi
 const AUDD_API_TOKEN = process.env.AUDD_API_TOKEN
 const DISCOGS_TOKEN = process.env.DISCOGS_PA_TOKEN
 
+console.log('Environment check:')
+console.log(`- AUDD_API_TOKEN: ${AUDD_API_TOKEN ? '✓ Set' : '✗ Missing'}`)
+console.log(`- DISCOGS_PA_TOKEN: ${DISCOGS_TOKEN ? '✓ Set' : '✗ Missing'}`)
+
 if (!AUDD_API_TOKEN) {
-    console.error('AUDD_API_TOKEN environment variable is required')
+    console.error('ERROR: AUDD_API_TOKEN environment variable is required')
+    console.error('Please set AUDD_API_TOKEN in your environment variables')
     process.exit(1)
 }
 
 if (!DISCOGS_TOKEN) {
-    console.warn('DISCOGS_PA_TOKEN environment variable not set - Discogs enrichment will be disabled')
+    console.warn('WARNING: DISCOGS_PA_TOKEN environment variable not set - Discogs enrichment will be disabled')
 }
 
 // Create the music metadata service with enrichment capabilities
@@ -155,9 +169,18 @@ process.on('SIGINT', async () => {
 
 // Start server
 async function main() {
-    const transport = new StdioServerTransport()
-    await server.connect(transport)
-    console.error('[MCP] Music Recognition Server running on stdio')
+    try {
+        console.log('[MCP] Starting Music Recognition Server...')
+        const transport = new StdioServerTransport()
+        await server.connect(transport)
+        console.error('[MCP] Music Recognition Server running on stdio')
+    } catch (error) {
+        console.error('[MCP] Failed to start server:', error)
+        process.exit(1)
+    }
 }
 
-main().catch(console.error)
+main().catch((error) => {
+    console.error('[MCP] Fatal error:', error)
+    process.exit(1)
+})
