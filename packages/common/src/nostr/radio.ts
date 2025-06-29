@@ -592,7 +592,7 @@ export async function searchRadioStations(
         console.log(
             '📻 Connected relays:',
             Array.from(searchNdk.pool?.relays.values() || [])
-                .map((r) => `${r.url} (${r.status})`)
+                .map((r: any) => `${r.url} (${r.status})`)
                 .join(', '),
         )
 

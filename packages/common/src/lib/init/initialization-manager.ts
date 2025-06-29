@@ -163,13 +163,9 @@ class AppInitializationManager {
                 : envConfig.VITE_PUBLIC_APP_ENV === 'development'
                   ? [localRelay]
                   : defaultRelays)
-        let searchRelays =
-            options.searchRelaysOverride ||
-            (defaultRelays.length > 0
-                ? defaultRelays
-                : envConfig.VITE_PUBLIC_APP_ENV === 'development'
-                  ? [localRelay]
-                  : defaultRelays)
+
+        // Search NDK should always use wavefunc relay for proper indexing, unless explicitly overridden
+        let searchRelays = options.searchRelaysOverride || ['wss://relay.wavefunc.live/']
 
         // Add local DVMCP relay only if no default relays are configured
         if (envConfig.VITE_PUBLIC_APP_ENV === 'development' && defaultRelays.length === 0) {
@@ -177,27 +173,34 @@ class AppInitializationManager {
             if (localDvmcpRelay !== localRelay && !initialRelays.includes(localDvmcpRelay)) {
                 initialRelays = [...initialRelays, localDvmcpRelay]
             }
-            if (localDvmcpRelay !== localRelay && !searchRelays.includes(localDvmcpRelay)) {
-                searchRelays = [...searchRelays, localDvmcpRelay]
-            }
+            // Note: Don't add local DVMCP relay to searchRelays - keep search focused on wavefunc relay
         }
 
-        console.log('[InitManager] Initializing NDK with relays:', initialRelays)
+        console.log('[InitManager] Initializing Main NDK with relays:', initialRelays)
+        console.log('[InitManager] Initializing Search NDK with relays:', searchRelays)
 
-        // Initialize NDK instance
+        // Initialize NDK instances
         const ndk = ndkActions.initialize(initialRelays)
+        ndkActions.initializeSearchNdk(searchRelays)
 
         // Connect to NDK relays
         try {
             const ndkState = ndkActions.getState()
 
-            // Connect NDK if not already connected
+            // Connect main NDK if not already connected
             if (!ndkState.isConnected && !ndkState.isConnecting) {
-                console.log('[InitManager] Connecting to NDK...')
+                console.log('[InitManager] Connecting to main NDK...')
                 await ndkActions.connect()
-                console.log('[InitManager] NDK connection initiated')
+                console.log('[InitManager] Main NDK connection initiated')
             } else {
-                console.log('[InitManager] NDK already connected/connecting')
+                console.log('[InitManager] Main NDK already connected/connecting')
+            }
+
+            // Connect search NDK
+            if (ndkState.searchNdk) {
+                console.log('[InitManager] Connecting to search NDK...')
+                await ndkActions.connectSearchNdk()
+                console.log('[InitManager] Search NDK connection initiated')
             }
 
             // Add local relay to NDK only if no default relays are configured

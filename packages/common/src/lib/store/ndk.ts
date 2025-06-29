@@ -13,6 +13,7 @@ interface NDKState {
     isConnected: boolean
     connectedRelayCount: number
     explicitRelayUrls: string[]
+    searchNdk: NDK | null
 }
 
 const initialState: NDKState = {
@@ -21,6 +22,7 @@ const initialState: NDKState = {
     isConnected: false,
     connectedRelayCount: 0,
     explicitRelayUrls: [],
+    searchNdk: null,
 }
 
 export const ndkStore = new Store<NDKState>(initialState)
@@ -255,6 +257,43 @@ export const ndkActions = {
 
     getState: () => {
         return ndkStore.state
+    },
+
+    // Initialize search NDK with wavefunc relay
+    initializeSearchNdk: (searchRelays?: string[]): NDK => {
+        const state = ndkStore.state
+        if (state.searchNdk) return state.searchNdk
+
+        // Default to wavefunc relay for search if no relays provided
+        const relayUrls = searchRelays || ['wss://relay.wavefunc.live/']
+
+        const searchNdk = new NDK({
+            explicitRelayUrls: relayUrls,
+        })
+
+        ndkStore.setState((state) => ({ ...state, searchNdk }))
+
+        console.log('Search NDK initialized with relays:', relayUrls)
+        return searchNdk
+    },
+
+    // Connect search NDK
+    connectSearchNdk: async (timeoutMs: number = 2000): Promise<void> => {
+        const state = ndkStore.state
+        if (!state.searchNdk) return
+
+        try {
+            console.log('Connecting to search NDK...')
+            await state.searchNdk.connect(timeoutMs)
+            console.log('Search NDK connection initiated')
+        } catch (error) {
+            console.warn('Search NDK connection failed, but continuing:', error)
+        }
+    },
+
+    // Get search NDK instance
+    getSearchNdk: (): NDK | null => {
+        return ndkStore.state.searchNdk
     },
 
     // Add all default relays at once
