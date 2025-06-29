@@ -79,11 +79,11 @@ class AppInitializationManager {
         const portSuffix = envConfig.VITE_PUBLIC_APP_ENV === 'development' ? ':3002' : ''
 
         const relayUrl = `${wsProtocol}://${relayPrefix}${localMachineIp}${portSuffix}`
-        console.log('[InitManager] Created relay URL:', relayUrl, { 
-            host: envConfig.VITE_PUBLIC_HOST, 
-            isBrowser, 
+        console.log('[InitManager] Created relay URL:', relayUrl, {
+            host: envConfig.VITE_PUBLIC_HOST,
+            isBrowser,
             hostname: isBrowser ? window.location.hostname : 'N/A',
-            computed: localMachineIp 
+            computed: localMachineIp,
         })
         return relayUrl
     }
@@ -147,21 +147,29 @@ class AppInitializationManager {
         // Determine which relays to use - prioritize DEFAULT_RELAY_URLS over local relay
         const defaultRelays = getDefaultRelays()
         const localRelay = this.createRelayUrl(envConfig)
-        
+
         console.log('[InitManager] Relay configuration:', {
             defaultRelays,
             localRelay,
             environment: envConfig.VITE_PUBLIC_APP_ENV,
-            defaultRelayCount: defaultRelays.length
+            defaultRelayCount: defaultRelays.length,
         })
-        
+
         // Use DEFAULT_RELAY_URLS if configured, otherwise fall back to local relay in development
-        let initialRelays = options.initialRelaysOverride || 
-            (defaultRelays.length > 0 ? defaultRelays : 
-                (envConfig.VITE_PUBLIC_APP_ENV === 'development' ? [localRelay] : defaultRelays))
-        let searchRelays = options.searchRelaysOverride || 
-            (defaultRelays.length > 0 ? defaultRelays : 
-                (envConfig.VITE_PUBLIC_APP_ENV === 'development' ? [localRelay] : defaultRelays))
+        let initialRelays =
+            options.initialRelaysOverride ||
+            (defaultRelays.length > 0
+                ? defaultRelays
+                : envConfig.VITE_PUBLIC_APP_ENV === 'development'
+                  ? [localRelay]
+                  : defaultRelays)
+        let searchRelays =
+            options.searchRelaysOverride ||
+            (defaultRelays.length > 0
+                ? defaultRelays
+                : envConfig.VITE_PUBLIC_APP_ENV === 'development'
+                  ? [localRelay]
+                  : defaultRelays)
 
         // Add local DVMCP relay only if no default relays are configured
         if (envConfig.VITE_PUBLIC_APP_ENV === 'development' && defaultRelays.length === 0) {
@@ -174,36 +182,30 @@ class AppInitializationManager {
             }
         }
 
-        console.log('[InitManager] Initializing Main NDK with relays:', initialRelays)
-        console.log('[InitManager] Initializing Search NDK with relays:', searchRelays)
+        console.log('[InitManager] Initializing NDK with relays:', initialRelays)
 
-        // Initialize NDK instances
+        // Initialize NDK instance
         const ndk = ndkActions.initialize(initialRelays)
-        ndkActions.initializeSearchNdk(searchRelays)
 
         // Connect to NDK relays
         try {
             const ndkState = ndkActions.getState()
 
-            // Connect main NDK if not already connected
+            // Connect NDK if not already connected
             if (!ndkState.isConnected && !ndkState.isConnecting) {
-                console.log('[InitManager] Connecting to main NDK...')
+                console.log('[InitManager] Connecting to NDK...')
                 await ndkActions.connect()
-                console.log('[InitManager] Main NDK connection initiated')
+                console.log('[InitManager] NDK connection initiated')
             } else {
-                console.log('[InitManager] Main NDK already connected/connecting')
-            }
-
-            // Connect search NDK if available and not connected
-            const searchNdkState = ndkState.searchNdk
-            if (searchNdkState?.ndk && !searchNdkState.isConnected && !searchNdkState.isConnecting) {
-                console.log('[InitManager] Connecting to search NDK...')
-                await ndkActions.connectSearchNdk()
-                console.log('[InitManager] Search NDK connection initiated')
+                console.log('[InitManager] NDK already connected/connecting')
             }
 
             // Add local relay to NDK only if no default relays are configured
-            if (typeof window !== 'undefined' && envConfig.VITE_PUBLIC_APP_ENV === 'development' && defaultRelays.length === 0) {
+            if (
+                typeof window !== 'undefined' &&
+                envConfig.VITE_PUBLIC_APP_ENV === 'development' &&
+                defaultRelays.length === 0
+            ) {
                 setTimeout(() => {
                     const relays = ndkActions.getRelays()
                     const localRelayConnected = relays.some((r) => r.url === localRelay)

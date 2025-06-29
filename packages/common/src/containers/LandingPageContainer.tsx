@@ -8,6 +8,7 @@ import {
     getSpecificFeaturedListByDTag,
     HOMEPAGE_LAYOUT,
     ndkActions,
+    ndkStore,
     NDKEvent,
     openCreateStationDrawer,
     ZapDialog,
@@ -65,7 +66,9 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
     useEffect(() => {
         const checkNdkAndEnv = () => {
             const ndkInstance = ndkActions.getNDK()
-            const isNdkReady = !!ndkInstance
+            const ndkState = ndkStore.state
+            // Wait for NDK to exist AND be connected (or have at least one relay connected)
+            const isNdkReady = !!ndkInstance && ndkState.isConnected && ndkState.connectedRelayCount > 0
             const isEnvConfigReady = !!appPubKey
 
             setNdkReady(isNdkReady)
@@ -81,7 +84,12 @@ export function LandingPageContainer({ appPubKey }: LandingPageContainerProps) {
                 setAppZapEventForDialog(null)
             }
         }
+
         checkNdkAndEnv()
+
+        // Subscribe to NDK state changes to update readiness when connections change
+        const unsubscribe = ndkStore.subscribe(checkNdkAndEnv)
+        return unsubscribe
     }, [appPubKey])
 
     const featuredListQueries = useQueries({
