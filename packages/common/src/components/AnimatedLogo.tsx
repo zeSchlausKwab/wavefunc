@@ -64,7 +64,7 @@ export function AnimatedLogo({ className = '', speed = 500 }: AnimatedLogoProps)
                         id="anim-4"
                         transform="matrix(0.924266,0,0,1.58225,-464.05,-666.022)"
                         style={{
-                            opacity: !isPlaying || activeGroup === 4 ? 1 : 0,
+                            opacity: !isPlaying || (activeGroup !== null && activeGroup >= 4) ? 1 : 0,
                             transition: 'opacity 0.2s ease-in-out',
                         }}
                     >
@@ -83,7 +83,7 @@ export function AnimatedLogo({ className = '', speed = 500 }: AnimatedLogoProps)
                         id="anim-3"
                         transform="matrix(0.577515,0,0,0.97062,241.573,-107.547)"
                         style={{
-                            opacity: !isPlaying || activeGroup === 3 ? 1 : 0,
+                            opacity: !isPlaying || (activeGroup !== null && activeGroup >= 3) ? 1 : 0,
                             transition: 'opacity 0.2s ease-in-out',
                         }}
                     >
@@ -104,7 +104,7 @@ export function AnimatedLogo({ className = '', speed = 500 }: AnimatedLogoProps)
                         id="anim-2"
                         transform="matrix(0.276536,0,0,0.526679,855.485,295.411)"
                         style={{
-                            opacity: !isPlaying || activeGroup === 2 ? 1 : 0,
+                            opacity: !isPlaying || (activeGroup !== null && activeGroup >= 2) ? 1 : 0,
                             transition: 'opacity 0.2s ease-in-out',
                         }}
                     >
@@ -124,7 +124,7 @@ export function AnimatedLogo({ className = '', speed = 500 }: AnimatedLogoProps)
                     <g
                         transform="matrix(1.16079,0,0,1.98715,-145.633,14.8301)"
                         style={{
-                            opacity: !isPlaying || activeGroup === 1 ? 1 : 0,
+                            opacity: !isPlaying || (activeGroup !== null && activeGroup >= 1) ? 1 : 0,
                             transition: 'opacity 0.2s ease-in-out',
                         }}
                     >
