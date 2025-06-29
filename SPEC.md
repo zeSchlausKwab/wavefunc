@@ -10,6 +10,8 @@ This document defines the event kinds, content formats, and tag structures used 
 | 30078 | Favorites List              | Yes, d-tag   | NIP-78        |
 | 31990 | NIP-89 Handler Event        | Yes, d-tag   | NIP-89        |
 | 31989 | NIP-89 Recommendation Event | Yes, d-tag   | NIP-89        |
+| 1311  | Live Chat Message           | No           | NIP-53        |
+| 1111  | Station Comment             | No           | NIP-22        |
 
 ## Radio Station Events (kind 31237)
 
@@ -104,7 +106,7 @@ The content field must be a JSON string with the following structure:
             "client",
             "NostrRadio",
             "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.io"
+            "wss://relay.wavefunc.live"
         ]
     ],
     "sig": "..."
@@ -184,7 +186,7 @@ Favorite stations are stored using 'a' tags with the following format:
             "client",
             "NostrRadio",
             "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.io"
+            "wss://relay.wavefunc.live"
         ]
     ],
     "sig": "..."
@@ -273,12 +275,225 @@ Featured stations are stored using 'a' tags with the following format:
             "client",
             "NostrRadio",
             "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.io"
+            "wss://relay.wavefunc.live"
         ]
     ],
     "sig": "..."
 }
 ```
+
+## Live Chat Messages (kind 1311)
+
+Live Chat Messages are used to enable real-time chat functionality for radio stations. These events attach to radio station events and allow listeners to chat while listening to a station. This follows NIP-53 Live Activities specification.
+
+### Content Format
+
+The content field contains the chat message text. Markdown formatting is supported.
+
+```
+"Hello everyone! Loving this jazz station 🎷"
+```
+
+### Required Tags
+
+| Tag Name | Description                          | Format                   |
+| -------- | ------------------------------------ | ------------------------ |
+| a        | Reference to the radio station event | "31237:<pubkey>:<d-tag>" |
+
+### Optional Tags
+
+| Tag Name | Description                     | Format                                   |
+| -------- | ------------------------------- | ---------------------------------------- |
+| e        | Reply to another chat message   | Event ID of the message being replied to |
+| q        | Quote/cite another event        | Event ID or address of quoted content    |
+| client   | Client that published the event | [Format specification](#client-tag)      |
+
+### Example Event
+
+```json
+{
+    "id": "...",
+    "pubkey": "...",
+    "created_at": 1690000000,
+    "kind": 1311,
+    "content": "This is such a great jazz station! Anyone know what song this is? 🎵",
+    "tags": [
+        [
+            "a",
+            "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
+            "wss://relay.wavefunc.live",
+            "root"
+        ],
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.live"
+        ]
+    ],
+    "sig": "..."
+}
+```
+
+### Reply Example
+
+```json
+{
+    "id": "...",
+    "pubkey": "...",
+    "created_at": 1690000001,
+    "kind": 1311,
+    "content": "I think it's Miles Davis - Kind of Blue! Classic album 🎺",
+    "tags": [
+        [
+            "a",
+            "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
+            "wss://relay.wavefunc.live",
+            "root"
+        ],
+        ["e", "previous-chat-message-id"],
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.live"
+        ]
+    ],
+    "sig": "..."
+}
+```
+
+### Usage Notes
+
+1. **Station Association**: Chat messages MUST include an `a` tag referencing the radio station event they are associated with.
+
+2. **Real-time Updates**: Clients should subscribe to kind 1311 events filtered by the station's `a` tag to display live chat.
+
+3. **Threading**: Use `e` tags to create threaded conversations within the chat.
+
+4. **Moderation**: Station owners may implement moderation by creating lists of blocked users or messages.
+
+5. **Rate Limiting**: Clients should implement appropriate rate limiting to prevent spam.
+
+6. **Persistence**: Chat messages are stored on relays and can be queried for chat history.
+
+## Station Comments (kind 1111)
+
+Station Comments are used to provide persistent commentary and discussion about radio stations. This follows [NIP-22](https://github.com/nostr-protocol/nips/blob/master/22.md) for comment events. Unlike live chat messages, comments are designed for longer-form discussion and can be threaded with replies. Comments are associated with specific radio station events.
+
+### Content Format
+
+The content field contains the comment text as plaintext. Per NIP-22, no HTML, Markdown, or other formatting is allowed.
+
+```
+"This station has an amazing selection of underground jazz. Been listening for months and they always surprise me with new artists I've never heard before!"
+```
+
+### Required Tags (Per NIP-22)
+
+**Root Scope Tags (Uppercase)**
+| Tag Name | Description | Format |
+| -------- | ------------------------------------ | ----------------------------------------- |
+| E | Reference to the radio station event | Event ID (root scope) |
+| K | Kind of the root event | "31237" |
+| P | Pubkey of the root event author | Pubkey (root scope) |
+
+**Parent Item Tags (Lowercase)**
+| Tag Name | Description | Format |
+| -------- | ------------------------------------ | ----------------------------------------- |
+| e | Reference to the parent item | Event ID (parent - station or comment) |
+| k | Kind of the parent item | "31237" (station) or "1111" (comment) |
+| p | Pubkey of the parent item author | Pubkey (parent) |
+
+### Optional Tags
+
+| Tag Name | Description                     | Format                              |
+| -------- | ------------------------------- | ----------------------------------- |
+| q        | Quote/cite events in content    | Event ID or address (NIP-21)        |
+| client   | Client that published the event | [Format specification](#client-tag) |
+
+### Example Root Comment
+
+```json
+{
+    "id": "...",
+    "pubkey": "...",
+    "created_at": 1690000000,
+    "kind": 1111,
+    "content": "This station has an amazing selection of underground jazz. Been listening for months and they always surprise me with new artists!",
+    "tags": [
+        ["E", "station-event-id"],
+        ["K", "31237"],
+        ["P", "station-owner-pubkey"],
+        ["e", "station-event-id"],
+        ["k", "31237"],
+        ["p", "station-owner-pubkey"],
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.live"
+        ]
+    ],
+    "sig": "..."
+}
+```
+
+### Example Reply Comment
+
+```json
+{
+    "id": "...",
+    "pubkey": "...",
+    "created_at": 1690000001,
+    "kind": 1111,
+    "content": "Totally agree! Their late night sets are particularly incredible. Have you heard their Sunday evening jazz fusion block?",
+    "tags": [
+        ["E", "station-event-id"],
+        ["K", "31237"],
+        ["P", "station-owner-pubkey"],
+        ["e", "station-event-id"],
+        ["k", "31237"],
+        ["p", "station-owner-pubkey"],
+        ["e", "parent-comment-id"],
+        ["k", "1111"],
+        ["p", "parent-comment-author-pubkey"],
+        [
+            "client",
+            "NostrRadio",
+            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+            "wss://relay.wavefunc.live"
+        ]
+    ],
+    "sig": "..."
+}
+```
+
+### Usage Notes
+
+1. **NIP-22 Compliance**: This implementation follows [NIP-22](https://github.com/nostr-protocol/nips/blob/master/22.md) for comment threading. Comments MUST use uppercase tags for root scope and lowercase tags for parent items.
+
+2. **Tag Structure (Per NIP-22)**:
+    - **Root Scope**: Uppercase tags (E, K, P) always point to the radio station event
+    - **Parent Item**: Lowercase tags (e, k, p) point to the immediate parent (station for root comments, comment for replies)
+    - Both `K` and `k` tags MUST be present to define event kinds
+
+3. **Comment Hierarchy**:
+    - **Root Comments**: Parent tags reference the station event (e=station-id, k="31237")
+    - **Reply Comments**: Parent tags reference the parent comment (e=comment-id, k="1111")
+
+4. **Query Patterns**:
+    - Fetch all comments for a station: Filter by `kind: 1111` and `#E: [station-event-id]`
+    - Fetch replies to a comment: Filter by `kind: 1111` and `#e: [comment-id]` with `#k: ["1111"]`
+
+5. **Threading Logic**:
+    - Root comments: `k` tag contains "31237" (station kind)
+    - Reply comments: `k` tag contains "1111" (comment kind)
+    - All comments maintain root scope reference to the original station
+
+6. **Content Restrictions**: Per NIP-22, content MUST be plaintext only - no HTML, Markdown, or other formatting allowed.
+
+7. **Sorting**: Comments are typically sorted by `created_at` timestamp, with newest first for root comments and oldest first for replies within a thread.
 
 ## NIP-89 Handler Events (kind 31990)
 
@@ -292,7 +507,7 @@ The content field must be a JSON string with the following structure:
 {
     "name": "NostrRadio",
     "display_name": "Nostr Radio",
-    "picture": "https://wavefunc.io/icons/logo.png",
+    "picture": "https://wavefunc.live/icons/logo.png",
     "about": "A radio station directory and player built on Nostr",
     "nip90": {
         "content": ["text/plain"]
@@ -329,13 +544,13 @@ The content field must be a JSON string with the following structure:
     "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
     "created_at": 1690000000,
     "kind": 31990,
-    "content": "{\"name\":\"NostrRadio\",\"display_name\":\"Nostr Radio\",\"picture\":\"https://wavefunc.io/icons/logo.png\",\"about\":\"A radio station directory and player built on Nostr\",\"nip90\":{\"content\":[\"text/plain\"]}}",
+    "content": "{\"name\":\"NostrRadio\",\"display_name\":\"Nostr Radio\",\"picture\":\"https://wavefunc.live/icons/logo.png\",\"about\":\"A radio station directory and player built on Nostr\",\"nip90\":{\"content\":[\"text/plain\"]}}",
     "tags": [
         ["d", "handler123"],
         ["k", "31237"],
-        ["web", "https://wavefunc.io/station/<bech32>", "naddr"],
-        ["web", "https://wavefunc.io/profile/<bech32>", "npub"],
-        ["web", "https://wavefunc.io/stations", "naddr"]
+        ["web", "https://wavefunc.live/station/<bech32>", "naddr"],
+        ["web", "https://wavefunc.live/profile/<bech32>", "npub"],
+        ["web", "https://wavefunc.live/stations", "naddr"]
     ],
     "sig": "..."
 }
@@ -359,7 +574,7 @@ Client tags identify the client application that published a note. This is imple
 ### Example
 
 ```
-["client", "NostrRadio", "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123", "wss://relay.wavefunc.io"]
+["client", "NostrRadio", "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123", "wss://relay.wavefunc.live"]
 ```
 
 ## Implementation Notes
