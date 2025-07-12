@@ -1,6 +1,6 @@
 // Music metadata types for different sources
 
-export type SearchType = 'recording' | 'release' | 'artist' | 'label' | 'discogs'
+export type SearchType = 'recording' | 'release' | 'artist' | 'label' | 'discogs' | 'youtube'
 
 export interface SearchFormData {
     artist: string
@@ -11,6 +11,8 @@ export interface SearchFormData {
     page?: string
     per_page?: string
     status?: string
+    query?: string // For YouTube search
+    youtubeType?: 'video' | 'channel' | 'playlist' | 'all' // For YouTube search type
 }
 
 // Base interfaces for different entity types
@@ -216,8 +218,51 @@ export interface Company {
     resource_url: string
 }
 
+// YouTube types
+export interface YouTubeThumbnail {
+    url: string
+    width: number
+    height: number
+}
+
+export interface YouTubeVideo extends BaseResult {
+    type: 'video' | 'channel' | 'playlist'
+    description?: string
+    thumbnail?:
+        | string
+        | {
+              thumbnails: YouTubeThumbnail[]
+          }
+    duration?: string
+    publishedTime?: string
+    viewCount?: string
+    channelTitle?: string
+    channelId?: string
+    url?: string
+    embedUrl?: string
+}
+
+export interface YouTubeVideoDetails extends BaseResult {
+    description?: string
+    thumbnail?:
+        | string
+        | {
+              thumbnails: YouTubeThumbnail[]
+          }
+    duration?: string | number
+    publishDate?: string
+    viewCount?: string | number
+    likeCount?: string | number
+    channelTitle?: string
+    channelId?: string
+    tags?: string[]
+    category?: string
+    url?: string
+    embedUrl?: string
+}
+
 // Union type for all possible search results
-export type SearchResult = Recording | Release | Artist | Label | DiscogsRelease
+export type SearchResult = Recording | Release | Artist | Label | DiscogsRelease | YouTubeVideo
 
 export interface ToolResult {
     tool: string

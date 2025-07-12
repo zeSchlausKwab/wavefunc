@@ -44,6 +44,13 @@ mcp:
               - name: 'musicbrainz-get-artist'
               - name: 'musicbrainz-search-label'
               - name: 'musicbrainz-get-label'
+        - command: 'bun'
+          args:
+              - 'run'
+              - 'src/youtube-search.ts'
+          tools:
+              - name: 'youtube-search'
+              - name: 'youtube-video-details'
 lightning:
     address: '${DVM_LIGHTNING_ADDRESS}'
     zapRelays:

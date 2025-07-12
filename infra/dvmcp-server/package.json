@@ -13,10 +13,11 @@
     "dependencies": {
         "@dvmcp/bridge": "0.2.4",
         "@modelcontextprotocol/sdk": "^1.13.0",
-        "@wavefunc/common": "workspace:*",
         "@nostr-dev-kit/ndk": "^2.14.30",
+        "@wavefunc/common": "workspace:*",
         "dotenv": "^16.5.0",
-        "nostr-tools": "^2.15.0"
+        "nostr-tools": "^2.15.0",
+        "youtube-search-api": "^2.0.0"
     },
     "devDependencies": {
         "@types/bun": "^1.2.5",

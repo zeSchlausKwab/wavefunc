@@ -1,10 +1,30 @@
-// Utility functions for the music library
+import type { YouTubeThumbnail } from './types'
 
-export function formatDuration(ms?: number): string | null {
-    if (!ms || ms <= 0) return null
-    const minutes = Math.floor(ms / 60000)
-    const seconds = ((ms % 60000) / 1000).toFixed(0)
-    return `${minutes}:${Number(seconds) < 10 ? '0' : ''}${seconds}`
+/**
+ * Extract the best thumbnail URL from YouTube's thumbnail structure
+ * Prioritizes higher resolution thumbnails
+ */
+export function getBestThumbnailUrl(thumbnail: string | { thumbnails: YouTubeThumbnail[] } | undefined): string | null {
+    if (!thumbnail) return null
+
+    // If it's already a string URL, return it
+    if (typeof thumbnail === 'string') return thumbnail
+
+    // If it has thumbnails array, find the best one
+    if (thumbnail.thumbnails && Array.isArray(thumbnail.thumbnails)) {
+        // Sort by width descending to get the highest resolution
+        const sortedThumbnails = thumbnail.thumbnails.sort((a, b) => b.width - a.width)
+        return sortedThumbnails[0]?.url || null
+    }
+
+    return null
+}
+
+export function formatDuration(seconds: number): string {
+    if (!seconds || seconds <= 0) return '0:00'
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`
 }
 
 export function extractSearchResults(data: any, searchType: string): any[] {
@@ -12,6 +32,11 @@ export function extractSearchResults(data: any, searchType: string): any[] {
 
     // Handle direct arrays
     if (Array.isArray(data)) return data
+
+    // Handle YouTube search results
+    if (searchType === 'youtube' && data.results && Array.isArray(data.results)) {
+        return data.results
+    }
 
     // Handle nested data structures
     const resultKey = getResultKey(searchType)
@@ -39,6 +64,8 @@ function getResultKey(searchType: string): string {
             return 'artists'
         case 'label':
             return 'labels'
+        case 'youtube':
+            return 'results'
         default:
             return 'results'
     }
@@ -53,6 +80,12 @@ export function buildSearchArgs(searchType: string, formData: any): Record<strin
                 type: formData.type || 'release',
                 per_page: formData.per_page || '10',
                 page: formData.page || '1',
+            }
+        case 'youtube':
+            return {
+                query: formData.query || `${formData.artist} ${formData.title}`.trim(),
+                type: formData.youtubeType || 'video',
+                limit: parseInt(formData.limit || '10'),
             }
         case 'recording':
             return {
@@ -89,6 +122,8 @@ export function getToolName(searchType: string): string {
     switch (searchType) {
         case 'discogs':
             return 'discogs-search'
+        case 'youtube':
+            return 'youtube-search'
         case 'recording':
             return 'musicbrainz-search-recording'
         case 'artist':
@@ -104,6 +139,8 @@ export function getLookupToolName(searchType: string): string {
     switch (searchType) {
         case 'discogs':
             return 'discogs-release'
+        case 'youtube':
+            return 'youtube-video-details'
         case 'recording':
             return 'musicbrainz-get-recording'
         case 'artist':
@@ -119,6 +156,8 @@ export function buildLookupArgs(searchType: string, id: string): Record<string, 
     switch (searchType) {
         case 'discogs':
             return { releaseId: id }
+        case 'youtube':
+            return { videoId: id }
         case 'recording':
             return {
                 recordingId: id,

@@ -6,6 +6,7 @@ import { Textarea } from '@wavefunc/ui/components/ui/textarea'
 import { Album, Clock, Database, Search } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { getDefaultRelays, getLocalDvmcpRelay } from '../constants/relays'
 import { ndkActions } from '../lib/store/ndk'
 import { createDVMCPService, getDVMCPService } from '../services/dvmcp'
 import { DetailedResultView } from './library/DetailedResultView'
@@ -14,7 +15,6 @@ import { SearchForm } from './library/SearchForm'
 import { SearchResultCard } from './library/SearchResultCard'
 import type { SearchFormData, SearchResult, SearchType, ToolResult } from './library/types'
 import { buildLookupArgs, buildSearchArgs, extractSearchResults, getLookupToolName, getToolName } from './library/utils'
-import { getLocalDvmcpRelay, getDefaultRelays } from '../constants/relays'
 
 export function LibraryContainer() {
     const [activeTab, setActiveTab] = useState('search')
@@ -107,15 +107,22 @@ export function LibraryContainer() {
 
     const handleSearch = async () => {
         // Validate form data
-        if (!formData.artist.trim()) {
-            toast.error(
-                `Please enter a ${searchType === 'artist' ? 'artist' : searchType === 'label' ? 'label' : 'artist'} name`,
-            )
-            return
-        }
-        if (searchType !== 'artist' && searchType !== 'label' && !formData.title.trim()) {
-            toast.error('Please enter both artist and title')
-            return
+        if (searchType === 'youtube') {
+            if (!formData.query?.trim() && !formData.artist?.trim() && !formData.title?.trim()) {
+                toast.error('Please enter a search query or artist/title')
+                return
+            }
+        } else {
+            if (!formData.artist.trim()) {
+                toast.error(
+                    `Please enter a ${searchType === 'artist' ? 'artist' : searchType === 'label' ? 'label' : 'artist'} name`,
+                )
+                return
+            }
+            if (searchType !== 'artist' && searchType !== 'label' && !formData.title.trim()) {
+                toast.error('Please enter both artist and title')
+                return
+            }
         }
 
         const toolName = getToolName(searchType)
