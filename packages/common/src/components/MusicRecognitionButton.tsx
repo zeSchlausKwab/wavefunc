@@ -232,6 +232,7 @@ export function MusicRecognitionButton() {
 
             <RecognitionResultDialog
                 result={result}
+                stationUrl={`${window.location.origin}/station/${currentStation?.naddr}`}
                 isOpen={isDialogOpen}
                 onOpenChange={(open: boolean) => {
                     if (!open) setResult(null)

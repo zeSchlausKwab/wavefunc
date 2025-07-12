@@ -4,14 +4,16 @@ import { MusicBrainzMetadata } from '@wavefunc/common/src/components/MusicBrainz
 import type { RecognitionResult } from '@wavefunc/common/src/types/recognition'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@wavefunc/ui/components/ui/dialog'
 import { ExternalLink } from 'lucide-react'
+import { RecognitionResultShare } from './RecognitionResultShare'
 
 interface RecognitionResultDialogProps {
     result: RecognitionResult | null
+    stationUrl: string
     isOpen: boolean
     onOpenChange: (open: boolean) => void
 }
 
-export function RecognitionResultDialog({ result, isOpen, onOpenChange }: RecognitionResultDialogProps) {
+export function RecognitionResultDialog({ result, stationUrl, isOpen, onOpenChange }: RecognitionResultDialogProps) {
     const formatDuration = (ms?: number) => {
         if (!ms) return ''
         const minutes = Math.floor(ms / 60000)
@@ -59,34 +61,19 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
 
                         {/* YouTube Video Embed */}
                         {result.youtube_link && (
-                            <div className="w-full">
-                                {getYouTubeEmbedUrl(result.youtube_link) ? (
-                                    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted shadow-sm">
-                                        <iframe
-                                            src={getYouTubeEmbedUrl(result.youtube_link)!}
-                                            title={`${result.artist} - ${result.title}`}
-                                            frameBorder="0"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowFullScreen
-                                            className="absolute inset-0 w-full h-full"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="w-full p-4 bg-muted rounded-lg">
-                                        <p className="text-sm text-muted-foreground text-center">
-                                            YouTube video available but couldn't extract embed URL
-                                        </p>
-                                        <a
-                                            href={result.youtube_link}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-primary hover:underline block text-center mt-2"
-                                        >
-                                            Watch on YouTube
-                                        </a>
-                                    </div>
-                                )}
+                            <div className="mb-4">
+                                <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted shadow-sm">
+                                    <iframe
+                                        src={getYouTubeEmbedUrl(result.youtube_link)!}
+                                        title={`${result.artist} - ${result.title}`}
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                        className="absolute inset-0 w-full h-full"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <RecognitionResultShare result={result} stationUrl={stationUrl} />
                             </div>
                         )}
 
