@@ -11,11 +11,11 @@ const projectRoot = path.resolve(__dirname, '../../../')
 const envPath = path.join(projectRoot, '.env')
 
 if (fs.existsSync(envPath)) {
-    console.log('Loading .env file for local development')
+    process.stderr.write('[DVMCP] Loading .env file for local development\n')
     const { default: dotenv } = await import('dotenv')
     dotenv.config({ path: envPath })
 } else {
-    console.log('Using environment variables from deployment platform')
+    process.stderr.write('[DVMCP] Using environment variables from deployment platform\n')
 }
 
 async function startDVMCPBridge() {
@@ -28,12 +28,12 @@ async function startDVMCPBridge() {
         'DVM_LIGHTNING_ZAP_RELAYS',
     ]
 
-    console.log('Environment check:')
+    process.stderr.write('[DVMCP] Environment check:\n')
     for (const varName of requiredEnvVars) {
         const isSet = !!process.env[varName]
-        console.log(`- ${varName}: ${isSet ? '✓ Set' : '✗ Missing'}`)
+        process.stderr.write(`[DVMCP] - ${varName}: ${isSet ? '✓ Set' : '✗ Missing'}\n`)
         if (!isSet) {
-            console.error(`ERROR: ${varName} environment variable is required`)
+            process.stderr.write(`[DVMCP] ERROR: ${varName} environment variable is required\n`)
             process.exit(1)
         }
     }
@@ -56,7 +56,7 @@ async function startDVMCPBridge() {
           ? process.execPath
           : 'bun'
 
-    console.log(`Using bun path: ${bunPath}`)
+    process.stderr.write(`[DVMCP] Using bun path: ${bunPath}\n`)
 
     const processedConfig = configContent
         .replace(/\$\{DVM_PRIVATE_KEY\}/g, privateKey)
@@ -67,6 +67,7 @@ async function startDVMCPBridge() {
 
     // Write the processed config to a temporary file
     fs.writeFileSync(processedConfigPath, processedConfig)
+    process.stderr.write(`[DVMCP] Wrote processed config to: ${processedConfigPath}\n`)
 
     const args = [
         'dvmcp-bridge',
@@ -83,7 +84,7 @@ async function startDVMCPBridge() {
         // zapRelays,
     ]
 
-    console.log('Command:', 'bunx', args.join(' '))
+    process.stderr.write(`[DVMCP] Command: bunx ${args.join(' ')}\n`)
 
     const bridge = spawn('bunx', args, {
         stdio: 'inherit',
@@ -92,11 +93,12 @@ async function startDVMCPBridge() {
 
     // Handle process termination
     const cleanup = () => {
-        console.log('\nShutting down DVMCP bridge...')
+        process.stderr.write('[DVMCP] Shutting down DVMCP bridge...\n')
         bridge.kill()
         // Clean up the temporary config file
         if (fs.existsSync(processedConfigPath)) {
             fs.unlinkSync(processedConfigPath)
+            process.stderr.write('[DVMCP] Cleaned up temporary config file\n')
         }
         process.exit(0)
     }
@@ -105,20 +107,20 @@ async function startDVMCPBridge() {
     process.on('SIGTERM', cleanup)
 
     bridge.on('error', (error) => {
-        console.error('DVMCP Bridge error:', error)
+        process.stderr.write(`[DVMCP] Bridge error: ${error}\n`)
         cleanup()
     })
 
     bridge.on('exit', (code) => {
-        console.log(`DVMCP Bridge exited with code ${code}`)
+        process.stderr.write(`[DVMCP] Bridge exited with code ${code}\n`)
         process.exit(code || 0)
     })
 
-    console.log('DVMCP Bridge is running. Press Ctrl+C to stop.')
+    process.stderr.write('[DVMCP] Bridge is running. Press Ctrl+C to stop.\n')
 }
 
 // Start the bridge
 startDVMCPBridge().catch((error) => {
-    console.error('Failed to start DVMCP bridge:', error)
+    process.stderr.write(`[DVMCP] Failed to start DVMCP bridge: ${error}\n`)
     process.exit(1)
 })

@@ -51,8 +51,6 @@ export function useMusicRecognition() {
     }
 
     const handleRecognitionResult = async (enrichedResult: any) => {
-        console.log('[Music Recognition] Received enriched result:', enrichedResult)
-
         // Check if the data has the expected structure from DVMCP service
         const recognition = enrichedResult.recognition || enrichedResult
 
@@ -69,6 +67,7 @@ export function useMusicRecognition() {
             song_link: recognition.song_link,
             apple_music: recognition.apple_music,
             spotify: recognition.spotify,
+            youtube_link: recognition.youtube_link,
             discogs: enrichedResult.discogs?.results?.[0] || null,
             musicbrainz: enrichedResult.musicbrainz,
         }
@@ -104,6 +103,7 @@ export function useMusicRecognition() {
 
             // The DVMCP service now returns enriched data directly
             const enrichedResult = await dvmcpService.recognizeSong(blossomUrl)
+            console.log('[Music Recognition] Enriched result:', enrichedResult)
             await handleRecognitionResult(enrichedResult)
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error'

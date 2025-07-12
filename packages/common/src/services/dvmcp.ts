@@ -28,7 +28,7 @@ const SERVER_ANNOUNCEMENT_KIND = 31316
 const TOOLS_LIST_KIND = 31317
 
 export interface DVMCPResponse {
-    type: 'audd_response' | 'audd_error' | 'music_recognition_result' | 'music_recognition_error'
+    type: 'audd-response' | 'audd-error' | 'music-recognition-result' | 'music-recognition-error'
     result?: RecognitionResult
     error?: string
     error_code?: number
@@ -77,10 +77,7 @@ export class DVMCPService {
                 return false
             }
 
-            // Try custom payment handler first (e.g., NWC wallet)
             if (this.paymentHandler) {
-                console.log(`[DVMCP] Attempting automatic payment of ${amount} sats...`)
-
                 try {
                     const paymentSuccess = await this.paymentHandler(amount, invoice)
                     if (paymentSuccess) {
@@ -94,8 +91,6 @@ export class DVMCPService {
                 }
             }
 
-            // Fallback to manual payment
-            console.log('[DVMCP] No automatic payment available. Manual payment required.')
             this.logManualPaymentRequired(amount, invoice || '')
             return false
         } catch (error) {
@@ -130,8 +125,6 @@ export class DVMCPService {
      * Discover DVMCP providers by listening to server announcements
      */
     async discoverProviders(timeout: number = 10000): Promise<void> {
-        console.log('[DVMCP] Starting provider discovery...')
-
         return new Promise<void>((resolve, reject) => {
             let foundServers = 0
             const discoveryTimeout = setTimeout(() => {
@@ -150,20 +143,11 @@ export class DVMCPService {
             sub.on('event', (event) => {
                 try {
                     foundServers++
-                    console.log(`[DVMCP] Found server announcement #${foundServers}:`, event.pubkey)
-                    console.log('[DVMCP] Server announcement content:', event.content)
-
                     let content: any = {}
                     try {
                         content = JSON.parse(event.content)
-                        console.log('[DVMCP] Parsed content:', content)
-                        console.log('[DVMCP] Content type:', typeof content)
-                        console.log('[DVMCP] Content keys:', Object.keys(content))
-                        console.log('[DVMCP] Capabilities type:', typeof content.capabilities)
-                        console.log('[DVMCP] Capabilities value:', content.capabilities)
                     } catch (parseError) {
                         console.error('[DVMCP] Failed to parse JSON content:', parseError)
-                        console.log('[DVMCP] Raw content:', event.content)
                         return
                     }
 
@@ -213,8 +197,6 @@ export class DVMCPService {
                         contentStr.includes('dvmcp-bridge') ||
                         contentStr.includes('music-recognition')
 
-                    console.log('[DVMCP] Compatibility checks:', checks)
-
                     const isCompatible =
                         checks.identifierMatch ||
                         checks.nameMatch ||
@@ -226,28 +208,15 @@ export class DVMCPService {
                         checks.hasTools ||
                         checks.isWavefuncRelated
 
-                    console.log('[DVMCP] Is compatible:', isCompatible)
-
                     if (isCompatible) {
-                        console.log('[DVMCP] Found compatible DVMCP server:', event.pubkey, content)
                         this.setProvider(event.pubkey, content.identifier || content.name || this.serverIdentifier)
 
                         clearTimeout(discoveryTimeout)
                         sub.stop()
                         resolve()
-                    } else {
-                        console.log('[DVMCP] Server not compatible - content structure:', {
-                            hasIdentifier: 'identifier' in content,
-                            hasName: 'name' in content,
-                            hasCapabilities: 'capabilities' in content,
-                            hasType: 'type' in content,
-                            allKeys: Object.keys(content),
-                        })
                     }
                 } catch (error) {
                     console.error('[DVMCP] Error processing server announcement:', error)
-                    console.log('[DVMCP] Raw event content:', event.content)
-                    console.log('[DVMCP] Event pubkey:', event.pubkey)
                 }
             })
 
@@ -266,13 +235,9 @@ export class DVMCPService {
 
         // If we don't have a provider, try to discover it first
         if (!this.providerPubkey) {
-            console.log('[DVMCP] No provider set, attempting discovery...')
             try {
                 await this.discoverProviders()
-                console.log('[DVMCP] Discovery successful, provider set to:', this.providerPubkey)
             } catch (error) {
-                console.log('[DVMCP] Discovery failed:', error)
-                console.log('[DVMCP] Using fallback server with known pubkey')
                 this.setProvider(
                     'f47121cd783802e6d4879e63233b54aff54e6788ea9ef568cec0259cc60fe286',
                     'wavefunc-dvmcp-bridge',
@@ -280,9 +245,6 @@ export class DVMCPService {
             }
         }
 
-        console.log(`[DVMCP] Calling tool: ${toolName} with provider: ${this.providerPubkey}, args:`, args)
-
-        // Create the DVMCP request event
         const requestEvent = new NDKEvent(this.ndk)
         requestEvent.kind = JOB_KIND
         requestEvent.content = JSON.stringify({
@@ -320,10 +282,8 @@ export class DVMCPService {
                         if (statusTag) {
                             const status = statusTag[1]
                             const statusMessage = statusTag[2]
-                            console.log(`[DVMCP] Status: ${status}${statusMessage ? ` - ${statusMessage}` : ''}`)
 
                             if (status === 'payment-required') {
-                                console.log('[DVMCP] Payment required status received')
                                 const amountTag = event.tags.find((tag) => tag[0] === 'amount')
                                 if (amountTag) {
                                     const amount = amountTag[1]
@@ -400,13 +360,9 @@ export class DVMCPService {
 
         // If we don't have a provider, try to discover it first
         if (!this.providerPubkey) {
-            console.log('[DVMCP] No provider set, attempting discovery...')
             try {
                 await this.discoverProviders()
-                console.log('[DVMCP] Discovery successful, provider set to:', this.providerPubkey)
             } catch (error) {
-                console.log('[DVMCP] Discovery failed:', error)
-                console.log('[DVMCP] Using fallback server with known pubkey')
                 this.setProvider(
                     'f47121cd783802e6d4879e63233b54aff54e6788ea9ef568cec0259cc60fe286',
                     'wavefunc-dvmcp-bridge',
@@ -414,30 +370,25 @@ export class DVMCPService {
             }
         }
 
-        console.log(`[DVMCP] Requesting music recognition for: ${audioUrl} with provider: ${this.providerPubkey}`)
-
-        // Create the DVMCP request event (2025-03-26 format)
         const requestEvent = new NDKEvent(this.ndk)
-        console.log('[DVMCP] Request event:', requestEvent)
         requestEvent.kind = JOB_KIND
         requestEvent.content = JSON.stringify({
             method: 'tools/call',
             params: {
-                name: 'music-recognition', // Updated tool name to match config
+                name: 'music-recognition',
                 arguments: {
                     audioUrl,
                 },
             },
         })
         requestEvent.tags = [
-            ['method', 'tools/call'], // Updated tag format
+            ['method', 'tools/call'],
             ['p', this.providerPubkey],
             ['s', this.serverIdentifier],
         ]
 
         await requestEvent.sign()
 
-        // Subscribe to responses and feedback
         const sub = this.ndk.subscribe({
             kinds: [RESULT_KIND as NDKKind, FEEDBACK_KIND as NDKKind],
             '#e': [requestEvent.id],
@@ -448,48 +399,35 @@ export class DVMCPService {
             const timeout = setTimeout(() => {
                 sub.stop()
                 reject(new Error('DVMCP request timed out'))
-            }, 60000) // Increased timeout to 60 seconds for payment flow
+            }, 60000)
 
             sub.on('event', async (event: NDKEvent) => {
                 try {
                     if (event.kind === FEEDBACK_KIND) {
-                        // Handle feedback events (status updates)
                         const statusTag = event.tags.find((tag) => tag[0] === 'status')
                         if (statusTag) {
                             const status = statusTag[1]
                             const statusMessage = statusTag[2] // Optional error message
-                            console.log(`[DVMCP] Status: ${status}${statusMessage ? ` - ${statusMessage}` : ''}`)
 
                             if (status === 'payment-required') {
-                                console.log('[DVMCP] Payment required status received')
-                                console.log('[DVMCP] Event tags:', event.tags)
                                 const amountTag = event.tags.find((tag) => tag[0] === 'amount')
                                 if (amountTag) {
-                                    console.log('[DVMCP] Full amount tag:', amountTag)
                                     const amount = amountTag[1]
                                     const invoice = amountTag[2] // Lightning invoice (bolt11)
 
-                                    // Check if invoice looks like a Lightning invoice (starts with 'lnbc', 'lntb', etc.)
                                     const isValidInvoice =
                                         invoice &&
                                         typeof invoice === 'string' &&
                                         (invoice.startsWith('lnbc') ||
                                             invoice.startsWith('lntb') ||
                                             invoice.startsWith('lnbcrt'))
-                                    console.log(`[DVMCP] Is valid Lightning invoice:`, isValidInvoice)
 
-                                    // Look for invoice in other tags if not found in amount tag
                                     if (!isValidInvoice) {
-                                        console.log('[DVMCP] Looking for invoice in other tags...')
                                         const invoiceTag = event.tags.find(
                                             (tag) => tag[0] === 'bolt11' || tag[0] === 'invoice',
                                         )
                                         if (invoiceTag) {
-                                            console.log('[DVMCP] Found invoice tag:', invoiceTag)
                                             const foundInvoice = invoiceTag[1]
-                                            console.log('[DVMCP] Invoice from separate tag:', foundInvoice)
-                                        } else {
-                                            console.log('[DVMCP] No separate invoice tag found')
                                         }
                                     }
 
@@ -501,7 +439,6 @@ export class DVMCPService {
                                         )
                                         if (invoiceTag) {
                                             finalInvoice = invoiceTag[1]
-                                            console.log('[DVMCP] Using invoice from separate tag:', finalInvoice)
                                         }
                                     }
 
@@ -520,9 +457,6 @@ export class DVMCPService {
                                         reject(error)
                                         return
                                     }
-
-                                    // If payment successful, continue waiting for processing result
-                                    console.log('[DVMCP] Payment completed, waiting for processing...')
                                 } else {
                                     clearTimeout(timeout)
                                     sub.stop()
@@ -542,9 +476,6 @@ export class DVMCPService {
                         // Handle result events (2025-03-26 format)
                         const content = JSON.parse(event.content)
 
-                        console.log('[DVMCP] Result event:', content)
-
-                        // Check for protocol errors first
                         if (content.error) {
                             clearTimeout(timeout)
                             sub.stop()
@@ -552,23 +483,22 @@ export class DVMCPService {
                             return
                         }
 
-                        // Handle successful response
                         if (content.content && Array.isArray(content.content)) {
                             const toolResult = content.content[0]
                             if (toolResult?.text) {
                                 const response: DVMCPResponse = JSON.parse(toolResult.text)
 
                                 if (
-                                    (response.type === 'audd_response' ||
-                                        response.type === 'music_recognition_result') &&
+                                    (response.type === 'audd-response' ||
+                                        response.type === 'music-recognition-result') &&
                                     response.result
                                 ) {
                                     clearTimeout(timeout)
                                     sub.stop()
                                     resolve(response.result)
                                 } else if (
-                                    response.type === 'audd_error' ||
-                                    response.type === 'music_recognition_error'
+                                    response.type === 'audd-error' ||
+                                    response.type === 'music-recognition-error'
                                 ) {
                                     clearTimeout(timeout)
                                     sub.stop()
@@ -588,13 +518,8 @@ export class DVMCPService {
                 }
             })
 
-            // Publish the request
-            console.log('[DVMCP] NDK connected relays:', Array.from(this.ndk.pool.relays.keys()))
-            console.log('[DVMCP] NDK explicit relay URLs:', this.ndk.explicitRelayUrls)
-
             try {
                 const pubStatus = await requestEvent.publish()
-                console.log('[DVMCP] Publish status:', pubStatus)
             } catch (publishError: any) {
                 let errorMessage = 'Unknown publish error'
                 if (publishError instanceof Error) {
@@ -633,22 +558,17 @@ export async function setupNWCPayments(
     connectionString?: string,
 ): Promise<boolean> {
     try {
-        // Get connection string from parameter, environment, or localStorage
         const nwcConnectionString =
             connectionString ||
             process.env.NWC_CONNECTION_STRING ||
             (typeof localStorage !== 'undefined' ? localStorage.getItem('nwc_connection_string') : null)
 
         if (!nwcConnectionString) {
-            console.log('[DVMCP] No NWC connection string available for automatic payments')
+            console.error('[DVMCP] No NWC connection string available for automatic payments')
             return false
         }
 
-        // Dynamically import NDKNWCWallet to avoid version conflicts
         try {
-            console.log('[DVMCP] Setting up NWC wallet for automatic payments...')
-
-            // Create NWC wallet instance
             const nwcWallet = new NDKNWCWallet(ndk as any, {
                 pairingCode: nwcConnectionString,
                 timeout: 30000,
@@ -666,9 +586,6 @@ export async function setupNWCPayments(
             // Create payment handler
             const paymentHandler: PaymentHandler = async (amount: string, invoice: string): Promise<boolean> => {
                 try {
-                    console.log(`[DVMCP] Paying ${amount} sats via NWC...`)
-
-                    // Use the wallet's lnPay method if available, or pay method
                     const walletAny = nwcWallet as any
                     let paymentResult
 
@@ -703,11 +620,9 @@ export async function setupNWCPayments(
                 localStorage.setItem('nwc_connection_string', connectionString)
             }
 
-            console.log('[DVMCP] NWC payments configured successfully')
             return true
         } catch (importError) {
             console.error('[DVMCP] Failed to import NDK wallet package:', importError)
-            console.log('[DVMCP] NWC payments not available. Install @nostr-dev-kit/ndk-wallet for automatic payments.')
             return false
         }
     } catch (error) {

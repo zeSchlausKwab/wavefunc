@@ -19,9 +19,22 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
         return `${minutes}:${Number(seconds) < 10 ? '0' : ''}${seconds}`
     }
 
+    const getYouTubeEmbedUrl = (url: string) => {
+        // Extract video ID from YouTube URL
+        const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/, /youtube\.com\/embed\/([^&\n?#]+)/]
+
+        for (const pattern of patterns) {
+            const match = url.match(pattern)
+            if (match && match[1]) {
+                return `https://www.youtube.com/embed/${match[1]}`
+            }
+        }
+        return null
+    }
+
     return (
         <Dialog open={isOpen && !!result} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Song Recognition Result</DialogTitle>
                 </DialogHeader>
@@ -43,6 +56,39 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
                                 {result.album && <p className="text-sm text-muted-foreground">{result.album}</p>}
                             </div>
                         </div>
+
+                        {/* YouTube Video Embed */}
+                        {result.youtube_link && (
+                            <div className="w-full">
+                                {getYouTubeEmbedUrl(result.youtube_link) ? (
+                                    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted shadow-sm">
+                                        <iframe
+                                            src={getYouTubeEmbedUrl(result.youtube_link)!}
+                                            title={`${result.artist} - ${result.title}`}
+                                            frameBorder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                            className="absolute inset-0 w-full h-full"
+                                            loading="lazy"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="w-full p-4 bg-muted rounded-lg">
+                                        <p className="text-sm text-muted-foreground text-center">
+                                            YouTube video available but couldn't extract embed URL
+                                        </p>
+                                        <a
+                                            href={result.youtube_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-primary hover:underline block text-center mt-2"
+                                        >
+                                            Watch on YouTube
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="grid gap-2 text-sm">
                             {result.release_date && (
@@ -96,6 +142,20 @@ export function RecognitionResultDialog({ result, isOpen, onOpenChange }: Recogn
                                     )}
                                 >
                                     Apple Music <ExternalLink className="h-4 w-4" />
+                                </a>
+                            )}
+                            {result.youtube_link && (
+                                <a
+                                    href={result.youtube_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                        'inline-flex items-center justify-center gap-2',
+                                        'rounded-md bg-[#FF0000] px-3 py-2 text-sm font-semibold text-white',
+                                        'hover:bg-[#FF0000]/90',
+                                    )}
+                                >
+                                    YouTube <ExternalLink className="h-4 w-4" />
                                 </a>
                             )}
                             {result.song_link && (

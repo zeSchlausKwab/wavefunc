@@ -4,6 +4,7 @@ export interface RecognitionResult {
     album?: string
     release_date?: string
     song_link?: string
+    youtube_link?: string
     apple_music?: {
         previews?: Array<{ url: string }>
         artwork?: {
@@ -152,7 +153,7 @@ export interface MCPRecognitionResponse {
 }
 
 export interface DVMRecognitionResponse {
-    type: 'audd_response'
+    type: 'audd-response'
     requestId: string
     result: RecognitionResult
 }

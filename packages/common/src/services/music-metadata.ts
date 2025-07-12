@@ -5,6 +5,15 @@
 
 import { config } from '../config'
 
+// Logging utility that works in both browser and server environments
+const log = (message: string) => {
+    if (typeof process !== 'undefined' && process.stderr) {
+        process.stderr.write(message)
+    } else {
+        console.log(message.replace(/\n$/, ''))
+    }
+}
+
 export interface MusicRecognitionResult {
     artist?: string
     title?: string
@@ -13,6 +22,7 @@ export interface MusicRecognitionResult {
     label?: string
     timecode?: string
     song_link?: string
+    youtube_link?: string
     apple_music?: {
         previews?: Array<{ url: string }>
         artwork?: { url: string }
@@ -441,14 +451,6 @@ export class MusicMetadataService {
         this.musicbrainzClient = new MusicBrainzClient()
     }
 
-    // Music Recognition
-    async recognizeMusic(audioUrl: string): Promise<MusicRecognitionResult | null> {
-        if (!this.auddClient) {
-            throw new Error('AudD client not configured')
-        }
-        return this.auddClient.recognize(audioUrl)
-    }
-
     // Discogs Methods
     async searchDiscogs(artist: string, title: string, options?: MusicSearchOptions): Promise<any> {
         if (!this.discogsClient) {
@@ -514,8 +516,11 @@ export class MusicMetadataService {
                 this.searchDiscogs(recognition.artist, recognition.title, { limit: 1 })
                     .then((data) => {
                         result.discogs = data
+                        log(`[MusicMetadata] Discogs enrichment successful\n`)
                     })
-                    .catch((error) => console.warn('Discogs enrichment failed:', error)),
+                    .catch((error) => {
+                        log(`[MusicMetadata] Discogs enrichment failed: ${error}\n`)
+                    }),
             )
         }
 
@@ -523,19 +528,91 @@ export class MusicMetadataService {
         promises.push(
             Promise.all([
                 this.searchMusicBrainzRecordings(recognition.artist, recognition.title, { limit: 1 }).catch((error) => {
-                    console.warn('MusicBrainz recording search failed:', error)
+                    log(`[MusicMetadata] MusicBrainz recording search failed: ${error}\n`)
                     return null
                 }),
                 this.searchMusicBrainzReleases(recognition.artist, recognition.title, { limit: 1 }).catch((error) => {
-                    console.warn('MusicBrainz release search failed:', error)
+                    log(`[MusicMetadata] MusicBrainz release search failed: ${error}\n`)
                     return null
                 }),
             ]).then(([recording, release]) => {
                 result.musicbrainz = { recording, release }
+                log(`[MusicMetadata] MusicBrainz enrichment completed\n`)
             }),
         )
 
         await Promise.all(promises)
+        return result
+    }
+
+    // Resolve lis.tn URLs to extract YouTube links
+    async resolveLisTnUrl(lisTnUrl: string): Promise<string | null> {
+        try {
+            const response = await fetch(lisTnUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                },
+            })
+
+            if (!response.ok) {
+                log(`[MusicMetadata] Failed to fetch lis.tn URL: ${response.status}\n`)
+                return null
+            }
+
+            const html = await response.text()
+
+            const youtubePatterns = [
+                /href="(https:\/\/(?:www\.)?youtube\.com\/watch\?v=[^"]+)"/gi,
+                /href="(https:\/\/youtu\.be\/[^"]+)"/gi,
+                /"(https:\/\/(?:www\.)?youtube\.com\/watch\?v=[^"]+)"/gi,
+                /"(https:\/\/youtu\.be\/[^"]+)"/gi,
+            ]
+
+            for (const pattern of youtubePatterns) {
+                const match = pattern.exec(html)
+                if (match && match[1]) {
+                    log(`[MusicMetadata] Found YouTube link: ${match[1]}\n`)
+                    return match[1]
+                }
+            }
+
+            // If no direct YouTube link found, look for any YouTube URL in the text
+            const youtubeUrlMatch = html.match(
+                /https:\/\/(?:www\.)?youtube\.com\/watch\?v=[\w-]+|https:\/\/youtu\.be\/[\w-]+/,
+            )
+            if (youtubeUrlMatch) {
+                return youtubeUrlMatch[0]
+            }
+
+            return null
+        } catch (error) {
+            log(`[MusicMetadata] Error resolving lis.tn URL: ${error}\n`)
+            return null
+        }
+    }
+
+    // Enhanced recognition that also resolves lis.tn URLs
+    async recognizeMusic(audioUrl: string): Promise<MusicRecognitionResult | null> {
+        if (!this.auddClient) {
+            throw new Error('AudD client not configured')
+        }
+
+        const result = await this.auddClient.recognize(audioUrl)
+
+        if (result && result.song_link && result.song_link.includes('lis.tn')) {
+            try {
+                const youtubeLink = await this.resolveLisTnUrl(result.song_link)
+                if (youtubeLink) {
+                    result.youtube_link = youtubeLink
+                    log(`[MusicMetadata] Successfully resolved YouTube link: ${youtubeLink}\n`)
+                }
+            } catch (error) {
+                log(`[MusicMetadata] Error resolving lis.tn URL: ${error}\n`)
+            }
+        }
+
         return result
     }
 
@@ -545,7 +622,8 @@ export class MusicMetadataService {
         if (!recognition) {
             return {}
         }
-        return this.enrichWithMetadata(recognition)
+        const enriched = await this.enrichWithMetadata(recognition)
+        return enriched
     }
 }
 

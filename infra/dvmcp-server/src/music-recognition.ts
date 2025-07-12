@@ -11,11 +11,16 @@ const projectRoot = path.resolve(__dirname, '../../../')
 const envPath = path.join(projectRoot, '.env')
 
 if (fs.existsSync(envPath)) {
-    console.log('Loading .env file for local development')
     const { default: dotenv } = await import('dotenv')
     dotenv.config({ path: envPath })
-} else {
-    console.log('Using environment variables from DVMCP bridge')
+}
+
+const log = (message: string) => {
+    if (typeof process !== 'undefined' && process.stderr) {
+        process.stderr.write(message)
+    } else {
+        console.log(message.replace(/\n$/, ''))
+    }
 }
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -25,13 +30,6 @@ import { MusicMetadataService } from '../../../packages/common/src/services/musi
 
 const AUDD_API_TOKEN = process.env.AUDD_API_TOKEN
 const DISCOGS_TOKEN = process.env.DISCOGS_PA_TOKEN
-
-console.log('Environment check:')
-console.log(`- AUDD_API_TOKEN: ${AUDD_API_TOKEN ? '✓ Set' : '✗ Missing'}`)
-console.log(`- DISCOGS_PA_TOKEN: ${DISCOGS_TOKEN ? '✓ Set' : '✗ Missing'}`)
-console.log('Raw environment variable values:')
-console.log(`- process.env.AUDD_API_TOKEN = "${process.env.AUDD_API_TOKEN}"`)
-console.log(`- process.env.DISCOGS_PA_TOKEN = "${process.env.DISCOGS_PA_TOKEN}"`)
 
 if (!AUDD_API_TOKEN) {
     console.error('ERROR: AUDD_API_TOKEN environment variable is required')
@@ -102,39 +100,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     try {
-        console.log(`[Music Recognition] Processing: ${audioUrl} (enriched: ${enriched})`)
-
         let result
         if (enriched) {
-            // Use the enriched recognition that includes Discogs and MusicBrainz data
             result = await musicService.recognizeAndEnrich(audioUrl)
         } else {
-            // Just basic recognition
             const recognition = await musicService.recognizeMusic(audioUrl)
             result = { recognition }
         }
 
         if (result.recognition) {
-            console.log(`[Music Recognition] Success: ${result.recognition.artist} - ${result.recognition.title}`)
+            log(`[Music Recognition] Success: ${result.recognition.artist} - ${result.recognition.title}`)
             return {
                 content: [
                     {
                         type: 'text',
                         text: JSON.stringify({
-                            type: 'music_recognition_result',
+                            type: 'music-recognition-result',
                             result,
                         }),
                     },
                 ],
             }
         } else {
-            console.log('[Music Recognition] No music recognized')
+            log('[Music Recognition] No music recognized')
             return {
                 content: [
                     {
                         type: 'text',
                         text: JSON.stringify({
-                            type: 'music_recognition_error',
+                            type: 'music-recognition-error',
                             error: 'No music recognized',
                         }),
                     },
@@ -150,7 +144,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                     type: 'text',
                     text: JSON.stringify({
-                        type: 'music_recognition_error',
+                        type: 'music-recognition-error',
                         error: errorMessage,
                     }),
                 },
@@ -171,7 +165,6 @@ process.on('SIGINT', async () => {
 // Start server
 async function main() {
     try {
-        console.log('[MCP] Starting Music Recognition Server...')
         const transport = new StdioServerTransport()
         await server.connect(transport)
         console.error('[MCP] Music Recognition Server running on stdio')
