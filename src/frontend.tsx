@@ -5,6 +5,7 @@
  * It is included in `src/index.html`.
  */
 
+import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/ndk-hooks";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
@@ -12,6 +13,25 @@ import { App } from "./App";
 const elem = document.getElementById("root")!;
 const app = (
   <StrictMode>
+    <NDKHeadless
+      ndk={{
+        explicitRelayUrls: [
+          "ws://localhost:10547",
+          "wss://relay.primal.net",
+          "wss://relay.damus.io",
+          "wss://purplepag.es",
+          "wss://relay.nostr.band",
+          "wss://nos.lol",
+          "wss://relay.nostr.net",
+          "wss://relay.minibits.cash",
+          "wss://relay.coinos.io/",
+        ],
+      }}
+      session={{
+        storage: new NDKSessionLocalStorage(),
+        opts: { follows: true, profile: true },
+      }}
+    />
     <App />
   </StrictMode>
 );

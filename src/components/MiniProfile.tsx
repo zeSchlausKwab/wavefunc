@@ -1,7 +1,7 @@
 import {
-    NDKUser,
-    useProfileValue,
-    type Hexpubkey,
+  NDKUser,
+  useProfileValue,
+  type Hexpubkey,
 } from "@nostr-dev-kit/ndk-hooks";
 
 export function MiniProfile({
@@ -10,6 +10,7 @@ export function MiniProfile({
   userOrPubkey?: Hexpubkey | NDKUser | null | undefined;
 }) {
   const profile = useProfileValue(userOrPubkey);
+
   return (
     <div className="flex items-center gap-4 border border-muted rounded-md p-2">
       <img
