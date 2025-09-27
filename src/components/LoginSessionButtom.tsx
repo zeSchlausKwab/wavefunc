@@ -3,10 +3,10 @@ import {
     NDKPrivateKeySigner,
     useNDKCurrentUser,
     useNDKSessionLogin,
-    useNDKSessionLogout,
-    type NDKUserProfile,
+    useNDKSessionLogout
 } from "@nostr-dev-kit/ndk-hooks";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { MiniProfile } from "./MiniProfile";
 import { Button } from "./ui/button";
 
 export function LoginSessionButtons() {
@@ -15,18 +15,6 @@ export function LoginSessionButtons() {
   const currentUser = useNDKCurrentUser();
 
   const [loading, setLoading] = useState(false);
-
-  const [ndkProfile, setNdkProfile] = useState<NDKUserProfile | null>(null);
-
-  useEffect(() => {
-    if (currentUser) {
-      currentUser.fetchProfile().then((profile) => {
-        setNdkProfile(profile);
-      });
-    } else {
-      console.log("User is not logged in");
-    }
-  }, [currentUser]);
 
   const handleSignup = async () => {
     try {
@@ -53,11 +41,7 @@ export function LoginSessionButtons() {
     <div className="flex items-center gap-4">
       {currentUser ? (
         <div className="flex items-center gap-4">
-          {ndkProfile?.name ? (
-            <p>Logged in as: {ndkProfile.name}</p>
-          ) : (
-            <p>Logged in as: {currentUser?.pubkey}</p>
-          )}
+          <MiniProfile userOrPubkey={currentUser} />
           <Button onClick={() => logout()}>Logout</Button>
         </div>
       ) : (

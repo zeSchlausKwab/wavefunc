@@ -16,8 +16,12 @@ export function App() {
             "ws://localhost:10547",
             "wss://relay.primal.net",
             "wss://relay.damus.io",
-            "wss://nos.lol",
             "wss://purplepag.es",
+            "wss://relay.nostr.band",
+            "wss://nos.lol",
+            "wss://relay.nostr.net",
+            "wss://relay.minibits.cash",
+            "wss://relay.coinos.io/",
           ],
         }}
         session={{

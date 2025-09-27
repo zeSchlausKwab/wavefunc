@@ -1,5 +1,5 @@
-import React from 'react';
 import { LoginSessionButtons } from './LoginSessionButtom';
+import { WalletButton } from './WalletButton';
 
 export function FloatingHeader() {
   return (
@@ -20,6 +20,7 @@ export function FloatingHeader() {
               Contact
             </a>
           </nav>
+          <WalletButton />
           <LoginSessionButtons />
         </div>
       </div>
