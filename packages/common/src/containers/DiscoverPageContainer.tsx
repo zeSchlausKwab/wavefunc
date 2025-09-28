@@ -304,7 +304,7 @@ export function DiscoverPageContainer() {
     }
 
     const { data: searchResults, isLoading } = useStationSearch(filters.searchTerm, searchOptions, {
-        enabled: Boolean(filters.searchTerm) || Boolean(filters.languageCode) || Boolean(filters.domain),
+        enabled: Boolean(filters.searchTerm) || Boolean(filters.tags) || Boolean(filters.languageCode) || Boolean(filters.domain),
     })
 
     // Handle search button click
@@ -466,7 +466,8 @@ export function DiscoverPageContainer() {
                 languages={languages}
             />
 
-            {isLoading || isLoadingStations ? (
+            {(isLoading && (Boolean(filters.searchTerm) || Boolean(filters.tags) || Boolean(filters.languageCode) || Boolean(filters.domain))) || 
+             (isLoadingStations && !(Boolean(filters.searchTerm) || Boolean(filters.tags) || Boolean(filters.languageCode) || Boolean(filters.domain))) ? (
                 <div className="flex justify-center my-8">
                     <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
                 </div>
