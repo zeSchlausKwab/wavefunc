@@ -17,14 +17,14 @@ const app = (
       ndk={{
         explicitRelayUrls: [
           "ws://localhost:10547",
-          "wss://relay.primal.net",
-          "wss://relay.damus.io",
-          "wss://purplepag.es",
-          "wss://relay.nostr.band",
-          "wss://nos.lol",
-          "wss://relay.nostr.net",
-          "wss://relay.minibits.cash",
-          "wss://relay.coinos.io/",
+          // "wss://relay.primal.net",
+          // "wss://relay.damus.io",
+          // "wss://purplepag.es",
+          // "wss://relay.nostr.band",
+          // "wss://nos.lol",
+          // "wss://relay.nostr.net",
+          // "wss://relay.minibits.cash",
+          // "wss://relay.coinos.io/",
         ],
       }}
       session={{

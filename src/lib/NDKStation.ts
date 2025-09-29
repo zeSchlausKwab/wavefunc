@@ -1,8 +1,4 @@
-import NDK, {
-  NDKEvent,
-  type NostrEvent,
-  registerEventClass,
-} from "@nostr-dev-kit/ndk";
+import NDK, { NDKEvent, type NostrEvent } from "@nostr-dev-kit/ndk-hooks";
 import { z } from "zod";
 
 // Zod schemas for validation and type inference
@@ -587,8 +583,5 @@ export class NDKStation extends NDKEvent {
     return cloned;
   }
 }
-
-// Register the NDKStation class with NDK
-registerEventClass(NDKStation);
 
 export default NDKStation;

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nak serve & bun --hot src/index.tsx",
+    "dev": "nak serve & bun run scripts/seed.ts && bun --hot src/index.tsx",
+		"seed": "bun run scripts/seed.ts",
     "start": "NODE_ENV=production bun src/index.tsx",
     "build": "bun run build.ts"
   },
