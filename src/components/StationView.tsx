@@ -1,20 +1,17 @@
-import { useSubscribe, wrapEvent } from "@nostr-dev-kit/ndk-hooks";
 import { NDKStation } from "../lib/NDKStation";
+import { useStations } from "../lib/hooks/useStations";
 import { MiniProfile } from "./MiniProfile";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 export function StationView() {
-  const { events, eose } = useSubscribe<NDKStation>([
+  const { events, eose } = useStations([
     { kinds: NDKStation.kinds, limit: 50 },
-
   ]);
 
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Radio Stations</h2>
-      {events.map((event) => {
-        const station = wrapEvent(event) as NDKStation
-        
+      {events.map((station) => {
         return (
           <Card
             key={station.id}
