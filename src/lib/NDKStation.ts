@@ -1,4 +1,8 @@
-import NDK, { NDKEvent, type NostrEvent, registerEventClass } from "@nostr-dev-kit/ndk";
+import NDK, {
+  NDKEvent,
+  type NostrEvent,
+  registerEventClass,
+} from "@nostr-dev-kit/ndk";
 import { z } from "zod";
 
 // Zod schemas for validation and type inference
@@ -35,7 +39,7 @@ export type ClientTag = z.infer<typeof ClientTagSchema>;
 
 /**
  * NDKStation - A comprehensive class for handling Radio Station Events (kind 31237)
- * 
+ *
  * This class extends NDKEvent and provides methods for managing radio station data
  * according to the NostrRadio specification. It handles station metadata, streams,
  * tags, and provides validation and utility methods.
@@ -180,20 +184,23 @@ export class NDKStation extends NDKEvent {
    */
   get streams(): Stream[] {
     return this.getMatchingTags("stream")
-      .map(tag => {
+      .map((tag) => {
         // Only create stream if we have required fields
         if (!tag[1] || !tag[2] || !tag[3]) return null;
-        
+
         try {
           // Parse quality from tag if it's a JSON string
           let quality;
-          if (typeof tag[3] === 'string') {
+          if (typeof tag[3] === "string") {
             try {
               quality = JSON.parse(tag[3]);
               // Validate that parsed quality has required properties
-              if (!quality || typeof quality.bitrate !== 'number' || 
-                  typeof quality.codec !== 'string' || 
-                  typeof quality.sampleRate !== 'number') {
+              if (
+                !quality ||
+                typeof quality.bitrate !== "number" ||
+                typeof quality.codec !== "string" ||
+                typeof quality.sampleRate !== "number"
+              ) {
                 return null;
               }
             } catch {
@@ -207,9 +214,9 @@ export class NDKStation extends NDKEvent {
             url: tag[1],
             format: tag[2],
             quality: quality,
-            primary: tag.includes("primary")
+            primary: tag.includes("primary"),
           };
-          
+
           // Validate the stream before returning
           const validation = StreamSchema.safeParse(stream);
           return validation.success ? stream : null;
@@ -226,10 +233,15 @@ export class NDKStation extends NDKEvent {
   addStream(stream: Stream): void {
     const validation = this.validateStream(stream);
     if (!validation.valid) {
-      throw new Error(`Invalid stream: ${validation.errors.join(', ')}`);
+      throw new Error(`Invalid stream: ${validation.errors.join(", ")}`);
     }
-    
-    const streamTag = ["stream", stream.url, stream.format, JSON.stringify(stream.quality)];
+
+    const streamTag = [
+      "stream",
+      stream.url,
+      stream.format,
+      JSON.stringify(stream.quality),
+    ];
     if (stream.primary) streamTag.push("primary");
     this.tags.push(streamTag);
   }
@@ -239,8 +251,8 @@ export class NDKStation extends NDKEvent {
    */
   removeStream(url: string): boolean {
     const initialLength = this.tags.length;
-    this.tags = this.tags.filter(tag => 
-      !(tag[0] === "stream" && tag[1] === url)
+    this.tags = this.tags.filter(
+      (tag) => !(tag[0] === "stream" && tag[1] === url)
     );
     return this.tags.length !== initialLength;
   }
@@ -250,25 +262,25 @@ export class NDKStation extends NDKEvent {
    */
   updateStream(url: string, updates: Partial<Stream>): boolean {
     const streams = this.streams;
-    const streamIndex = streams.findIndex(stream => stream.url === url);
-    
+    const streamIndex = streams.findIndex((stream) => stream.url === url);
+
     if (streamIndex === -1) return false;
-    
+
     const existingStream = streams[streamIndex];
     if (!existingStream) return false;
-    
+
     const updatedStream: Stream = {
       url: updates.url ?? existingStream.url,
       format: updates.format ?? existingStream.format,
       quality: updates.quality ?? existingStream.quality,
-      primary: updates.primary ?? existingStream.primary
+      primary: updates.primary ?? existingStream.primary,
     };
-    
+
     const validation = this.validateStream(updatedStream);
     if (!validation.valid) {
-      throw new Error(`Invalid stream update: ${validation.errors.join(', ')}`);
+      throw new Error(`Invalid stream update: ${validation.errors.join(", ")}`);
     }
-    
+
     this.removeStream(url);
     this.addStream(updatedStream);
     return true;
@@ -282,13 +294,20 @@ export class NDKStation extends NDKEvent {
     streams.forEach((stream, index) => {
       const validation = this.validateStream(stream);
       if (!validation.valid) {
-        throw new Error(`Invalid stream at index ${index}: ${validation.errors.join(', ')}`);
+        throw new Error(
+          `Invalid stream at index ${index}: ${validation.errors.join(", ")}`
+        );
       }
     });
-    
+
     this.removeTag("stream");
-    streams.forEach(stream => {
-      const streamTag = ["stream", stream.url, stream.format, JSON.stringify(stream.quality)];
+    streams.forEach((stream) => {
+      const streamTag = [
+        "stream",
+        stream.url,
+        stream.format,
+        JSON.stringify(stream.quality),
+      ];
       if (stream.primary) streamTag.push("primary");
       this.tags.push(streamTag);
     });
@@ -301,8 +320,8 @@ export class NDKStation extends NDKEvent {
    */
   get genres(): string[] {
     return this.getMatchingTags("c")
-      .filter(tag => tag[2] === "genre")
-      .map(tag => tag[1])
+      .filter((tag) => tag[2] === "genre")
+      .map((tag) => tag[1])
       .filter((genre): genre is string => genre !== undefined);
   }
 
@@ -319,8 +338,8 @@ export class NDKStation extends NDKEvent {
    * Remove a genre from the station
    */
   removeGenre(genre: string): void {
-    this.tags = this.tags.filter(tag => 
-      !(tag[0] === "c" && tag[1] === genre && tag[2] === "genre")
+    this.tags = this.tags.filter(
+      (tag) => !(tag[0] === "c" && tag[1] === genre && tag[2] === "genre")
     );
   }
 
@@ -329,10 +348,10 @@ export class NDKStation extends NDKEvent {
    */
   setGenres(genres: string[]): void {
     // Remove existing genre tags
-    this.tags = this.tags.filter(tag => 
-      !(tag[0] === "c" && tag[2] === "genre")
+    this.tags = this.tags.filter(
+      (tag) => !(tag[0] === "c" && tag[2] === "genre")
     );
-    genres.forEach(genre => this.addGenre(genre));
+    genres.forEach((genre) => this.addGenre(genre));
   }
 
   // Language Management
@@ -342,7 +361,7 @@ export class NDKStation extends NDKEvent {
    */
   get languages(): string[] {
     return this.getMatchingTags("l")
-      .map(tag => tag[1])
+      .map((tag) => tag[1])
       .filter((lang): lang is string => lang !== undefined);
   }
 
@@ -359,8 +378,8 @@ export class NDKStation extends NDKEvent {
    * Remove a language from the station
    */
   removeLanguage(language: string): void {
-    this.tags = this.tags.filter(tag => 
-      !(tag[0] === "l" && tag[1] === language)
+    this.tags = this.tags.filter(
+      (tag) => !(tag[0] === "l" && tag[1] === language)
     );
   }
 
@@ -369,7 +388,7 @@ export class NDKStation extends NDKEvent {
    */
   setLanguages(languages: string[]): void {
     this.removeTag("l");
-    languages.forEach(lang => this.addLanguage(lang));
+    languages.forEach((lang) => this.addLanguage(lang));
   }
 
   // Client Tag Management
@@ -380,17 +399,17 @@ export class NDKStation extends NDKEvent {
   get client(): ClientTag | undefined {
     const clientTag = this.getMatchingTags("client")[0];
     if (!clientTag || clientTag.length < 4) return undefined;
-    
+
     const name = clientTag[1];
     const handlerReference = clientTag[2];
     const relayUrl = clientTag[3];
-    
+
     if (!name || !handlerReference || !relayUrl) return undefined;
-    
+
     return {
       name,
       handlerReference,
-      relayUrl
+      relayUrl,
     };
   }
 
@@ -399,7 +418,12 @@ export class NDKStation extends NDKEvent {
    */
   setClient(client: ClientTag): void {
     this.removeTag("client");
-    this.tags.push(["client", client.name, client.handlerReference, client.relayUrl]);
+    this.tags.push([
+      "client",
+      client.name,
+      client.handlerReference,
+      client.relayUrl,
+    ]);
   }
 
   // Validation and Utility Methods
@@ -409,28 +433,28 @@ export class NDKStation extends NDKEvent {
    */
   validateStation(): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    
+
     if (!this.name) {
       errors.push("Station name is required");
     }
-    
+
     if (this.streams.length === 0) {
       errors.push("At least one stream is required");
     }
-    
+
     // Validate streams using Zod
     this.streams.forEach((stream, index) => {
       const validation = this.validateStream(stream);
       if (!validation.valid) {
-        validation.errors.forEach(error => {
+        validation.errors.forEach((error) => {
           errors.push(`Stream ${index + 1}: ${error}`);
         });
       }
     });
-    
+
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -441,7 +465,7 @@ export class NDKStation extends NDKEvent {
     try {
       const content = {
         description: this.description || "",
-        streams: this.streams
+        streams: this.streams,
       };
       StationContentSchema.parse(content);
       return { valid: true, errors: [] };
@@ -449,48 +473,57 @@ export class NDKStation extends NDKEvent {
       if (error instanceof z.ZodError) {
         return {
           valid: false,
-          errors: error.issues.map((err: z.ZodIssue) => `${err.path.join('.')}: ${err.message}`)
+          errors: error.issues.map(
+            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+          ),
         };
       }
-      return { valid: false, errors: ['Unknown validation error'] };
+      return { valid: false, errors: ["Unknown validation error"] };
     }
   }
 
   /**
-    * Validate stream using Zod schema
-    */
-   validateStream(stream: Stream): { valid: boolean; errors: string[] } {
-     try {
-       StreamSchema.parse(stream);
-       return { valid: true, errors: [] };
-     } catch (error) {
-       if (error instanceof z.ZodError) {
-         return {
-           valid: false,
-           errors: error.issues.map((err: z.ZodIssue) => `${err.path.join('.')}: ${err.message}`)
-         };
-       }
-       return { valid: false, errors: ['Unknown validation error'] };
-     }
-   }
+   * Validate stream using Zod schema
+   */
+  validateStream(stream: Stream): { valid: boolean; errors: string[] } {
+    try {
+      StreamSchema.parse(stream);
+      return { valid: true, errors: [] };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return {
+          valid: false,
+          errors: error.issues.map(
+            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+          ),
+        };
+      }
+      return { valid: false, errors: ["Unknown validation error"] };
+    }
+  }
 
-   /**
-    * Validate client tag using Zod schema
-    */
-   validateClientTag(clientTag: ClientTag): { valid: boolean; errors: string[] } {
-     try {
-       ClientTagSchema.parse(clientTag);
-       return { valid: true, errors: [] };
-     } catch (error) {
-       if (error instanceof z.ZodError) {
-         return {
-           valid: false,
-           errors: error.issues.map((err: z.ZodIssue) => `${err.path.join('.')}: ${err.message}`)
-         };
-       }
-       return { valid: false, errors: ['Unknown validation error'] };
-     }
-   }
+  /**
+   * Validate client tag using Zod schema
+   */
+  validateClientTag(clientTag: ClientTag): {
+    valid: boolean;
+    errors: string[];
+  } {
+    try {
+      ClientTagSchema.parse(clientTag);
+      return { valid: true, errors: [] };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return {
+          valid: false,
+          errors: error.issues.map(
+            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+          ),
+        };
+      }
+      return { valid: false, errors: ["Unknown validation error"] };
+    }
+  }
 
   /**
    * Check if the station is valid
@@ -509,34 +542,48 @@ export class NDKStation extends NDKEvent {
   /**
    * Clone the station with optional modifications
    */
-  clone(modifications?: Partial<{
-    stationId: string;
-    name: string;
-    description: string;
-    streams: Stream[];
-    thumbnail: string;
-    website: string;
-    location: string;
-    countryCode: string;
-    genres: string[];
-    languages: string[];
-  }>): NDKStation {
+  clone(
+    modifications?: Partial<{
+      stationId: string;
+      name: string;
+      description: string;
+      streams: Stream[];
+      thumbnail: string;
+      website: string;
+      location: string;
+      countryCode: string;
+      genres: string[];
+      languages: string[];
+    }>
+  ): NDKStation {
     const cloned = new NDKStation(this.ndk, this);
-    
+
     if (modifications) {
       Object.entries(modifications).forEach(([key, value]) => {
-        if (key === 'genres' && Array.isArray(value) && value.every(v => typeof v === 'string')) {
+        if (
+          key === "genres" &&
+          Array.isArray(value) &&
+          value.every((v) => typeof v === "string")
+        ) {
           cloned.setGenres(value as string[]);
-        } else if (key === 'languages' && Array.isArray(value) && value.every(v => typeof v === 'string')) {
+        } else if (
+          key === "languages" &&
+          Array.isArray(value) &&
+          value.every((v) => typeof v === "string")
+        ) {
           cloned.setLanguages(value as string[]);
-        } else if (key === 'streams' && Array.isArray(value) && value.every(v => typeof v === 'object' && 'url' in v)) {
+        } else if (
+          key === "streams" &&
+          Array.isArray(value) &&
+          value.every((v) => typeof v === "object" && "url" in v)
+        ) {
           cloned.setStreams(value as Stream[]);
         } else {
           (cloned as any)[key] = value;
         }
       });
     }
-    
+
     return cloned;
   }
 }
