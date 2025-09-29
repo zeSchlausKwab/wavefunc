@@ -529,6 +529,13 @@ export class NDKStation extends NDKEvent {
   }
 
   /**
+   * Get the station's naddr (Nostr address) encoding
+   */
+  get naddr(): string {
+    return this.encode()
+  }
+
+  /**
    * Get the station's address for referencing in other events
    */
   get address(): string {
