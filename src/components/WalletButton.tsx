@@ -4,6 +4,7 @@ import {
   useNDKWallet,
   useSubscribe,
 } from "@nostr-dev-kit/ndk-hooks";
+import { NDKCashuWallet } from "@nostr-dev-kit/ndk-wallet";
 import { useEffect } from "react";
 
 export function WalletButton() {
@@ -20,14 +21,15 @@ export function WalletButton() {
 
   useEffect(() => {
     if (subscription?.events && subscription.events.length > 0) {
-      const walletEvents = subscription.events;
-      setActiveWallet(walletEvents[0]);
+      const walletEvent = subscription.events[0];
+      if (!walletEvent) {
+        return;
+      }
+      NDKCashuWallet.from(walletEvent).then((wallet) => {
+        setActiveWallet(wallet);
+      });
     }
   }, [subscription?.events]);
-
-  useEffect(() => {
-    console.log(activeWallet);
-  }, [activeWallet]);
 
   if (!currentUser) {
     return (
