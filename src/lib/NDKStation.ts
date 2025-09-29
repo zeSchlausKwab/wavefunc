@@ -5,7 +5,7 @@ import { z } from "zod";
 const StreamQualitySchema = z.enum(["low", "medium", "high", "lossless"]);
 
 const StreamSchema = z.object({
-  url: z.string().url("Invalid stream URL"),
+  url: z.url({ message: "Invalid stream URL" }),
   format: z.string().min(1, "Format is required"),
   quality: z.object({
     bitrate: z.number().positive("Bitrate must be positive"),
@@ -18,13 +18,13 @@ const StreamSchema = z.object({
 const StationContentSchema = z.object({
   description: z.string().min(1, "Description is required"),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),
-  streamingServerUrl: z.string().url().optional(),
+  streamingServerUrl: z.url({ message: "Invalid streaming server URL" }).optional(),
 });
 
 const ClientTagSchema = z.object({
   name: z.string().min(1, "Client name is required"),
   handlerReference: z.string().min(1, "Handler reference is required"),
-  relayUrl: z.string().url("Invalid relay URL"),
+  relayUrl: z.url({ message: "Invalid relay URL" }),
 });
 
 // Type definitions inferred from Zod schemas
@@ -470,7 +470,7 @@ export class NDKStation extends NDKEvent {
         return {
           valid: false,
           errors: error.issues.map(
-            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+            (err) => `${err.path.join(".")}: ${err.message}`
           ),
         };
       }
@@ -490,7 +490,7 @@ export class NDKStation extends NDKEvent {
         return {
           valid: false,
           errors: error.issues.map(
-            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+            (err) => `${err.path.join(".")}: ${err.message}`
           ),
         };
       }
@@ -513,7 +513,7 @@ export class NDKStation extends NDKEvent {
         return {
           valid: false,
           errors: error.issues.map(
-            (err: z.ZodIssue) => `${err.path.join(".")}: ${err.message}`
+            (err) => `${err.path.join(".")}: ${err.message}`
           ),
         };
       }
