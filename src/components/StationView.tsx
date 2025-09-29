@@ -1,12 +1,9 @@
-import { NDKStation } from "../lib/NDKStation";
 import { useStations } from "../lib/hooks/useStations";
 import { MiniProfile } from "./MiniProfile";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 export function StationView() {
-  const { events, eose } = useStations([
-    { kinds: NDKStation.kinds, limit: 50 },
-  ]);
+  const { events, eose } = useStations([{ limit: 50 }]);
 
   return (
     <div className="space-y-4">
