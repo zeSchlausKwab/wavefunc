@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import { useSearchStations } from "../lib/hooks/useStations";
+import { useStationsObserver } from "../lib/hooks/useStations";
 import { RadioCard } from "./RadioCard";
+import { useMemo } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 
 interface StationViewProps {
@@ -8,22 +8,21 @@ interface StationViewProps {
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
-  const filter = useMemo<NDKFilter>(() => {
-    const baseFilter: NDKFilter = {
-      kinds: [31237 as any],
+  // Build filter based on search query
+  const filter = useMemo<Omit<NDKFilter, "kinds">>(() => {
+    const baseFilter: Omit<NDKFilter, "kinds"> = {
       limit: 50,
     };
 
     if (searchQuery.trim()) {
       baseFilter.search = searchQuery.trim();
-    } else {
-      console.log("📡 Loading all stations (limit: 50)");
     }
 
     return baseFilter;
   }, [searchQuery]);
 
-  const { events, eose } = useSearchStations(filter, searchQuery);
+  // Use the elegant observer hook with flexible filtering
+  const { events, eose } = useStationsObserver(filter);
 
   return (
     <div className="space-y-6">

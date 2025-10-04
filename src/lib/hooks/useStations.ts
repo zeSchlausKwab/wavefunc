@@ -63,10 +63,68 @@ export function useSearchStations(filter: NDKFilter, searchQuery: string) {
     });
 
     return () => {
-      console.log("🛑 Stopping subscription");
       sub.stop();
     };
-  }, [ndk, searchQuery]); // Re-run when searchQuery changes
+  }, [ndk, searchQuery]);
+
+  return {
+    events,
+    eose,
+  };
+}
+
+/**
+ * A unified, elegant hook for station events with flexible filtering.
+ * Uses manual subscription management for reliable NIP-50 search support.
+ * Automatically restarts subscription when the filter changes.
+ *
+ * This is the recommended hook for search-enabled station views.
+ *
+ * @param filterWithoutKinds - NDK filter without kinds (kinds is hardcoded to station kind 31237)
+ * @returns Object containing the NDKStation events array and EOSE status
+ */
+export function useStationsObserver(
+  filterWithoutKinds: Omit<NDKFilter, "kinds"> = { limit: 50 }
+) {
+  const { ndk } = useNDK();
+  const [events, setEvents] = useState<NDKStation[]>([]);
+  const [eose, setEose] = useState(false);
+
+  useEffect(() => {
+    if (!ndk) return;
+
+    // Build complete filter with hardcoded station kinds
+    const filter: NDKFilter = {
+      ...filterWithoutKinds,
+      kinds: [31237 as any],
+    };
+
+    console.log("🔍 Filter:", filter);
+
+    // Reset state
+    setEvents([]);
+    setEose(false);
+
+    const sub = ndk.subscribe(filter, { closeOnEose: false });
+    const eventMap = new Map<string, NDKStation>();
+
+    sub.on("event", (event: any) => {
+      const station = NDKStation.from(event);
+      if (!eventMap.has(station.id)) {
+        eventMap.set(station.id, station);
+        setEvents(Array.from(eventMap.values()));
+      }
+    });
+
+    sub.on("eose", () => {
+      console.log("✅ EOSE - Total:", eventMap.size);
+      setEose(true);
+    });
+
+    return () => {
+      sub.stop();
+    };
+  }, [ndk, JSON.stringify(filterWithoutKinds)]); // Stringify to detect deep changes
 
   return {
     events,
