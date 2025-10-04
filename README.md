@@ -72,8 +72,9 @@ bun dev
 
 ### Frontend
 
-- `bun dev` - Start relay, seed data, and run development server
-- `bun seed` - Seed the relay with test data
+- `bun dev` - Start relay, migrate 500 real stations, and run development server
+- `bun dev:fake` - Start relay with fake/test data instead of real stations
+- `bun seed` - Seed the relay with fake test data
 - `bun start` - Run in production mode
 - `bun build` - Build for production
 
@@ -83,6 +84,16 @@ bun dev
 - `bun run relay:reset` - Reset database and search index
 - `cd relay && make dev` - Run relay in development mode
 - `cd relay && make reset-all` - Reset all data
+
+### Migration
+
+- `bun run migrate` - Migrate 500 random stations from legacy database (default)
+- `bun run migrate 50` - Migrate 50 random stations
+- `bun run migrate 1000` - Migrate 1000 random stations
+
+**Note:** Duplicate stations (same name + country) are automatically merged into single events with multiple streams.
+
+See [legacy-db/README.md](legacy-db/README.md) for details on the legacy database structure and migration process.
 
 ## Technology Stack
 

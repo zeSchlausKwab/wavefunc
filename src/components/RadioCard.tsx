@@ -1,5 +1,5 @@
-import React from 'react';
-import { NDKStation } from '../lib/NDKStation';
+import React from "react";
+import { NDKStation } from "../lib/NDKStation";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -13,26 +13,26 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
         <div className="aspect-video w-full overflow-hidden">
           <img
             src={station.thumbnail}
-            alt={station.name || 'Radio Station'}
+            alt={station.name || "Radio Station"}
             className="w-full h-full object-cover"
           />
         </div>
       )}
-      
+
       {/* Station Content */}
       <div className="p-4">
         {/* Station Name */}
         <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-          {station.name || 'Unnamed Station'}
+          {station.name || "Unnamed Station"}
         </h3>
-        
+
         {/* Station Description */}
         {station.description && (
           <p className="text-gray-600 text-sm mb-3 line-clamp-3">
             {station.description}
           </p>
         )}
-        
+
         {/* Station Genres */}
         {station.genres && station.genres.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
@@ -51,14 +51,17 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             )}
           </div>
         )}
-        
+
         {/* Streams */}
         {station.streams && station.streams.length > 0 && (
           <div className="space-y-2 mb-3">
             <h4 className="text-sm font-medium text-gray-700">Streams:</h4>
             <div className="space-y-1">
               {station.streams.slice(0, 2).map((stream, index) => (
-                <div key={index} className="flex items-center justify-between text-xs">
+                <div
+                  key={index}
+                  className="flex items-center justify-between text-xs"
+                >
                   <span className="text-gray-600 truncate flex-1 mr-2">
                     {stream.url}
                   </span>
@@ -77,26 +80,35 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             </div>
           </div>
         )}
-        
+
         {/* Station Metadata */}
         <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
           <div className="flex items-center space-x-2">
-            {station.location && (
-              <span>{station.location}</span>
-            )}
+            {station.location && <span>{station.location}</span>}
             {station.languages && station.languages.length > 0 && (
               <span className="capitalize">{station.languages[0]}</span>
             )}
           </div>
-          
-          {/* Copy naddr button */}
-          <button
-            onClick={() => navigator.clipboard.writeText(station.naddr)}
-            className="text-blue-600 hover:text-blue-800 font-medium"
-            title="Copy station address"
-          >
-            Copy naddr
-          </button>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                console.log("Raw NDK Event:", station.rawEvent());
+              }}
+              className="text-gray-600 hover:text-gray-800 font-medium"
+              title="Log raw event to console"
+            >
+              Debug
+            </button>
+            <button
+              onClick={() => navigator.clipboard.writeText(station.naddr)}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+              title="Copy station address"
+            >
+              Copy naddr
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@ import NDKStation from "./lib/NDKStation";
 
 export function App() {
   useEffect(() => {
-    registerEventClass(NDKStation)
+    registerEventClass(NDKStation);
   }, []);
   return (
     <>

@@ -6,10 +6,12 @@
   "scripts": {
     "relay": "cd relay && go run . --port 3334",
     "relay:reset": "cd relay && go run . --reset-all",
-    "dev": "bun run relay & sleep 1 && bun run scripts/seed.ts && bun --hot src/index.tsx",
+    "dev": "bun run relay & sleep 1 && bun run migrate && bun --hot src/index.tsx",
+    "dev:fake": "bun run relay & sleep 1 && bun run scripts/seed.ts && bun --hot src/index.tsx",
     "dev:no-seed": "bun run relay & sleep 1 && bun --hot src/index.tsx",
     "dev:frontend": "bun --hot src/index.tsx",
     "seed": "bun run scripts/seed.ts",
+    "migrate": "bun run scripts/migrate_legacy.ts",
     "start": "NODE_ENV=production bun src/index.tsx",
     "build": "bun run build.ts"
   },
