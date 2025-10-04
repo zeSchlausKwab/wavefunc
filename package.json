@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nak serve & bun run scripts/seed.ts && bun --hot src/index.tsx",
+    "relay": "cd relay && go run . --port 3334",
+    "relay:reset": "cd relay && go run . --reset-all",
+    "dev": "bun run relay & sleep 1 && bun run scripts/seed.ts && bun --hot src/index.tsx",
+    "dev:no-seed": "bun run relay & sleep 1 && bun --hot src/index.tsx",
+    "dev:frontend": "bun --hot src/index.tsx",
     "seed": "bun run scripts/seed.ts",
     "start": "NODE_ENV=production bun src/index.tsx",
     "build": "bun run build.ts"

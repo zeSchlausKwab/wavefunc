@@ -16,7 +16,7 @@ const app = (
     <NDKHeadless
       ndk={{
         explicitRelayUrls: [
-          "ws://localhost:10547",
+          "ws://localhost:3334",
           // "wss://relay.primal.net",
           // "wss://relay.damus.io",
           // "wss://purplepag.es",

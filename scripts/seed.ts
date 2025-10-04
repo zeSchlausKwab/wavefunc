@@ -21,13 +21,31 @@ const APP_PRIVATE_KEY =
   "0000000000000000000000000000000000000000000000000000000000000001";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
-const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:10547"] });
+const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"] });
 
 const devUsers = [devUser1, devUser2, devUser3, devUser4, devUser5];
 
+async function connectWithRetry(maxRetries = 5, delayMs = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      console.log(`Connecting to relay (attempt ${i + 1}/${maxRetries})...`);
+      await ndk.connect();
+      console.log("✅ Connected to relay!");
+      return;
+    } catch (error) {
+      if (i === maxRetries - 1) {
+        throw new Error(
+          `Failed to connect to relay after ${maxRetries} attempts: ${error}`
+        );
+      }
+      console.log(`⏳ Relay not ready, waiting ${delayMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 async function seedData() {
-  console.log("Connecting to Nostr...");
-  await ndk.connect();
+  await connectWithRetry();
   const userPubkeys: string[] = [];
 
   console.log("Starting user seeding...");
