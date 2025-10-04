@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -23,11 +24,9 @@ var (
 	resetAll   = flag.Bool("reset-all", false, "Reset both database and index")
 )
 
-
 func main() {
 	flag.Parse()
 
-	// Handle reset flags
 	if *resetAll {
 		*resetDB = true
 		*resetIndex = true
@@ -69,23 +68,23 @@ func main() {
 	// Initialize Bluge search backend
 	os.MkdirAll(*searchPath, 0755)
 	search := &bluge.BlugeBackend{
-		Path:           *searchPath,
-		RawEventStore:  db,
+		Path:          *searchPath,
+		RawEventStore: db,
 	}
 	if err := search.Init(); err != nil {
 		log.Fatalf("Failed to initialize Bluge: %v", err)
 	}
 	defer search.Close()
 
-	// Set up event storage
-	relay.StoreEvent = append(relay.StoreEvent, 
+	// Set up event storage with enrichment for search indexing
+	relay.StoreEvent = append(relay.StoreEvent,
 		db.SaveEvent,
-		search.SaveEvent,
+		enrichAndIndexEvent(search),
 	)
 
 	// Set up event querying with search support
 	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-		// If the filter has a search term, use bluge
+		// If the filter has a search term, use Bluge
 		if len(filter.Search) > 0 {
 			return search.QueryEvents(ctx, filter)
 		}
@@ -94,7 +93,7 @@ func main() {
 	})
 
 	// Set up event deletion
-	relay.DeleteEvent = append(relay.DeleteEvent, 
+	relay.DeleteEvent = append(relay.DeleteEvent,
 		db.DeleteEvent,
 		search.DeleteEvent,
 	)
@@ -109,26 +108,25 @@ func main() {
 	log.Printf("🚀 WaveFunc Radio Relay starting on port %s", *port)
 	log.Printf("📊 SQLite: %s", *dbPath)
 	log.Printf("🔍 Search index: %s", *searchPath)
-	
+
 	// Convert port string to int
 	portInt, err := strconv.Atoi(*port)
 	if err != nil {
 		log.Fatalf("Invalid port number: %v", err)
 	}
-	
+
 	// Start the relay
 	if err := relay.Start("0.0.0.0", portInt); err != nil {
 		log.Fatalf("Failed to start relay: %v", err)
 	}
 }
 
-
 func resetDatabase() error {
 	// Remove the database file
 	if err := os.Remove(*dbPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove database: %w", err)
 	}
-	
+
 	log.Println("Database removed. It will be recreated on next start.")
 	return nil
 }
@@ -138,13 +136,49 @@ func resetSearchIndex() error {
 	if err := os.RemoveAll(*searchPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove search index: %w", err)
 	}
-	
+
 	// Recreate the directory
 	if err := os.MkdirAll(*searchPath, 0755); err != nil {
 		return fmt.Errorf("failed to create search index directory: %w", err)
 	}
-	
+
 	return nil
 }
 
+// StationContent represents the JSON structure in station event content
+type StationContent struct {
+	Description string `json:"description"`
+}
 
+// enrichAndIndexEvent adds description from content JSON as a tag so Bluge can index it
+// Bluge automatically indexes all tag values, so we just need to make description a tag
+func enrichAndIndexEvent(search *bluge.BlugeBackend) func(context.Context, *nostr.Event) error {
+	return func(ctx context.Context, evt *nostr.Event) error {
+		// Only enrich station events (kind 31237)
+		if evt.Kind == 31237 {
+			// Parse the content JSON to extract description
+			var content StationContent
+			if err := json.Unmarshal([]byte(evt.Content), &content); err == nil {
+				// Add description as a searchable tag if it exists
+				if content.Description != "" {
+					// Check if description tag already exists
+					hasDescTag := false
+					for _, tag := range evt.Tags {
+						if len(tag) >= 2 && tag[0] == "description" {
+							hasDescTag = true
+							break
+						}
+					}
+
+					// Add description tag - Bluge will index all tag values including name and description
+					if !hasDescTag {
+						evt.Tags = append(evt.Tags, nostr.Tag{"description", content.Description})
+					}
+				}
+			}
+		}
+
+		// Save to Bluge - it will index all tag values: name, description, genre, location, etc.
+		return search.SaveEvent(ctx, evt)
+	}
+}
