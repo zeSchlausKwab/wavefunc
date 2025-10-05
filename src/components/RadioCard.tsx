@@ -1,21 +1,74 @@
+import { Pause, Play } from "lucide-react";
 import React from "react";
 import { NDKStation } from "../lib/NDKStation";
+import { usePlayerStore } from "../stores/playerStore";
 
 interface RadioCardProps {
   station: NDKStation;
 }
 
 export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
+  const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  const isCurrentStation = currentStation?.id === station.id;
+  const isCurrentlyPlaying = isCurrentStation && isPlaying;
+
+  const handlePlayClick = () => {
+    if (isCurrentlyPlaying) {
+      pause();
+    } else {
+      playStation(station);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200">
-      {/* Station Thumbnail */}
+    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group">
+      {/* Station Thumbnail with Play Overlay */}
       {station.thumbnail && (
-        <div className="aspect-video w-full overflow-hidden">
+        <div className="aspect-video w-full overflow-hidden relative">
           <img
             src={station.thumbnail}
             alt={station.name || "Radio Station"}
             className="w-full h-full object-cover"
           />
+          {/* Play Button Overlay */}
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <button
+              onClick={handlePlayClick}
+              className={`p-4 rounded-full transition-all transform hover:scale-110 ${
+                isCurrentlyPlaying
+                  ? "bg-blue-600 hover:bg-blue-700"
+                  : "bg-white/90 hover:bg-white"
+              }`}
+              title={isCurrentlyPlaying ? "Pause" : "Play"}
+            >
+              {isCurrentlyPlaying ? (
+                <Pause className="w-8 h-8 text-white" />
+              ) : (
+                <Play className="w-8 h-8 text-gray-900" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Play Button for cards without thumbnail */}
+      {!station.thumbnail && (
+        <div className="aspect-video w-full overflow-hidden relative bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+          <button
+            onClick={handlePlayClick}
+            className={`p-4 rounded-full transition-all transform hover:scale-110 ${
+              isCurrentlyPlaying
+                ? "bg-white/90 hover:bg-white"
+                : "bg-black/40 hover:bg-black/60"
+            }`}
+            title={isCurrentlyPlaying ? "Pause" : "Play"}
+          >
+            {isCurrentlyPlaying ? (
+              <Pause className="w-8 h-8 text-gray-900" />
+            ) : (
+              <Play className="w-8 h-8 text-white" />
+            )}
+          </button>
         </div>
       )}
 
@@ -93,20 +146,24 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             <button
+              onClick={handlePlayClick}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                isCurrentlyPlaying
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              title={isCurrentlyPlaying ? "Pause" : "Play"}
+            >
+              {isCurrentlyPlaying ? "Playing" : "Play"}
+            </button>
+            <button
               onClick={() => {
                 console.log("Raw NDK Event:", station.rawEvent());
               }}
-              className="text-gray-600 hover:text-gray-800 font-medium"
+              className="text-gray-600 hover:text-gray-800 text-xs"
               title="Log raw event to console"
             >
               Debug
-            </button>
-            <button
-              onClick={() => navigator.clipboard.writeText(station.naddr)}
-              className="text-blue-600 hover:text-blue-800 font-medium"
-              title="Copy station address"
-            >
-              Copy naddr
             </button>
           </div>
         </div>

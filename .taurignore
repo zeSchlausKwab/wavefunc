@@ -1,0 +1,9 @@
+# Don't bundle these in the Tauri app
+node_modules/
+src/
+scripts/
+legacy-db/
+relay/data/
+*.md
+.git/
+

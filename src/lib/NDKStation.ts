@@ -18,7 +18,9 @@ const StreamSchema = z.object({
 const StationContentSchema = z.object({
   description: z.string().min(1, "Description is required"),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),
-  streamingServerUrl: z.url({ message: "Invalid streaming server URL" }).optional(),
+  streamingServerUrl: z
+    .url({ message: "Invalid streaming server URL" })
+    .optional(),
 });
 
 const ClientTagSchema = z.object({
@@ -179,7 +181,8 @@ export class NDKStation extends NDKEvent {
    * Get all streams for the station
    */
   get streams(): Stream[] {
-    return this.getMatchingTags("stream")
+    // First try to get streams from tags
+    const tagStreams = this.getMatchingTags("stream")
       .map((tag) => {
         // Only create stream if we have required fields
         if (!tag[1] || !tag[2] || !tag[3]) return null;
@@ -221,6 +224,34 @@ export class NDKStation extends NDKEvent {
         }
       })
       .filter((stream): stream is Stream => stream !== null);
+
+    // If we found streams in tags, return them
+    if (tagStreams.length > 0) {
+      return tagStreams;
+    }
+
+    // Otherwise, try to parse streams from content field
+    try {
+      if (this.content) {
+        const contentData = JSON.parse(this.content);
+        if (contentData.streams && Array.isArray(contentData.streams)) {
+          return contentData.streams
+            .map((stream: any) => {
+              try {
+                const validation = StreamSchema.safeParse(stream);
+                return validation.success ? stream : null;
+              } catch {
+                return null;
+              }
+            })
+            .filter((stream): stream is Stream => stream !== null);
+        }
+      }
+    } catch {
+      // Content is not valid JSON or doesn't have streams
+    }
+
+    return [];
   }
 
   /**
@@ -532,7 +563,7 @@ export class NDKStation extends NDKEvent {
    * Get the station's naddr (Nostr address) encoding
    */
   get naddr(): string {
-    return this.encode()
+    return this.encode();
   }
 
   /**
