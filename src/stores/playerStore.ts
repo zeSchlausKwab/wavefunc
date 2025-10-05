@@ -73,7 +73,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     // The audio element will handle the actual playback
     if (audioElement) {
       audioElement.src = selectedStream.url;
-      Ï;
+
       audioElement.load();
 
       const playPromise = audioElement.play();
