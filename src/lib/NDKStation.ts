@@ -8,7 +8,7 @@ const StreamSchema = z.object({
   url: z.url({ message: "Invalid stream URL" }),
   format: z.string().min(1, "Format is required"),
   quality: z.object({
-    bitrate: z.number().positive("Bitrate must be positive"),
+    bitrate: z.number().nonnegative("Bitrate must be non-negative"), // Allow 0 for unknown bitrate
     codec: z.string().min(1, "Codec is required"),
     sampleRate: z.number().positive("Sample rate must be positive"),
   }),

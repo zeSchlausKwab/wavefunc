@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "../stores/playerStore";
 import { Play, Pause, X, Volume2, VolumeX } from "lucide-react";
+import Hls from "hls.js";
 
 export function FloatingPlayer() {
   const {
@@ -23,13 +24,21 @@ export function FloatingPlayer() {
   } = usePlayerStore();
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   // Initialize audio element in the store
   useEffect(() => {
     if (audioRef.current) {
       setAudioElement(audioRef.current);
     }
-    return () => setAudioElement(null);
+    return () => {
+      setAudioElement(null);
+      // Clean up HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
   }, [setAudioElement]);
 
   // Audio event handlers
@@ -133,8 +142,13 @@ export function FloatingPlayer() {
                     {currentStation.name || "Unnamed Station"}
                   </h3>
                   <p className="text-gray-400 text-sm truncate">
-                    {currentStream?.format} • {currentStream?.quality.bitrate}
-                    kbps
+                    {currentStream?.format}
+                    {currentStream?.quality.bitrate > 0 && (
+                      <>
+                        {" "}
+                        • {Math.round(currentStream.quality.bitrate / 1000)}kbps
+                      </>
+                    )}
                   </p>
                   {error && (
                     <p className="text-red-400 text-xs truncate mt-1">

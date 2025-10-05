@@ -40,20 +40,56 @@ function parseStationInsert(line: string): LegacyStation | null {
   const match = line.match(/\(([^)]+)\)/);
   if (!match) return null;
 
-  const values = match[1].split(",").map((v) => {
-    v = v.trim();
-    // Handle NULL
-    if (v === "NULL") return null;
-    // Remove quotes
-    if (v.startsWith("'") && v.endsWith("'")) {
-      return v.slice(1, -1).replace(/\\'/g, "'");
+  // Properly parse CSV-like values respecting quotes
+  const values: (string | null)[] = [];
+  let current = "";
+  let inQuote = false;
+  let escaped = false;
+
+  for (let i = 0; i < match[1].length; i++) {
+    const char = match[1][i];
+
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
     }
-    return v;
-  });
 
-  if (values.length < 25) return null;
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
 
-  return {
+    if (char === "'") {
+      inQuote = !inQuote;
+      continue;
+    }
+
+    if (char === "," && !inQuote) {
+      const trimmed = current.trim();
+      values.push(trimmed === "NULL" ? null : trimmed);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  // Push last value
+  const trimmed = current.trim();
+  values.push(trimmed === "NULL" ? null : trimmed);
+
+  if (values.length < 25) {
+    console.warn(`Skipping station - insufficient values: ${values.length}`);
+    return null;
+  }
+
+  // Debug first station to verify indices
+  if (values[0] === "1") {
+    console.log("DEBUG: First station values:", values.slice(0, 30));
+  }
+
+  const station = {
     StationID: parseInt(values[0] as string),
     Name: values[1],
     Url: values[2],
@@ -72,6 +108,16 @@ function parseStationInsert(line: string): LegacyStation | null {
     LanguageCodes: values[29],
     StationUuid: values[22] || `legacy-${values[0]}`,
   };
+
+  // Validate critical fields
+  if (!station.Url || station.Url.length < 5) {
+    console.warn(
+      `Skipping station "${station.Name}" - invalid URL: ${station.Url}`
+    );
+    return null;
+  }
+
+  return station;
 }
 
 // Convert legacy station to Nostr event
@@ -348,7 +394,7 @@ async function migrateStations() {
   const allStations = extractStationsFromSQL(sqlPath);
 
   // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 500;
+  const count = process.argv[2] ? parseInt(process.argv[2]) : 50;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 

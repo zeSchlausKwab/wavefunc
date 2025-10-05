@@ -118,9 +118,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
                   <span className="text-gray-600 truncate flex-1 mr-2">
                     {stream.url}
                   </span>
-                  {stream.quality?.bitrate && (
+                  {stream.quality?.bitrate > 0 && (
                     <span className="text-gray-500 bg-gray-100 px-1 py-0.5 rounded">
-                      {stream.quality.bitrate}kbps
+                      {Math.round(stream.quality.bitrate / 1000)}kbps
                     </span>
                   )}
                 </div>
