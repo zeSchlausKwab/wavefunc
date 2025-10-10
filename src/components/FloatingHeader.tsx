@@ -1,5 +1,7 @@
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { WalletButton } from "./WalletButton";
+import { useMedia } from "react-use";
+import { useState } from "react";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -12,6 +14,9 @@ export function FloatingHeader({
   setSearchInput,
   onSearch,
 }: FloatingHeaderProps) {
+  const isMobile = useMedia("(max-width: 768px)");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log(`🔍 Searching for: "${searchInput}"`);
@@ -19,101 +24,209 @@ export function FloatingHeader({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm">
-      <div className="container mx-auto px-8 py-4">
-        <div className="flex items-center justify-between gap-4">
-          {/* Logo */}
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-foreground">
-              Earthly Simple
-            </h2>
-          </div>
+    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50">
+      <div className="bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl">
+        <div className="px-4 md:px-8 py-3 md:py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo */}
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg md:text-xl font-semibold text-foreground">
+                Earthly Simple
+              </h2>
+            </div>
 
-          {/* Search Bar */}
-          <form onSubmit={handleSubmit} className="flex-1 max-w-md">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search stations (press Enter)..."
-                className="w-full px-4 py-2 pr-20 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchInput("");
-                    onSearch("");
-                  }}
-                  className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  title="Clear search"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            {/* Desktop Layout */}
+            {!isMobile ? (
+              <>
+                {/* Search Bar */}
+                <form onSubmit={handleSubmit} className="flex-1 max-w-md">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      placeholder="Search stations..."
+                      className="w-full px-4 py-2 pr-20 text-sm bg-white/80 dark:bg-gray-800/80 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all"
+                    />
+                    {searchInput && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchInput("");
+                          onSearch("");
+                        }}
+                        className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        title="Clear search"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={!searchInput.trim()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+                      title="Search"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Navigation */}
+                <nav className="flex items-center gap-6">
+                  <a
+                    href="#"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
+                    Home
+                  </a>
+                  <a
+                    href="#"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    About
+                  </a>
+                  <a
+                    href="#"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Contact
+                  </a>
+                </nav>
+
+                {/* Auth Buttons */}
+                <div className="flex items-center gap-2">
+                  <WalletButton />
+                  <LoginSessionButtons />
+                </div>
+              </>
+            ) : (
+              /* Mobile Layout */
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                aria-label="Toggle menu"
+              >
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {mobileMenuOpen ? (
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M6 18L18 6M6 6l12 12"
                     />
-                  </svg>
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={!searchInput.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                title="Search (or press Enter)"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  )}
                 </svg>
               </button>
-            </div>
-          </form>
-
-          {/* Navigation */}
-          <nav className="flex items-center gap-6">
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Home
-            </a>
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              About
-            </a>
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Contact
-            </a>
-          </nav>
-
-          {/* Auth Buttons */}
-          <div className="flex items-center gap-2">
-            <WalletButton />
-            <LoginSessionButtons />
+            )}
           </div>
+
+          {/* Mobile Menu - Slide down reveal */}
+          {isMobile && (
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                mobileMenuOpen ? "max-h-96 mt-4" : "max-h-0"
+              }`}
+            >
+              <div className="space-y-4 pb-2">
+                {/* Search Bar */}
+                <form onSubmit={handleSubmit}>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      placeholder="Search stations..."
+                      className="w-full px-4 py-2 pr-10 text-sm bg-white/80 dark:bg-gray-800/80 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 backdrop-blur-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!searchInput.trim()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Navigation */}
+                <nav className="flex flex-col gap-2">
+                  <a
+                    href="#"
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                  >
+                    Home
+                  </a>
+                  <a
+                    href="#"
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                  >
+                    About
+                  </a>
+                  <a
+                    href="#"
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                  >
+                    Contact
+                  </a>
+                </nav>
+
+                {/* Auth Buttons */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
+                  <WalletButton />
+                  <LoginSessionButtons />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

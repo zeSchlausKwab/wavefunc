@@ -28,7 +28,7 @@ export function App() {
         setSearchInput={setSearchInput}
         onSearch={handleSearch}
       />
-      <div className="p-8 pt-24 pb-32 text-center relative z-10">
+      <div className="px-4 md:px-8 pt-28 md:pt-32 pb-36 md:pb-40 text-center relative z-0">
         <div className="mt-12">
           <MusicBrainzSearch />
         </div>
