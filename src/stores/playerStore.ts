@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { NDKStation, Stream } from "../lib/NDKStation";
 import Hls from "hls.js";
+import {
+  extractStreamMetadata,
+  searchMusicBrainz,
+} from "../lib/metadataClient";
 
 // Helper: Check if URL is HLS stream
 const isHlsStream = (url: string): boolean => url.includes(".m3u8");
@@ -76,6 +80,24 @@ const playRegularStream = (
   attemptPlay(audioElement, onSuccess, onError);
 };
 
+interface CurrentMetadata {
+  title?: string;
+  artist?: string;
+  song?: string;
+  station?: string;
+  genre?: string;
+  bitrate?: string;
+  musicBrainz?: {
+    id: string;
+    title: string;
+    artist: string;
+    release?: string;
+    releaseDate?: string;
+    duration?: number;
+    tags?: string[];
+  };
+}
+
 interface PlayerState {
   // Current playing state
   currentStation: NDKStation | null;
@@ -83,6 +105,10 @@ interface PlayerState {
   isPlaying: boolean;
   isLoading: boolean;
   error: string | null;
+
+  // Metadata
+  currentMetadata: CurrentMetadata | null;
+  metadataInterval: ReturnType<typeof setInterval> | null;
 
   // Audio element reference (managed externally)
   audioElement: HTMLAudioElement | null;
@@ -113,6 +139,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlaying: false,
   isLoading: false,
   error: null,
+  currentMetadata: null,
+  metadataInterval: null,
   audioElement: null,
   hlsInstance: null,
   volume: 0.7,
@@ -208,6 +236,43 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         handlePlayError
       );
     }
+
+    // Start metadata polling (every 15 seconds)
+    const { metadataInterval } = get();
+    if (metadataInterval) {
+      clearInterval(metadataInterval);
+    }
+
+    const pollMetadata = async () => {
+      try {
+        const metadata = await extractStreamMetadata(selectedStream.url);
+
+        if (metadata.artist && metadata.song && !metadata.error) {
+          // Enrich with MusicBrainz
+          const mbResults = await searchMusicBrainz({
+            artist: metadata.artist,
+            track: metadata.song,
+          });
+
+          set({
+            currentMetadata: {
+              ...metadata,
+              musicBrainz: mbResults[0],
+            },
+          });
+        } else if (!metadata.error) {
+          // Just set basic metadata without MusicBrainz
+          set({ currentMetadata: metadata });
+        }
+      } catch (error) {
+        console.error("Metadata polling error:", error);
+      }
+    };
+
+    // Poll immediately, then every 15 seconds
+    pollMetadata();
+    const interval = setInterval(pollMetadata, 15000);
+    set({ metadataInterval: interval });
   },
 
   // Pause playback
@@ -230,11 +295,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   // Stop playback and clear current station
   stop: () => {
-    const { audioElement, hlsInstance } = get();
+    const { audioElement, hlsInstance, metadataInterval } = get();
 
     // Clean up HLS
     if (hlsInstance) {
       hlsInstance.destroy();
+    }
+
+    // Clean up metadata polling
+    if (metadataInterval) {
+      clearInterval(metadataInterval);
     }
 
     if (audioElement) {
@@ -248,6 +318,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isPlaying: false,
       isLoading: false,
       error: null,
+      currentMetadata: null,
+      metadataInterval: null,
       hlsInstance: null,
     });
   },

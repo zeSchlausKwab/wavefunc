@@ -1,180 +1,285 @@
-# 🎵 Player Implementation
+# Player Implementation Summary
 
-## What Was Implemented
+## ✅ Complete Feature Set
 
-A complete audio streaming player with Zustand state management and a floating footer player UI.
+### Core Player Functionality
 
-### 1. **Zustand Player Store** (`src/stores/playerStore.ts`)
+- **Zustand State Management**: Global player store for managing playback
+- **Multi-Format Support**:
+  - Regular HTTP streams (MP3, AAC, etc.)
+  - HLS streams (.m3u8) via HLS.js
+  - Icecast/Shoutcast streams with metadata
+- **Playback Controls**: Play, pause, resume, stop
+- **Volume Control**: Volume slider and mute toggle
+- **Error Handling**: Comprehensive error states and user feedback
 
-Global state management for the audio player with:
+### UI Components
 
-**State:**
+- **FloatingPlayer**: Persistent footer player with:
+  - Station/track information display
+  - Playback controls
+  - Volume controls
+  - Error messages
+  - "Now playing" metadata (song, artist, album)
+- **RadioCard**: Station cards with:
+  - Play/pause buttons
+  - Visual feedback for currently playing station
+  - Station metadata display
 
-- `currentStation` - Currently playing station
-- `currentStream` - Active audio stream
-- `isPlaying` - Playback status
-- `isLoading` - Loading state
-- `error` - Error messages
-- `volume` - Volume level (0-1)
-- `isMuted` - Mute status
+### Metadata System (NEW! ✨)
 
-**Actions:**
+- **ContextVM Server**: Nostr-based metadata service
 
-- `playStation(station, stream?)` - Play a radio station
-- `pause()` - Pause playback
-- `resume()` - Resume playback
-- `stop()` - Stop and clear current station
-- `setVolume(volume)` - Adjust volume
-- `toggleMute()` - Toggle mute
+  - Runs alongside relay
+  - Modular tool-based architecture
+  - Communicates via Nostr protocol
 
-### 2. **Floating Player Component** (`src/components/FloatingPlayer.tsx`)
+- **Two Metadata Tools**:
 
-A footer player that appears when a station is playing:
+  1. **`extract_stream_metadata`**: Extracts "now playing" from streams
 
-**Features:**
+     - Icecast/Shoutcast header parsing
+     - Stream data parsing for metadata intervals
+     - Artist/title extraction
 
-- ✅ Fixed footer position at bottom of screen
-- ✅ Station thumbnail and name display
-- ✅ Stream quality info (format, bitrate)
-- ✅ Play/Pause/Stop controls
-- ✅ Volume slider with mute button
-- ✅ Loading spinner
-- ✅ Error message display
-- ✅ Gradient background with glassmorphism
-- ✅ Auto-manages HTML5 audio element
+  2. **`musicbrainz_search`**: Enriches with MusicBrainz data
+     - Album name and release date
+     - Track duration
+     - Genre tags
+     - MusicBrainz ID for further lookups
 
-### 3. **Enhanced Radio Cards** (`src/components/RadioCard.tsx`)
+- **Automatic Polling**:
+  - Polls metadata every 15 seconds when playing
+  - Displays in FloatingPlayer UI
+  - Shows: Song → Artist → Album (Year)
 
-Each radio card now has:
+## File Structure
 
-**Play Button Overlay:**
+```
+src/
+├── stores/
+│   └── playerStore.ts          # Zustand player state + metadata polling
+├── components/
+│   ├── FloatingPlayer.tsx      # Footer player UI (with metadata display)
+│   └── RadioCard.tsx           # Station cards with play buttons
+├── lib/
+│   ├── NDKStation.ts          # Station model with stream parsing
+│   └── metadataClient.ts      # ContextVM client for metadata tools
+└── App.tsx                    # Main app with player integration
 
-- Hover over thumbnail to reveal play button
-- Large centered play/pause icon
-- Smooth transitions and animations
+contextvm/
+├── server.ts                   # ContextVM MCP server
+├── tools/
+│   ├── stream-metadata.ts      # Icecast/Shoutcast metadata extraction
+│   └── musicbrainz.ts          # MusicBrainz API integration
+├── test-client.ts              # Test script for tools
+├── README.md                   # Tool documentation
+└── CONFIGURATION.md            # Setup guide
 
-**Action Bar:**
+scripts/
+└── migrate_legacy.ts           # SQL migration (fixed stream parsing)
 
-- "Play" / "Playing" button with status
-- Visual feedback (blue when playing)
-- Maintains existing Debug button
-
-**Visual States:**
-
-- Default: Gray play button
-- Playing: Blue background with "Playing" text
-- Hover: Scale animation on overlay button
-
-### 4. **Updated App** (`src/App.tsx`)
-
-- Added `FloatingPlayer` component at bottom
-- Added bottom padding (`pb-32`) to prevent content overlap
+package.json                    # Updated with contextvm scripts
+```
 
 ## How It Works
 
-### Playing a Station
+### 1. User Clicks Play
 
-```typescript
-// In any component
-import { usePlayerStore } from "../stores/playerStore";
-
-function MyComponent() {
-  const { playStation } = usePlayerStore();
-
-  const handlePlay = () => {
-    playStation(station); // Plays first stream
-    // or
-    playStation(station, specificStream); // Plays specific stream
-  };
-}
+```
+RadioCard → playerStore.playStation(station) → Audio playback starts
 ```
 
-### Reading Player State
+### 2. Playback Process
 
-```typescript
-const { currentStation, isPlaying, isLoading } = usePlayerStore();
-
-if (currentStation?.id === station.id && isPlaying) {
-  // This station is currently playing
-}
+```
+playerStore.playStation()
+  ├─> Validate stream exists
+  ├─> Check if same station (resume if so)
+  ├─> Clean up old HLS instance
+  ├─> Detect stream type (HLS vs regular)
+  ├─> Route to appropriate playback method:
+  │     ├─> HLS.js (for .m3u8 on non-Safari)
+  │     ├─> Native HLS (for .m3u8 on Safari)
+  │     └─> Regular audio element
+  └─> Start metadata polling
 ```
 
-## User Flow
+### 3. Metadata Polling (NEW!)
 
-1. **Browse Stations** - User sees radio station cards
-2. **Hover Card** - Play button overlay appears on thumbnail
-3. **Click Play** - Station starts playing
-4. **Footer Appears** - Floating player shows at bottom with:
-   - Station info
-   - Playback controls
-   - Volume control
-5. **Visual Feedback** - Card shows "Playing" state with blue highlight
-6. **Control Playback**:
-   - Click pause in footer or on card
-   - Adjust volume
-   - Stop to clear and hide footer
+```
+Every 15 seconds while playing:
+  ├─> extractStreamMetadata(streamUrl) via ContextVM
+  │     └─> ContextVM: HEAD request to stream
+  │           └─> Parse Icecast headers (icy-title, icy-name, etc.)
+  │                 └─> Extract "Artist - Song"
+  │
+  ├─> If artist + song found:
+  │     └─> searchMusicBrainz(artist, track) via ContextVM
+  │           └─> ContextVM: Query MusicBrainz API
+  │                 └─> Return top result with album, date, tags
+  │
+  └─> Update playerStore.currentMetadata
+        └─> FloatingPlayer rerenders with new info
+```
 
-## Technical Details
+### 4. UI Updates
 
-### Audio Streaming
+```
+FloatingPlayer subscribes to playerStore
+  ├─> If currentMetadata.song exists:
+  │     └─> Show: Song → Artist → Album (Year)
+  └─> Otherwise:
+        └─> Show: Station Name → Stream Format (Bitrate)
+```
 
-- Uses HTML5 `<audio>` element
-- CORS enabled (`crossOrigin="anonymous"`)
-- Automatic stream URL loading
-- Error handling for failed streams
+## Key Decisions
 
-### State Management
+### Why Zustand?
 
-- Zustand for global state
-- No providers needed (unlike Redux)
-- Automatic re-renders on state changes
-- Type-safe with TypeScript
+- Lightweight (1KB gzipped)
+- Simple API, no boilerplate
+- Works great with React hooks
+- Perfect for player state that needs to be accessed globally
 
-### Styling
+### Why ContextVM + Nostr?
 
-- Tailwind CSS
-- Lucide React icons (Play, Pause, X, Volume2, VolumeX)
-- Responsive design
-- Smooth transitions and animations
+- **Decentralized**: No central metadata server required
+- **Modular**: Tools can be added/removed independently
+- **Scalable**: Can run multiple metadata servers
+- **Privacy**: No direct frontend → external API calls
+- **Flexible**: Works for both web and Tauri apps
 
-## Files Created/Modified
+### Why HLS.js?
 
-**Created:**
+- Native `<audio>` doesn't support HLS on most browsers
+- HLS.js provides universal HLS support
+- Handles adaptive bitrate streaming
+- Widely used and well-maintained
 
-- `src/stores/playerStore.ts` - Zustand store
-- `src/components/FloatingPlayer.tsx` - Footer player UI
+### Why 15-second polling?
 
-**Modified:**
+- Balance between freshness and API load
+- Most radio stations update metadata every 3-5 minutes
+- MusicBrainz rate limit is 1 req/sec (plenty of headroom)
+- Could be increased to 30s if needed
 
-- `src/components/RadioCard.tsx` - Added play buttons and state
-- `src/App.tsx` - Added FloatingPlayer component
+## Development Workflow
 
-## Future Enhancements
+### Start Everything
 
-Possible improvements:
+```bash
+bun run dev
+# Starts: relay → migration → contextvm → frontend
+```
 
-- Playlist/queue functionality
-- Playback history
-- Favorite stations (persist to localStorage)
-- Equalizer controls
-- Share currently playing
-- Keyboard shortcuts (spacebar to play/pause)
-- Media session API for OS-level controls
-- Stream quality selector in player
-- Visualizer/spectrum analyzer
+### Test Metadata Service
+
+```bash
+# Terminal 1
+bun run relay
+
+# Terminal 2
+bun run contextvm
+
+# Terminal 3
+bun run contextvm/test-client.ts
+```
+
+## Next Steps
+
+### Phase 1: Done ✅
+
+- ✅ Basic player with Zustand
+- ✅ HLS.js integration
+- ✅ FloatingPlayer UI
+- ✅ RadioCard play buttons
+- ✅ ContextVM metadata server
+- ✅ Stream metadata extraction
+- ✅ MusicBrainz enrichment
+- ✅ Metadata polling
+- ✅ UI display
+
+### Phase 2: Enhancement
+
+- Add caching layer (avoid repeated MusicBrainz lookups)
+- Implement rate limiting in ContextVM
+- Store metadata in Nostr events (for offline use)
+- Add "history" of played tracks
+- Display album art from MusicBrainz
+
+### Phase 3: Additional Tools
+
+- Last.fm integration (scrobbling, album art)
+- Spotify search (high-quality art)
+- AcoustID fingerprinting (for streams without metadata)
+- Lyrics fetching (Genius, LyricWiki)
+
+### Phase 4: Advanced Features
+
+- Equalizer
+- Crossfade between stations
+- Recording/timeshift
+- Favorites/playlists
 - Sleep timer
 
-## Testing
+## Testing the Metadata System
 
-Test the player:
+1. **Start the dev server**:
 
-1. Run `bun run dev` or `bun run tauri:dev`
-2. Hover over any radio station card
-3. Click the play button
-4. Footer player should appear
-5. Try:
-   - Play/Pause from footer
-   - Play/Pause from card
-   - Volume control
-   - Stop button
-   - Playing different stations
+   ```bash
+   bun run dev
+   ```
+
+2. **Click play on a station** with good metadata (e.g., "Antenne Bayern - Chillout")
+
+3. **Watch the console** for:
+
+   ```
+   🎧 Extracting metadata from: http://...
+   🔍 Searching MusicBrainz: Artist Name - Track Name
+   ```
+
+4. **Check the FloatingPlayer footer**:
+
+   - Should show song name (bold)
+   - Artist name below
+   - Album and year if found
+
+5. **Wait 15 seconds** and watch it update with the next song
+
+## Troubleshooting
+
+### Metadata not showing?
+
+- Check console for errors
+- Verify ContextVM server is running
+- Test stream URL manually: `curl -H "Icy-MetaData: 1" -I <stream-url>`
+- Some streams don't provide metadata
+
+### MusicBrainz not returning results?
+
+- Artist/song name might be misspelled in stream
+- Try searching MusicBrainz directly
+- Rate limit might be hit (wait 1 second between requests)
+
+### Player not starting?
+
+- Check browser console for audio errors
+- Verify stream URL is valid
+- Try a different stream format
+
+## Documentation
+
+- **`CONTEXTVM_SETUP.md`**: ContextVM server setup and configuration
+- **`METADATA_STRATEGY.md`**: Detailed metadata extraction strategy
+- **`contextvm/README.md`**: Tool API documentation
+- **`TAURI_SETUP.md`**: Tauri mobile app setup
+
+## References
+
+- [Zustand Documentation](https://docs.pmnd.rs/zustand)
+- [HLS.js](https://github.com/video-dev/hls.js/)
+- [ContextVM](https://docs.contextvm.org/)
+- [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API)
+- [Icecast Metadata](https://cast.readme.io/docs/icy)

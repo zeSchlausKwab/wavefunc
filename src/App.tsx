@@ -6,6 +6,7 @@ import { registerEventClass } from "@nostr-dev-kit/ndk-hooks";
 import { useEffect, useState } from "react";
 import { PostView } from "./components/PostView";
 import { StationView } from "./components/StationView";
+import { MusicBrainzSearch } from "./components/MusicBrainzSearch";
 import NDKStation from "./lib/NDKStation";
 
 export function App() {
@@ -28,6 +29,9 @@ export function App() {
         onSearch={handleSearch}
       />
       <div className="p-8 pt-24 pb-32 text-center relative z-10">
+        <div className="mt-12">
+          <MusicBrainzSearch />
+        </div>
         <StationView searchQuery={committedSearch} />
         <div className="mt-8">
           <PostView />

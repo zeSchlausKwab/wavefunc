@@ -7,6 +7,7 @@ export function FloatingPlayer() {
   const {
     currentStation,
     currentStream,
+    currentMetadata,
     isPlaying,
     isLoading,
     error,
@@ -138,18 +139,56 @@ export function FloatingPlayer() {
                   />
                 )}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-semibold truncate">
-                    {currentStation.name || "Unnamed Station"}
-                  </h3>
-                  <p className="text-gray-400 text-sm truncate">
-                    {currentStream?.format}
-                    {currentStream?.quality.bitrate > 0 && (
-                      <>
-                        {" "}
-                        • {Math.round(currentStream.quality.bitrate / 1000)}kbps
-                      </>
-                    )}
-                  </p>
+                  {/* Now Playing Metadata */}
+                  {currentMetadata?.song && (
+                    <>
+                      <h3 className="text-white font-bold truncate">
+                        {currentMetadata.song}
+                      </h3>
+                      <p className="text-gray-300 text-sm truncate">
+                        {currentMetadata.artist || "Unknown Artist"}
+                      </p>
+                      {currentMetadata.musicBrainz?.release && (
+                        <p className="text-gray-500 text-xs truncate">
+                          from {currentMetadata.musicBrainz.release}
+                          {currentMetadata.musicBrainz.releaseDate && (
+                            <>
+                              {" "}
+                              (
+                              {
+                                currentMetadata.musicBrainz.releaseDate.split(
+                                  "-"
+                                )[0]
+                              }
+                              )
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {/* Fallback: Station Info */}
+                  {!currentMetadata?.song && (
+                    <>
+                      <h3 className="text-white font-semibold truncate">
+                        {currentStation.name || "Unnamed Station"}
+                      </h3>
+                      <p className="text-gray-400 text-sm truncate">
+                        {currentStream?.format}
+                        {currentStream?.quality?.bitrate &&
+                          currentStream.quality.bitrate > 0 && (
+                            <>
+                              {" "}
+                              •{" "}
+                              {Math.round(currentStream.quality.bitrate / 1000)}
+                              kbps
+                            </>
+                          )}
+                      </p>
+                    </>
+                  )}
+
                   {error && (
                     <p className="text-red-400 text-xs truncate mt-1">
                       {error}
