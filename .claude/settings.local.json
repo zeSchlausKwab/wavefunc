@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun dev:frontend:*)"
+      "Bash(bun dev:frontend:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

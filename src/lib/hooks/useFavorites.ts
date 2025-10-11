@@ -1,0 +1,360 @@
+import type { NDKFilter } from "@nostr-dev-kit/ndk";
+import {
+  useSubscribe,
+  wrapEvent,
+  useNDK,
+  useNDKCurrentUser,
+} from "@nostr-dev-kit/ndk-hooks";
+import { useEffect, useState, useCallback } from "react";
+import { NDKWFFavorites } from "../NDKWFFavorites";
+import NDKStation from "../NDKStation";
+
+/**
+ * A hook for managing user favorites lists with Nostr integration.
+ * Provides methods to load, create, and manage multiple favorites lists.
+ * Automatically uses the current logged-in user from NDK.
+ */
+export function useFavorites() {
+  const { ndk } = useNDK();
+  const currentUser = useNDKCurrentUser();
+  const [favoritesLists, setFavoritesLists] = useState<NDKWFFavorites[]>([]);
+  const [defaultList, setDefaultList] = useState<NDKWFFavorites | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load user's favorites lists from Nostr
+  const loadFavorites = useCallback(async () => {
+    if (!ndk || !currentUser?.pubkey) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const filter: NDKFilter = {
+        kinds: [30078],
+        authors: [currentUser.pubkey],
+        "#l": ["user_favourite_list"],
+      };
+
+      const events = await ndk.fetchEvents(filter);
+      const favoritesEvents = Array.from(events).map(event => NDKWFFavorites.from(event));
+      
+      setFavoritesLists(favoritesEvents);
+      
+      // Set default list (first one or create new one)
+      if (favoritesEvents.length > 0) {
+        const firstList = favoritesEvents.find(list => list.name === "My Favorite Stations") || favoritesEvents[0];
+        setDefaultList(firstList);
+      } else {
+        // Create a new default favorites list if none exists
+        const newFavorites = NDKWFFavorites.createDefault(ndk);
+        newFavorites.pubkey = currentUser.pubkey;
+        setDefaultList(newFavorites);
+        setFavoritesLists([newFavorites]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load favorites");
+      console.error("Failed to load favorites:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ndk, currentUser?.pubkey]);
+
+  // Load favorites when dependencies change
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
+
+  // Add a station to a specific favorites list
+  const addFavorite = useCallback(
+    async (station: NDKStation, listId?: string) => {
+      if (!station.pubkey || !station.stationId) return false;
+      
+      // Use provided list or default list
+      const targetList = listId 
+        ? favoritesLists.find(list => list.favoritesId === listId)
+        : defaultList;
+        
+      if (!targetList) return false;
+
+      try {
+        const stationAddress = `31237:${station.pubkey}:${station.stationId}`;
+
+        if (targetList.hasStation(stationAddress)) {
+          return false; // Already in favorites
+        }
+
+        targetList.addStation(stationAddress);
+        
+        // Force re-render by updating the lists array with a new reference
+        setFavoritesLists(prev => [...prev]);
+
+        // Publish the updated favorites list
+        await targetList.sign();
+        await targetList.publish();
+
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to add favorite");
+        console.error("Failed to add favorite:", err);
+        return false;
+      }
+    },
+    [favoritesLists, defaultList]
+  );
+
+  // Remove a station from favorites (searches all lists)
+  const removeFavorite = useCallback(
+    async (station: NDKStation) => {
+      if (!station.pubkey || !station.stationId) return false;
+
+      try {
+        const stationAddress = `31237:${station.pubkey}:${station.stationId}`;
+        let removed = false;
+
+        // Find and remove from all lists that contain this station
+        for (const list of favoritesLists) {
+          if (list.hasStation(stationAddress)) {
+            list.removeStation(stationAddress);
+            await list.sign();
+            await list.publish();
+            removed = true;
+          }
+        }
+
+        if (removed) {
+          // Update the lists array
+          setFavoritesLists([...favoritesLists]);
+        }
+
+        return removed;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to remove favorite"
+        );
+        console.error("Failed to remove favorite:", err);
+        return false;
+      }
+    },
+    [favoritesLists]
+  );
+
+  // Toggle a station in favorites (uses default list for adding)
+  const toggleFavorite = useCallback(
+    async (station: NDKStation, listId?: string) => {
+      if (!station.pubkey || !station.stationId) return false;
+
+      const isCurrentlyFavorite = isFavoriteInAnyList(station);
+
+      if (isCurrentlyFavorite) {
+        return await removeFavorite(station);
+      } else {
+        return await addFavorite(station, listId);
+      }
+    },
+    [addFavorite, removeFavorite, favoritesLists]
+  );
+
+  // Check if a station is in any favorites list
+  const isFavorite = useCallback(
+    (station: NDKStation) => {
+      return isFavoriteInAnyList(station);
+    },
+    [favoritesLists]
+  );
+
+  // Helper function to check if station is in any list
+  const isFavoriteInAnyList = useCallback(
+    (station: NDKStation) => {
+      if (!station.pubkey || !station.stationId) return false;
+
+      const stationAddress = `31237:${station.pubkey}:${station.stationId}`;
+      return favoritesLists.some(list => list.hasStation(stationAddress));
+    },
+    [favoritesLists]
+  );
+
+  // Clear all favorites from all lists
+  const clearFavorites = useCallback(async () => {
+    try {
+      for (const list of favoritesLists) {
+        list.clearStations();
+        await list.sign();
+        await list.publish();
+      }
+      
+      // Update lists array
+      setFavoritesLists([...favoritesLists]);
+      return true;
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to clear favorites"
+      );
+      console.error("Failed to clear favorites:", err);
+      return false;
+    }
+  }, [favoritesLists]);
+
+  // Get the total count of favorites across all lists
+  const getFavoriteCount = useCallback(() => {
+    const allStations = new Set();
+    favoritesLists.forEach(list => {
+      list.getStations().forEach(station => allStations.add(station));
+    });
+    return allStations.size;
+  }, [favoritesLists]);
+  
+  // Create a new favorites list
+  const createFavoritesList = useCallback(async (name: string, description?: string) => {
+    if (!ndk || !currentUser?.pubkey) return null;
+    
+    const newList = NDKWFFavorites.createDefault(ndk, name, description);
+    newList.pubkey = currentUser.pubkey;
+    
+    try {
+      await newList.sign();
+      await newList.publish();
+      
+      const updatedLists = [...favoritesLists, newList];
+      setFavoritesLists(updatedLists);
+      
+      // Set as default if it's the first list
+      if (!defaultList) {
+        setDefaultList(newList);
+      }
+      
+      return newList;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create favorites list");
+      console.error("Failed to create favorites list:", err);
+      return null;
+    }
+  }, [ndk, currentUser, favoritesLists, defaultList]);
+
+  // Check if user is logged in
+  const isLoggedIn = !!currentUser?.pubkey;
+
+  return {
+    // State
+    favoritesLists,
+    defaultList,
+    isLoading,
+    error,
+    isLoggedIn,
+    currentUser,
+    
+    // Backwards compatibility
+    favoritesList: defaultList,
+
+    // Actions
+    addFavorite,
+    removeFavorite,
+    toggleFavorite,
+    isFavorite,
+    clearFavorites,
+    loadFavorites,
+    createFavoritesList,
+
+    // Utils
+    getFavoriteCount,
+    isFavoriteInAnyList,
+  };
+}
+
+/**
+ * A hook for subscribing to all favorites lists (for discovery/browsing).
+ * Similar to useStations but for favorites lists.
+ */
+export function useFavoritesLists(
+  additionalFilters: Omit<NDKFilter, "kinds">[] = [{}]
+) {
+  const filters = additionalFilters.map((filter) => ({
+    ...filter,
+    kinds: NDKWFFavorites.kinds,
+    "#l": ["user_favourite_list"], // Only user favorites, not featured lists
+  }));
+
+  const { events, eose } = useSubscribe(filters);
+  const favoritesLists = events.map(
+    (event) => wrapEvent(event) as NDKWFFavorites
+  );
+
+  return {
+    events: favoritesLists,
+    eose,
+  };
+}
+
+/**
+ * A hook for getting favorite stations as actual NDKStation objects.
+ * This resolves the station addresses in a favorites list to actual station events.
+ */
+export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
+  const { ndk } = useNDK();
+  const [stations, setStations] = useState<NDKStation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ndk || !favoritesList) {
+      setStations([]);
+      return;
+    }
+
+    const loadStations = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const stationAddresses = favoritesList.getStations();
+
+        if (stationAddresses.length === 0) {
+          setStations([]);
+          return;
+        }
+
+        // Create filters for each station address
+        const filters: NDKFilter[] = stationAddresses.map((address) => {
+          const [kind, pubkey, dTag] = address.split(":");
+          return {
+            kinds: [parseInt(kind)],
+            authors: [pubkey].filter((p): p is string => Boolean(p)),
+            "#d": [dTag].filter((d): d is string => Boolean(d)),
+            limit: 1,
+          };
+        });
+
+        // Fetch all favorite stations
+        const allEvents = new Set();
+        for (const filter of filters) {
+          const events = await ndk.fetchEvents(filter);
+          events.forEach((event) => allEvents.add(event));
+        }
+
+        // Convert to NDKStation objects
+        const stationObjects = Array.from(allEvents)
+          .map((event) => NDKStation.from(event as any))
+          .filter((station) => station.isValid);
+
+        setStations(stationObjects);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load favorite stations"
+        );
+        console.error("Failed to load favorite stations:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStations();
+  }, [ndk, favoritesList]);
+
+  return {
+    stations,
+    isLoading,
+    error,
+  };
+}

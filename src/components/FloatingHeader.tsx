@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { Link } from "@tanstack/react-router";
 import { Heart } from "lucide-react";
+import { useFavorites } from "../lib/hooks/useFavorites";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -19,6 +20,7 @@ export function FloatingHeader({
 }: FloatingHeaderProps) {
   const isMobile = useMedia("(max-width: 768px)");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { getFavoriteCount } = useFavorites();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,6 +115,11 @@ export function FloatingHeader({
                 >
                   <Heart className="w-4 h-4" />
                   Favorites
+                  {getFavoriteCount() > 0 && (
+                    <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
+                      {getFavoriteCount()}
+                    </span>
+                  )}
                 </Link>
               </nav>
 
@@ -218,6 +225,11 @@ export function FloatingHeader({
                 >
                   <Heart className="w-4 h-4" />
                   Favorites
+                  {getFavoriteCount() > 0 && (
+                    <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
+                      {getFavoriteCount()}
+                    </span>
+                  )}
                 </Link>
               </nav>
 

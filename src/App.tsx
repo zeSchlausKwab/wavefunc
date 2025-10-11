@@ -1,26 +1,28 @@
-import { createRouter, RouterProvider } from '@tanstack/react-router'
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { registerEventClass } from "@nostr-dev-kit/ndk-hooks";
 import { useEffect } from "react";
 import NDKStation from "./lib/NDKStation";
-import { routeTree } from './routeTree.gen'
+import { NDKWFFavorites } from "./lib/NDKWFFavorites";
+import { routeTree } from "./routeTree.gen";
 import "./index.css";
 
 // Create a new router instance
-const router = createRouter({ routeTree })
+const router = createRouter({ routeTree });
 
 // Register the router instance for type safety
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface Register {
-    router: typeof router
+    router: typeof router;
   }
 }
 
 export function App() {
   useEffect(() => {
     registerEventClass(NDKStation);
+    registerEventClass(NDKWFFavorites);
   }, []);
 
-  return <RouterProvider router={router} />
+  return <RouterProvider router={router} />;
 }
 
 export default App;

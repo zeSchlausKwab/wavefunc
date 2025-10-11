@@ -1,7 +1,9 @@
 import { Pause, Play } from "lucide-react";
 import React from "react";
+import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
+import { FavoritesDropdown } from "./FavoritesDropdown";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -9,6 +11,8 @@ interface RadioCardProps {
 
 export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
+
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
 
@@ -20,8 +24,30 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
     }
   };
 
+  const handleAddToList = async (listId: string) => {
+    if (station.pubkey && station.stationId) {
+      await addFavorite(station, listId);
+    }
+  };
+
+  const handleRemoveFromList = async (_listId: string) => {
+    if (station.pubkey && station.stationId) {
+      // removeFavorite removes from all lists for now
+      await removeFavorite(station);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group border-2 border-black">
+      {/* Favorites Dropdown */}
+      {isLoggedIn && station.pubkey && station.stationId && (
+        <FavoritesDropdown
+          station={station}
+          onAddToList={handleAddToList}
+          onRemoveFromList={handleRemoveFromList}
+        />
+      )}
+
       {/* Station Thumbnail with Play Overlay */}
       {station.thumbnail && (
         <div className="aspect-video w-full overflow-hidden relative">
