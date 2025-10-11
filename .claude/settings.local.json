@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(bun dev:frontend:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:github.com)",
+      "Bash(bun pm ls:*)",
+      "Bash(pkill:*)",
+      "Bash(bun run:*)"
     ],
     "deny": [],
     "ask": []

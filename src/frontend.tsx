@@ -6,9 +6,13 @@
  */
 
 import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/ndk-hooks";
+import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+
+// Initialize Dexie cache adapter for efficient caching and cache invalidation
+const dexieAdapter = new NDKCacheAdapterDexie({ dbName: "wavefunc-cache" });
 
 const elem = document.getElementById("root")!;
 const app = (
@@ -26,6 +30,7 @@ const app = (
           // "wss://relay.minibits.cash",
           // "wss://relay.coinos.io/",
         ],
+        cacheAdapter: dexieAdapter,
       }}
       session={{
         storage: new NDKSessionLocalStorage(),
