@@ -1,9 +1,67 @@
----
-description: Use Bun instead of Node.js, npm, pnpm, or vite.
-globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
-alwaysApply: false
----
+# CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+WaveFunc Radio is a Nostr-based internet radio directory and player with full-text search capabilities. The architecture consists of:
+
+- **Frontend**: React 19 + TypeScript + Tailwind CSS (in `src/`)
+- **Relay**: Go-based Nostr relay with SQLite storage and full-text search (in `relay/`)
+- **ContextVM**: Metadata server for radio streams (in `contextvm/`)
+- **Scripts**: Data migration and seeding utilities (in `scripts/`)
+
+## Development Commands
+
+### Core Development
+- `bun dev` - Start relay, migrate 500 real stations, and run development server
+- `bun dev:fake` - Start relay with fake test data instead of real stations
+- `bun dev:no-seed` - Start relay and frontend without seeding data
+- `bun dev:frontend` - Start only the frontend server
+- `bun --hot src/index.tsx` - Start frontend with hot reload
+
+### Relay Management
+- `bun run relay` - Start the Nostr relay (port 3334)
+- `bun run relay:reset` - Reset database and search index
+
+### Data Management
+- `bun run migrate` - Migrate 500 random stations from legacy database
+- `bun run seed` - Seed the relay with fake test data
+
+### Build and Production
+- `bun build` - Build for production using custom build script
+- `bun start` - Run in production mode
+
+### ContextVM (Metadata Server)
+- `bun run contextvm` - Start metadata server for radio streams
+
+## Architecture
+
+### Multi-Component System
+The application requires multiple services running simultaneously:
+1. **Go Nostr Relay** (port 3334) - Handles Nostr events with SQLite storage and Bluge full-text search
+2. **React Frontend** - NDK-based client for station discovery and playback
+3. **ContextVM** - MCP-based metadata server for stream information
+
+### Event System (Nostr)
+Radio stations are stored as kind 31237 events following the NIP-XX Internet Radio standard:
+- `d` tag for station identifier
+- JSON content with description, streams array, and optional streamingServerUrl
+- Tags for name, country, language, genre, etc.
+
+### Audio Player Architecture
+- Zustand store (`src/stores/playerStore.ts`) manages global playback state
+- Supports multiple formats: MP3, AAC, OGG, HLS streams (.m3u8)
+- Uses native HTML5 Audio API with HLS.js fallback for streaming
+
+### Key Classes and Patterns
+- `NDKStation` class (`src/lib/NDKStation.ts`) wraps Nostr events with validation
+- Custom hooks in `src/lib/hooks/useStations.ts` for data fetching
+- shadcn/ui components in `src/components/ui/`
+
+## Technology Stack
+
+### Runtime and Tooling
 Default to using Bun instead of Node.js.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`
