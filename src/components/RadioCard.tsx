@@ -21,7 +21,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group border-2 border-black">
       {/* Station Thumbnail with Play Overlay */}
       {station.thumbnail && (
         <div className="aspect-video w-full overflow-hidden relative">
