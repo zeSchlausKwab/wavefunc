@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun dev:frontend:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

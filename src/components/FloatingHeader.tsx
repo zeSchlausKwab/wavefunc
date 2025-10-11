@@ -3,6 +3,8 @@ import { WalletButton } from "./WalletButton";
 import { useMedia } from "react-use";
 import { useState } from "react";
 import { AnimatedLogo } from "./AnimatedLogo";
+import { Link } from "@tanstack/react-router";
+import { Heart } from "lucide-react";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -28,10 +30,16 @@ export function FloatingHeader({
     <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-2 border-black h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl items-center">
       <div className="px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
-          {/* Logo */}
-          <a href="/" className="w-24 h-8">
+          <Link
+            to="/"
+            search={{ search: "" }}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors w-24 h-8"
+            activeProps={{
+              className: "text-foreground font-medium",
+            }}
+          >
             <AnimatedLogo />
-          </a>
+          </Link>
 
           {/* Desktop Layout */}
           {!isMobile ? (
@@ -96,24 +104,16 @@ export function FloatingHeader({
 
               {/* Navigation */}
               <nav className="flex items-center gap-6">
-                <a
-                  href="#"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                <Link
+                  to="/favorites"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  activeProps={{
+                    className: "text-foreground font-medium",
+                  }}
                 >
-                  Home
-                </a>
-                <a
-                  href="#"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  About
-                </a>
-                <a
-                  href="#"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Contact
-                </a>
+                  <Heart className="w-4 h-4" />
+                  Favorites
+                </Link>
               </nav>
 
               {/* Auth Buttons */}
@@ -197,24 +197,28 @@ export function FloatingHeader({
 
               {/* Navigation */}
               <nav className="flex flex-col gap-2">
-                <a
-                  href="#"
+                <Link
+                  to="/"
+                  search={{ search: "" }}
                   className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                  activeProps={{
+                    className:
+                      "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg",
+                  }}
                 >
                   Home
-                </a>
-                <a
-                  href="#"
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                </Link>
+                <Link
+                  to="/favorites"
+                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2"
+                  activeProps={{
+                    className:
+                      "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg flex items-center gap-2",
+                  }}
                 >
-                  About
-                </a>
-                <a
-                  href="#"
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
-                >
-                  Contact
-                </a>
+                  <Heart className="w-4 h-4" />
+                  Favorites
+                </Link>
               </nav>
 
               {/* Auth Buttons */}
