@@ -4,6 +4,7 @@ import { useFavorites, useFavoriteStations } from "../lib/hooks/useFavorites";
 import { RadioCard } from "../components/RadioCard";
 import { Button } from "../components/ui/button";
 import { useState } from "react";
+import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 
 export const Route = createFileRoute("/favorites")({
   component: Favorites,
@@ -29,7 +30,7 @@ function Favorites() {
   const favoriteCount = getFavoriteCount();
   const currentList = selectedList
     ? favoritesLists.find((list) => list.favoritesId === selectedList) || null
-    : defaultList;
+    : null;
 
   const { stations, isLoading: stationsLoading } =
     useFavoriteStations(currentList);
@@ -299,49 +300,60 @@ function Favorites() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">All Favorites</h2>
 
-          {favoritesLists.map((list) => {
-            const { stations: listStations } = useFavoriteStations(list);
+          {favoritesLists.map((list) => (
+            <FavoriteListSection
+              key={list.favoritesId}
+              list={list}
+              onViewAll={() => setSelectedList(list.favoritesId!)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-            return (
-              <div key={list.favoritesId} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{list.name}</h3>
-                    {list.description && (
-                      <p className="text-sm text-muted-foreground">
-                        {list.description}
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {listStations.length} station
-                    {listStations.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
+function FavoriteListSection({
+  list,
+  onViewAll,
+}: {
+  list: NDKWFFavorites;
+  onViewAll: () => void;
+}) {
+  const { stations: listStations } = useFavoriteStations(list);
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {listStations.slice(0, 8).map((station) => (
-                    <RadioCard key={station.id} station={station} />
-                  ))}
-                </div>
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium">{list.name}</h3>
+          {list.description && (
+            <p className="text-sm text-muted-foreground">{list.description}</p>
+          )}
+        </div>
+        <span className="text-sm text-muted-foreground">
+          {listStations.length} station{listStations.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-                {listStations.length > 8 && (
-                  <button
-                    onClick={() => setSelectedList(list.favoritesId!)}
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    View all {listStations.length} stations
-                  </button>
-                )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {listStations.slice(0, 8).map((station) => (
+          <RadioCard key={station.id} station={station} />
+        ))}
+      </div>
 
-                {listStations.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    This list is empty
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {listStations.length > 8 && (
+        <button
+          onClick={onViewAll}
+          className="text-sm text-blue-600 hover:text-blue-700"
+        >
+          View all {listStations.length} stations
+        </button>
+      )}
+
+      {listStations.length === 0 && (
+        <div className="text-center py-4 text-muted-foreground text-sm">
+          This list is empty
         </div>
       )}
     </div>

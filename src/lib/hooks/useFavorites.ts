@@ -4,6 +4,7 @@ import {
   wrapEvent,
   useNDK,
   useNDKCurrentUser,
+  NDKKind,
 } from "@nostr-dev-kit/ndk-hooks";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
@@ -29,7 +30,6 @@ export function useFavorites() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subscriptionRef = useRef<any>(null);
-
 
   // Load user's favorites lists from Nostr
   const loadFavorites = useCallback(async () => {
@@ -98,19 +98,6 @@ export function useFavorites() {
 
     sub.on("event", (event) => {
       const updatedFavorites = NDKWFFavorites.from(event);
-      
-      // Debug the received event (throttled to reduce spam)
-      const debugKey = `${updatedFavorites.favoritesId}-${updatedFavorites.created_at}`;
-      if (!window.lastLoggedEvent || window.lastLoggedEvent !== debugKey) {
-        console.log("📡 Received event from relay:", {
-          id: updatedFavorites.id,
-          created_at: updatedFavorites.created_at,
-          stations: updatedFavorites.getStations(),
-          stationCount: updatedFavorites.getStationCount(),
-          favoritesId: updatedFavorites.favoritesId
-        });
-        window.lastLoggedEvent = debugKey;
-      }
 
       setFavoritesLists((prevLists) => {
         // Find if this favorites list already exists
@@ -366,56 +353,62 @@ export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
       return;
     }
 
-    const loadStations = async () => {
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        const stationAddresses = favoritesList.getStations();
+    const stationAddresses = favoritesList.getStations();
+    if (stationAddresses.length === 0) {
+      setStations([]);
+      setIsLoading(false);
+      return;
+    }
 
-        if (stationAddresses.length === 0) {
-          setStations([]);
-          return;
-        }
+    // Build a single subscription for all favorite stations using authors + #d
+    const authors = Array.from(
+      new Set(
+        stationAddresses
+          .map((addr) => addr.split(":")[1])
+          .filter((p): p is string => Boolean(p))
+      )
+    );
+    const dTags = Array.from(
+      new Set(
+        stationAddresses
+          .map((addr) => addr.split(":")[2])
+          .filter((d): d is string => Boolean(d))
+      )
+    );
 
-        // Create filters for each station address
-        const filters: NDKFilter[] = stationAddresses.map((address) => {
-          const [kind, pubkey, dTag] = address.split(":");
-          return {
-            kinds: kind ? [parseInt(kind)] : [31237],
-            authors: [pubkey].filter((p): p is string => Boolean(p)),
-            "#d": [dTag].filter((d): d is string => Boolean(d)),
-            limit: 1,
-          };
-        });
-
-        // Fetch all favorite stations
-        const allEvents = new Set();
-        for (const filter of filters) {
-          const events = await ndk.fetchEvents(filter);
-          events.forEach((event) => allEvents.add(event));
-        }
-
-        // Convert to NDKStation objects
-        const stationObjects = Array.from(allEvents)
-          .map((event) => NDKStation.from(event as any))
-          .filter((station) => station.isValid);
-
-        setStations(stationObjects);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load favorite stations"
-        );
-        console.error("Failed to load favorite stations:", err);
-      } finally {
-        setIsLoading(false);
-      }
+    const filter: NDKFilter = {
+      kinds: [31237 as NDKKind],
+      authors,
+      "#d": dTags,
     };
 
-    loadStations();
-  }, [ndk, favoritesList]);
+    const sub = ndk.subscribe(filter, { closeOnEose: false });
+    const byAddress = new Map<string, NDKStation>();
+
+    sub.on("event", (event: any) => {
+      const station = NDKStation.from(event);
+      const address = `31237:${station.pubkey}:${station.stationId}`;
+      if (!byAddress.has(address)) {
+        byAddress.set(address, station);
+        setStations(Array.from(byAddress.values()));
+      } else {
+        // Replace with latest version if newer comes in
+        byAddress.set(address, station);
+        setStations(Array.from(byAddress.values()));
+      }
+    });
+
+    sub.on("eose", () => {
+      setIsLoading(false);
+    });
+
+    return () => {
+      sub.stop();
+    };
+  }, [ndk, favoritesList ? JSON.stringify(favoritesList.getStations()) : null]);
 
   return {
     stations,

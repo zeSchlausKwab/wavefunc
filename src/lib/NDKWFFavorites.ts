@@ -1,4 +1,5 @@
 import NDK, { NDKEvent, type NostrEvent } from "@nostr-dev-kit/ndk-hooks";
+import NDKReplaceableEvent from "./NDKReplaceableEvent";
 import { z } from "zod";
 
 // Zod schemas for validation and type inference
@@ -19,7 +20,7 @@ export type FavoritesContent = z.infer<typeof FavoritesContentSchema>;
  * according to the NostrRadio specification. It handles station references, metadata,
  * and provides validation and utility methods.
  */
-export class NDKWFFavorites extends NDKEvent {
+export class NDKWFFavorites extends NDKReplaceableEvent {
   static kinds = [30078]; // Favorites List Event kind
 
   static from(event: NDKEvent): NDKWFFavorites {
@@ -281,14 +282,7 @@ export class NDKWFFavorites extends NDKEvent {
     const removed = this.removeStation(stationAddress);
 
     if (removed) {
-      // Update the created_at timestamp to ensure this is the newest version
-      this.created_at = Math.floor(Date.now() / 1000);
-
-      // Invalidate cache before publishing
-      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
-        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
-      }
-
+      await this.prepareReplaceablePublish();
       await this.sign();
       await this.publish();
     }

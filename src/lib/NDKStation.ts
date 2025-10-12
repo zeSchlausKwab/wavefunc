@@ -8,7 +8,7 @@ const StreamSchema = z.object({
   url: z.url({ message: "Invalid stream URL" }),
   format: z.string().min(1, "Format is required"),
   quality: z.object({
-    bitrate: z.number().nonnegative("Bitrate must be non-negative"), // Allow 0 for unknown bitrate
+    bitrate: z.number().positive("Bitrate must be positive"),
     codec: z.string().min(1, "Codec is required"),
     sampleRate: z.number().positive("Sample rate must be positive"),
   }),
@@ -18,15 +18,13 @@ const StreamSchema = z.object({
 const StationContentSchema = z.object({
   description: z.string().min(1, "Description is required"),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),
-  streamingServerUrl: z
-    .url({ message: "Invalid streaming server URL" })
-    .optional(),
+  streamingServerUrl: z.url({ message: "Invalid streaming server URL" }).optional(),
 });
 
 const ClientTagSchema = z.object({
   name: z.string().min(1, "Client name is required"),
   handlerReference: z.string().min(1, "Handler reference is required"),
-  relayUrl: z.url({ message: "Invalid relay URL" }),
+  relayUrl: z.string().url({ message: "Invalid relay URL" }),
 });
 
 // Type definitions inferred from Zod schemas
@@ -181,8 +179,7 @@ export class NDKStation extends NDKEvent {
    * Get all streams for the station
    */
   get streams(): Stream[] {
-    // First try to get streams from tags
-    const tagStreams = this.getMatchingTags("stream")
+    return this.getMatchingTags("stream")
       .map((tag) => {
         // Only create stream if we have required fields
         if (!tag[1] || !tag[2] || !tag[3]) return null;
@@ -223,35 +220,7 @@ export class NDKStation extends NDKEvent {
           return null;
         }
       })
-      .filter((stream: Stream | null): stream is Stream => stream !== null);
-
-    // If we found streams in tags, return them
-    if (tagStreams.length > 0) {
-      return tagStreams;
-    }
-
-    // Otherwise, try to parse streams from content field
-    try {
-      if (this.content) {
-        const contentData = JSON.parse(this.content);
-        if (contentData.streams && Array.isArray(contentData.streams)) {
-          return contentData.streams
-            .map((stream: any) => {
-              try {
-                const validation = StreamSchema.safeParse(stream);
-                return validation.success ? stream : null;
-              } catch {
-                return null;
-              }
-            })
-            .filter((stream: any): stream is Stream => stream !== null);
-        }
-      }
-    } catch {
-      // Content is not valid JSON or doesn't have streams
-    }
-
-    return [];
+      .filter((stream): stream is Stream => stream !== null);
   }
 
   /**
@@ -274,21 +243,6 @@ export class NDKStation extends NDKEvent {
   }
 
   /**
-   * Add a stream and publish the updated station
-   */
-  async addStreamAndPublish(stream: Stream): Promise<void> {
-    this.addStream(stream);
-
-    // Invalidate cache before publishing
-    if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
-      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
-    }
-
-    await this.sign();
-    await this.publish();
-  }
-
-  /**
    * Remove a stream from the station
    */
   removeStream(url: string): boolean {
@@ -297,25 +251,6 @@ export class NDKStation extends NDKEvent {
       (tag) => !(tag[0] === "stream" && tag[1] === url)
     );
     return this.tags.length !== initialLength;
-  }
-
-  /**
-   * Remove a stream and publish the updated station
-   */
-  async removeStreamAndPublish(url: string): Promise<boolean> {
-    const removed = this.removeStream(url);
-
-    if (removed) {
-      // Invalidate cache before publishing
-      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
-        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
-      }
-
-      await this.sign();
-      await this.publish();
-    }
-
-    return removed;
   }
 
   /**
@@ -345,28 +280,6 @@ export class NDKStation extends NDKEvent {
     this.removeStream(url);
     this.addStream(updatedStream);
     return true;
-  }
-
-  /**
-   * Update an existing stream and publish the updated station
-   */
-  async updateStreamAndPublish(
-    url: string,
-    updates: Partial<Stream>
-  ): Promise<boolean> {
-    const updated = this.updateStream(url, updates);
-
-    if (updated) {
-      // Invalidate cache before publishing
-      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
-        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
-      }
-
-      await this.sign();
-      await this.publish();
-    }
-
-    return updated;
   }
 
   /**
@@ -619,7 +532,7 @@ export class NDKStation extends NDKEvent {
    * Get the station's naddr (Nostr address) encoding
    */
   get naddr(): string {
-    return this.encode();
+    return this.encode()
   }
 
   /**
