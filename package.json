@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "relay": "cd relay && go run . --port 3334",
-    "relay:reset": "cd relay && go run . --reset-all",
+    "relay:reset": "./scripts/kill-relay.sh && cd relay && go run . --reset-all",
+    "relay:kill": "./scripts/kill-relay.sh",
     "contextvm": "bun run contextvm/server.ts",
-    "dev": "bun run relay & sleep 1 && bun run migrate && bun run contextvm & bun --hot src/index.tsx",
+    "dev": "./scripts/dev-clean.sh",
+    "dev:old": "bun run relay & sleep 1 && bun run migrate && bun run contextvm & bun --hot src/index.tsx",
     "dev:fake": "bun run relay & sleep 1 && bun run scripts/seed.ts && bun run contextvm & bun --hot src/index.tsx",
     "dev:no-seed": "bun run relay & sleep 1 && bun run contextvm & bun --hot src/index.tsx",
     "dev:frontend": "bun --hot src/index.tsx",

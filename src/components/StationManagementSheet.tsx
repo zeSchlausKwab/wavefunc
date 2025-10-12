@@ -149,15 +149,43 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
         };
         targetStation.content = JSON.stringify(content);
 
+        // Ensure NDK is connected
+        if (!ndk.pool || ndk.pool.connectedRelays().length === 0) {
+          console.log("Connecting to relays...");
+          await ndk.connect();
+          // Wait a bit for connection to establish
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        console.log(
+          "Connected relays:",
+          ndk.pool?.connectedRelays().map((r) => r.url)
+        );
+
         await targetStation.sign();
-        await targetStation.publish();
+
+        const relays = await targetStation.publish();
+        console.log("Published to relays:", relays);
+
+        if (relays.size === 0) {
+          throw new Error(
+            "Failed to publish to any relay. Check if the relay is running and accepting connections."
+          );
+        }
 
         setOpen(false);
         console.log(
-          `Station ${mode === "edit" ? "updated" : "created"} successfully`
+          `Station ${mode === "edit" ? "updated" : "created"} successfully to ${
+            relays.size
+          } relay(s)`
         );
       } catch (error) {
         console.error(`Failed to ${mode} station:`, error);
+        alert(
+          `Failed to ${mode} station: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       } finally {
         setIsSubmitting(false);
       }
