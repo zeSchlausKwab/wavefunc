@@ -139,37 +139,26 @@ export function useFavorites() {
       try {
         const stationAddress = `31237:${station.pubkey}:${station.stationId}`;
 
-        if (targetList.hasStation(stationAddress)) {
-          return false; // Already in favorites
-        }
+        // Use the class method to add and publish
+        const added = await targetList.addStationAndPublish(stationAddress);
 
-        targetList.addStation(stationAddress);
-
-        // Invalidate cache for this favorites list event
-        if (ndk?.cacheAdapter?.deleteEventIds && targetList.id) {
-          await ndk.cacheAdapter.deleteEventIds([targetList.id]);
-        }
-
-        // Publish the updated favorites list
-        await targetList.sign();
-        await targetList.publish();
-
-        // Force re-render by updating the specific list
-        setFavoritesLists((prevLists) => {
-          const updatedLists = prevLists.map((list) =>
-            list.favoritesId === targetList.favoritesId ? targetList : list
+        if (added) {
+          // Force re-render by updating the specific list
+          setFavoritesLists((prevLists) =>
+            prevLists.map((list) =>
+              list.favoritesId === targetList.favoritesId ? targetList : list
+            )
           );
-          return updatedLists;
-        });
+        }
 
-        return true;
+        return added;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to add favorite");
         console.error("Failed to add favorite:", err);
         return false;
       }
     },
-    [favoritesLists, defaultList, ndk]
+    [favoritesLists, defaultList]
   );
 
   // Remove a station from favorites (searches all lists)
@@ -184,15 +173,8 @@ export function useFavorites() {
         // Find and remove from all lists that contain this station
         for (const list of favoritesLists) {
           if (list.hasStation(stationAddress)) {
-            list.removeStation(stationAddress);
-
-            // Invalidate cache for this favorites list event
-            if (ndk?.cacheAdapter?.deleteEventIds && list.id) {
-              await ndk.cacheAdapter.deleteEventIds([list.id]);
-            }
-
-            await list.sign();
-            await list.publish();
+            // Use the class method to remove and publish
+            await list.removeStationAndPublish(stationAddress);
             removed = true;
           }
         }
@@ -211,7 +193,7 @@ export function useFavorites() {
         return false;
       }
     },
-    [favoritesLists, ndk]
+    [favoritesLists]
   );
 
   // Toggle a station in favorites (uses default list for adding)
@@ -253,15 +235,8 @@ export function useFavorites() {
   const clearFavorites = useCallback(async () => {
     try {
       for (const list of favoritesLists) {
-        list.clearStations();
-
-        // Invalidate cache for this favorites list event
-        if (ndk?.cacheAdapter?.deleteEventIds && list.id) {
-          await ndk.cacheAdapter.deleteEventIds([list.id]);
-        }
-
-        await list.sign();
-        await list.publish();
+        // Use the class method to clear and publish
+        await list.clearStationsAndPublish();
       }
 
       // Force re-render by creating new array reference
@@ -274,7 +249,7 @@ export function useFavorites() {
       console.error("Failed to clear favorites:", err);
       return false;
     }
-  }, [favoritesLists, ndk]);
+  }, [favoritesLists]);
 
   // Get the total count of favorites across all lists
   const getFavoriteCount = useCallback(() => {

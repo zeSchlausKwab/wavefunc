@@ -4,8 +4,9 @@ import { useMedia } from "react-use";
 import { useState } from "react";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { Link } from "@tanstack/react-router";
-import { Heart } from "lucide-react";
+import { Heart, Plus } from "lucide-react";
 import { useFavorites } from "../lib/hooks/useFavorites";
+import { StationManagementSheet } from "./StationManagementSheet";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -121,6 +122,16 @@ export function FloatingHeader({
                     </span>
                   )}
                 </Link>
+
+                <StationManagementSheet
+                  mode="add"
+                  trigger={
+                    <button className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                      <Plus className="w-4 h-4" />
+                      Add Station
+                    </button>
+                  }
+                />
               </nav>
 
               {/* Auth Buttons */}
@@ -231,6 +242,16 @@ export function FloatingHeader({
                     </span>
                   )}
                 </Link>
+
+                <StationManagementSheet
+                  mode="add"
+                  trigger={
+                    <button className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2 w-full text-left">
+                      <Plus className="w-4 h-4" />
+                      Add Station
+                    </button>
+                  }
+                />
               </nav>
 
               {/* Auth Buttons */}

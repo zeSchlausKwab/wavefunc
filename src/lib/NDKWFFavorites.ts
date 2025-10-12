@@ -187,6 +187,35 @@ export class NDKWFFavorites extends NDKEvent {
   }
 
   /**
+   * Add a station and publish the updated list
+   * @param stationAddress The address in format "31237:pubkey:d-tag"
+   * @param relay Optional relay URL where the station can be found
+   * @returns true if station was added, false if already exists
+   */
+  async addStationAndPublish(
+    stationAddress: string,
+    relay?: string
+  ): Promise<boolean> {
+    if (this.hasStation(stationAddress)) {
+      return false; // Already in favorites
+    }
+
+    this.addStation(stationAddress, relay);
+
+    // Invalidate cache before publishing
+    if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+    }
+
+    // await this.sign();
+    await this.publish();
+
+    console.log("addStationAndPublish", this);
+
+    return true;
+  }
+
+  /**
    * Remove a station from the favorites list
    * @param stationAddress The address in format "31237:pubkey:d-tag"
    */
@@ -196,6 +225,27 @@ export class NDKWFFavorites extends NDKEvent {
       (tag) => !(tag[0] === "a" && tag[1] === stationAddress)
     );
     return this.tags.length !== initialLength;
+  }
+
+  /**
+   * Remove a station and publish the updated list
+   * @param stationAddress The address in format "31237:pubkey:d-tag"
+   * @returns true if station was removed, false if not found
+   */
+  async removeStationAndPublish(stationAddress: string): Promise<boolean> {
+    const removed = this.removeStation(stationAddress);
+
+    if (removed) {
+      // Invalidate cache before publishing
+      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+      }
+
+      await this.sign();
+      await this.publish();
+    }
+
+    return removed;
   }
 
   /**
@@ -219,6 +269,29 @@ export class NDKWFFavorites extends NDKEvent {
       this.addStation(stationAddress, relay);
       return true; // Station was added
     }
+  }
+
+  /**
+   * Toggle a station and publish the updated list
+   * @param stationAddress The address in format "31237:pubkey:d-tag"
+   * @param relay Optional relay URL where the station can be found
+   * @returns true if station was added, false if removed
+   */
+  async toggleStationAndPublish(
+    stationAddress: string,
+    relay?: string
+  ): Promise<boolean> {
+    const wasAdded = this.toggleStation(stationAddress, relay);
+
+    // Invalidate cache before publishing
+    if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+    }
+
+    await this.sign();
+    await this.publish();
+
+    return wasAdded;
   }
 
   /**
@@ -253,6 +326,28 @@ export class NDKWFFavorites extends NDKEvent {
     this.tags = this.tags.filter(
       (tag) => !(tag[0] === "a" && tag[1]?.startsWith("31237:"))
     );
+  }
+
+  /**
+   * Clear all stations and publish the updated list
+   * @returns true if any stations were cleared
+   */
+  async clearStationsAndPublish(): Promise<boolean> {
+    const hadStations = this.getStationCount() > 0;
+
+    this.clearStations();
+
+    if (hadStations) {
+      // Invalidate cache before publishing
+      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+      }
+
+      await this.sign();
+      await this.publish();
+    }
+
+    return hadStations;
   }
 
   /**

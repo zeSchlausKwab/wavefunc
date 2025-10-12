@@ -223,7 +223,7 @@ export class NDKStation extends NDKEvent {
           return null;
         }
       })
-      .filter((stream): stream is Stream => stream !== null);
+      .filter((stream: Stream | null): stream is Stream => stream !== null);
 
     // If we found streams in tags, return them
     if (tagStreams.length > 0) {
@@ -244,7 +244,7 @@ export class NDKStation extends NDKEvent {
                 return null;
               }
             })
-            .filter((stream): stream is Stream => stream !== null);
+            .filter((stream: any): stream is Stream => stream !== null);
         }
       }
     } catch {
@@ -274,6 +274,21 @@ export class NDKStation extends NDKEvent {
   }
 
   /**
+   * Add a stream and publish the updated station
+   */
+  async addStreamAndPublish(stream: Stream): Promise<void> {
+    this.addStream(stream);
+
+    // Invalidate cache before publishing
+    if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+    }
+
+    await this.sign();
+    await this.publish();
+  }
+
+  /**
    * Remove a stream from the station
    */
   removeStream(url: string): boolean {
@@ -282,6 +297,25 @@ export class NDKStation extends NDKEvent {
       (tag) => !(tag[0] === "stream" && tag[1] === url)
     );
     return this.tags.length !== initialLength;
+  }
+
+  /**
+   * Remove a stream and publish the updated station
+   */
+  async removeStreamAndPublish(url: string): Promise<boolean> {
+    const removed = this.removeStream(url);
+
+    if (removed) {
+      // Invalidate cache before publishing
+      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+      }
+
+      await this.sign();
+      await this.publish();
+    }
+
+    return removed;
   }
 
   /**
@@ -311,6 +345,28 @@ export class NDKStation extends NDKEvent {
     this.removeStream(url);
     this.addStream(updatedStream);
     return true;
+  }
+
+  /**
+   * Update an existing stream and publish the updated station
+   */
+  async updateStreamAndPublish(
+    url: string,
+    updates: Partial<Stream>
+  ): Promise<boolean> {
+    const updated = this.updateStream(url, updates);
+
+    if (updated) {
+      // Invalidate cache before publishing
+      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
+        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+      }
+
+      await this.sign();
+      await this.publish();
+    }
+
+    return updated;
   }
 
   /**

@@ -56,8 +56,7 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
   // Always show dropdown - no more simple heart button
 
   return (
-    <div className="absolute top-2 right-2 z-10">
-      <div className="relative">
+    <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-1 p-2 rounded-full bg-white/90 hover:bg-white transition-all duration-200 group-hover:scale-110 border border-gray-200"
@@ -173,7 +172,6 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
             </div>
           </div>
         )}
-      </div>
 
       {/* Backdrop to close dropdown */}
       {isOpen && (

@@ -1,9 +1,11 @@
-import { Pause, Play } from "lucide-react";
-import React from "react";
+import { Pause, Play, MoreVertical, Edit3, Trash2 } from "lucide-react";
+import React, { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
+import { StationManagementSheet } from "./StationManagementSheet";
+import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -12,9 +14,12 @@ interface RadioCardProps {
 export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
+  const currentUser = useNDKCurrentUser();
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
+  const isOwner = currentUser?.pubkey === station.pubkey;
 
   const handlePlayClick = () => {
     if (isCurrentlyPlaying) {
@@ -39,12 +44,53 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group border-2 border-black">
-      {/* Favorites Dropdown */}
-      {isLoggedIn && station.pubkey && station.stationId && (
-        <FavoritesDropdown
-          station={station}
-          onAddToList={handleAddToList}
-          onRemoveFromList={handleRemoveFromList}
+      {/* Top Actions */}
+      <div className="absolute top-2 right-2 z-10 flex gap-2">
+        {/* Favorites Dropdown */}
+        {isLoggedIn && station.pubkey && station.stationId && (
+          <FavoritesDropdown
+            station={station}
+            onAddToList={handleAddToList}
+            onRemoveFromList={handleRemoveFromList}
+          />
+        )}
+        
+        {/* Owner Actions Menu */}
+        {isOwner && (
+          <div className="relative">
+            <button
+              onClick={() => setShowActionMenu(!showActionMenu)}
+              className="flex items-center gap-1 p-2 rounded-full bg-white/90 hover:bg-white transition-all duration-200 group-hover:scale-110 border border-gray-200"
+              title="Station actions"
+            >
+              <MoreVertical className="w-4 h-4 text-gray-500" />
+            </button>
+            
+            {showActionMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+                <div className="py-1">
+                  <StationManagementSheet
+                    station={station}
+                    mode="edit"
+                    trigger={
+                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                        <Edit3 className="w-4 h-4" />
+                        Edit Station
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {/* Backdrop to close action menu */}
+      {showActionMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowActionMenu(false)}
         />
       )}
 
