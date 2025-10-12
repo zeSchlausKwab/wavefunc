@@ -9,6 +9,13 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import NDKStation from "../NDKStation";
 
+// Extend window for debug throttling
+declare global {
+  interface Window {
+    lastLoggedEvent?: string;
+  }
+}
+
 /**
  * A hook for managing user favorites lists with Nostr integration.
  * Provides methods to load, create, and manage multiple favorites lists.
@@ -90,6 +97,19 @@ export function useFavorites() {
 
     sub.on("event", (event) => {
       const updatedFavorites = NDKWFFavorites.from(event);
+      
+      // Debug the received event (throttled to reduce spam)
+      const debugKey = `${updatedFavorites.favoritesId}-${updatedFavorites.created_at}`;
+      if (!window.lastLoggedEvent || window.lastLoggedEvent !== debugKey) {
+        console.log("📡 Received event from relay:", {
+          id: updatedFavorites.id,
+          created_at: updatedFavorites.created_at,
+          stations: updatedFavorites.getStations(),
+          stationCount: updatedFavorites.getStationCount(),
+          favoritesId: updatedFavorites.favoritesId
+        });
+        window.lastLoggedEvent = debugKey;
+      }
 
       setFavoritesLists((prevLists) => {
         // Find if this favorites list already exists
@@ -142,14 +162,7 @@ export function useFavorites() {
         // Use the class method to add and publish
         const added = await targetList.addStationAndPublish(stationAddress);
 
-        if (added) {
-          // Force re-render by updating the specific list
-          setFavoritesLists((prevLists) =>
-            prevLists.map((list) =>
-              list.favoritesId === targetList.favoritesId ? targetList : list
-            )
-          );
-        }
+        // No local state manipulation - let the relay subscription handle updates
 
         return added;
       } catch (err) {
@@ -179,10 +192,7 @@ export function useFavorites() {
           }
         }
 
-        if (removed) {
-          // Force re-render by creating new array reference
-          setFavoritesLists((prevLists) => [...prevLists]);
-        }
+        // No local state manipulation - let the relay subscription handle updates
 
         return removed;
       } catch (err) {
@@ -239,8 +249,7 @@ export function useFavorites() {
         await list.clearStationsAndPublish();
       }
 
-      // Force re-render by creating new array reference
-      setFavoritesLists((prevLists) => [...prevLists]);
+      // No local state manipulation - let the relay subscription handle updates
       return true;
     } catch (err) {
       setError(
@@ -272,14 +281,7 @@ export function useFavorites() {
         await newList.sign();
         await newList.publish();
 
-        // Optimistically update local state (subscription will confirm)
-        const updatedLists = [...favoritesLists, newList];
-        setFavoritesLists(updatedLists);
-
-        // Set as default if it's the first list
-        if (!defaultList) {
-          setDefaultList(newList);
-        }
+        // No local state manipulation - let the relay subscription handle updates
 
         return newList;
       } catch (err) {

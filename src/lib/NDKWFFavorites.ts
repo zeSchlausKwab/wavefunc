@@ -202,15 +202,60 @@ export class NDKWFFavorites extends NDKEvent {
 
     this.addStation(stationAddress, relay);
 
+    // Update the created_at timestamp to ensure this is the newest version
+    this.created_at = Math.floor(Date.now() / 1000);
+
     // Invalidate cache before publishing
     if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
       await this.ndk.cacheAdapter.deleteEventIds([this.id]);
     }
 
-    // await this.sign();
-    await this.publish();
+    // Also try to invalidate any cached version of this replaceable event
+    if (this.ndk?.cacheAdapter?.query) {
+      try {
+        const filter = {
+          kinds: [30078],
+          authors: [this.pubkey],
+          "#d": [this.favoritesId],
+        };
+        const cachedEvents = await this.ndk.cacheAdapter.query(filter);
+        if (cachedEvents.length > 0) {
+          const cachedIds = cachedEvents.map((e) => e.id).filter(Boolean);
+          if (cachedIds.length > 0) {
+            await this.ndk.cacheAdapter.deleteEventIds(cachedIds);
+          }
+        }
+      } catch (e) {
+        console.log("Cache invalidation attempt failed:", e);
+      }
+    }
 
-    console.log("addStationAndPublish", this);
+    // Ensure NDK is connected
+    if (!this.ndk?.pool || this.ndk.pool.connectedRelays().length === 0) {
+      console.log("Connecting to relays...");
+      await this.ndk?.connect();
+      // Wait a bit for connection to establish
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    await this.sign();
+
+    // Debug the event before publishing (basic info only)
+    console.log("🚀 Publishing favorites list:", {
+      id: this.favoritesId,
+      stationCount: this.getStationCount(),
+      created_at: this.created_at,
+    });
+
+    const relays = await this.publish();
+
+    console.log("✅ Published to", relays.size, "relays");
+
+    if (relays.size === 0) {
+      throw new Error(
+        "Failed to publish to any relay. Check relay connection."
+      );
+    }
 
     return true;
   }
@@ -236,6 +281,9 @@ export class NDKWFFavorites extends NDKEvent {
     const removed = this.removeStation(stationAddress);
 
     if (removed) {
+      // Update the created_at timestamp to ensure this is the newest version
+      this.created_at = Math.floor(Date.now() / 1000);
+
       // Invalidate cache before publishing
       if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
         await this.ndk.cacheAdapter.deleteEventIds([this.id]);
@@ -338,6 +386,9 @@ export class NDKWFFavorites extends NDKEvent {
     this.clearStations();
 
     if (hadStations) {
+      // Update the created_at timestamp to ensure this is the newest version
+      this.created_at = Math.floor(Date.now() / 1000);
+
       // Invalidate cache before publishing
       if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
         await this.ndk.cacheAdapter.deleteEventIds([this.id]);

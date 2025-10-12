@@ -27,7 +27,7 @@ echo "🚀 Starting development environment..."
 echo "Press Ctrl+C to stop all processes"
 echo ""
 
-# Kill any existing processes first
+# Kill any existing processes and wipe database
 ./scripts/kill-relay.sh
 
 # Start relay in background

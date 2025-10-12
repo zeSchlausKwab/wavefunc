@@ -89,7 +89,7 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
     ],
   };
 
-  const form = useForm<StationFormData>({
+  const form = useForm({
     defaultValues: {
       name: station?.name || "",
       description: station?.description || "",
@@ -294,10 +294,10 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
   const fillTestData = () => {
     form.setFieldValue("name", testData.name);
     form.setFieldValue("description", testData.description);
-    form.setFieldValue("thumbnail", testData.thumbnail);
-    form.setFieldValue("website", testData.website);
-    form.setFieldValue("location", testData.location);
-    form.setFieldValue("countryCode", testData.countryCode);
+    form.setFieldValue("thumbnail", testData.thumbnail || "");
+    form.setFieldValue("website", testData.website || "");
+    form.setFieldValue("location", testData.location || "");
+    form.setFieldValue("countryCode", testData.countryCode || "");
     form.setFieldValue("genres", testData.genres);
     form.setFieldValue("languages", testData.languages);
     form.setFieldValue("streams", testData.streams);
