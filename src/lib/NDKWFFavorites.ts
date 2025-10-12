@@ -211,17 +211,17 @@ export class NDKWFFavorites extends NDKEvent {
     }
 
     // Also try to invalidate any cached version of this replaceable event
-    if (this.ndk?.cacheAdapter?.query) {
+    if (this.ndk?.cacheAdapter && "query" in this.ndk.cacheAdapter) {
       try {
         const filter = {
           kinds: [30078],
           authors: [this.pubkey],
-          "#d": [this.favoritesId],
+          "#d": [this.favoritesId].filter(Boolean),
         };
-        const cachedEvents = await this.ndk.cacheAdapter.query(filter);
-        if (cachedEvents.length > 0) {
-          const cachedIds = cachedEvents.map((e) => e.id).filter(Boolean);
-          if (cachedIds.length > 0) {
+        const cachedEvents = await (this.ndk.cacheAdapter as any).query(filter);
+        if (cachedEvents && cachedEvents.length > 0) {
+          const cachedIds = cachedEvents.map((e: any) => e.id).filter(Boolean);
+          if (cachedIds.length > 0 && this.ndk.cacheAdapter.deleteEventIds) {
             await this.ndk.cacheAdapter.deleteEventIds(cachedIds);
           }
         }

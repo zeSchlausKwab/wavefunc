@@ -30,6 +30,7 @@ export function useFavorites() {
   const [error, setError] = useState<string | null>(null);
   const subscriptionRef = useRef<any>(null);
 
+
   // Load user's favorites lists from Nostr
   const loadFavorites = useCallback(async () => {
     if (!ndk || !currentUser?.pubkey) return;
