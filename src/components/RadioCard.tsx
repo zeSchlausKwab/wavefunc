@@ -6,6 +6,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
+import { DebugDialog } from "./DebugDialog";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -16,6 +17,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showDebugDialog, setShowDebugDialog] = useState(false);
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
@@ -229,17 +231,22 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
               {isCurrentlyPlaying ? "Playing" : "Play"}
             </button>
             <button
-              onClick={() => {
-                console.log("Raw NDK Event:", station.rawEvent());
-              }}
+              onClick={() => setShowDebugDialog(true)}
               className="text-gray-600 hover:text-gray-800 text-xs"
-              title="Log raw event to console"
+              title="View raw event data"
             >
               Debug
             </button>
           </div>
         </div>
       </div>
+
+      {/* Debug Dialog */}
+      <DebugDialog
+        station={station}
+        open={showDebugDialog}
+        onOpenChange={setShowDebugDialog}
+      />
     </div>
   );
 };

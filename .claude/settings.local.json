@@ -6,7 +6,9 @@
       "WebFetch(domain:github.com)",
       "Bash(bun pm ls:*)",
       "Bash(pkill:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(bun add:*)",
+      "Bash(bun remove:*)"
     ],
     "deny": [],
     "ask": []
