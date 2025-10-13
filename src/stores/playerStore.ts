@@ -5,80 +5,11 @@ import {
   extractStreamMetadata,
   searchMusicBrainz,
 } from "../lib/metadataClient";
-
-// Helper: Check if URL is HLS stream
-const isHlsStream = (url: string): boolean => url.includes(".m3u8");
-
-// Helper: Attempt to play audio with error handling
-const attemptPlay = (
-  audioElement: HTMLAudioElement,
-  onSuccess: () => void,
-  onError: (error: Error) => void
-): void => {
-  audioElement.play().then(onSuccess).catch(onError);
-};
-
-// Play HLS stream using HLS.js
-const playHlsStream = (
-  url: string,
-  audioElement: HTMLAudioElement,
-  onSuccess: () => void,
-  onError: (error: Error) => void,
-  setState: (state: any) => void
-): void => {
-  console.log("playerStore: Using HLS.js for .m3u8 stream");
-
-  const hls = new Hls({
-    enableWorker: true,
-    lowLatencyMode: true,
-  });
-
-  hls.loadSource(url);
-  hls.attachMedia(audioElement);
-
-  hls.on(Hls.Events.MANIFEST_PARSED, () => {
-    console.log("playerStore: HLS manifest parsed, attempting play...");
-    attemptPlay(audioElement, onSuccess, onError);
-  });
-
-  hls.on(Hls.Events.ERROR, (event, data) => {
-    console.error("playerStore: HLS error:", data);
-    if (data.fatal) {
-      setState({
-        error: `Stream error: ${data.type}`,
-        isLoading: false,
-        isPlaying: false,
-      });
-    }
-  });
-
-  setState({ hlsInstance: hls });
-};
-
-// Play HLS stream using native Safari support
-const playNativeHls = (
-  url: string,
-  audioElement: HTMLAudioElement,
-  onSuccess: () => void,
-  onError: (error: Error) => void
-): void => {
-  console.log("playerStore: Using native HLS support (Safari)");
-  audioElement.src = url;
-  audioElement.load();
-  attemptPlay(audioElement, onSuccess, onError);
-};
-
-// Play regular audio stream
-const playRegularStream = (
-  url: string,
-  audioElement: HTMLAudioElement,
-  onSuccess: () => void,
-  onError: (error: Error) => void
-): void => {
-  audioElement.src = url;
-  audioElement.load();
-  attemptPlay(audioElement, onSuccess, onError);
-};
+import {
+  normalizeUrl,
+  playWithAdapter,
+  sortStreamsByPreference,
+} from "../lib/player/adapters";
 
 interface CurrentMetadata {
   title?: string;
@@ -148,21 +79,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   // Play a new station
   playStation: (station: NDKStation, stream?: Stream) => {
-    const selectedStream = stream || station.streams[0];
+    const { currentStation, currentStream, audioElement } = get();
 
     // Validation
-    if (!selectedStream) {
+    const allStreams = sortStreamsByPreference(station.streams);
+    const preferred = stream ? { ...stream, url: normalizeUrl(stream.url) } : null;
+    const candidates = preferred
+      ? [preferred, ...allStreams.filter((s) => s.url !== preferred.url)]
+      : allStreams;
+
+    if (candidates.length === 0) {
       console.error("playerStore: No stream available!");
       set({ error: "No stream available for this station" });
       return;
     }
 
-    const { currentStation, currentStream, audioElement } = get();
-
-    // Early return: resume if same station is already loaded
+    // Early return: resume if same station/stream already loaded
     if (
       currentStation?.id === station.id &&
-      currentStream?.url === selectedStream.url &&
+      currentStream?.url === candidates[0].url &&
       audioElement
     ) {
       audioElement.play();
@@ -177,10 +112,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    // Update state for new station
+    // Begin loading state
     set({
       currentStation: station,
-      currentStream: selectedStream,
+      currentStream: candidates[0],
       isLoading: true,
       error: null,
       isPlaying: false,
@@ -193,86 +128,69 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ hlsInstance: null });
     }
 
-    // Handlers for play success/failure
-    const handlePlaySuccess = () => {
-      set({ isPlaying: true, isLoading: false });
-    };
+    // Try candidates sequentially until one plays
+    (async () => {
+      let played = false;
+      let lastError: Error | null = null;
+      for (const candidate of candidates) {
+        try {
+          // Update currentStream as we attempt
+          set({ currentStream: candidate });
+          const result = await playWithAdapter(candidate, audioElement);
+          if (result.hls) {
+            set({ hlsInstance: result.hls });
+          }
+          set({ isPlaying: true, isLoading: false, error: null });
+          played = true;
 
-    const handlePlayError = (error: Error) => {
-      console.error("playerStore: Play failed:", error);
-      set({
-        error: `Failed to play: ${error.message}`,
-        isLoading: false,
-        isPlaying: false,
-      });
-    };
+          // Start metadata polling for the successful candidate
+          const { metadataInterval } = get();
+          if (metadataInterval) clearInterval(metadataInterval);
 
-    // Route to appropriate playback method
-    const isHLS = isHlsStream(selectedStream.url);
+          const pollMetadata = async () => {
+            try {
+              const metadata = await extractStreamMetadata(candidate.url);
 
-    if (isHLS && Hls.isSupported()) {
-      playHlsStream(
-        selectedStream.url,
-        audioElement,
-        handlePlaySuccess,
-        handlePlayError,
-        set
-      );
-    } else if (
-      isHLS &&
-      audioElement.canPlayType("application/vnd.apple.mpegurl")
-    ) {
-      playNativeHls(
-        selectedStream.url,
-        audioElement,
-        handlePlaySuccess,
-        handlePlayError
-      );
-    } else {
-      playRegularStream(
-        selectedStream.url,
-        audioElement,
-        handlePlaySuccess,
-        handlePlayError
-      );
-    }
+              if (metadata.artist && metadata.song && !metadata.error) {
+                const mbResults = await searchMusicBrainz({
+                  artist: metadata.artist,
+                  track: metadata.song,
+                });
+                set({
+                  currentMetadata: {
+                    ...metadata,
+                    musicBrainz: mbResults[0],
+                  },
+                });
+              } else if (!metadata.error) {
+                set({ currentMetadata: metadata });
+              }
+            } catch (err) {
+              console.error("Metadata polling error:", err);
+            }
+          };
 
-    // Start metadata polling (every 15 seconds)
-    const { metadataInterval } = get();
-    if (metadataInterval) {
-      clearInterval(metadataInterval);
-    }
+          // Poll immediately, then every 15 seconds
+          pollMetadata();
+          const interval = setInterval(pollMetadata, 15000);
+          set({ metadataInterval: interval });
 
-    const pollMetadata = async () => {
-      try {
-        const metadata = await extractStreamMetadata(selectedStream.url);
-
-        if (metadata.artist && metadata.song && !metadata.error) {
-          // Enrich with MusicBrainz
-          const mbResults = await searchMusicBrainz({
-            artist: metadata.artist,
-            track: metadata.song,
-          });
-
-          set({
-            currentMetadata: {
-              ...metadata,
-              musicBrainz: mbResults[0],
-            },
-          });
-        } else if (!metadata.error) {
-          // Just set basic metadata without MusicBrainz
-          set({ currentMetadata: metadata });
+          break; // stop trying next candidates
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error("Failed to play");
+          // Try next candidate
+          continue;
         }
-      } catch (error) {
-        console.error("Metadata polling error:", error);
       }
-    };
 
-    // Poll immediately, then every 15 seconds
-    pollMetadata();
-    const interval = setInterval(pollMetadata, 15000);
-    set({ metadataInterval: interval });
+      if (!played) {
+        set({
+          error: `Failed to play any stream${lastError ? `: ${lastError.message}` : ""}`,
+          isLoading: false,
+          isPlaying: false,
+        });
+      }
+    })();
   },
 
   // Pause playback

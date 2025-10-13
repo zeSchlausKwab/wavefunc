@@ -30,6 +30,15 @@ export function FloatingPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  // Derived: simple human-friendly stream label
+  const formatLabel = currentStream
+    ? currentStream.url?.includes(".m3u8")
+      ? "HLS"
+      : (currentStream.format || "stream")
+          .replace("audio/", "")
+          .toUpperCase()
+    : "";
+
   // Initialize audio element in the store
   useEffect(() => {
     if (audioRef.current) {
@@ -159,7 +168,7 @@ export function FloatingPlayer() {
                           {currentStation.name || "Unnamed Station"}
                         </h3>
                         <p className="text-gray-400 text-xs truncate">
-                          {currentStream?.format}
+                          {formatLabel}
                           {currentStream?.quality?.bitrate &&
                             currentStream.quality.bitrate > 0 && (
                               <>
@@ -286,7 +295,7 @@ export function FloatingPlayer() {
                           {currentStation.name || "Unnamed Station"}
                         </h3>
                         <p className="text-gray-400 text-sm truncate">
-                          {currentStream?.format}
+                          {formatLabel}
                           {currentStream?.quality?.bitrate &&
                             currentStream.quality.bitrate > 0 && (
                               <>

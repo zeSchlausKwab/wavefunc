@@ -8,7 +8,7 @@ const StreamSchema = z.object({
   url: z.url({ message: "Invalid stream URL" }),
   format: z.string().min(1, "Format is required"),
   quality: z.object({
-    bitrate: z.number().positive("Bitrate must be positive"),
+    bitrate: z.number().nonnegative("Bitrate must be non-negative"),
     codec: z.string().min(1, "Codec is required"),
     sampleRate: z.number().positive("Sample rate must be positive"),
   }),
@@ -53,6 +53,24 @@ export class NDKStation extends NDKEvent {
   }
 
   // Core Station Properties
+
+  /**
+   * Parsed JSON content helper
+   */
+  private get parsedContent(): StationContent | undefined {
+    try {
+      return this.content ? (JSON.parse(this.content) as StationContent) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Normalize potentially formatted URLs (trim spaces/backticks)
+   */
+  private normalizeUrl(url: string): string {
+    return url.trim().replace(/^`|`$/g, "");
+  }
 
   /**
    * Get the station's unique identifier (d-tag)
@@ -179,18 +197,14 @@ export class NDKStation extends NDKEvent {
    * Get all streams for the station
    */
   get streams(): Stream[] {
-    return this.getMatchingTags("stream")
+    const tagStreams = this.getMatchingTags("stream")
       .map((tag) => {
-        // Only create stream if we have required fields
         if (!tag[1] || !tag[2] || !tag[3]) return null;
-
         try {
-          // Parse quality from tag if it's a JSON string
           let quality;
           if (typeof tag[3] === "string") {
             try {
               quality = JSON.parse(tag[3]);
-              // Validate that parsed quality has required properties
               if (
                 !quality ||
                 typeof quality.bitrate !== "number" ||
@@ -207,20 +221,40 @@ export class NDKStation extends NDKEvent {
           }
 
           const stream: Stream = {
-            url: tag[1],
-            format: tag[2],
-            quality: quality,
+            url: typeof tag[1] === "string" ? this.normalizeUrl(tag[1]) : (tag[1] as string),
+            format: tag[2] as string,
+            quality,
             primary: tag.includes("primary"),
           };
 
-          // Validate the stream before returning
           const validation = StreamSchema.safeParse(stream);
           return validation.success ? stream : null;
         } catch {
           return null;
         }
       })
-      .filter((stream): stream is Stream => stream !== null);
+      .filter((s): s is Stream => s !== null);
+
+    if (tagStreams.length > 0) return tagStreams;
+
+    const pc = this.parsedContent;
+    if (pc?.streams && pc.streams.length > 0) {
+      const contentStreams = pc.streams
+        .map((s) => {
+          const stream: Stream = {
+            url: this.normalizeUrl(s.url),
+            format: s.format,
+            quality: s.quality,
+            primary: !!s.primary,
+          };
+          const validation = StreamSchema.safeParse(stream);
+          return validation.success ? stream : null;
+        })
+        .filter((s): s is Stream => s !== null);
+      return contentStreams;
+    }
+
+    return [];
   }
 
   /**
