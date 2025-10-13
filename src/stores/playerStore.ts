@@ -97,7 +97,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     // Early return: resume if same station/stream already loaded
     if (
       currentStation?.id === station.id &&
-      currentStream?.url === candidates[0].url &&
+      currentStream?.url === candidates[0]?.url &&
       audioElement
     ) {
       audioElement.play();
