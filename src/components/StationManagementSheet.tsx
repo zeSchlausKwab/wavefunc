@@ -627,13 +627,13 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
                         className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center gap-1"
                       >
                         {genre}
-                        <button
+                        <Button
                           type="button"
                           onClick={() => removeGenre(index)}
                           className="hover:bg-blue-200 rounded-full p-0.5"
                         >
                           ×
-                        </button>
+                        </Button>
                       </span>
                     ))}
                   </div>
@@ -667,13 +667,13 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
                         className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm flex items-center gap-1"
                       >
                         {language}
-                        <button
+                        <Button
                           type="button"
                           onClick={() => removeLanguage(index)}
                           className="hover:bg-green-200 rounded-full p-0.5"
                         >
                           ×
-                        </button>
+                        </Button>
                       </span>
                     ))}
                   </div>

@@ -38,7 +38,7 @@ export function StationView({ searchQuery }: StationViewProps) {
       </div>
 
       {/* Grid layout for RadioCard components */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {events.map((station) => (
           <RadioCard key={station.id} station={station} />
         ))}

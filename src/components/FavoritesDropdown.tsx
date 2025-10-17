@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface FavoritesDropdownProps {
   station: NDKStation;
@@ -57,16 +58,15 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
 
   return (
     <div className="relative">
-        <button
+        <Button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 p-2 rounded-full bg-white/90 hover:bg-white transition-all duration-200 group-hover:scale-110 border border-gray-200"
           title="Add to favorites"
         >
           <Heart className={`w-5 h-5 transition-colors ${
             hasAnyFavorites ? "text-red-500 fill-red-500" : "text-gray-400"
           }`} />
           <ChevronDown className="w-3 h-3 text-gray-500" />
-        </button>
+        </Button>
 
         {isOpen && (
           <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
@@ -120,29 +120,26 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
 
               <div className="border-t pt-3 mt-3">
                 {!showCreateForm ? (
-                  <button
+                  <Button
                     onClick={() => setShowCreateForm(true)}
-                    className="flex items-center justify-center gap-2 w-full p-3 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-300 transition-all"
                   >
                     <Plus className="w-4 h-4" />
                     Create New List
-                  </button>
+                  </Button>
                 ) : (
                   <form onSubmit={handleCreateList} className="space-y-3">
-                    <input
+                    <Input
                       type="text"
                       placeholder="List name (e.g., Jazz Stations)"
                       value={newListName}
                       onChange={(e) => setNewListName(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       autoFocus
                     />
-                    <input
+                    <Input
                       type="text"
                       placeholder="Description (optional)"
                       value={newListDescription}
                       onChange={(e) => setNewListDescription(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <div className="flex gap-2">
                       <Button

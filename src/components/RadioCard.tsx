@@ -7,6 +7,7 @@ import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
 import { DebugDialog } from "./DebugDialog";
+import { Button } from "./ui/button";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -60,13 +61,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
         {/* Owner Actions Menu */}
         {isOwner && (
           <div className="relative">
-            <button
+            <Button
               onClick={() => setShowActionMenu(!showActionMenu)}
-              className="flex items-center gap-1 p-2 rounded-full bg-white/90 hover:bg-white transition-all duration-200 group-hover:scale-110 border border-gray-200"
               title="Station actions"
             >
               <MoreVertical className="w-4 h-4 text-gray-500" />
-            </button>
+            </Button>
             
             {showActionMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
@@ -75,10 +75,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
                     station={station}
                     mode="edit"
                     trigger={
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                      <Button>
                         <Edit3 className="w-4 h-4" />
                         Edit Station
-                      </button>
+                      </Button>
                     }
                   />
                 </div>
@@ -106,7 +106,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           />
           {/* Play Button Overlay */}
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <button
+            <Button
               onClick={handlePlayClick}
               className={`p-4 rounded-full transition-all transform hover:scale-110 ${
                 isCurrentlyPlaying
@@ -120,7 +120,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
               ) : (
                 <Play className="w-8 h-8 text-gray-900" />
               )}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -128,7 +128,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
       {/* Play Button for cards without thumbnail */}
       {!station.thumbnail && (
         <div className="aspect-video w-full overflow-hidden relative bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <button
+          <Button
             onClick={handlePlayClick}
             className={`p-4 rounded-full transition-all transform hover:scale-110 ${
               isCurrentlyPlaying
@@ -142,7 +142,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             ) : (
               <Play className="w-8 h-8 text-white" />
             )}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -219,7 +219,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={handlePlayClick}
               className={`px-3 py-1 rounded-md font-medium transition-colors ${
                 isCurrentlyPlaying
@@ -229,14 +229,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
               title={isCurrentlyPlaying ? "Pause" : "Play"}
             >
               {isCurrentlyPlaying ? "Playing" : "Play"}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setShowDebugDialog(true)}
-              className="text-gray-600 hover:text-gray-800 text-xs"
               title="View raw event data"
             >
               Debug
-            </button>
+            </Button>
           </div>
         </div>
       </div>

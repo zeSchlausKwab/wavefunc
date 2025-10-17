@@ -5,6 +5,7 @@ import { RadioCard } from "../components/RadioCard";
 import { Button } from "../components/ui/button";
 import { useState } from "react";
 import { NDKWFFavorites } from "../lib/NDKWFFavorites";
+import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/favorites")({
   component: Favorites,
@@ -104,7 +105,7 @@ function Favorites() {
                   <label className="block text-sm font-medium mb-1">
                     List Name
                   </label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="e.g., Jazz Favorites, Road Trip Mix"
                     value={newListName}
@@ -117,7 +118,7 @@ function Favorites() {
                   <label className="block text-sm font-medium mb-1">
                     Description (Optional)
                   </label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="Describe what this list is for"
                     value={newListDescription}
@@ -179,7 +180,6 @@ function Favorites() {
                 variant="outline"
                 size="sm"
                 onClick={clearFavorites}
-                className="text-destructive hover:text-destructive"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Clear All
@@ -193,7 +193,7 @@ function Favorites() {
           <div className="bg-muted/50 p-4 rounded-lg">
             <form onSubmit={handleCreateList} className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
+                <Input
                   type="text"
                   placeholder="List name"
                   value={newListName}
@@ -201,12 +201,11 @@ function Favorites() {
                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
-                <input
+                <Input
                   type="text"
                   placeholder="Description (optional)"
                   value={newListDescription}
                   onChange={(e) => setNewListDescription(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="flex gap-2">
@@ -234,7 +233,7 @@ function Favorites() {
         {favoritesLists.length > 0 && (
           <div className="border-b">
             <nav className="flex space-x-6 overflow-x-auto min-h-[48px]">
-              <button
+              <Button
                 onClick={() => setSelectedList(null)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                   !selectedList
@@ -243,11 +242,11 @@ function Favorites() {
                 }`}
               >
                 All Lists ({favoriteCount})
-              </button>
+              </Button>
               {favoritesLists.map((list) => {
                 const listStationCount = list.getStationCount();
                 return (
-                  <button
+                  <Button
                     key={list.favoritesId}
                     onClick={() => setSelectedList(list.favoritesId!)}
                     className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
@@ -257,7 +256,7 @@ function Favorites() {
                     }`}
                   >
                     {list.name} ({listStationCount})
-                  </button>
+                  </Button>
                 );
               })}
             </nav>
@@ -343,12 +342,11 @@ function FavoriteListSection({
       </div>
 
       {listStations.length > 8 && (
-        <button
+        <Button
           onClick={onViewAll}
-          className="text-sm text-blue-600 hover:text-blue-700"
         >
           View all {listStations.length} stations
-        </button>
+        </Button>
       )}
 
       {listStations.length === 0 && (

@@ -7,6 +7,8 @@ import { Link } from "@tanstack/react-router";
 import { Heart, Plus } from "lucide-react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { StationManagementSheet } from "./StationManagementSheet";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -50,23 +52,23 @@ export function FloatingHeader({
               {/* Search Bar */}
               <form onSubmit={handleSubmit} className="flex-1 max-w-md">
                 <div className="relative">
-                  <input
+                  <Input
                     type="text"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Search stations..."
-                    className="w-full px-4 py-2 pr-20 text-sm bg-white/80 dark:bg-gray-800/80 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all"
                   />
                   {searchInput && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => {
                         setSearchInput("");
                         onSearch("");
                       }}
-                      className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       title="Clear search"
                     >
+
+                    {/* TODO: licude icons */}
                       <svg
                         className="h-4 w-4"
                         fill="none"
@@ -80,14 +82,14 @@ export function FloatingHeader({
                           d="M6 18L18 6M6 6l12 12"
                         />
                       </svg>
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     type="submit"
                     disabled={!searchInput.trim()}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
                     title="Search"
                   >
+                    {/* TODO: licude icons */}
                     <svg
                       className="h-5 w-5"
                       fill="none"
@@ -101,7 +103,7 @@ export function FloatingHeader({
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </form>
 
@@ -126,10 +128,10 @@ export function FloatingHeader({
                 <StationManagementSheet
                   mode="add"
                   trigger={
-                    <button className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                    <Button>
                       <Plus className="w-4 h-4" />
                       Add Station
-                    </button>
+                    </Button>
                   }
                 />
               </nav>
@@ -142,9 +144,8 @@ export function FloatingHeader({
             </>
           ) : (
             /* Mobile Layout */
-            <button
+            <Button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
               aria-label="Toggle menu"
             >
               <svg
@@ -169,33 +170,33 @@ export function FloatingHeader({
                   />
                 )}
               </svg>
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Mobile Menu - Slide down reveal */}
         {isMobile && (
           <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out ${
-              mobileMenuOpen ? "max-h-96 mt-4" : "max-h-0"
+            className={`overflow-hidden transition-all duration-300 border-black ease-in-out bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 ${
+              mobileMenuOpen ? "max-h-96 mt-4 p-2 border-2" : "max-h-0 p-0 border-0"
             }`}
           >
-            <div className="space-y-4 pb-2">
+            <div className="space-y-4 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
               {/* Search Bar */}
               <form onSubmit={handleSubmit}>
                 <div className="relative">
-                  <input
+                  <Input
                     type="text"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Search stations..."
-                    className="w-full px-4 py-2 pr-10 text-sm bg-white/80 dark:bg-gray-800/80 border border-gray-300/50 dark:border-gray-600/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 backdrop-blur-sm"
                   />
-                  <button
+                  <Button
                     type="submit"
                     disabled={!searchInput.trim()}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
                   >
+
+                    {/* TODO: licude icons */}
                     <svg
                       className="h-5 w-5"
                       fill="none"
@@ -209,7 +210,7 @@ export function FloatingHeader({
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </form>
 
@@ -246,10 +247,10 @@ export function FloatingHeader({
                 <StationManagementSheet
                   mode="add"
                   trigger={
-                    <button className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2 w-full text-left">
+                    <Button>
                       <Plus className="w-4 h-4" />
                       Add Station
-                    </button>
+                    </Button>
                   }
                 />
               </nav>

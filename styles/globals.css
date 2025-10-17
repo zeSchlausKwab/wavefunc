@@ -222,3 +222,112 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Neobrutalist Utilities - DOS-style hard shadows */
+@layer utilities {
+  /* Thick black borders */
+  .border-brutal {
+    @apply border-2 border-black;
+  }
+
+  .border-brutal-thick {
+    @apply border-4 border-black;
+  }
+
+  /* Hard shadows - no blur, offset only (DOS-style) */
+  .shadow-brutal {
+    box-shadow: 4px 4px 0 0 rgb(0, 0, 0);
+  }
+
+  .shadow-brutal-sm {
+    box-shadow: 2px 2px 0 0 rgb(0, 0, 0);
+  }
+
+  .shadow-brutal-md {
+    box-shadow: 6px 6px 0 0 rgb(0, 0, 0);
+  }
+
+  .shadow-brutal-lg {
+    box-shadow: 8px 8px 0 0 rgb(0, 0, 0);
+  }
+
+  .shadow-brutal-xl {
+    box-shadow: 12px 12px 0 0 rgb(0, 0, 0);
+  }
+
+  /* Colored hard shadows for variety */
+  .shadow-brutal-primary {
+    box-shadow: 4px 4px 0 0 hsl(var(--primary));
+  }
+
+  .shadow-brutal-accent {
+    box-shadow: 4px 4px 0 0 hsl(var(--accent-foreground));
+  }
+
+  .shadow-brutal-blue {
+    box-shadow: 4px 4px 0 0 rgb(59, 130, 246);
+  }
+
+  .shadow-brutal-red {
+    box-shadow: 4px 4px 0 0 rgb(239, 68, 68);
+  }
+
+  .shadow-brutal-green {
+    box-shadow: 4px 4px 0 0 rgb(34, 197, 94);
+  }
+
+  .shadow-brutal-yellow {
+    box-shadow: 4px 4px 0 0 rgb(234, 179, 8);
+  }
+
+  /* Inset hard shadows for pressed/input states */
+  .shadow-brutal-inset {
+    box-shadow: inset 2px 2px 0 0 rgb(0, 0, 0);
+  }
+
+  /* Combined brutal style - border + shadow */
+  .brutal {
+    @apply border-2 border-black;
+    box-shadow: 4px 4px 0 0 rgb(0, 0, 0);
+  }
+
+  .brutal-sm {
+    @apply border-2 border-black;
+    box-shadow: 2px 2px 0 0 rgb(0, 0, 0);
+  }
+
+  .brutal-lg {
+    @apply border-2 border-black;
+    box-shadow: 8px 8px 0 0 rgb(0, 0, 0);
+  }
+
+  .brutal-xl {
+    @apply border-4 border-black;
+    box-shadow: 12px 12px 0 0 rgb(0, 0, 0);
+  }
+
+  /* Hover states - shift element to simulate pressing shadow */
+  .brutal-hover:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 0 rgb(0, 0, 0);
+  }
+
+  .brutal-hover:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 0 rgb(0, 0, 0);
+  }
+
+  /* Dark mode variants - white shadows */
+  .dark .shadow-brutal-dark {
+    box-shadow: 4px 4px 0 0 rgb(255, 255, 255);
+  }
+
+  .dark .border-brutal-dark {
+    @apply border-2 border-white;
+  }
+
+  .dark .brutal-dark {
+    @apply border-2 border-white;
+    box-shadow: 4px 4px 0 0 rgb(255, 255, 255);
+  }
+}
