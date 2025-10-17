@@ -7,7 +7,9 @@ import { AnimatedLogo } from "./AnimatedLogo";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { IconButtonInput } from "./ui/icon-button-input";
+import { SearchIcon } from "./ui/icons/lucide-search";
+import { XIcon } from "./ui/icons/lucide-x";
 import {
   Sheet,
   SheetContent,
@@ -56,60 +58,31 @@ export function FloatingHeader({
             <>
               {/* Search Bar */}
               <form onSubmit={handleSubmit} className="flex-1 max-w-md">
-                <div className="relative">
-                  <Input
-                    type="text"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search stations..."
-                  />
-                  {searchInput && (
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setSearchInput("");
-                        onSearch("");
-                      }}
-                      title="Clear search"
-                    >
-
-                    {/* TODO: licude icons */}
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </Button>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={!searchInput.trim()}
-                    title="Search"
-                  >
-                    {/* TODO: licude icons */}
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </Button>
-                </div>
+                <IconButtonInput
+                  type="text"
+                  startIcon={{
+                    icon: SearchIcon,
+                    onClick: () => onSearch(searchInput),
+                    disabled: !searchInput.trim(),
+                    type: "submit",
+                    title: "Search",
+                  }}
+                  endIcon={
+                    searchInput
+                      ? {
+                          icon: XIcon,
+                          onClick: () => {
+                            setSearchInput("");
+                            onSearch("");
+                          },
+                          title: "Clear search",
+                        }
+                      : undefined
+                  }
+                  value={searchInput}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
+                  placeholder="Search stations..."
+                />
               </form>
 
               {/* Navigation */}
@@ -162,30 +135,31 @@ export function FloatingHeader({
                 <div className="space-y-4 mt-4">
                   {/* Search Bar */}
                   <form onSubmit={handleSubmit}>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search stations..."
-                      />
-                      <Button type="submit" disabled={!searchInput.trim()}>
-                        {/* TODO: lucide icons */}
-                        <svg
-                          className="h-5 w-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                          />
-                        </svg>
-                      </Button>
-                    </div>
+                    <IconButtonInput
+                      type="text"
+                      startIcon={{
+                        icon: SearchIcon,
+                        onClick: () => onSearch(searchInput),
+                        disabled: !searchInput.trim(),
+                        type: "submit",
+                        title: "Search",
+                      }}
+                      endIcon={
+                        searchInput
+                          ? {
+                              icon: XIcon,
+                              onClick: () => {
+                                setSearchInput("");
+                                onSearch("");
+                              },
+                              title: "Clear search",
+                            }
+                          : undefined
+                      }
+                      value={searchInput}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
+                      placeholder="Search stations..."
+                    />
                   </form>
 
                   {/* Navigation */}
