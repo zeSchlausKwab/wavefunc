@@ -131,7 +131,7 @@ export function FloatingPlayer() {
       {/* Hidden audio element - ALWAYS rendered */}
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-brutal">
         {!currentStation ? (
           <div className="flex h-16 items-center justify-center px-4">
             <p className="text-sm text-muted-foreground">

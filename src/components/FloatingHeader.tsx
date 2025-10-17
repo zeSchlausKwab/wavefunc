@@ -39,7 +39,7 @@ export function FloatingHeader({
   };
 
   return (
-    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-brutal h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl">
+    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-brutal h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-brutal">
       <div className="px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <Link

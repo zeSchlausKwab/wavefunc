@@ -22,7 +22,7 @@ export const Route = createRootRoute({
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
         />
-        <div className="px-4 md:px-8 pt-28 md:pt-32 pb-36 md:pb-40 text-center relative z-0">
+        <div className="m-2 md:m-4">
           <Outlet />
         </div>
         <FloatingPlayer />
