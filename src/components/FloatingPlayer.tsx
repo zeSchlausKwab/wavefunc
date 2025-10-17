@@ -3,6 +3,8 @@ import { usePlayerStore } from "../stores/playerStore";
 import { Play, Pause, X, Volume2, VolumeX } from "lucide-react";
 import Hls from "hls.js";
 import { useMedia } from "react-use";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export function FloatingPlayer() {
   const isMobile = useMedia("(max-width: 768px)");
@@ -129,251 +131,129 @@ export function FloatingPlayer() {
       {/* Hidden audio element - ALWAYS rendered */}
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl items-center">
+      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {!currentStation ? (
-          <div className="px-4 md:px-8 py-4">
-            <div className="flex items-center justify-center">
-              <p className="text-gray-400 text-sm">
-                Select a radio station to start playing
-              </p>
-            </div>
+          <div className="flex h-16 items-center justify-center px-4">
+            <p className="text-sm text-muted-foreground">
+              Select a radio station to start playing
+            </p>
           </div>
         ) : (
-          <div className="p-4 items-center">
-            {isMobile ? (
-              /* Mobile Layout - Stacked */
-              <div className="flex flex-col gap-3">
-                {/* Top Row: Station Info */}
-                <div className="flex items-center gap-3 min-w-0">
-                  {currentStation.thumbnail && (
-                    <img
-                      src={currentStation.thumbnail}
-                      alt={currentStation.name || "Station"}
-                      className="w-12 h-12 rounded-lg object-cover shadow-md flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    {currentMetadata?.song ? (
-                      <>
-                        <h3 className="text-white font-bold text-sm truncate">
-                          {currentMetadata.song}
-                        </h3>
-                        <p className="text-gray-300 text-xs truncate">
-                          {currentMetadata.artist || "Unknown Artist"}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="text-white font-semibold text-sm truncate">
-                          {currentStation.name || "Unnamed Station"}
-                        </h3>
-                        <p className="text-gray-400 text-xs truncate">
-                          {formatLabel}
-                          {currentStream?.quality?.bitrate &&
-                            currentStream.quality.bitrate > 0 && (
-                              <>
-                                {" "}
-                                •{" "}
-                                {Math.round(
-                                  currentStream.quality.bitrate / 1000
-                                )}
-                                kbps
-                              </>
-                            )}
-                        </p>
-                      </>
-                    )}
-                    {error && (
-                      <p className="text-red-400 text-xs truncate mt-1">
-                        {error}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom Row: Controls */}
-                <div className="flex items-center justify-between gap-2">
-                  {/* Playback Controls */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={isPlaying ? pause : resume}
-                      disabled={isLoading}
-                      className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full text-white transition-colors shadow-lg"
-                      title={isPlaying ? "Pause" : "Play"}
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : isPlaying ? (
-                        <Pause className="w-4 h-4" />
-                      ) : (
-                        <Play className="w-4 h-4" />
+          <div className="flex h-16 items-center gap-4 px-4">
+            {/* Station Thumbnail & Info */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              {currentStation.thumbnail && (
+                <img
+                  src={currentStation.thumbnail}
+                  alt={currentStation.name || "Station"}
+                  className="size-12 shrink-0 rounded-md object-cover shadow-sm"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                {currentMetadata?.song ? (
+                  <>
+                    <h3 className="truncate text-sm font-semibold">
+                      {currentMetadata.song}
+                    </h3>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {currentMetadata.artist || "Unknown Artist"}
+                      {currentMetadata.musicBrainz?.release && (
+                        <span className="ml-1">
+                          • {currentMetadata.musicBrainz.release}
+                          {currentMetadata.musicBrainz.releaseDate && (
+                            <span>
+                              {" "}
+                              ({currentMetadata.musicBrainz.releaseDate.split("-")[0]})
+                            </span>
+                          )}
+                        </span>
                       )}
-                    </button>
-                    <button
-                      onClick={stop}
-                      className="p-2 hover:bg-gray-700/50 rounded-full text-gray-400 hover:text-white transition-colors"
-                      title="Stop"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Volume Control - Compact */}
-                  <div className="flex items-center gap-2 flex-1 max-w-[150px]">
-                    <button
-                      onClick={toggleMute}
-                      className="p-2 hover:bg-gray-700/50 rounded-full text-gray-400 hover:text-white transition-colors"
-                      title={isMuted ? "Unmute" : "Mute"}
-                    >
-                      {isMuted ? (
-                        <VolumeX className="w-4 h-4" />
-                      ) : (
-                        <Volume2 className="w-4 h-4" />
-                      )}
-                    </button>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={isMuted ? 0 : volume * 100}
-                      onChange={(e) => setVolume(Number(e.target.value) / 100)}
-                      className="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                      title="Volume"
-                    />
-                    <span className="text-gray-400 text-xs min-w-[2.5ch]">
-                      {Math.round(volume * 100)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Desktop Layout - Single Row */
-              <div className="flex items-center justify-between gap-4 items-center">
-                {/* Station Info */}
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {currentStation.thumbnail && (
-                    <img
-                      src={currentStation.thumbnail}
-                      alt={currentStation.name || "Station"}
-                      className="w-14 h-14 rounded-lg object-cover shadow-md flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    {/* Now Playing Metadata */}
-                    {currentMetadata?.song && (
-                      <>
-                        <h3 className="text-white font-bold truncate">
-                          {currentMetadata.song}
-                        </h3>
-                        <p className="text-gray-300 text-sm truncate">
-                          {currentMetadata.artist || "Unknown Artist"}
-                        </p>
-                        {currentMetadata.musicBrainz?.release && (
-                          <p className="text-gray-500 text-xs truncate">
-                            from {currentMetadata.musicBrainz.release}
-                            {currentMetadata.musicBrainz.releaseDate && (
-                              <>
-                                {" "}
-                                (
-                                {
-                                  currentMetadata.musicBrainz.releaseDate.split(
-                                    "-"
-                                  )[0]
-                                }
-                                )
-                              </>
-                            )}
-                          </p>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="truncate text-sm font-semibold">
+                      {currentStation.name || "Unnamed Station"}
+                    </h3>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {formatLabel}
+                      {currentStream?.quality?.bitrate &&
+                        currentStream.quality.bitrate > 0 && (
+                          <>
+                            {" "}
+                            • {Math.round(currentStream.quality.bitrate / 1000)}
+                            kbps
+                          </>
                         )}
-                      </>
-                    )}
+                    </p>
+                  </>
+                )}
+                {error && (
+                  <p className="truncate text-xs text-destructive">{error}</p>
+                )}
+              </div>
+            </div>
 
-                    {/* Fallback: Station Info */}
-                    {!currentMetadata?.song && (
-                      <>
-                        <h3 className="text-gray-400 font-semibold truncate">
-                          {currentStation.name || "Unnamed Station"}
-                        </h3>
-                        <p className="text-gray-400 text-sm truncate">
-                          {formatLabel}
-                          {currentStream?.quality?.bitrate &&
-                            currentStream.quality.bitrate > 0 && (
-                              <>
-                                {" "}
-                                •{" "}
-                                {Math.round(
-                                  currentStream.quality.bitrate / 1000
-                                )}
-                                kbps
-                              </>
-                            )}
-                        </p>
-                      </>
-                    )}
+            {/* Playback Controls */}
+            <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                onClick={isPlaying ? pause : resume}
+                disabled={isLoading}
+                className="size-10 shrink-0"
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isLoading ? (
+                  <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : isPlaying ? (
+                  <Pause className="size-4" />
+                ) : (
+                  <Play className="size-4" />
+                )}
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={stop}
+                className="size-8 shrink-0"
+                title="Stop"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
 
-                    {error && (
-                      <p className="text-red-400 text-xs truncate mt-1">
-                        {error}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Playback Controls */}
-                <div className="flex items-center gap-3">
-                  {/* Play/Pause Button */}
-                  <button
-                    onClick={isPlaying ? pause : resume}
-                    disabled={isLoading}
-                    className="p-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full text-white transition-colors shadow-lg"
-                    title={isPlaying ? "Pause" : "Play"}
-                  >
-                    {isLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : isPlaying ? (
-                      <Pause className="w-5 h-5" />
-                    ) : (
-                      <Play className="w-5 h-5" />
-                    )}
-                  </button>
-
-                  {/* Stop Button */}
-                  <button
-                    onClick={stop}
-                    className="p-2 hover:bg-gray-700/50 rounded-full text-gray-400 hover:text-white transition-colors"
-                    title="Stop"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Volume Control */}
-                <div className="flex items-center gap-2 min-w-[150px]">
-                  <button
+            {/* Volume Control - Desktop only */}
+            {!isMobile && (
+              <>
+                <Separator orientation="vertical" className="h-8" />
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     onClick={toggleMute}
-                    className="p-2 hover:bg-gray-700/50 rounded-full text-gray-400 hover:text-white transition-colors"
+                    className="size-8 shrink-0"
                     title={isMuted ? "Unmute" : "Mute"}
                   >
                     {isMuted ? (
-                      <VolumeX className="w-5 h-5" />
+                      <VolumeX className="size-4" />
                     ) : (
-                      <Volume2 className="w-5 h-5" />
+                      <Volume2 className="size-4" />
                     )}
-                  </button>
+                  </Button>
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={isMuted ? 0 : volume * 100}
                     onChange={(e) => setVolume(Number(e.target.value) / 100)}
-                    className="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="h-1 w-24 cursor-pointer appearance-none rounded-lg bg-secondary accent-primary"
                     title="Volume"
                   />
-                  <span className="text-gray-400 text-sm min-w-[3ch]">
+                  <span className="min-w-[2.5ch] text-xs text-muted-foreground">
                     {Math.round(volume * 100)}
                   </span>
                 </div>
-              </div>
+              </>
             )}
           </div>
         )}
