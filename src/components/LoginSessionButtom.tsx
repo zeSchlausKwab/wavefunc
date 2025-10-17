@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 import { MiniProfile } from "./MiniProfile";
 import { Button } from "./ui/button";
+import { KeyRoundIcon } from "./ui/icons/lucide-key-round";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
@@ -46,7 +47,10 @@ export function LoginSessionButtons() {
         </div>
       ) : (
         <div className="flex items-center gap-4">
-          <Button onClick={handleSignup}>Signup</Button>
+          <Button onClick={handleSignup}>
+            <KeyRoundIcon className="w-5 h-5" />
+            Signup
+          </Button>
           <Button onClick={handleNip07Login} disabled={loading}>
             {loading ? "Logging in..." : "Login with NIP-07"}
           </Button>

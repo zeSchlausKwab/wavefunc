@@ -8,6 +8,7 @@ import { StationManagementSheet } from "./StationManagementSheet";
 import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -46,7 +47,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 relative group border-2 border-black">
+    <Card className="relative group">
       {/* Top Actions */}
       <div className="absolute top-2 right-2 z-10 flex gap-2">
         {/* Favorites Dropdown */}
@@ -246,6 +247,6 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
         open={showDebugDialog}
         onOpenChange={setShowDebugDialog}
       />
-    </div>
+    </Card>
   );
 };

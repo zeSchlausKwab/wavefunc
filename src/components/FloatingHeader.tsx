@@ -32,7 +32,7 @@ export function FloatingHeader({
   };
 
   return (
-    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-2 border-black h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl items-center">
+    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-2 border-black h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl">
       <div className="px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <Link
@@ -177,11 +177,11 @@ export function FloatingHeader({
         {/* Mobile Menu - Slide down reveal */}
         {isMobile && (
           <div
-            className={`overflow-hidden transition-all duration-300 border-black ease-in-out bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 ${
-              mobileMenuOpen ? "max-h-96 mt-4 p-2 border-2" : "max-h-0 p-0 border-0"
+            className={`overflow-hidden transition-all duration-300  ease-in-out bg-white/30 dark:bg-gray-900/30 ${
+              mobileMenuOpen ? "max-h-96 mt-4 p-2 shadow-brutal backdrop-blur-xl border-brutal" : "max-h-0 p-0 border-0"
             }`}
           >
-            <div className="space-y-4 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="space-y-4 pb-2">
               {/* Search Bar */}
               <form onSubmit={handleSubmit}>
                 <div className="relative">
