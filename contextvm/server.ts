@@ -44,6 +44,8 @@ async function main() {
         console.log(`🎧 Extracting metadata from: ${url}`);
         const metadata = await extractIcecastMetadata(url);
 
+        console.log(`✅ Extracted metadata:`, metadata);
+
         return {
           content: [
             {

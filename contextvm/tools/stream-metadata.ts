@@ -1,6 +1,8 @@
 // Stream Metadata Extraction Tool
 // Extracts "now playing" info from Icecast/Shoutcast streams
 
+import { probeStream } from "./probe.ts";
+
 interface StreamMetadata {
   title?: string;
   artist?: string;
@@ -9,15 +11,217 @@ interface StreamMetadata {
   genre?: string;
   bitrate?: string;
   description?: string;
+  listeners?: number;
+  method?: string; // How the metadata was extracted
+  url?: string; // Source URL (aligned with NowPlaying)
+  source?: 'ICY' | 'HLS-ID3' | 'PLAYLIST' | 'JSON' | 'HEADERS' | 'STREAM' | 'UNKNOWN'; // Source type (aligned with NowPlaying)
+  raw?: Record<string, unknown>; // Raw metadata (aligned with NowPlaying)
+  notes?: string; // Additional notes (aligned with NowPlaying)
 }
 
 /**
  * Extract metadata from Icecast/Shoutcast stream
- * Makes a HEAD request with Icy-MetaData: 1 header
+ * Tries multiple strategies to get the best metadata
  */
 export async function extractIcecastMetadata(
   url: string
 ): Promise<StreamMetadata> {
+  try {
+    // Strategy 0: Try the new probe stream function first
+    const probeResult = await tryProbeStream(url);
+    if (probeResult && (probeResult.title || probeResult.station)) {
+      console.log(`✅ Extracted metadata via probe stream`);
+      return probeResult;
+    }
+
+    // Strategy 1: Try common Icecast JSON endpoints
+    const jsonMetadata = await tryIcecastJsonEndpoints(url);
+    if (jsonMetadata && (jsonMetadata.title || jsonMetadata.station)) {
+      console.log(`✅ Extracted metadata via JSON endpoint`);
+      return jsonMetadata;
+    }
+
+    // Strategy 2: Try stream headers with HEAD request
+    const headerMetadata = await tryStreamHeaders(url);
+    if (headerMetadata && (headerMetadata.title || headerMetadata.station)) {
+      console.log(`✅ Extracted metadata via stream headers`);
+      return headerMetadata;
+    }
+
+    // Strategy 3: Try reading from stream data
+    const streamMetadata = await tryStreamData(url);
+    if (streamMetadata && (streamMetadata.title || streamMetadata.station)) {
+      console.log(`✅ Extracted metadata via stream data`);
+      return streamMetadata;
+    }
+
+    // No metadata found
+    console.warn(`⚠️ No metadata available for ${url}`);
+    return {
+      url,
+      source: "UNKNOWN",
+      station: "Unknown",
+      title: "No metadata available",
+      method: "none",
+    };
+  } catch (error: any) {
+    console.error(`❌ Stream metadata extraction error: ${error.message}`);
+    throw new Error(`Failed to extract metadata: ${error.message}`);
+  }
+}
+
+/**
+ * Strategy 0: Try the new probe stream function
+ * This handles ICY, HLS-ID3, and playlist resolution
+ */
+async function tryProbeStream(url: string): Promise<StreamMetadata | null> {
+  try {
+    const result = await probeStream(url);
+    
+    // Convert NowPlaying to StreamMetadata format
+    const metadata: StreamMetadata = {
+      url: result.url,
+      source: result.source,
+      method: `probe:${result.source}`,
+    };
+
+    if (result.station) metadata.station = result.station;
+    if (result.artist) metadata.artist = result.artist;
+    if (result.title) {
+      metadata.title = result.title;
+      metadata.song = result.title; // Also set as song for compatibility
+    }
+    if (result.raw) metadata.raw = result.raw;
+    if (result.notes) metadata.notes = result.notes;
+
+    // If we have artist and title, combine them for the title field
+    if (result.artist && result.title) {
+      metadata.title = `${result.artist} - ${result.title}`;
+    }
+
+    return metadata;
+  } catch (error: any) {
+    console.warn(`⚠️ Probe stream failed: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Strategy 1: Try common Icecast JSON endpoints
+ * These endpoints provide rich metadata without parsing the stream
+ */
+async function tryIcecastJsonEndpoints(
+  streamUrl: string
+): Promise<StreamMetadata | null> {
+  try {
+    const url = new URL(streamUrl);
+    const baseUrl = `${url.protocol}//${url.host}`;
+    const mountpoint = url.pathname;
+
+    // Common Icecast JSON endpoints to try
+    const endpoints = [
+      `${baseUrl}/status-json.xsl`,
+      `${baseUrl}/stats`,
+      `${baseUrl}/status.xsl?mount=${mountpoint}`,
+      `${baseUrl}/json.xsl`,
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "WaveFunc/1.0",
+          },
+          signal: AbortSignal.timeout(5000), // 5 second timeout
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const metadata = parseIcecastJson(data, mountpoint);
+
+        if (metadata) {
+          metadata.url = streamUrl;
+          metadata.source = "JSON";
+          metadata.method = `json:${endpoint}`;
+          return metadata;
+        }
+      } catch (e) {
+        // Try next endpoint
+        continue;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Parse Icecast JSON response to extract metadata
+ */
+function parseIcecastJson(
+  data: any,
+  mountpoint: string
+): StreamMetadata | null {
+  try {
+    // Icecast 2.4+ format
+    if (data.icestats?.source) {
+      const sources = Array.isArray(data.icestats.source)
+        ? data.icestats.source
+        : [data.icestats.source];
+
+      // Find matching mountpoint or use first source
+      const source =
+        sources.find((s: any) => s.listenurl?.includes(mountpoint)) ||
+        sources[0];
+
+      if (source) {
+        const metadata: StreamMetadata = {};
+
+        if (source.title) {
+          metadata.title = source.title;
+          parseTitle(source.title, metadata);
+        }
+        if (source.server_name) metadata.station = source.server_name;
+        if (source.server_description) metadata.description = source.server_description;
+        if (source.genre) metadata.genre = source.genre;
+        if (source.bitrate) metadata.bitrate = source.bitrate.toString();
+        if (source.listeners) metadata.listeners = parseInt(source.listeners);
+
+        return metadata;
+      }
+    }
+
+    // SHOUTcast DNAS format
+    if (data.songtitle || data.servertitle) {
+      const metadata: StreamMetadata = {};
+
+      if (data.songtitle) {
+        metadata.title = data.songtitle;
+        parseTitle(data.songtitle, metadata);
+      }
+      if (data.servertitle) metadata.station = data.servertitle;
+      if (data.servergenre) metadata.genre = data.servergenre;
+      if (data.bitrate) metadata.bitrate = data.bitrate.toString();
+      if (data.currentlisteners) metadata.listeners = parseInt(data.currentlisteners);
+
+      return metadata;
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Strategy 2: Try extracting from stream headers
+ */
+async function tryStreamHeaders(url: string): Promise<StreamMetadata | null> {
   try {
     const response = await fetch(url, {
       method: "HEAD",
@@ -25,11 +229,19 @@ export async function extractIcecastMetadata(
         "Icy-MetaData": "1",
         "User-Agent": "WaveFunc/1.0",
       },
+      signal: AbortSignal.timeout(5000),
     });
 
-    const metadata: StreamMetadata = {};
+    console.log(`📋 Response status: ${response.status} ${response.statusText}`);
 
-    // Extract Icecast headers
+    if (!response.ok) {
+      console.warn(`⚠️ Non-OK response: ${response.status}`);
+      return null;
+    }
+
+    console.log(`📋 Response: ${JSON.stringify(response)}`);
+
+    const metadata: StreamMetadata = {};
     const headers = response.headers;
 
     // Station name
@@ -64,15 +276,52 @@ export async function extractIcecastMetadata(
       parseTitle(currentSong, metadata);
     }
 
-    // If no metadata found, try a GET request to parse stream
-    if (!metadata.title && !metadata.station) {
-      return await extractFromStreamData(url, headers);
+    if (Object.keys(metadata).length > 0) {
+      metadata.url = url;
+      metadata.source = "HEADERS";
+      metadata.method = "headers";
+      return metadata;
     }
 
-    return metadata;
+    return null;
   } catch (error: any) {
-    console.error(`Stream metadata extraction error: ${error.message}`);
-    throw new Error(`Failed to extract metadata: ${error.message}`);
+    console.error(`⚠️ Header extraction failed: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Strategy 3: Try extracting from stream data
+ */
+async function tryStreamData(url: string): Promise<StreamMetadata | null> {
+  try {
+    // First get headers to check for icy-metaint
+    const headResponse = await fetch(url, {
+      method: "HEAD",
+      headers: {
+        "Icy-MetaData": "1",
+        "User-Agent": "WaveFunc/1.0",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    const metaintStr = headResponse.headers.get("icy-metaint");
+    if (!metaintStr) {
+      return null;
+    }
+
+    const metadata = await extractFromStreamData(url, headResponse.headers);
+    if (metadata && (metadata.title || metadata.station)) {
+      metadata.url = url;
+      metadata.source = "STREAM";
+      metadata.method = "stream-data";
+      return metadata;
+    }
+
+    return null;
+  } catch (error: any) {
+    console.error(`⚠️ Stream data extraction failed: ${error.message}`);
+    return null;
   }
 }
 
