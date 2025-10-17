@@ -1,14 +1,14 @@
-import { LoginSessionButtons } from "./LoginSessionButtom";
-import { WalletButton } from "./WalletButton";
-import { useMedia } from "react-use";
-import { useState } from "react";
-import { AnimatedLogo } from "./AnimatedLogo";
 import { Link } from "@tanstack/react-router";
 import { Heart, Plus } from "lucide-react";
+import { useState } from "react";
+import { useMedia } from "react-use";
 import { useFavorites } from "../lib/hooks/useFavorites";
+import { AnimatedLogo } from "./AnimatedLogo";
+import { LoginSessionButtons } from "./LoginSessionButtom";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { WalletButton } from "./WalletButton";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -32,7 +32,7 @@ export function FloatingHeader({
   };
 
   return (
-    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-2 border-black h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl">
+    <header className="fixed top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-brutal h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-2xl">
       <div className="px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <Link
@@ -177,8 +177,8 @@ export function FloatingHeader({
         {/* Mobile Menu - Slide down reveal */}
         {isMobile && (
           <div
-            className={`overflow-hidden transition-all duration-300  ease-in-out bg-white/30 dark:bg-gray-900/30 ${
-              mobileMenuOpen ? "max-h-96 mt-4 p-2 shadow-brutal backdrop-blur-xl border-brutal" : "max-h-0 p-0 border-0"
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              mobileMenuOpen ? "max-h-96 mt-4 p-2 shadow-brutal backdrop-blur-xl border-brutal bg-white/30 dark:bg-gray-900/30" : "max-h-0 p-0 border-0"
             }`}
           >
             <div className="space-y-4 pb-2">
