@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Heart, Plus } from "lucide-react";
+import { Heart, Menu, Plus } from "lucide-react";
 import { useState } from "react";
 import { useMedia } from "react-use";
 import { useFavorites } from "../lib/hooks/useFavorites";
@@ -8,6 +8,11 @@ import { LoginSessionButtons } from "./LoginSessionButtom";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "./ui/sheet";
 import { WalletButton } from "./WalletButton";
 
 interface FloatingHeaderProps {
@@ -144,125 +149,98 @@ export function FloatingHeader({
             </>
           ) : (
             /* Mobile Layout */
-            <Button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button aria-label="Toggle menu">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="top"
+                className="backdrop-blur-xl p-4 bg-white/30 dark:bg-gray-900/30 border-brutal shadow-brutal"
               >
-                {mobileMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
-              </svg>
-            </Button>
+                <div className="space-y-4 mt-4">
+                  {/* Search Bar */}
+                  <form onSubmit={handleSubmit}>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Search stations..."
+                      />
+                      <Button type="submit" disabled={!searchInput.trim()}>
+                        {/* TODO: lucide icons */}
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
+                      </Button>
+                    </div>
+                  </form>
+
+                  {/* Navigation */}
+                  <nav className="flex flex-col gap-2">
+                    <Link
+                      to="/"
+                      search={{ search: "" }}
+                      className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                      activeProps={{
+                        className:
+                          "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg",
+                      }}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Home
+                    </Link>
+                    <Link
+                      to="/favorites"
+                      className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2"
+                      activeProps={{
+                        className:
+                          "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg flex items-center gap-2",
+                      }}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Heart className="w-4 h-4" />
+                      Favorites
+                      {getFavoriteCount() > 0 && (
+                        <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
+                          {getFavoriteCount()}
+                        </span>
+                      )}
+                    </Link>
+
+                    <StationManagementSheet
+                      mode="add"
+                      trigger={
+                        <Button>
+                          <Plus className="w-4 h-4" />
+                          Add Station
+                        </Button>
+                      }
+                    />
+                  </nav>
+
+                  {/* Auth Buttons */}
+                  <div className="flex flex-col gap-2 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
+                    <WalletButton />
+                    <LoginSessionButtons />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
           )}
         </div>
-
-        {/* Mobile Menu - Slide down reveal */}
-        {isMobile && (
-          <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out ${
-              mobileMenuOpen ? "max-h-96 mt-4 p-2 shadow-brutal backdrop-blur-xl border-brutal bg-white/30 dark:bg-gray-900/30" : "max-h-0 p-0 border-0"
-            }`}
-          >
-            <div className="space-y-4 pb-2">
-              {/* Search Bar */}
-              <form onSubmit={handleSubmit}>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search stations..."
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!searchInput.trim()}
-                  >
-
-                    {/* TODO: licude icons */}
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </Button>
-                </div>
-              </form>
-
-              {/* Navigation */}
-              <nav className="flex flex-col gap-2">
-                <Link
-                  to="/"
-                  search={{ search: "" }}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
-                  activeProps={{
-                    className:
-                      "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg",
-                  }}
-                >
-                  Home
-                </Link>
-                <Link
-                  to="/favorites"
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2"
-                  activeProps={{
-                    className:
-                      "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg flex items-center gap-2",
-                  }}
-                >
-                  <Heart className="w-4 h-4" />
-                  Favorites
-                  {getFavoriteCount() > 0 && (
-                    <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
-                      {getFavoriteCount()}
-                    </span>
-                  )}
-                </Link>
-
-                <StationManagementSheet
-                  mode="add"
-                  trigger={
-                    <Button>
-                      <Plus className="w-4 h-4" />
-                      Add Station
-                    </Button>
-                  }
-                />
-              </nav>
-
-              {/* Auth Buttons */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
-                <WalletButton />
-                <LoginSessionButtons />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </header>
   );

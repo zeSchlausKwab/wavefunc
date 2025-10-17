@@ -8,7 +8,8 @@
       "Bash(pkill:*)",
       "Bash(bun run:*)",
       "Bash(bun add:*)",
-      "Bash(bun remove:*)"
+      "Bash(bun remove:*)",
+      "Bash(bunx shadcn@latest add:*)"
     ],
     "deny": [],
     "ask": []
