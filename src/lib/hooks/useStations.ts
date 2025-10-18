@@ -108,7 +108,6 @@ export function useStationsObserver(
 
     sub.on("event", (event: any) => {
       const station = NDKStation.from(event);
-      console.log(`📋 station: ${station.streams[0]?.url}`);
       if (!eventMap.has(station.id)) {
         eventMap.set(station.id, station);
         setEvents(Array.from(eventMap.values()));

@@ -1,4 +1,4 @@
-import NDK, { NDKEvent, type NostrEvent } from "@nostr-dev-kit/react";
+import NDK, { NDKEvent, type NostrEvent, type ContentTaggingOptions, NDKKind } from "@nostr-dev-kit/react";
 import { z } from "zod";
 
 // Zod schemas for validation and type inference
@@ -574,6 +574,68 @@ export class NDKStation extends NDKEvent {
    */
   get address(): string {
     return `31237:${this.pubkey}:${this.stationId}`;
+  }
+
+  /**
+   * Override react method to use both 'a' and 'e' tags for replaceable events
+   * This ensures maximum compatibility with relays and proper referencing
+   */
+  override async react(content: string, publish = true): Promise<NDKEvent> {
+    if (!this.ndk) throw new Error("No NDK instance found");
+    this.ndk.assertSigner();
+
+    const reaction = new NDKEvent(this.ndk, {
+      kind: NDKKind.Reaction,
+      content,
+    } as NostrEvent);
+
+
+    reaction.tags.push(["a", this.address]);
+    reaction.tags.push(["e", this.id]);
+    reaction.tags.push(["k", `${this.kind}`]);
+
+    if (publish) await reaction.publish();
+
+    return reaction;
+  }
+
+  /**
+   * Override reply method to create proper NIP-22 comments for addressable events
+   * Per NIP-22, comments on addressable events should use uppercase A, K, P tags
+   *
+   * @param forceNip22 - Force NIP-22 comment format (kind 1111)
+   * @param opts - Content tagging options (unused, for signature compatibility)
+   * @returns NDKEvent ready to have content set and be published
+   */
+  override reply(forceNip22 = false, opts?: ContentTaggingOptions): NDKEvent {
+    if (!this.ndk) throw new Error("No NDK instance found");
+
+    const replyEvent = new NDKEvent(this.ndk, {
+      kind: forceNip22 ? 1111 : 1, // NIP-22 Generic Reply vs regular note
+      content: "",
+    } as NostrEvent);
+
+    if (forceNip22) {
+      // NIP-22: Use uppercase tags for root scope on addressable events
+      // A tag: event address (kind:pubkey:d-tag)
+      replyEvent.tags.push(["A", this.address]);
+
+      // K tag: root event's kind
+      replyEvent.tags.push(["K", `${this.kind}`]);
+
+      // P tag: root event's pubkey
+      replyEvent.tags.push(["P", this.pubkey]);
+
+      // Also include 'e' tag for backwards compatibility with clients
+      // that don't fully support NIP-22 addressable event references
+      replyEvent.tags.push(["e", this.id]);
+    } else {
+      // Regular reply: use lowercase 'e' tag
+      replyEvent.tags.push(["e", this.id, "", "root"]);
+      replyEvent.tags.push(["p", this.pubkey]);
+    }
+
+    return replyEvent;
   }
 
   /**

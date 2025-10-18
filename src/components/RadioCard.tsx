@@ -11,6 +11,7 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { StreamSelector } from "./StreamSelector";
 import { FileJsonIcon } from "./ui/icons/lucide-file-json";
+import { SocialActions } from "./SocialActions";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -205,8 +206,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           </div>
         )}
 
+        {/* Social Actions */}
+        <div className="mb-3 pb-3 border-b border-gray-100">
+          <SocialActions station={station} />
+        </div>
+
         {/* Station Metadata */}
-        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center space-x-2">
             {station.location && <span>{station.location}</span>}
             {station.languages && station.languages.length > 0 && (

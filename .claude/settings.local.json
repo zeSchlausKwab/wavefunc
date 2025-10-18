@@ -9,7 +9,8 @@
       "Bash(bun run:*)",
       "Bash(bun add:*)",
       "Bash(bun remove:*)",
-      "Bash(bunx shadcn@latest add:*)"
+      "Bash(bunx shadcn@latest add:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": [],
     "ask": []
