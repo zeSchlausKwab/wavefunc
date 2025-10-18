@@ -7,11 +7,14 @@
         "@contextvm/sdk": "^0.1.29",
         "@faker-js/faker": "^10.0.0",
         "@modelcontextprotocol/sdk": "^1.20.0",
-        "@nostr-dev-kit/ndk": "2.17.2",
+        "@nostr-dev-kit/blossom": "^6.1.0",
+        "@nostr-dev-kit/messages": "^0.1.3",
+        "@nostr-dev-kit/ndk": "^2.17.10",
         "@nostr-dev-kit/ndk-cache-dexie": "2.6.44",
-        "@nostr-dev-kit/ndk-hooks": "^1.3.4",
-        "@nostr-dev-kit/ndk-wallet": "^0.7.1",
-        "@nostr-dev-kit/sync": "^0.3.4",
+        "@nostr-dev-kit/react": "^1.3.12",
+        "@nostr-dev-kit/sync": "^0.3.5",
+        "@nostr-dev-kit/wallet": "^0.8.7",
+        "@nostr-dev-kit/wot": "^0.3.6",
         "@radix-ui/react-dialog": "^1.1.15",
         "@radix-ui/react-dropdown-menu": "^2.1.16",
         "@radix-ui/react-label": "^2.1.7",
@@ -26,7 +29,6 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "hls.js": "^1.6.13",
-        "lucide-react": "^0.545.0",
         "nostr-tools": "^2.17.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
@@ -88,15 +90,21 @@
 
     "@noble/secp256k1": ["@noble/secp256k1@2.3.0", "", {}, "sha512-0TQed2gcBbIrh7Ccyw+y/uZQvbJwm7Ao4scBUxqpBCcsOlZG0O4KGfjtNAy/li4W8n1xt3dxrwJ0beZ2h2G6Kw=="],
 
-    "@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.2", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-P8bT7D4uCEglB4gnmMy8B2IVFgHcfHQIOUw/YAajWxfIIiZ2geP11zR1/eEWZLKassSDox2T67TbLeAr+5a7xg=="],
+    "@nostr-dev-kit/blossom": ["@nostr-dev-kit/blossom@6.1.0", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.7" } }, "sha512-QzV9J9jL8uMUjeOixM0ur0SrggTpnxVMjG5CqcZNpo21Uii1bgojJwuunsEgJsLE6wSRgcKg86Q7txQzORFpoA=="],
+
+    "@nostr-dev-kit/messages": ["@nostr-dev-kit/messages@0.1.3", "", { "dependencies": { "eventemitter3": "^5.0.1" }, "peerDependencies": { "@nostr-dev-kit/ndk": "^2.0.0", "nostr-tools": "^2.17.0" } }, "sha512-fhb7v+Z/cf8jVSCzFMoScZjINtOlzAOSjCxCoerpWUn4RH41MsgyonBHMENIf6SJHNRY4ygOaFakFErZerzXug=="],
+
+    "@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.10", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.7", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2.0.0" }, "peerDependencies": { "nostr-tools": "^2.17.0" } }, "sha512-4wz+TRchByFwTqR9NJG1zZ+Ng0zxgRpVZ1kZXuVVJHxsxmi/Iggq+rlUEN+2re8qYom0mY5nTs/iIklFb6JXoQ=="],
 
     "@nostr-dev-kit/ndk-cache-dexie": ["@nostr-dev-kit/ndk-cache-dexie@2.6.44", "", { "dependencies": { "@nostr-dev-kit/ndk": "2.15.2", "debug": "^4.3.7", "dexie": "^4.0.8", "nostr-tools": "^2.4.0", "typescript-lru-cache": "^2.0.0" } }, "sha512-ek93oUwcKnJjkCgOvNQ/oXBGOULXhBgMytgF3Z/vHhm0UTjSU9fxlkCNjjla2lpCGUh4NNO+x3X0v30IxKaVrA=="],
 
-    "@nostr-dev-kit/ndk-hooks": ["@nostr-dev-kit/ndk-hooks@1.3.4", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.15.0", "@nostr-dev-kit/ndk-wallet": "0.7.0", "@testing-library/react": "^14.1.2", "zustand": "^5" }, "peerDependencies": { "react": "*" } }, "sha512-LcuPiX2hDQv1mNBjiEI+vrFiVA+iU1wkIMGs+bJM7z+t6G3ql96gJZjUUFthZXzFvXuYZ6YzdYJMduQt4CQ1fw=="],
+    "@nostr-dev-kit/react": ["@nostr-dev-kit/react@1.3.12", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.0", "@nostr-dev-kit/wallet": "0.8.6", "@testing-library/react": "^14.1.2", "zustand": "^5" }, "peerDependencies": { "react": "*" } }, "sha512-DVE6KRwzXGc5278TxULr9tIZ8+ZwMxXvj6VeIRrPWjDkU9x1gYVYAKh8uP/XqIDAuJrUt3KqfLuOu/UFmukvdQ=="],
 
-    "@nostr-dev-kit/ndk-wallet": ["@nostr-dev-kit/ndk-wallet@0.7.1", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.15.0", "debug": "^4.3.4", "light-bolt11-decoder": "^3.0.0", "tseep": "^1.3.1", "typescript": "^5.8.2", "webln": "^0.3.2" }, "peerDependencies": { "@cashu/cashu-ts": "^2.1", "@cashu/crypto": "*" } }, "sha512-Gun88viV+vsKRTobk/9/b/z3fVWvdpWu9hQNCBSD1/QjCUYhy/DvpX+lTd7bq2lBPU52gqck8e1irj10UJaSfA=="],
+    "@nostr-dev-kit/sync": ["@nostr-dev-kit/sync@0.3.5", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.7", "nostr-tools": "^2.17.0", "tseep": "^1.3.1" } }, "sha512-ZCJDaBePYSlsSS6Rwl9DkMAH5L8Kyyu1aAlS6iTbgsuVyKsZu5MDQNeSPJxD06dH/68V3UFBbBah0ViD9XI77Q=="],
 
-    "@nostr-dev-kit/sync": ["@nostr-dev-kit/sync@0.3.4", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.3", "nostr-tools": "^2.10.2", "tseep": "^1.3.1" } }, "sha512-FcA7ehS6jRn3n7vzbTZg6j5Xcjq2boK6TDh4h3WzRRXqFNU0C+TTGm2wQq0utCs5Fn3Qr3I1S4vPhsfIhDblrg=="],
+    "@nostr-dev-kit/wallet": ["@nostr-dev-kit/wallet@0.8.7", "", { "dependencies": { "@nostr-dev-kit/sync": "^0.3.4", "debug": "^4.3.7", "light-bolt11-decoder": "^3.2.0", "tseep": "^1.3.1", "typescript": "^5.9.3", "webln": "^0.3.2", "zustand": "^5.0.3" }, "peerDependencies": { "@cashu/cashu-ts": "^2.1", "@cashu/crypto": "*", "@nostr-dev-kit/ndk": "^2.17.0" } }, "sha512-wOcRVSXPN+/KjQKxn8n0xJyCU0zw5mX8AkCs4Gy/OQI0zARYY/N6i9wPA/l+bT/haXfXGlBEra78zemqb7Fc8A=="],
+
+    "@nostr-dev-kit/wot": ["@nostr-dev-kit/wot@0.3.6", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.3", "@nostr-dev-kit/sync": "^0.3.4", "debug": "^4.3.4", "typescript": "^5.8.2" } }, "sha512-vYhcmP2ro3vE1SJQFh6kKVgmP5MUuE19j0rgE9J8d5rrvigeUqaxowFMlQuGK5FxEv4m/3ai5FW+r458wZ6HDg=="],
 
     "@open-draft/deferred-promise": ["@open-draft/deferred-promise@2.2.0", "", {}, "sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA=="],
 
@@ -410,6 +418,8 @@
 
     "etag": ["etag@1.8.1", "", {}, "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg=="],
 
+    "eventemitter3": ["eventemitter3@5.0.1", "", {}, "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA=="],
+
     "eventsource": ["eventsource@3.0.7", "", { "dependencies": { "eventsource-parser": "^3.0.1" } }, "sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA=="],
 
     "eventsource-parser": ["eventsource-parser@3.0.6", "", {}, "sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg=="],
@@ -529,8 +539,6 @@
     "json-schema-traverse": ["json-schema-traverse@0.4.1", "", {}, "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg=="],
 
     "light-bolt11-decoder": ["light-bolt11-decoder@3.2.0", "", { "dependencies": { "@scure/base": "1.1.1" } }, "sha512-3QEofgiBOP4Ehs9BI+RkZdXZNtSys0nsJ6fyGeSiAGCBsMwHGUDS/JQlY/sTnWs91A2Nh0S9XXfA8Sy9g6QpuQ=="],
-
-    "lucide-react": ["lucide-react@0.545.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-7r1/yUuflQDSt4f1bpn5ZAocyIxcTyVyBBChSVtBKn5M+392cPmI5YJMWOJKk/HUWGm5wg83chlAZtCcGbEZtw=="],
 
     "lz-string": ["lz-string@1.5.0", "", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 
@@ -800,11 +808,15 @@
 
     "@nostr-dev-kit/ndk-cache-dexie/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.15.2", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-GlvdkiKkqFC+cqOYXGx90NkExRRLXh/lKxfdJHfyUKZjNv2MZxp+VLDrxWgGndOkBDYSJTBbqJSE+Z3pVl/hYA=="],
 
-    "@nostr-dev-kit/ndk-hooks/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.15.2", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-GlvdkiKkqFC+cqOYXGx90NkExRRLXh/lKxfdJHfyUKZjNv2MZxp+VLDrxWgGndOkBDYSJTBbqJSE+Z3pVl/hYA=="],
+    "@nostr-dev-kit/react/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.4", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-oFwAaze76OPx9ZUAJzGLMxSpXbmb7TCaXubaEnOx7VFro9zntvtA5Gb9Zrv7hUgoXvvYaQBDU2NivAlNlcuUfQ=="],
 
-    "@nostr-dev-kit/ndk-hooks/@nostr-dev-kit/ndk-wallet": ["@nostr-dev-kit/ndk-wallet@0.7.0", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.15.0", "debug": "^4.3.4", "light-bolt11-decoder": "^3.0.0", "tseep": "^1.1.1", "typescript": "^5.8.2", "webln": "^0.3.2" }, "peerDependencies": { "@cashu/cashu-ts": "^2.1", "@cashu/crypto": "*" } }, "sha512-pz7ynrNLcFz09yiJ792o9vrqKkop/E1YiqVEO+CwESnWCEXLUpjfFZjbuj6gy9w6zn0QLA4v9ynkbaJMG5293Q=="],
+    "@nostr-dev-kit/react/@nostr-dev-kit/wallet": ["@nostr-dev-kit/wallet@0.8.6", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.0", "@nostr-dev-kit/sync": "^0.3.2", "debug": "^4.3.4", "light-bolt11-decoder": "^3.0.0", "tseep": "^1.3.1", "typescript": "^5.8.2", "webln": "^0.3.2", "zustand": "^5.0.2" }, "peerDependencies": { "@cashu/cashu-ts": "^2.1", "@cashu/crypto": "*" } }, "sha512-A/az4srCYe7L7qhKBGRGG583/XpIgnFTYK3aQuxQUCSI5E5ZMUJsjik5rKjCmR+azdhBYiLIpDiKDdkNxaScSg=="],
 
-    "@nostr-dev-kit/sync/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.4", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-oFwAaze76OPx9ZUAJzGLMxSpXbmb7TCaXubaEnOx7VFro9zntvtA5Gb9Zrv7hUgoXvvYaQBDU2NivAlNlcuUfQ=="],
+    "@nostr-dev-kit/wallet/@nostr-dev-kit/sync": ["@nostr-dev-kit/sync@0.3.4", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.3", "nostr-tools": "^2.10.2", "tseep": "^1.3.1" } }, "sha512-FcA7ehS6jRn3n7vzbTZg6j5Xcjq2boK6TDh4h3WzRRXqFNU0C+TTGm2wQq0utCs5Fn3Qr3I1S4vPhsfIhDblrg=="],
+
+    "@nostr-dev-kit/wallet/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@nostr-dev-kit/wot/@nostr-dev-kit/sync": ["@nostr-dev-kit/sync@0.3.4", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.3", "nostr-tools": "^2.10.2", "tseep": "^1.3.1" } }, "sha512-FcA7ehS6jRn3n7vzbTZg6j5Xcjq2boK6TDh4h3WzRRXqFNU0C+TTGm2wQq0utCs5Fn3Qr3I1S4vPhsfIhDblrg=="],
 
     "@scure/bip32/@noble/curves": ["@noble/curves@1.1.0", "", { "dependencies": { "@noble/hashes": "1.3.1" } }, "sha512-091oBExgENk/kGj3AZmtBDMpxQPDtxQABR2B9lb1JbVTs6ytdzZNwvhxQ4MWasRNEzlbEH8jCWFCwhF/Obj5AA=="],
 
@@ -837,6 +849,12 @@
     "pretty-format/ansi-styles": ["ansi-styles@5.2.0", "", {}, "sha512-Cxwpt2SfTzTtXcfOlzGEee8O+c+MmUgGrNiBcXnuWxuFJHe6a5Hz7qwhwe5OgaSYI0IJvkLqWX1ASG+cJOkEiA=="],
 
     "stacktrace-gps/source-map": ["source-map@0.5.6", "", {}, "sha512-MjZkVp0NHr5+TPihLcadqnlVoGIoWo4IBHptutGh9wI3ttUYvCG26HkSuDi+K6lsZ25syXJXcctwgyVCt//xqA=="],
+
+    "@nostr-dev-kit/react/@nostr-dev-kit/wallet/@nostr-dev-kit/sync": ["@nostr-dev-kit/sync@0.3.4", "", { "dependencies": { "@nostr-dev-kit/ndk": "^2.17.3", "nostr-tools": "^2.10.2", "tseep": "^1.3.1" } }, "sha512-FcA7ehS6jRn3n7vzbTZg6j5Xcjq2boK6TDh4h3WzRRXqFNU0C+TTGm2wQq0utCs5Fn3Qr3I1S4vPhsfIhDblrg=="],
+
+    "@nostr-dev-kit/wallet/@nostr-dev-kit/sync/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.4", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-oFwAaze76OPx9ZUAJzGLMxSpXbmb7TCaXubaEnOx7VFro9zntvtA5Gb9Zrv7hUgoXvvYaQBDU2NivAlNlcuUfQ=="],
+
+    "@nostr-dev-kit/wot/@nostr-dev-kit/sync/@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.17.4", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.6", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2" }, "peerDependencies": { "nostr-tools": "^2" } }, "sha512-oFwAaze76OPx9ZUAJzGLMxSpXbmb7TCaXubaEnOx7VFro9zntvtA5Gb9Zrv7hUgoXvvYaQBDU2NivAlNlcuUfQ=="],
 
     "@scure/bip32/@noble/curves/@noble/hashes": ["@noble/hashes@1.3.1", "", {}, "sha512-EbqwksQwz9xDRGfDST86whPBgM65E0OH/pCgqW0GBVzO22bNE+NuIbeTb714+IfSjU3aRk47EUvXIb5bTsenKA=="],
 

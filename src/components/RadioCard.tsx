@@ -10,6 +10,7 @@ import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { StreamSelector } from "./StreamSelector";
+import { FileJsonIcon } from "./ui/icons/lucide-file-json";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -216,21 +217,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             <Button
-              onClick={handlePlayClick}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                isCurrentlyPlaying
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-              title={isCurrentlyPlaying ? "Pause" : "Play"}
-            >
-              {isCurrentlyPlaying ? "Playing" : "Play"}
-            </Button>
-            <Button
+              size="icon-sm"
+              variant="ghost"
               onClick={() => setShowDebugDialog(true)}
               title="View raw event data"
             >
-              Debug
+              <FileJsonIcon className="w-4 h-4" />
             </Button>
           </div>
         </div>

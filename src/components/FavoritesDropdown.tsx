@@ -1,8 +1,10 @@
-import { ChevronDown, Heart, Plus, Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
+import { HeartIcon } from "./ui/icons/lucide-heart";
+import { SquareChevronDownIcon } from "./ui/icons/lucide-square-chevron-down";
 import { Input } from "./ui/input";
 
 interface FavoritesDropdownProps {
@@ -59,13 +61,14 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
   return (
     <div className="relative">
         <Button
+          variant="secondary"
           onClick={() => setIsOpen(!isOpen)}
           title="Add to favorites"
         >
-          <Heart className={`w-5 h-5 transition-colors ${
+          <HeartIcon className={`w-5 h-5 transition-colors ${
             hasAnyFavorites ? "text-red-500 fill-red-500" : "text-gray-400"
           }`} />
-          <ChevronDown className="w-3 h-3 text-gray-500" />
+          <SquareChevronDownIcon className="w-3 h-3 text-gray-500" />
         </Button>
 
         {isOpen && (
