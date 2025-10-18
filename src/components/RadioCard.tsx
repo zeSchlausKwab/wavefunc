@@ -1,7 +1,7 @@
 import { Pause, Play, MoreVertical, Edit3, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
-import { NDKStation } from "../lib/NDKStation";
+import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
@@ -9,17 +9,21 @@ import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { StreamSelector } from "./StreamSelector";
 
 interface RadioCardProps {
   station: NDKStation;
 }
 
 export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
-  const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  const { currentStation, currentStream, isPlaying, playStation, pause } = usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDebugDialog, setShowDebugDialog] = useState(false);
+  const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
+    station.streams.find(s => s.primary) || station.streams[0]
+  );
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
@@ -29,7 +33,15 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
     if (isCurrentlyPlaying) {
       pause();
     } else {
-      playStation(station);
+      playStation(station, selectedStream);
+    }
+  };
+
+  const handleStreamSelect = (stream: Stream) => {
+    setSelectedStream(stream);
+    // If this station is currently playing, switch to the new stream
+    if (isCurrentStation) {
+      playStation(station, stream);
     }
   };
 
@@ -180,32 +192,15 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           </div>
         )}
 
-        {/* Streams */}
-        {station.streams && station.streams.length > 0 && (
-          <div className="space-y-2 mb-3">
-            <h4 className="text-sm font-medium text-gray-700">Streams:</h4>
-            <div className="space-y-1">
-              {station.streams.slice(0, 2).map((stream, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <span className="text-gray-600 truncate flex-1 mr-2">
-                    {stream.url}
-                  </span>
-                  {stream.quality?.bitrate > 0 && (
-                    <span className="text-gray-500 bg-gray-100 px-1 py-0.5 rounded">
-                      {Math.round(stream.quality.bitrate / 1000)}kbps
-                    </span>
-                  )}
-                </div>
-              ))}
-              {station.streams.length > 2 && (
-                <div className="text-xs text-gray-500">
-                  +{station.streams.length - 2} more streams
-                </div>
-              )}
-            </div>
+        {/* Stream Quality Selector */}
+        {station.streams && station.streams.length > 1 && (
+          <div className="mb-3">
+            <StreamSelector
+              streams={station.streams}
+              selectedStreamUrl={isCurrentStation ? currentStream?.url : selectedStream?.url}
+              onStreamSelect={handleStreamSelect}
+              className="w-full justify-start px-2 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200"
+            />
           </div>
         )}
 

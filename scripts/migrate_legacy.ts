@@ -4,6 +4,11 @@ import NDK, { NDKEvent, NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import { getPublicKey } from "nostr-tools/pure";
 import { readFileSync } from "fs";
 import path from "path";
+import {
+  createGroupingKey,
+  getCleanStationName,
+} from "./lib/station-normalizer";
+import { mergeStations, getMergeStats } from "./lib/station-merger";
 
 // App key for publishing stations
 const APP_PRIVATE_KEY =
@@ -314,19 +319,15 @@ function extractStationsFromSQL(sqlPath: string): LegacyStation[] {
   return stations;
 }
 
-// Group duplicate stations by name + country
+// Group duplicate stations using enhanced normalization
 function groupDuplicateStations(
   stations: LegacyStation[]
 ): Map<string, LegacyStation[]> {
   const groups = new Map<string, LegacyStation[]>();
 
   for (const station of stations) {
-    // Create a key from normalized name + country
-    const name = (station.Name || "").trim().toLowerCase();
-    const country = (station.CountryCode || station.Country || "")
-      .trim()
-      .toLowerCase();
-    const key = `${name}|${country}`;
+    // Use the new normalization key (name + country + homepage)
+    const key = createGroupingKey(station);
 
     if (!groups.has(key)) {
       groups.set(key, []);
@@ -335,26 +336,6 @@ function groupDuplicateStations(
   }
 
   return groups;
-}
-
-// Merge duplicate stations into one with multiple streams
-function mergeDuplicateStations(duplicates: LegacyStation[]): LegacyStation {
-  // Use the first station as the base
-  const base = duplicates[0];
-
-  // Store all unique streams
-  const streams = new Set<string>();
-  duplicates.forEach((dup) => {
-    const url = dup.UrlCache || dup.Url;
-    if (url) streams.add(url);
-  });
-
-  // Return base station (we'll handle multiple streams in the conversion)
-  return {
-    ...base,
-    // Store all duplicates for later processing
-    _duplicates: duplicates,
-  } as any;
 }
 
 // Randomly select N stations (after deduplication)
@@ -370,15 +351,37 @@ function selectRandomStations(
     `   Found ${groups.size} unique stations (from ${stations.length} total)`
   );
 
-  // Merge duplicates
+  // Merge duplicates using new enrichment logic
   const uniqueStations: LegacyStation[] = [];
-  for (const [key, duplicates] of groups.entries()) {
+  let enrichmentCount = 0;
+
+  for (const duplicates of groups.values()) {
+    if (duplicates.length === 0) continue; // Safety check
+
+    const firstStation = duplicates[0];
+    if (!firstStation) continue; // TypeScript safety
+
     if (duplicates.length > 1) {
+      const merged = mergeStations(duplicates);
+      const stats = getMergeStats(duplicates, merged);
+
       console.log(
-        `   📎 Merging ${duplicates.length} versions of "${duplicates[0].Name}"`
+        `   📎 Merging ${duplicates.length} versions of "${getCleanStationName(firstStation)}" → ${stats.streamCount} streams`
       );
+
+      if (stats.enrichedFields.length > 0) {
+        console.log(`      ✨ Enriched: ${stats.enrichedFields.join(", ")}`);
+        enrichmentCount++;
+      }
+
+      uniqueStations.push(merged);
+    } else {
+      uniqueStations.push(mergeStations(duplicates));
     }
-    uniqueStations.push(mergeDuplicateStations(duplicates));
+  }
+
+  if (enrichmentCount > 0) {
+    console.log(`   ✨ Enriched ${enrichmentCount} stations with additional metadata`);
   }
 
   // Randomly select
@@ -394,7 +397,7 @@ async function migrateStations() {
   const allStations = extractStationsFromSQL(sqlPath);
 
   // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 50;
+  const count = process.argv[2] ? parseInt(process.argv[2]) : 5000;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 
