@@ -1,5 +1,5 @@
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
-import { useSubscribe, wrapEvent, useNDK } from "@nostr-dev-kit/ndk-hooks";
+import { useSubscribe, wrapEvent, useNDK } from "@nostr-dev-kit/react";
 import { useEffect, useState } from "react";
 import { NDKStation } from "../NDKStation";
 

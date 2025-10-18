@@ -4,7 +4,7 @@ import {
     useNDKCurrentUser,
     useNDKSessionLogin,
     useNDKSessionLogout
-} from "@nostr-dev-kit/ndk-hooks";
+} from "@nostr-dev-kit/react";
 import { useState } from "react";
 import { MiniProfile } from "./MiniProfile";
 import { Button } from "./ui/button";

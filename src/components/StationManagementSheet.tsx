@@ -1,7 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { Plus, Edit3, Trash2, RadioIcon } from "lucide-react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
+import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -216,7 +216,7 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
       };
 
       const ndkDeleteEvent = new (
-        await import("@nostr-dev-kit/ndk-hooks")
+        await import("@nostr-dev-kit/react")
       ).NDKEvent(ndk, deleteEvent);
       ndkDeleteEvent.pubkey = station.pubkey;
 

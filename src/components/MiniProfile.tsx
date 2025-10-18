@@ -2,7 +2,7 @@ import {
   NDKUser,
   useProfileValue,
   type Hexpubkey,
-} from "@nostr-dev-kit/ndk-hooks";
+} from "@nostr-dev-kit/react";
 
 export function MiniProfile({
   userOrPubkey,

@@ -3,8 +3,8 @@ import {
   useNDKCurrentUser,
   useNDKWallet,
   useSubscribe,
-} from "@nostr-dev-kit/ndk-hooks";
-// import { NDKCashuWallet } from "@nostr-dev-kit/ndk-wallet";
+} from "@nostr-dev-kit/react";
+// import { NDKCashuWallet } from "@nostr-dev-kit/wallet";
 import { useEffect } from "react";
 
 export function WalletButton() {

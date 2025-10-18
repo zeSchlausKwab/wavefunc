@@ -5,7 +5,7 @@ import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { useNDKCurrentUser } from "@nostr-dev-kit/ndk-hooks";
+import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";

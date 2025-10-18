@@ -1,4 +1,4 @@
-import { NDKKind, useSubscribe } from "@nostr-dev-kit/ndk-hooks";
+import { NDKKind, useSubscribe } from "@nostr-dev-kit/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { MiniProfile } from "./MiniProfile";
 

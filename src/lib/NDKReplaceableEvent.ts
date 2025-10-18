@@ -1,5 +1,5 @@
-import type { NostrEvent } from "@nostr-dev-kit/ndk-hooks";
-import NDK, { NDKEvent } from "@nostr-dev-kit/ndk-hooks";
+import type { NostrEvent } from "@nostr-dev-kit/react";
+import NDK, { NDKEvent } from "@nostr-dev-kit/react";
 
 // Base class for parameterized replaceable events (NIP-33),
 // encapsulating cache invalidation and publish preparation.

@@ -5,7 +5,7 @@
  * It is included in `src/index.html`.
  */
 
-import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/ndk-hooks";
+import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

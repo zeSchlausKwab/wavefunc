@@ -1,4 +1,4 @@
-import NDK, { NDKEvent, type NostrEvent } from "@nostr-dev-kit/ndk-hooks";
+import NDK, { NDKEvent, type NostrEvent } from "@nostr-dev-kit/react";
 import NDKReplaceableEvent from "./NDKReplaceableEvent";
 import { z } from "zod";
 

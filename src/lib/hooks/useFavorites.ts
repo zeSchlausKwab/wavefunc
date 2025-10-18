@@ -5,7 +5,7 @@ import {
   useNDK,
   useNDKCurrentUser,
   NDKKind,
-} from "@nostr-dev-kit/ndk-hooks";
+} from "@nostr-dev-kit/react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import NDKStation from "../NDKStation";

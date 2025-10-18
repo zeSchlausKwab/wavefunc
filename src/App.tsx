@@ -1,5 +1,5 @@
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { registerEventClass } from "@nostr-dev-kit/ndk-hooks";
+import { registerEventClass } from "@nostr-dev-kit/react";
 import { useEffect } from "react";
 import NDKStation from "./lib/NDKStation";
 import { NDKWFFavorites } from "./lib/NDKWFFavorites";
