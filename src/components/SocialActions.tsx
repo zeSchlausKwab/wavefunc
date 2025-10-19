@@ -41,22 +41,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
   const [showZapDialog, setShowZapDialog] = useState(false);
   const [showCommentsDialog, setShowCommentsDialog] = useState(false);
 
-  // const {ndk} = useNDK()
-
-  // useEffect(() => {
-    
-  //   const sub = ndk?.subscribe({
-  //     kinds: [NDKKind.Reaction, NDKKind.Zap, NDKKind.GenericReply],
-  //     "#a": [`${station.kind}:${station.pubkey}:${station.stationId}`],
-  //   }, { closeOnEose: false, cacheUsage: NDKSubscriptionCacheUsage.PARALLEL });
-
-  //   sub?.on("event", (e) => {
-  //     console.log("Received event:", e);
-  //   });
-
-
-  // }, []);
-
   const handleReaction = async () => {
     if (!currentUser) {
       alert("Please log in to react to stations");

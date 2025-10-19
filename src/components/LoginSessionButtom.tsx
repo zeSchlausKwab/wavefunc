@@ -16,6 +16,7 @@ import { QrCodeIcon } from "./ui/icons/lucide-qr-code";
 import { WalletButton } from "./WalletButton";
 import { LogOutIcon } from "./ui/icons/lucide-log-out";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Nip46LoginDialog } from "./Nip46LoginDialog";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
@@ -45,13 +46,13 @@ export function LoginSessionButtons() {
     }
   };
 
-  const handleNip46Login = async () => {
+  const handleNip46Login = async (signer: NDKNip46Signer) => {
     try {
       setLoading(true);
-      const signer = new NDKNip46Signer();
       await login(signer);
     } catch (error) {
       console.error("NIP-46 login failed:", error);
+      throw error; // Re-throw so the dialog can handle it
     } finally {
       setLoading(false);
     }
@@ -92,12 +93,17 @@ export function LoginSessionButtons() {
             </TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleNip46Login} disabled={loading}>
-                <QrCodeIcon className="w-5 h-5" />
-                {loading ? "Logging in..." : "signer"}
-              </Button>
-            </TooltipTrigger>
+            <Nip46LoginDialog
+              onLogin={handleNip46Login}
+              trigger={
+                <TooltipTrigger asChild>
+                  <Button disabled={loading}>
+                    <QrCodeIcon className="w-5 h-5" />
+                    {loading ? "Logging in..." : "signer"}
+                  </Button>
+                </TooltipTrigger>
+              }
+            />
             <TooltipContent>
               <p>Use an external signer.</p>
             </TooltipContent>

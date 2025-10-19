@@ -1,4 +1,9 @@
-import NDK, { NDKEvent, type NostrEvent, type ContentTaggingOptions, NDKKind } from "@nostr-dev-kit/react";
+import NDK, {
+  NDKEvent,
+  type NostrEvent,
+  type ContentTaggingOptions,
+  NDKKind,
+} from "@nostr-dev-kit/react";
 import { z } from "zod";
 
 // Zod schemas for validation and type inference
@@ -18,7 +23,9 @@ const StreamSchema = z.object({
 const StationContentSchema = z.object({
   description: z.string().min(1, "Description is required"),
   streams: z.array(StreamSchema).min(1, "At least one stream is required"),
-  streamingServerUrl: z.url({ message: "Invalid streaming server URL" }).optional(),
+  streamingServerUrl: z
+    .url({ message: "Invalid streaming server URL" })
+    .optional(),
 });
 
 const ClientTagSchema = z.object({
@@ -59,7 +66,9 @@ export class NDKStation extends NDKEvent {
    */
   private get parsedContent(): StationContent | undefined {
     try {
-      return this.content ? (JSON.parse(this.content) as StationContent) : undefined;
+      return this.content
+        ? (JSON.parse(this.content) as StationContent)
+        : undefined;
     } catch {
       return undefined;
     }
@@ -221,7 +230,10 @@ export class NDKStation extends NDKEvent {
           }
 
           const stream: Stream = {
-            url: typeof tag[1] === "string" ? this.normalizeUrl(tag[1]) : (tag[1] as string),
+            url:
+              typeof tag[1] === "string"
+                ? this.normalizeUrl(tag[1])
+                : (tag[1] as string),
             format: tag[2] as string,
             quality,
             primary: tag.includes("primary"),
@@ -566,7 +578,7 @@ export class NDKStation extends NDKEvent {
    * Get the station's naddr (Nostr address) encoding
    */
   get naddr(): string {
-    return this.encode()
+    return this.encode();
   }
 
   /**
@@ -584,11 +596,12 @@ export class NDKStation extends NDKEvent {
     if (!this.ndk) throw new Error("No NDK instance found");
     this.ndk.assertSigner();
 
+    console.log("Reacting to station:", this.address);
+
     const reaction = new NDKEvent(this.ndk, {
       kind: NDKKind.Reaction,
       content,
-    } as NostrEvent);
-
+    });
 
     reaction.tags.push(["a", this.address]);
     reaction.tags.push(["e", this.id]);
