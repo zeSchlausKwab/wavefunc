@@ -1,14 +1,21 @@
 import {
-    NDKNip07Signer,
-    NDKPrivateKeySigner,
-    useNDKCurrentUser,
-    useNDKSessionLogin,
-    useNDKSessionLogout
+  NDKNip07Signer,
+  NDKNip46Signer,
+  NDKPrivateKeySigner,
+  useNDKCurrentUser,
+  useNDKSessionLogin,
+  useNDKSessionLogout,
 } from "@nostr-dev-kit/react";
 import { useState } from "react";
 import { MiniProfile } from "./MiniProfile";
 import { Button } from "./ui/button";
+import { ButtonGroup } from "./ui/button-group";
+import { AppWindowIcon } from "./ui/icons/lucide-app-window";
 import { KeyRoundIcon } from "./ui/icons/lucide-key-round";
+import { QrCodeIcon } from "./ui/icons/lucide-qr-code";
+import { WalletButton } from "./WalletButton";
+import { LogOutIcon } from "./ui/icons/lucide-log-out";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
@@ -38,23 +45,64 @@ export function LoginSessionButtons() {
     }
   };
 
+  const handleNip46Login = async () => {
+    try {
+      setLoading(true);
+      const signer = new NDKNip46Signer();
+      await login(signer);
+    } catch (error) {
+      console.error("NIP-46 login failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex items-center gap-4">
       {currentUser ? (
-        <div className="flex items-center gap-4">
+        <ButtonGroup>
+          <WalletButton />
           <MiniProfile userOrPubkey={currentUser} />
-          <Button onClick={() => logout()}>Logout</Button>
-        </div>
+          <Button onClick={() => logout()}>
+            <LogOutIcon className="w-5 h-5" />
+          </Button>
+        </ButtonGroup>
       ) : (
-        <div className="flex items-center gap-4">
-          <Button onClick={handleSignup}>
-            <KeyRoundIcon className="w-5 h-5" />
-            Signup
-          </Button>
-          <Button onClick={handleNip07Login} disabled={loading}>
-            {loading ? "Logging in..." : "Login with NIP-07"}
-          </Button>
-        </div>
+        <ButtonGroup>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleSignup}>
+                <KeyRoundIcon className="w-5 h-5" />
+                signup
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Create a new nsec.</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleNip07Login} disabled={loading}>
+                <AppWindowIcon className="w-5 h-5" />
+                {loading ? "Logging in..." : "extension"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Use your nostr extension.</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleNip46Login} disabled={loading}>
+                <QrCodeIcon className="w-5 h-5" />
+                {loading ? "Logging in..." : "signer"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Use an external signer.</p>
+            </TooltipContent>
+          </Tooltip>
+        </ButtonGroup>
       )}
     </div>
   );

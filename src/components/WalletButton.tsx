@@ -6,6 +6,8 @@ import {
 } from "@nostr-dev-kit/react";
 // import { NDKCashuWallet } from "@nostr-dev-kit/wallet";
 import { useEffect } from "react";
+import { Button } from "./ui/button";
+import { BitcoinFillIcon } from "./ui/icons/akar-icons-bitcoin-fill";
 
 export function WalletButton() {
   const { activeWallet, setActiveWallet, balance, setBalance } = useNDKWallet();
@@ -39,12 +41,14 @@ export function WalletButton() {
     );
   }
 
+  const handleClick = () => {
+    console.log(activeWallet);
+  };
+
   return (
-    <div className="flex items-center gap-4">
-      <p>Balance: {balance || "0"}</p>
-      {activeWallet && (
-        <p className="text-sm text-muted-foreground">Wallet: Active</p>
-      )}
-    </div>
+    <Button onClick={handleClick}>
+      <BitcoinFillIcon className="w-4 h-4 mr-2" />
+      <p>{balance || "0"}</p>
+    </Button>
   );
 }
