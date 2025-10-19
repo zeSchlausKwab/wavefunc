@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { NDKKind, useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { NDKKind, NDKSubscriptionCacheUsage, useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import type { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
@@ -41,21 +41,21 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
   const [showZapDialog, setShowZapDialog] = useState(false);
   const [showCommentsDialog, setShowCommentsDialog] = useState(false);
 
-  const {ndk} = useNDK()
+  // const {ndk} = useNDK()
 
-  useEffect(() => {
+  // useEffect(() => {
     
-    const sub = ndk?.subscribe({
-      kinds: [NDKKind.Reaction, NDKKind.Zap, NDKKind.GenericReply],
-      "#a": [`${station.kind}:${station.pubkey}:${station.tagValue("d")}`],
-    }, { closeOnEose: false });
+  //   const sub = ndk?.subscribe({
+  //     kinds: [NDKKind.Reaction, NDKKind.Zap, NDKKind.GenericReply],
+  //     "#a": [`${station.kind}:${station.pubkey}:${station.stationId}`],
+  //   }, { closeOnEose: false, cacheUsage: NDKSubscriptionCacheUsage.PARALLEL });
 
-    sub?.on("event", (e) => {
-      console.log("Received event:", e);
-    });
+  //   sub?.on("event", (e) => {
+  //     console.log("Received event:", e);
+  //   });
 
 
-  }, [station.id]);
+  // }, []);
 
   const handleReaction = async () => {
     if (!currentUser) {

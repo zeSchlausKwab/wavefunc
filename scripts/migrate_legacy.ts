@@ -15,7 +15,9 @@ const APP_PRIVATE_KEY =
   "96c727f4d1ea18a80d03621520ebfe3c9be1387033009a4f5b65959d09222eec";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
+// const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334", "ws://localhost:10547"] });
 const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"] });
+
 
 // Legacy DB Station structure
 interface LegacyStation {
@@ -397,7 +399,7 @@ async function migrateStations() {
   const allStations = extractStationsFromSQL(sqlPath);
 
   // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 500;
+  const count = process.argv[2] ? parseInt(process.argv[2]) : 10;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 

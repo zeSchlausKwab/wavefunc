@@ -12,13 +12,13 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 
 // Initialize Dexie cache adapter for efficient caching and cache invalidation
-// const dexieAdapter = new NDKCacheAdapterDexie({
-//   dbName: "wavefunc-cache",
-//   profileCacheSize: 5000,
-//   eventCacheSize: 10000,
-//   eventTagsCacheSize: 20000,
-//   saveSig: true,
-// });
+const dexieAdapter = new NDKCacheAdapterDexie({
+  dbName: "wavefunc-cache",
+  profileCacheSize: 5000,
+  eventCacheSize: 10000,
+  eventTagsCacheSize: 20000,
+  saveSig: true,
+});
 
 const elem = document.getElementById("root")!;
 const app = (
@@ -27,6 +27,7 @@ const app = (
       ndk={{
         explicitRelayUrls: [
           "ws://localhost:3334",
+          // "ws://localhost:10547",
           // "wss://relay.primal.net",
           // "wss://relay.damus.io",
           // "wss://purplepag.es",
@@ -36,7 +37,7 @@ const app = (
           // "wss://relay.minibits.cash",
           // "wss://relay.coinos.io/",
         ],
-        // cacheAdapter: dexieAdapter,
+        cacheAdapter: dexieAdapter,
       }}
       session={{
         storage: new NDKSessionLocalStorage(),
