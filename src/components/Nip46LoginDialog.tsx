@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import NDK, { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from "@nostr-dev-kit/react";
+import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, QrCode } from "lucide-react";
 
 interface Nip46LoginDialogProps {
   trigger: React.ReactNode;
@@ -33,6 +34,8 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const [generatingConnectionUrl, setGeneratingConnectionUrl] = useState(false);
   const [listening, setListening] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const tempSecretRef = useRef<string>(Math.random().toString(36).substring(2, 15));
   const isLoggingInRef = useRef(false);
@@ -317,6 +320,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     if (!isOpen) {
       // Reset state when dialog closes
       cleanup();
+      setShowScanner(false);
       setLocalSigner(null);
       setLocalPubkey(null);
       setConnectionUri("");
@@ -325,6 +329,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       setLoading(false);
       setGeneratingConnectionUrl(false);
       setConnectionStatus('idle');
+      setScanError(null);
       hasTriggeredSuccessRef.current = false;
       isLoggingInRef.current = false;
     }
@@ -363,6 +368,29 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       setLoading(false);
     }
   };
+
+  const handleScanQR = () => {
+    setShowScanner(true);
+    setScanError(null);
+  };
+
+  const handleScan = useCallback((detectedCodes: any[]) => {
+    if (detectedCodes && detectedCodes.length > 0) {
+      const result = detectedCodes[0].rawValue;
+      if (result && result.startsWith('bunker://')) {
+        setBunkerUrl(result);
+        setError(null);
+        setShowScanner(false);
+      } else if (result) {
+        setScanError('The scanned code is not a valid bunker:// URI');
+      }
+    }
+  }, []);
+
+  const handleScanError = useCallback((err: any) => {
+    console.error(err);
+    setScanError('Error accessing camera: ' + (err.message || 'Unknown error'));
+  }, []);
 
 
   return (
@@ -478,17 +506,33 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="bunker-url">Bunker URL</Label>
-                <Input
-                  id="bunker-url"
-                  type="text"
-                  placeholder="bunker://..."
-                  value={bunkerUrl}
-                  onChange={(e) => setBunkerUrl(e.target.value)}
-                  disabled={loading}
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Enter the bunker URL from your remote signer
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Paste your bunker:// connection string from your remote signer (e.g., nsec.app, Amber).
                 </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="bunker-url"
+                    type="text"
+                    placeholder="bunker://..."
+                    value={bunkerUrl}
+                    onChange={(e) => {
+                      setBunkerUrl(e.target.value);
+                      setError(null);
+                    }}
+                    disabled={loading}
+                    className="flex-1 font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleScanQR}
+                    disabled={loading}
+                    title="Scan QR code"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <Button
@@ -496,8 +540,24 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                 disabled={loading || !bunkerUrl.trim()}
                 className="w-full"
               >
-                {loading ? "Connecting..." : "Connect"}
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Connecting...
+                  </>
+                ) : (
+                  "Connect"
+                )}
               </Button>
+
+              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">How to get a bunker URL:</h4>
+                <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
+                  <li>Open your remote signer app (nsec.app, Amber, etc.)</li>
+                  <li>Generate or copy your bunker connection string</li>
+                  <li>Paste it into the field above or scan the QR code</li>
+                </ol>
+              </div>
             </div>
           )}
 
@@ -509,6 +569,50 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
           )}
         </div>
       </DialogContent>
+
+      {/* QR Scanner Dialog */}
+      <Dialog open={showScanner} onOpenChange={setShowScanner}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scan Bunker QR Code</DialogTitle>
+            <DialogDescription>
+              Scan a bunker:// connection QR code from your remote signer
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 mb-4">
+            {scanError ? (
+              <div className="p-4 mb-4 text-sm text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/20 rounded-lg">
+                {scanError}
+                <Button
+                  onClick={() => setScanError(null)}
+                  variant="outline"
+                  size="sm"
+                  className="ml-2 mt-2"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <div className="relative w-full aspect-square overflow-hidden rounded-lg">
+                <Scanner
+                  onScan={handleScan}
+                  onError={handleScanError}
+                  constraints={{
+                    facingMode: 'environment',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowScanner(false)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

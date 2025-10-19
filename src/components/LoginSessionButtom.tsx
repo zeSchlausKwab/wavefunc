@@ -17,11 +17,13 @@ import { WalletButton } from "./WalletButton";
 import { LogOutIcon } from "./ui/icons/lucide-log-out";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
+import { useUIStore } from "../stores/uiStore";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
   const logout = useNDKSessionLogout();
   const currentUser = useNDKCurrentUser();
+  const shouldPulseLogin = useUIStore((state) => state.shouldPulseLogin);
 
   const [loading, setLoading] = useState(false);
 
@@ -69,10 +71,16 @@ export function LoginSessionButtons() {
           </Button>
         </ButtonGroup>
       ) : (
-        <ButtonGroup>
+        <ButtonGroup
+          className={
+            shouldPulseLogin
+              ? "animate-pulse ring-4 ring-primary/50 transition-all duration-300"
+              : ""
+          }
+        >
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleSignup}>
+              <Button variant={'secondary'} onClick={handleSignup}>
                 <KeyRoundIcon className="w-5 h-5" />
                 signup
               </Button>
@@ -83,7 +91,7 @@ export function LoginSessionButtons() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleNip07Login} disabled={loading}>
+              <Button variant={'secondary'} onClick={handleNip07Login} disabled={loading}>
                 <AppWindowIcon className="w-5 h-5" />
                 {loading ? "Logging in..." : "extension"}
               </Button>
@@ -97,7 +105,7 @@ export function LoginSessionButtons() {
               onLogin={handleNip46Login}
               trigger={
                 <TooltipTrigger asChild>
-                  <Button disabled={loading}>
+                  <Button variant={'secondary'} disabled={loading}>
                     <QrCodeIcon className="w-5 h-5" />
                     {loading ? "Logging in..." : "signer"}
                   </Button>

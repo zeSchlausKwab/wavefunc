@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useMedia } from "react-use";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { AnimatedLogo } from "./AnimatedLogo";
+import { AuthRequiredButton } from "./AuthRequiredButton";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
-import { WalletButton } from "./WalletButton";
+import { UnifiedSearchInput } from "./UnifiedSearchInput";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -74,10 +74,10 @@ export function FloatingHeader({
                 <StationManagementSheet
                   mode="add"
                   trigger={
-                    <Button>
+                    <AuthRequiredButton loginTooltipMessage="Please log in to add a station">
                       <Plus className="w-4 h-4" />
                       Add Station
-                    </Button>
+                    </AuthRequiredButton>
                   }
                 />
               </nav>
@@ -139,10 +139,10 @@ export function FloatingHeader({
                     <StationManagementSheet
                       mode="add"
                       trigger={
-                        <Button>
+                        <AuthRequiredButton loginTooltipMessage="Please log in to add a station">
                           <Plus className="w-4 h-4" />
                           Add Station
-                        </Button>
+                        </AuthRequiredButton>
                       }
                     />
                   </nav>
