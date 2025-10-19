@@ -1,21 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { Heart, Menu, Plus } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useMedia } from "react-use";
 import { useFavorites } from "../lib/hooks/useFavorites";
-import { searchMusicBrainz } from "../lib/metadataClient";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { SearchModeToggle, type SearchMode } from "./SearchModeToggle";
-import {
-  MusicBrainzResults,
-  type MusicBrainzResult,
-} from "./MusicBrainzResults";
+import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { Button } from "./ui/button";
-import { IconButtonInput } from "./ui/icon-button-input";
-import { SearchIcon } from "./ui/icons/lucide-search";
-import { XIcon } from "./ui/icons/lucide-x";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { WalletButton } from "./WalletButton";
 
@@ -32,81 +24,7 @@ export function FloatingHeader({
 }: FloatingHeaderProps) {
   const isMobile = useMedia("(max-width: 768px)");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchMode, setSearchMode] = useState<SearchMode>("stations");
-  const [musicBrainzResults, setMusicBrainzResults] = useState<
-    MusicBrainzResult[]
-  >([]);
-  const [musicBrainzLoading, setMusicBrainzLoading] = useState(false);
-  const [musicBrainzError, setMusicBrainzError] = useState<string | null>(null);
-  const [showResults, setShowResults] = useState(false);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
   const { getFavoriteCount } = useFavorites();
-
-  // Close results when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target as Node)
-      ) {
-        setShowResults(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Clear results when switching modes
-  useEffect(() => {
-    setMusicBrainzResults([]);
-    setMusicBrainzError(null);
-    setShowResults(false);
-  }, [searchMode]);
-
-  const handleMusicBrainzSearch = async (query: string) => {
-    if (!query.trim()) {
-      setMusicBrainzResults([]);
-      setShowResults(false);
-      return;
-    }
-
-    setMusicBrainzLoading(true);
-    setMusicBrainzError(null);
-    setShowResults(true);
-
-    try {
-      const data = await searchMusicBrainz({ query });
-      setMusicBrainzResults(data);
-    } catch (err: any) {
-      setMusicBrainzError(err.message || "Failed to search MusicBrainz");
-      setMusicBrainzResults([]);
-    } finally {
-      setMusicBrainzLoading(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchMode === "stations") {
-      console.log(`🔍 Searching stations for: "${searchInput}"`);
-      onSearch(searchInput);
-      setShowResults(false);
-    } else {
-      handleMusicBrainzSearch(searchInput);
-    }
-  };
-
-  const handleClear = () => {
-    setSearchInput("");
-    if (searchMode === "stations") {
-      onSearch("");
-    } else {
-      setMusicBrainzResults([]);
-      setMusicBrainzError(null);
-    }
-    setShowResults(false);
-  };
 
   return (
     <header className="fixed flex items-center top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-brutal h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-brutal">
@@ -126,55 +44,13 @@ export function FloatingHeader({
           {/* Desktop Layout */}
           {!isMobile ? (
             <>
-              {/* Search Bar with Mode Toggle */}
-              <div className="flex-1 max-w-2xl flex gap-2 items-center">
-                <SearchModeToggle
-                  mode={searchMode}
-                  onModeChange={setSearchMode}
+              {/* Unified Search */}
+              <div className="flex-1 max-w-2xl">
+                <UnifiedSearchInput
+                  searchInput={searchInput}
+                  setSearchInput={setSearchInput}
+                  onStationSearch={onSearch}
                 />
-                <div className="flex-1 relative" ref={searchContainerRef}>
-                  <form onSubmit={handleSubmit}>
-                    <IconButtonInput
-                      type="text"
-                      startIcon={{
-                        icon: SearchIcon,
-                        onClick: () =>
-                          handleSubmit({
-                            preventDefault: () => {},
-                          } as React.FormEvent),
-                        disabled: !searchInput.trim(),
-                        type: "submit",
-                        title: "Search",
-                      }}
-                      endIcon={
-                        searchInput
-                          ? {
-                              icon: XIcon,
-                              onClick: handleClear,
-                              title: "Clear search",
-                            }
-                          : undefined
-                      }
-                      value={searchInput}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setSearchInput(e.target.value)
-                      }
-                      placeholder={
-                        searchMode === "stations"
-                          ? "Search stations..."
-                          : "Search artists or tracks..."
-                      }
-                    />
-                  </form>
-                  {/* MusicBrainz Results Dropdown */}
-                  {searchMode === "musicbrainz" && showResults && (
-                    <MusicBrainzResults
-                      results={musicBrainzResults}
-                      loading={musicBrainzLoading}
-                      error={musicBrainzError}
-                    />
-                  )}
-                </div>
               </div>
 
               {/* Navigation */}
@@ -221,56 +97,12 @@ export function FloatingHeader({
                 className="backdrop-blur-xl p-4 bg-white/30 dark:bg-gray-900/30 border-brutal shadow-brutal"
               >
                 <div className="space-y-4 mt-4">
-                  {/* Search Mode Toggle */}
-                  <SearchModeToggle
-                    mode={searchMode}
-                    onModeChange={setSearchMode}
+                  {/* Unified Search */}
+                  <UnifiedSearchInput
+                    searchInput={searchInput}
+                    setSearchInput={setSearchInput}
+                    onStationSearch={onSearch}
                   />
-
-                  {/* Search Bar */}
-                  <div className="relative" ref={searchContainerRef}>
-                    <form onSubmit={handleSubmit}>
-                      <IconButtonInput
-                        type="text"
-                        startIcon={{
-                          icon: SearchIcon,
-                          onClick: () =>
-                            handleSubmit({
-                              preventDefault: () => {},
-                            } as React.FormEvent),
-                          disabled: !searchInput.trim(),
-                          type: "submit",
-                          title: "Search",
-                        }}
-                        endIcon={
-                          searchInput
-                            ? {
-                                icon: XIcon,
-                                onClick: handleClear,
-                                title: "Clear search",
-                              }
-                            : undefined
-                        }
-                        value={searchInput}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                          setSearchInput(e.target.value)
-                        }
-                        placeholder={
-                          searchMode === "stations"
-                            ? "Search stations..."
-                            : "Search artists or tracks..."
-                        }
-                      />
-                    </form>
-                    {/* MusicBrainz Results Dropdown */}
-                    {searchMode === "musicbrainz" && showResults && (
-                      <MusicBrainzResults
-                        results={musicBrainzResults}
-                        loading={musicBrainzLoading}
-                        error={musicBrainzError}
-                      />
-                    )}
-                  </div>
 
                   {/* Navigation */}
                   <nav className="flex flex-col gap-2">
