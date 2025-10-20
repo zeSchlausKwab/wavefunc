@@ -1,3 +1,5 @@
+import { parseIcyResponse } from "@music-metadata/icy";
+
 type NowPlaying = {
   url: string;
   source: 'ICY' | 'HLS-ID3' | 'PLAYLIST' | 'UNKNOWN';
@@ -203,58 +205,106 @@ async function probeIcy(url: string, hintHeaders?: Headers): Promise<NowPlaying 
 
   const station = headers.get('icy-name') ?? hintHeaders?.get('icy-name') ?? undefined;
 
-  const reader = resp.body.getReader();
-  // skip audio bytes up to metaint
-  await readSome(reader, metaInt);
+  // Use music-metadata-icy for robust parsing
+  return new Promise<NowPlaying | null>((resolve) => {
+    const timeout = setTimeout(() => {
+      resolve({
+        url: resp.url,
+        source: 'ICY',
+        station,
+        notes: 'Timeout waiting for ICY metadata',
+      });
+    }, 10000); // 10 second timeout
 
-  // next 1 byte is metadata length in 16-byte blocks
-  const lenByte = await readSome(reader, 1);
-  if (lenByte.length === 0) return null;
-  const metaLen = lenByte[0]! * 16;
-  if (metaLen === 0) {
-    return {
-      url: resp.url,
-      source: 'ICY',
-      station,
-      notes: 'ICY metadata present but block empty',
-    };
-  }
+    let resolved = false;
 
-  // Limit metadata read to reasonable size (max 4KB for ICY metadata)
-  // Based on real-world testing, legitimate streams often have 2-4KB metadata blocks
-  const actualMetaLen = Math.min(metaLen, 4096);
-  const metaBuf = await readSome(reader, actualMetaLen);
-  const metaStr = latin1Decode(metaBuf);
-  
-  // Clean up the metadata string and look for proper ICY format
-  const cleanMetaStr = metaStr.replace(/\0+/g, ''); // Remove null padding
-  
-  // Look for proper ICY metadata format: StreamTitle='...'
-  const match = /StreamTitle='([^']*)'/.exec(cleanMetaStr);
-  const streamTitle = match?.[1]?.trim();
-  
-  // Only flag as problematic if metadata block is extremely large (>8KB) AND contains no readable text
-  // Many legitimate streams have 2-4KB blocks but no current song info
-  const hasReadableText = cleanMetaStr.length > 10 && /[a-zA-Z0-9\s]{10,}/.test(cleanMetaStr);
-  if (metaLen > 8192 && !hasReadableText) {
-    return {
-      url: resp.url,
-      source: 'ICY',
-      station,
-      notes: `ICY metadata block extremely large (${metaLen} bytes) with no readable content - likely corrupted`,
-    };
-  }
-  
-  const { artist, title } = parseStreamTitle(streamTitle);
+    try {
+      // Parse ICY response using the library
+      const cleanStream = parseIcyResponse(resp, ({ metadata: icyMeta }) => {
+        if (resolved) return;
 
-  return {
-    url: resp.url,
-    source: 'ICY',
-    station,
-    artist,
-    title,
-    raw: { meta: cleanMetaStr.substring(0, 500), streamTitle, originalMetaLen: metaLen },
-  };
+        // Extract song info
+        const streamTitle = icyMeta.StreamTitle;
+        if (streamTitle) {
+          resolved = true;
+          clearTimeout(timeout);
+
+          const { artist, title } = parseStreamTitle(streamTitle);
+
+          // Cancel the stream
+          cleanStream.cancel().catch(() => {});
+
+          resolve({
+            url: resp.url,
+            source: 'ICY',
+            station: station || icyMeta.icyName,
+            artist,
+            title,
+            raw: {
+              StreamTitle: streamTitle,
+              StreamUrl: icyMeta.StreamUrl,
+              icyName: icyMeta.icyName,
+              icyGenre: icyMeta.icyGenre,
+            },
+          });
+          return;
+        }
+
+        // If we get metadata but no StreamTitle, we can still resolve with station info
+        if (icyMeta.icyName || station) {
+          resolved = true;
+          clearTimeout(timeout);
+
+          cleanStream.cancel().catch(() => {});
+
+          resolve({
+            url: resp.url,
+            source: 'ICY',
+            station: station || icyMeta.icyName,
+            notes: 'ICY metadata present but no current song info',
+            raw: {
+              icyName: icyMeta.icyName,
+              icyGenre: icyMeta.icyGenre,
+            },
+          });
+        }
+      });
+
+      // Start consuming the stream to trigger metadata callbacks
+      const reader = cleanStream.getReader();
+
+      const consumeStream = async () => {
+        try {
+          while (!resolved) {
+            const { done } = await reader.read();
+            if (done) break;
+          }
+
+          // If we exit without resolving, provide fallback
+          if (!resolved) {
+            clearTimeout(timeout);
+            resolve({
+              url: resp.url,
+              source: 'ICY',
+              station,
+              notes: 'Stream ended before receiving metadata',
+            });
+          }
+        } catch (error) {
+          if (!resolved) {
+            clearTimeout(timeout);
+            resolve(null);
+          }
+        }
+      };
+
+      consumeStream();
+
+    } catch (error) {
+      clearTimeout(timeout);
+      resolve(null);
+    }
+  });
 }
 
 // --- HLS ID3 (TIT2/TPE1) --------------------------------

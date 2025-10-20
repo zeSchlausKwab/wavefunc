@@ -1,6 +1,7 @@
 // Stream Metadata Extraction Tool
 // Extracts "now playing" info from Icecast/Shoutcast streams
 
+import { parseIcyResponse } from "@music-metadata/icy";
 import { probeStream } from "./probe.ts";
 
 interface StreamMetadata {
@@ -349,8 +350,8 @@ function parseTitle(title: string, metadata: StreamMetadata): void {
 }
 
 /**
- * Extract metadata by reading stream data
- * (More complex - parses actual stream bytes for metadata)
+ * Extract metadata by reading stream data using music-metadata-icy
+ * This uses a robust library for parsing ICY metadata
  */
 async function extractFromStreamData(
   url: string,
@@ -363,7 +364,6 @@ async function extractFromStreamData(
   }
 
   try {
-    const metaint = parseInt(metaintStr);
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -376,35 +376,80 @@ async function extractFromStreamData(
       throw new Error("No response body");
     }
 
-    const reader = response.body.getReader();
-    const metadataInterval = metaint;
     const metadata: StreamMetadata = {};
 
-    // Read first chunk to get metadata
-    let bytesRead = 0;
-    const maxBytes = metadataInterval + 4096; // Read one interval + some metadata
+    // Use music-metadata-icy to parse the stream
+    return new Promise<StreamMetadata>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timeout waiting for ICY metadata"));
+      }, 10000); // 10 second timeout
 
-    while (bytesRead < maxBytes) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      let resolved = false;
 
-      bytesRead += value.length;
+      try {
+        // Parse ICY response and extract metadata
+        const cleanStream = parseIcyResponse(response, ({ metadata: icyMeta, stats }) => {
+          if (resolved) return;
 
-      // Check if we've passed the metadata point
-      if (bytesRead >= metadataInterval) {
-        // Try to parse metadata from bytes
-        const text = new TextDecoder().decode(value);
-        const titleMatch = text.match(/StreamTitle='([^']+)'/);
-        if (titleMatch && titleMatch[1]) {
-          metadata.title = titleMatch[1];
-          parseTitle(titleMatch[1], metadata);
-        }
-        break;
+          console.log(`📻 ICY metadata received:`, icyMeta);
+          console.log(`📊 Stats:`, stats);
+
+          // Extract station info from headers
+          if (icyMeta.icyName) metadata.station = icyMeta.icyName;
+          if (icyMeta.icyGenre) metadata.genre = icyMeta.icyGenre;
+          if (icyMeta.bitrate) metadata.bitrate = icyMeta.bitrate;
+          if (icyMeta.contentType) metadata.raw = { ...metadata.raw, contentType: icyMeta.contentType };
+
+          // Extract current song
+          if (icyMeta.StreamTitle) {
+            metadata.title = icyMeta.StreamTitle;
+            parseTitle(icyMeta.StreamTitle, metadata);
+          }
+
+          // We got metadata, resolve immediately
+          if (icyMeta.StreamTitle || icyMeta.icyName) {
+            resolved = true;
+            clearTimeout(timeout);
+
+            // Cancel the stream reading
+            cleanStream.cancel().catch(() => {});
+
+            resolve(metadata);
+          }
+        });
+
+        // Start consuming the stream to trigger metadata callbacks
+        const reader = cleanStream.getReader();
+
+        const consumeStream = async () => {
+          try {
+            while (!resolved) {
+              const { done } = await reader.read();
+              if (done) break;
+              // Just consume the stream, we don't need the audio data
+            }
+
+            // If we exit the loop without resolving, we didn't get metadata
+            if (!resolved) {
+              clearTimeout(timeout);
+              resolve(metadata);
+            }
+          } catch (error) {
+            if (!resolved) {
+              clearTimeout(timeout);
+              reject(error);
+            }
+          }
+        };
+
+        consumeStream();
+
+      } catch (error: any) {
+        clearTimeout(timeout);
+        reject(error);
       }
-    }
+    });
 
-    reader.cancel();
-    return metadata;
   } catch (error: any) {
     console.error(`Stream data parsing error: ${error.message}`);
     return { station: "Unknown", title: "Metadata unavailable" };

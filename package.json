@@ -27,6 +27,7 @@
     "@contextvm/sdk": "^0.1.29",
     "@faker-js/faker": "^10.0.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
+    "@music-metadata/icy": "^0.2.1",
     "@nostr-dev-kit/blossom": "^6.1.0",
     "@nostr-dev-kit/messages": "^0.1.3",
     "@nostr-dev-kit/ndk": "^2.17.10",

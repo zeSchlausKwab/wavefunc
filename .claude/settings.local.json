@@ -12,7 +12,8 @@
       "Bash(bunx shadcn@latest add:*)",
       "Bash(sqlite3:*)",
       "Bash(go doc github.com/fiatjaf/khatru)",
-      "Bash(find /Users/schlaus/workspace/wavefunc-rewrite -name \"go.mod\" -path \"*/relay/*\" -exec grep -A 5 \"khatru\" {} ;)"
+      "Bash(find /Users/schlaus/workspace/wavefunc-rewrite -name \"go.mod\" -path \"*/relay/*\" -exec grep -A 5 \"khatru\" {} ;)",
+      "Bash(cat node_modules/@music-metadata/icy/package.json)"
     ],
     "deny": [],
     "ask": []
