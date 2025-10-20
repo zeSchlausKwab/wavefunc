@@ -11,7 +11,7 @@ export const Route = createRootRoute({
     const handleSearch = (query: string) => {
       navigate({
         to: "/",
-        search: { search: query },
+        search: query ? { search: query } : {},
       });
     };
 

@@ -46,6 +46,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FavoritesImport
       parentRoute: typeof rootRoute
     }
+    '/profile/:pubkey': {
+      id: '/profile/:pubkey'
+      path: '/profile/:pubkey'
+      fullPath: '/profile/:pubkey'
+      preLoaderRoute: typeof IndexImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 

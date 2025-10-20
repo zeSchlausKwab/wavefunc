@@ -32,7 +32,7 @@ export function FloatingHeader({
         <div className="flex items-center justify-between gap-4">
           <Link
             to="/"
-            search={{ search: "" }}
+            search={{}}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors w-24 h-8"
             activeProps={{
               className: "text-foreground font-medium",
@@ -108,7 +108,7 @@ export function FloatingHeader({
                   <nav className="flex flex-col gap-2">
                     <Link
                       to="/"
-                      search={{ search: "" }}
+                      search={{}}
                       className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
                       activeProps={{
                         className:
