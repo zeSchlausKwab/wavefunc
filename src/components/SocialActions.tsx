@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { NDKKind, NDKSubscriptionCacheUsage, useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import React, { useState } from "react";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import type { NDKStation } from "../lib/NDKStation";
+import { AuthRequiredButton } from "./AuthRequiredButton";
+import { CommentsDialog } from "./CommentsDialog";
 import { Button } from "./ui/button";
 import { HeartIcon } from "./ui/icons/lucide-heart";
-import { ZapIcon } from "./ui/icons/lucide-zap";
 import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
+import { ZapIcon } from "./ui/icons/lucide-zap";
 import { ZapDialog } from "./ZapDialog";
-import { CommentsDialog } from "./CommentsDialog";
 
 interface SocialActionsProps {
   station: NDKStation;
@@ -90,17 +91,17 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       {/* Heart/Reaction Button */}
-      <Button
+      <AuthRequiredButton
         variant="ghost"
         size="sm"
         onClick={handleReaction}
-        disabled={isLoading || !currentUser}
         className={`gap-1.5 ${
           userHasReacted
             ? "text-red-500 hover:text-red-600"
             : "text-gray-600 hover:text-red-500"
         }`}
         title={userHasReacted ? "You reacted to this" : "React with a heart"}
+        loginTooltipMessage="Please log in to use reactions"
       >
         <HeartIcon
           className={`w-4 h-4 ${userHasReacted ? "fill-current" : ""}`}
@@ -108,7 +109,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         {reactions > 0 && (
           <span className="text-xs font-medium">{formatCount(reactions)}</span>
         )}
-      </Button>
+      </AuthRequiredButton>
 
       {/* Lightning/Zap Button */}
       <Button

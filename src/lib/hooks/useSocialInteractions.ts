@@ -3,7 +3,7 @@ import {
   NDKEvent,
   NDKKind,
   useNDKCurrentUser,
-  useSubscribe
+  useSubscribe,
 } from "@nostr-dev-kit/react";
 import { useMemo } from "react";
 
@@ -50,11 +50,11 @@ export function useSocialInteractions(event: NDKEvent): SocialInteractionState {
     ];
   }, [event.id, event.kind, event.pubkey]);
 
-  const { events } = useSubscribe<NDKEvent>(filters, { closeOnEose: false }, [
-    event.id,
-    event.pubkey,
-    event.tagValue("d"),
-  ]);
+  const { events } = useSubscribe<NDKEvent>(
+    filters,
+    { closeOnEose: false, groupable: false },
+    [event.id, event.pubkey, event.tagValue("d")]
+  );
 
   const state = useMemo(() => {
     const reactions = new Set<string>();
