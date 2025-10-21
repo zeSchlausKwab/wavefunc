@@ -46,10 +46,16 @@ function SheetContent({
   className,
   children,
   side = "right",
+  responsiveSide,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
+  responsiveSide?: { mobile?: "top" | "right" | "bottom" | "left"; desktop?: "top" | "right" | "bottom" | "left" }
 }) {
+  // If responsiveSide is provided, use it to determine the side based on screen size
+  const mobileSide = responsiveSide?.mobile || side
+  const desktopSide = responsiveSide?.desktop || side
+
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -57,14 +63,24 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
-          side === "right" &&
-            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
-          side === "left" &&
-            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-          side === "top" &&
+          // Mobile styles (default)
+          mobileSide === "right" &&
+            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l",
+          mobileSide === "left" &&
+            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r",
+          mobileSide === "top" &&
             "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b",
-          side === "bottom" &&
+          mobileSide === "bottom" &&
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
+          // Desktop styles (md:)
+          responsiveSide && desktopSide === "right" &&
+            "md:data-[state=closed]:slide-out-to-right md:data-[state=open]:slide-in-from-right md:inset-y-0 md:right-0 md:h-full md:w-auto md:border-l md:border-t-0",
+          responsiveSide && desktopSide === "left" &&
+            "md:data-[state=closed]:slide-out-to-left md:data-[state=open]:slide-in-from-left md:inset-y-0 md:left-0 md:h-full md:w-auto md:border-r md:border-t-0",
+          responsiveSide && desktopSide === "top" &&
+            "md:data-[state=closed]:slide-out-to-top md:data-[state=open]:slide-in-from-top md:inset-x-0 md:top-0 md:h-auto md:border-b md:border-l-0",
+          responsiveSide && desktopSide === "bottom" &&
+            "md:data-[state=closed]:slide-out-to-bottom md:data-[state=open]:slide-in-from-bottom md:inset-x-0 md:bottom-0 md:h-auto md:border-t md:border-l-0",
           className
         )}
         {...props}

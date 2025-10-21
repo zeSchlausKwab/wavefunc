@@ -7,6 +7,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { SocialActions } from "./SocialActions";
 import { StationManagementSheet } from "./StationManagementSheet";
+import { StationDetailSheet } from "./StationDetailSheet";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
@@ -21,6 +22,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showDetailSheet, setShowDetailSheet] = useState(false);
   const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
@@ -178,7 +180,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
 
         <div className="flex flex-col justify-between min-w-0 p-2 w-full">
           {/* Station Name */}
-          <h3 className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1">
+          <h3
+            className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
+            onClick={() => setShowDetailSheet(true)}
+          >
             {station.name || "Unnamed Station"}
           </h3>
           {/* Station Description */}
@@ -275,7 +280,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
         {/* Center: Station Info */}
         <div className="flex flex-col justify-between min-w-0 p-1 w-full">
           {/* Station Name */}
-          <h3 className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1">
+          <h3
+            className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
+            onClick={() => setShowDetailSheet(true)}
+          >
             {station.name || "Unnamed Station"}{" "}
             {station.description ? ` - ${station.description}` : ""}
           </h3>
@@ -355,6 +363,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           />
         )}
       </div>
+
+      {/* Station Detail Sheet */}
+      <StationDetailSheet
+        station={station}
+        open={showDetailSheet}
+        onOpenChange={setShowDetailSheet}
+      />
     </Card>
   );
 };
