@@ -11,6 +11,13 @@ import {
   sortStreamsByPreference,
 } from "../lib/player/adapters";
 
+// Track which audio elements have been connected to Web Audio API
+// This persists across HMR reloads
+const connectedAudioElements = new WeakMap<
+  HTMLAudioElement,
+  { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode }
+>();
+
 interface CurrentMetadata {
   title?: string;
   artist?: string;
@@ -45,6 +52,11 @@ interface PlayerState {
   audioElement: HTMLAudioElement | null;
   hlsInstance: Hls | null;
 
+  // Web Audio API for visualization
+  audioContext: AudioContext | null;
+  analyser: AnalyserNode | null;
+  sourceNode: MediaElementAudioSourceNode | null;
+
   // Volume and controls
   volume: number;
   isMuted: boolean;
@@ -74,6 +86,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   metadataInterval: null,
   audioElement: null,
   hlsInstance: null,
+  audioContext: null,
+  analyser: null,
+  sourceNode: null,
   volume: 0.7,
   isMuted: false,
 
@@ -140,6 +155,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     (async () => {
       let played = false;
       let lastError: Error | null = null;
+
+      // Resume audio context if suspended
+      const { audioContext } = get();
+      if (audioContext && audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
       for (const candidate of candidates) {
         try {
           // Update currentStream as we attempt
@@ -212,8 +234,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   // Resume playback
   resume: () => {
-    const { audioElement } = get();
+    const { audioElement, audioContext } = get();
     if (audioElement) {
+      // Resume audio context if it's suspended
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume();
+      }
       audioElement.play();
       set({ isPlaying: true, error: null });
     }
@@ -275,10 +301,51 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setError: (error: string | null) => set({ error }),
   setAudioElement: (element: HTMLAudioElement | null) => {
     const { volume, isMuted } = get();
+
     if (element) {
       element.volume = volume;
       element.muted = isMuted;
+
+      // Check if this element already has Web Audio API connected
+      const existing = connectedAudioElements.get(element);
+
+      if (existing) {
+        // Reuse existing Web Audio setup (happens during HMR)
+        console.log("PlayerStore: Reusing existing Web Audio setup", existing);
+        set({
+          audioContext: existing.context,
+          analyser: existing.analyser,
+          sourceNode: existing.source
+        });
+      } else {
+        // Create new Web Audio API setup for this element
+        try {
+          const context = new AudioContext();
+          const analyser = context.createAnalyser();
+          analyser.fftSize = 64; // Small FFT for 8x16 grid
+          analyser.smoothingTimeConstant = 0.8;
+
+          const source = context.createMediaElementSource(element);
+          source.connect(analyser);
+          analyser.connect(context.destination);
+
+          // Store in WeakMap so we can reuse on HMR
+          connectedAudioElements.set(element, { context, analyser, source });
+
+          console.log("PlayerStore: Created Web Audio setup", { context, analyser, source, state: context.state });
+
+          set({ audioContext: context, analyser, sourceNode: source });
+        } catch (err) {
+          console.error("Failed to initialize Web Audio API:", err);
+        }
+      }
+    } else {
+      // Note: We don't close the audio context here because the element
+      // might still exist in the DOM (e.g., during HMR). The WeakMap will
+      // clean up automatically when the element is garbage collected.
+      set({ audioContext: null, analyser: null, sourceNode: null });
     }
+
     set({ audioElement: element });
   },
   setHlsInstance: (hls: Hls | null) => set({ hlsInstance: hls }),

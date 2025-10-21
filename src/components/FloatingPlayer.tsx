@@ -6,6 +6,7 @@ import { useMedia } from "react-use";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spectrogram } from "./Spectrogram";
 
 export function FloatingPlayer() {
   const isMobile = useMedia("(max-width: 768px)");
@@ -19,6 +20,7 @@ export function FloatingPlayer() {
     error,
     volume,
     isMuted,
+    analyser,
     pause,
     resume,
     stop,
@@ -132,7 +134,7 @@ export function FloatingPlayer() {
       {/* Hidden audio element - ALWAYS rendered */}
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-brutal">
+      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-brutal overflow-hidden">
         {!currentStation ? (
           <div className="flex h-16 items-center justify-center px-4">
             <p className="text-sm text-muted-foreground">
@@ -140,9 +142,16 @@ export function FloatingPlayer() {
             </p>
           </div>
         ) : (
-          <div className="flex h-16 items-center gap-4 px-4">
+          <div className="relative flex h-16 items-center gap-4 px-4">
+            {/* Spectrogram Background */}
+            <Spectrogram
+              analyser={analyser}
+              isPlaying={isPlaying}
+              color="rgb(0, 0, 0)"
+              className="opacity-10"
+            />
             {/* Station Thumbnail & Info */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="relative z-10 flex min-w-0 flex-1 items-center gap-3">
               {currentStation.thumbnail ? (
                 <img
                   src={currentStation.thumbnail}
@@ -207,7 +216,7 @@ export function FloatingPlayer() {
             </div>
 
             {/* Playback Controls */}
-            <div className="flex items-center gap-2">
+            <div className="relative z-10 flex items-center gap-2">
               <Button
                 size="icon"
                 onClick={isPlaying ? pause : resume}
@@ -237,8 +246,8 @@ export function FloatingPlayer() {
             {/* Volume Control - Desktop only */}
             {!isMobile && (
               <>
-                <Separator orientation="vertical" className="h-8" />
-                <div className="flex items-center gap-2">
+                <Separator orientation="vertical" className="h-8 relative z-10" />
+                <div className="relative z-10 flex items-center gap-2">
                   <Button
                     size="icon"
                     variant="ghost"
