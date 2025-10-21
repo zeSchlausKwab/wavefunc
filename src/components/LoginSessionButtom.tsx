@@ -18,12 +18,14 @@ import { LogOutIcon } from "./ui/icons/lucide-log-out";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
 import { useUIStore } from "../stores/uiStore";
+import { useTauri } from "../lib/hooks/useTauri";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
   const logout = useNDKSessionLogout();
   const currentUser = useNDKCurrentUser();
   const shouldPulseLogin = useUIStore((state) => state.shouldPulseLogin);
+  const isTauri = useTauri();
 
   const [loading, setLoading] = useState(false);
 
@@ -89,17 +91,19 @@ export function LoginSessionButtons() {
               <p>Create a new nsec.</p>
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant={'secondary'} onClick={handleNip07Login} disabled={loading}>
-                <AppWindowIcon className="w-5 h-5" />
-                {loading ? "Logging in..." : "extension"}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Use your nostr extension.</p>
-            </TooltipContent>
-          </Tooltip>
+          {!isTauri && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant={'secondary'} onClick={handleNip07Login} disabled={loading}>
+                  <AppWindowIcon className="w-5 h-5" />
+                  {loading ? "Logging in..." : "extension"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Use your nostr extension.</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <Nip46LoginDialog
               onLogin={handleNip46Login}

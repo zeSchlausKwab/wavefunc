@@ -112,13 +112,21 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    // Begin loading state
+    // Clean up existing metadata interval
+    const { metadataInterval: existingInterval } = get();
+    if (existingInterval) {
+      clearInterval(existingInterval);
+    }
+
+    // Begin loading state and clear old metadata
     set({
       currentStation: station,
       currentStream: candidates[0],
       isLoading: true,
       error: null,
       isPlaying: false,
+      currentMetadata: null,
+      metadataInterval: null,
     });
 
     // Clean up existing HLS instance if any

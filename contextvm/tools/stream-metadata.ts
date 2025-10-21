@@ -3,8 +3,9 @@
 
 import { parseIcyResponse } from "@music-metadata/icy";
 import { probeStream } from "./probe.ts";
+import { enrichMetadata } from "./metadata-enrichment.ts";
 
-interface StreamMetadata {
+export interface StreamMetadata {
   title?: string;
   artist?: string;
   song?: string;
@@ -18,6 +19,18 @@ interface StreamMetadata {
   source?: 'ICY' | 'HLS-ID3' | 'PLAYLIST' | 'JSON' | 'HEADERS' | 'STREAM' | 'UNKNOWN'; // Source type (aligned with NowPlaying)
   raw?: Record<string, unknown>; // Raw metadata (aligned with NowPlaying)
   notes?: string; // Additional notes (aligned with NowPlaying)
+
+  // Enriched metadata from MusicBrainz
+  enriched?: {
+    artist: string;
+    title: string;
+    album?: string;
+    releaseDate?: string;
+    duration?: number;
+    mbid?: string;
+    confidence: "high" | "medium" | "low" | "none";
+    source: "musicbrainz" | "raw" | "none";
+  };
 }
 
 /**
@@ -25,46 +38,76 @@ interface StreamMetadata {
  * Tries multiple strategies to get the best metadata
  */
 export async function extractIcecastMetadata(
-  url: string
+  url: string,
+  options?: { enrichWithMusicBrainz?: boolean }
 ): Promise<StreamMetadata> {
   try {
+    let metadata: StreamMetadata | null = null;
+
     // Strategy 0: Try the new probe stream function first
     const probeResult = await tryProbeStream(url);
     if (probeResult && (probeResult.title || probeResult.station)) {
       console.log(`✅ Extracted metadata via probe stream`);
-      return probeResult;
+      metadata = probeResult;
     }
 
     // Strategy 1: Try common Icecast JSON endpoints
-    const jsonMetadata = await tryIcecastJsonEndpoints(url);
-    if (jsonMetadata && (jsonMetadata.title || jsonMetadata.station)) {
-      console.log(`✅ Extracted metadata via JSON endpoint`);
-      return jsonMetadata;
+    if (!metadata) {
+      const jsonMetadata = await tryIcecastJsonEndpoints(url);
+      if (jsonMetadata && (jsonMetadata.title || jsonMetadata.station)) {
+        console.log(`✅ Extracted metadata via JSON endpoint`);
+        metadata = jsonMetadata;
+      }
     }
 
     // Strategy 2: Try stream headers with HEAD request
-    const headerMetadata = await tryStreamHeaders(url);
-    if (headerMetadata && (headerMetadata.title || headerMetadata.station)) {
-      console.log(`✅ Extracted metadata via stream headers`);
-      return headerMetadata;
+    if (!metadata) {
+      const headerMetadata = await tryStreamHeaders(url);
+      if (headerMetadata && (headerMetadata.title || headerMetadata.station)) {
+        console.log(`✅ Extracted metadata via stream headers`);
+        metadata = headerMetadata;
+      }
     }
 
     // Strategy 3: Try reading from stream data
-    const streamMetadata = await tryStreamData(url);
-    if (streamMetadata && (streamMetadata.title || streamMetadata.station)) {
-      console.log(`✅ Extracted metadata via stream data`);
-      return streamMetadata;
+    if (!metadata) {
+      const streamMetadata = await tryStreamData(url);
+      if (streamMetadata && (streamMetadata.title || streamMetadata.station)) {
+        console.log(`✅ Extracted metadata via stream data`);
+        metadata = streamMetadata;
+      }
     }
 
     // No metadata found
-    console.warn(`⚠️ No metadata available for ${url}`);
-    return {
-      url,
-      source: "UNKNOWN",
-      station: "Unknown",
-      title: "No metadata available",
-      method: "none",
-    };
+    if (!metadata) {
+      console.warn(`⚠️ No metadata available for ${url}`);
+      return {
+        url,
+        source: "UNKNOWN",
+        station: "Unknown",
+        title: "No metadata available",
+        method: "none",
+      };
+    }
+
+    // Enrich with MusicBrainz if requested and we have artist/title data
+    if (options?.enrichWithMusicBrainz !== false && (metadata.artist || metadata.song || metadata.title)) {
+      try {
+        console.log(`🎵 Enriching metadata with MusicBrainz...`);
+        const enriched = await enrichMetadata({
+          artist: metadata.artist,
+          title: metadata.song || metadata.title,
+          raw: metadata.raw,
+        });
+        metadata.enriched = enriched;
+        console.log(`✅ Enrichment complete: ${enriched.artist} - ${enriched.title} (confidence: ${enriched.confidence})`);
+      } catch (error: any) {
+        console.warn(`⚠️ MusicBrainz enrichment failed: ${error.message}`);
+        // Continue without enrichment
+      }
+    }
+
+    return metadata;
   } catch (error: any) {
     console.error(`❌ Stream metadata extraction error: ${error.message}`);
     throw new Error(`Failed to extract metadata: ${error.message}`);

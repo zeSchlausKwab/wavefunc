@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "../stores/playerStore";
-import { Play, Pause, X, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, X, Volume2, VolumeX, Radio } from "lucide-react";
 import Hls from "hls.js";
 import { useMedia } from "react-use";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function FloatingPlayer() {
   const isMobile = useMedia("(max-width: 768px)");
@@ -142,50 +143,61 @@ export function FloatingPlayer() {
           <div className="flex h-16 items-center gap-4 px-4">
             {/* Station Thumbnail & Info */}
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              {currentStation.thumbnail && (
+              {currentStation.thumbnail ? (
                 <img
                   src={currentStation.thumbnail}
                   alt={currentStation.name || "Station"}
                   className="size-12 shrink-0 rounded-md object-cover shadow-sm"
                 />
+              ) : (
+                <div className="size-12 shrink-0 rounded-md bg-secondary flex items-center justify-center">
+                  <Radio className="size-6 text-muted-foreground" />
+                </div>
               )}
               <div className="min-w-0 flex-1">
-                {currentMetadata?.song ? (
+                <h3 className="truncate text-sm font-semibold">
+                  {currentStation.name || "Unnamed Station"}
+                </h3>
+                <p className="truncate text-xs text-muted-foreground">
+                  {formatLabel}
+                  {currentStream?.quality?.bitrate &&
+                    currentStream.quality.bitrate > 0 && (
+                      <>
+                        {" "}
+                        • {Math.round(currentStream.quality.bitrate / 1000)}
+                        kbps
+                      </>
+                    )}
+                </p>
+                {isPlaying && (
                   <>
-                    <h3 className="truncate text-sm font-semibold">
-                      {currentMetadata.song}
-                    </h3>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {currentMetadata.artist || "Unknown Artist"}
-                      {currentMetadata.musicBrainz?.release && (
-                        <span className="ml-1">
-                          • {currentMetadata.musicBrainz.release}
-                          {currentMetadata.musicBrainz.releaseDate && (
-                            <span>
-                              {" "}
-                              ({currentMetadata.musicBrainz.releaseDate.split("-")[0]})
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="truncate text-sm font-semibold">
-                      {currentStation.name || "Unnamed Station"}
-                    </h3>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {formatLabel}
-                      {currentStream?.quality?.bitrate &&
-                        currentStream.quality.bitrate > 0 && (
-                          <>
+                    {currentMetadata?.song ? (
+                      <p className="truncate text-xs text-foreground mt-0.5">
+                        {currentMetadata.song}
+                        {currentMetadata.artist && (
+                          <span className="text-muted-foreground">
                             {" "}
-                            • {Math.round(currentStream.quality.bitrate / 1000)}
-                            kbps
-                          </>
+                            • {currentMetadata.artist}
+                          </span>
                         )}
-                    </p>
+                        {currentMetadata.musicBrainz?.release && (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            • {currentMetadata.musicBrainz.release}
+                            {currentMetadata.musicBrainz.releaseDate && (
+                              <span>
+                                {" "}
+                                ({currentMetadata.musicBrainz.releaseDate.split("-")[0]})
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </p>
+                    ) : (
+                      <div className="mt-1 space-y-1">
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                    )}
                   </>
                 )}
                 {error && (
