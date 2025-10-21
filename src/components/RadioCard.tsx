@@ -11,12 +11,14 @@ import { StationDetailSheet } from "./StationDetailSheet";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { cn } from "@/lib/utils";
 
 interface RadioCardProps {
   station: NDKStation;
+  className?: string;
 }
 
-export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
+export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ station, className }) => {
   const { currentStation, currentStream, isPlaying, playStation, pause } =
     usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
@@ -61,9 +63,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
   };
 
   return (
-    <Card className="relative group">
+    <Card className={`relative group ${cn(className)}`}>
       {/* Desktop Layout - Card with image on top */}
-      <div className="hidden md:flex md:flex-col">
+      <div className="hidden md:flex md:flex-col h-[300px]">
         {/* Top Actions */}
         <div className="absolute top-2 right-2 z-10 flex gap-2">
           {/* Favorites Dropdown */}
@@ -115,7 +117,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
 
         {/* Station Thumbnail with Play Overlay */}
         {station.thumbnail ? (
-          <div className="aspect-video w-full overflow-hidden relative">
+          <div className="aspect-[9/16] w-full overflow-hidden relative">
             <img
               src={station.thumbnail}
               alt={station.name || "Radio Station"}
@@ -142,7 +144,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           </div>
         ) : (
           <div
-            className="aspect-video w-full overflow-hidden relative bg-secondary flex items-center justify-center cursor-pointer"
+            className="aspect-[9/16] w-full overflow-hidden relative bg-secondary flex items-center justify-center cursor-pointer"
             onClick={handlePlayClick}
           >
             {/* Radio Icon Background */}
@@ -178,7 +180,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           </div>
         )}
 
-        <div className="flex flex-col justify-between min-w-0 p-2 w-full">
+        <div className="flex flex-col justify-between min-w-0 p-2 h-full w-full">
           {/* Station Name */}
           <h3
             className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
