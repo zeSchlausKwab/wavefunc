@@ -1,4 +1,4 @@
-import { Pause, Play, MoreVertical, Edit3, Trash2 } from "lucide-react";
+import { Pause, Play, MoreVertical, Edit3, Trash2, Radio } from "lucide-react";
 import React, { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation, type Stream } from "../lib/NDKStation";
@@ -18,13 +18,14 @@ interface RadioCardProps {
 }
 
 export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
-  const { currentStation, currentStream, isPlaying, playStation, pause } = usePlayerStore();
+  const { currentStation, currentStream, isPlaying, playStation, pause } =
+    usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDebugDialog, setShowDebugDialog] = useState(false);
   const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
-    station.streams.find(s => s.primary) || station.streams[0]
+    station.streams.find((s) => s.primary) || station.streams[0]
   );
 
   const isCurrentStation = currentStation?.id === station.id;
@@ -72,7 +73,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             onRemoveFromList={handleRemoveFromList}
           />
         )}
-        
+
         {/* Owner Actions Menu */}
         {isOwner && (
           <div className="relative">
@@ -82,7 +83,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             >
               <MoreVertical className="w-4 h-4 text-gray-500" />
             </Button>
-            
+
             {showActionMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
                 <div className="py-1">
@@ -102,7 +103,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           </div>
         )}
       </div>
-      
+
       {/* Backdrop to close action menu */}
       {showActionMenu && (
         <div
@@ -112,7 +113,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
       )}
 
       {/* Station Thumbnail with Play Overlay */}
-      {station.thumbnail && (
+      {station.thumbnail ? (
         <div className="aspect-video w-full overflow-hidden relative">
           <img
             src={station.thumbnail}
@@ -123,7 +124,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Button
               onClick={handlePlayClick}
-              className={`p-4 rounded-full transition-all transform hover:scale-110 ${
+              className={`rounded-full transition-all transform hover:scale-110 ${
                 isCurrentlyPlaying
                   ? "bg-blue-600 hover:bg-blue-700"
                   : "bg-white/90 hover:bg-white"
@@ -131,33 +132,43 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
               title={isCurrentlyPlaying ? "Pause" : "Play"}
             >
               {isCurrentlyPlaying ? (
-                <Pause className="w-8 h-8 text-white" />
+                <Pause className="w-8 h-8 text-black" />
               ) : (
                 <Play className="w-8 h-8 text-gray-900" />
               )}
             </Button>
           </div>
         </div>
-      )}
+      ) : (
+        <div className="aspect-video w-full overflow-hidden relative bg-secondary flex items-center justify-center cursor-pointer" onClick={handlePlayClick}>
+          {/* Radio Icon Background */}
+          <Radio className="w-48 h-48 text-muted-foreground/20 absolute" />
 
-      {/* Play Button for cards without thumbnail */}
-      {!station.thumbnail && (
-        <div className="aspect-video w-full overflow-hidden relative bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <Button
-            onClick={handlePlayClick}
-            className={`p-4 rounded-full transition-all transform hover:scale-110 ${
-              isCurrentlyPlaying
-                ? "bg-white/90 hover:bg-white"
-                : "bg-black/40 hover:bg-black/60"
-            }`}
-            title={isCurrentlyPlaying ? "Pause" : "Play"}
-          >
-            {isCurrentlyPlaying ? (
-              <Pause className="w-8 h-8 text-gray-900" />
-            ) : (
-              <Play className="w-8 h-8 text-white" />
-            )}
-          </Button>
+          {/* Play Button Overlay - hidden by default, shown on hover or when playing */}
+          <div className={`absolute inset-0 transition-all flex items-center justify-center ${
+            isCurrentlyPlaying
+              ? "bg-black/40"
+              : "bg-black/0 group-hover:bg-black/40"
+          }`}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayClick();
+              }}
+              className={`rounded-full transition-all transform hover:scale-110 ${
+                isCurrentlyPlaying
+                  ? "bg-primary hover:bg-primary/90"
+                  : "bg-background/90 hover:bg-background shadow-brutal opacity-0 group-hover:opacity-100"
+              }`}
+              title={isCurrentlyPlaying ? "Pause" : "Play"}
+            >
+              {isCurrentlyPlaying ? (
+                <Pause className="w-8 h-8 text-black" />
+              ) : (
+                <Play className="w-8 h-8 text-gray-900" />
+              )}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -199,7 +210,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
           <div className="mb-3">
             <StreamSelector
               streams={station.streams}
-              selectedStreamUrl={isCurrentStation ? currentStream?.url : selectedStream?.url}
+              selectedStreamUrl={
+                isCurrentStation ? currentStream?.url : selectedStream?.url
+              }
               onStreamSelect={handleStreamSelect}
               className="w-full justify-start px-2 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200"
             />
