@@ -14,12 +14,18 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as FavoritesImport } from './routes/favorites'
+import { Route as CommunityImport } from './routes/community'
 import { Route as IndexImport } from './routes/index'
 
 // Create Virtual Routes
 
 const FavoritesRoute = FavoritesImport.update({
   path: '/favorites',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const CommunityRoute = CommunityImport.update({
+  path: '/community',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -53,11 +59,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
 // Create and export the route tree
 
-export const routeTree = rootRoute.addChildren({ IndexRoute, FavoritesRoute })
+export const routeTree = rootRoute.addChildren({ IndexRoute, FavoritesRoute, CommunityRoute })
 
 /* prettier-ignore-end */

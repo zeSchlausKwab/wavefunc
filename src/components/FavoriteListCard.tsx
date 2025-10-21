@@ -127,7 +127,7 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
       </div>
 
       {/* Stations Grid */}
-      <div className="p-6">
+      <div className="p-2 md:p-6">
         {listStations.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             This list is empty. Start adding stations!

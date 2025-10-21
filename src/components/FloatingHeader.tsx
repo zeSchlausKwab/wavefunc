@@ -10,6 +10,8 @@ import { StationManagementSheet } from "./StationManagementSheet";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
+import { StarIcon } from "./ui/icons/lucide-star";
+import { SpeechIcon } from "./ui/icons/lucide-speech";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -62,7 +64,7 @@ export function FloatingHeader({
                     className: "text-foreground font-medium",
                   }}
                 >
-                  <Heart className="w-4 h-4" />
+                  <StarIcon className="w-4 h-4" />
                   Favorites
                   {getFavoriteCount() > 0 && (
                     <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
@@ -70,7 +72,16 @@ export function FloatingHeader({
                     </span>
                   )}
                 </Link>
-
+                <Link
+                  to="/community"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  activeProps={{
+                    className: "text-foreground font-medium",
+                  }}
+                >
+                  <SpeechIcon className="w-4 h-4" />
+                  Community
+                </Link>
                 <StationManagementSheet
                   mode="add"
                   trigger={
@@ -127,7 +138,7 @@ export function FloatingHeader({
                       }}
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      <Heart className="w-4 h-4" />
+                      <StarIcon className="w-4 h-4" />
                       Favorites
                       {getFavoriteCount() > 0 && (
                         <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
@@ -135,7 +146,18 @@ export function FloatingHeader({
                         </span>
                       )}
                     </Link>
-
+                    <Link
+                      to="/community"
+                      className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2"
+                      activeProps={{
+                        className:
+                          "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg flex items-center gap-2",
+                      }}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <SpeechIcon className="w-4 h-4" />
+                      Community
+                    </Link>
                     <StationManagementSheet
                       mode="add"
                       trigger={

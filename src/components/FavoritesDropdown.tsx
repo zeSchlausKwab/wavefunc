@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
-import { HeartIcon } from "./ui/icons/lucide-heart";
 import { SquareChevronDownIcon } from "./ui/icons/lucide-square-chevron-down";
+import { StarIcon } from "./ui/icons/lucide-star";
 import { Input } from "./ui/input";
 
 interface FavoritesDropdownProps {
@@ -56,8 +56,6 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
 
   const hasAnyFavorites = favoritesLists.some(list => isInList(list.favoritesId!));
   
-  // Always show dropdown - no more simple heart button
-
   return (
     <div className="relative">
         <Button
@@ -65,8 +63,8 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           title="Add to favorites"
         >
-          <HeartIcon className={`w-5 h-5 transition-colors ${
-            hasAnyFavorites ? "text-red-500 fill-red-500" : "text-gray-400"
+          <StarIcon className={`w-4 h-4 transition-colors ${
+            hasAnyFavorites ? "text-yellow-500 fill-yellow-500" : "text-gray-400"
           }`} />
           <SquareChevronDownIcon className="w-3 h-3 text-gray-500" />
         </Button>

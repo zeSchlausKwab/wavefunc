@@ -1,10 +1,12 @@
+import { StarIcon } from "@/components/ui/icons/lucide-star";
 import { createFileRoute } from "@tanstack/react-router";
-import { Heart, Trash2, Plus } from "lucide-react";
-import { useFavorites } from "../lib/hooks/useFavorites";
-import { Button } from "../components/ui/button";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { FavoriteListCard } from "../components/FavoriteListCard";
+import { useMedia } from "react-use";
 import { CreateFavoritesListForm } from "../components/CreateFavoritesListForm";
+import { FavoriteListCard } from "../components/FavoriteListCard";
+import { Button } from "../components/ui/button";
+import { useFavorites } from "../lib/hooks/useFavorites";
 
 export const Route = createFileRoute("/favorites")({
   component: Favorites,
@@ -22,6 +24,7 @@ function Favorites() {
   } = useFavorites();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const isMobile = useMedia("(max-width: 768px)");
 
   const favoriteCount = getFavoriteCount();
   const isLoading = favoritesLoading;
@@ -70,7 +73,7 @@ function Favorites() {
   if (!isLoggedIn) {
     return (
       <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <Heart className="w-16 h-16 text-muted-foreground/30" />
+        <StarIcon className="w-16 h-16 text-muted-foreground/30" />
         <h1 className="text-3xl font-bold">Favorites</h1>
         <p className="text-muted-foreground text-center max-w-md">
           Please log in to view and manage your favorite stations.
@@ -83,7 +86,7 @@ function Favorites() {
     return (
       <div className="space-y-6">
         <div className="flex flex-col items-center justify-center py-16 space-y-6">
-          <Heart className="w-16 h-16 text-muted-foreground/30" />
+          <StarIcon className="w-16 h-16 text-muted-foreground/30" />
           <h1 className="text-3xl font-bold">No favorites yet</h1>
           <p className="text-muted-foreground text-center max-w-md">
             Start adding stations to your favorites by clicking the heart icon
@@ -121,7 +124,7 @@ function Favorites() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Heart className="w-6 h-6 text-red-500" fill="currentColor" />
+            <StarIcon className="w-6 h-6 text-yellow-500" fill="currentColor" />
             <h1 className="text-2xl font-bold">My Favorites</h1>
             <span className="bg-muted text-muted-foreground px-2 py-1 rounded-full text-sm">
               {favoriteCount}
@@ -136,7 +139,7 @@ function Favorites() {
                 onClick={() => setShowCreateForm(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                New List
+                {isMobile ?? "Create New List"}
               </Button>
             )}
             {favoriteCount > 0 && (
@@ -146,7 +149,7 @@ function Favorites() {
                 onClick={clearFavorites}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Clear All
+                {isMobile ?? "Clear All"}
               </Button>
             )}
           </div>
