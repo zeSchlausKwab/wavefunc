@@ -2,7 +2,6 @@ import { NDKEvent, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import React, { useState, forwardRef } from "react";
 import { Button } from "./ui/button";
 import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
-import { X } from "lucide-react";
 
 interface CommentFormProps {
   onSubmit: (content: string) => Promise<void>;
@@ -54,33 +53,6 @@ export const CommentForm = forwardRef<HTMLTextAreaElement, CommentFormProps>(({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      {/* Reply Context */}
-      {isReply && parentEvent && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-blue-900 mb-1">
-                Replying to {parentEvent.pubkey.slice(0, 8)}...
-              </p>
-              <p className="text-xs text-blue-800 line-clamp-2">
-                {parentEvent.content}
-              </p>
-            </div>
-            {onCancel && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onCancel}
-                className="text-blue-600 hover:text-blue-800 p-1 h-auto"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Textarea */}
       <div className="relative">
         <textarea

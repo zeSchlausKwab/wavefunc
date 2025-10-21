@@ -1,6 +1,5 @@
 import { NDKEvent, useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { formatDistanceToNow } from "date-fns";
-import { CornerDownRight } from "lucide-react";
 import React, { useState } from "react";
 import type { CommentNode } from "../lib/hooks/useComments";
 import { CommentForm } from "./CommentForm";
@@ -116,19 +115,13 @@ export const Comment: React.FC<CommentProps> = ({
 
           {/* Actions Row */}
           <div className="flex items-center gap-2">
-            {/* Social Actions: Heart, Zap, Comment */}
-            <SocialActions station={event as any} className="flex-shrink-0" showDebug={false} />
-
-            {/* Reply Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowReplyForm(!showReplyForm)}
-              className="text-xs text-gray-600 hover:text-gray-900 gap-1"
-            >
-              <CornerDownRight className="w-3 h-3" />
-              {showReplyForm ? "Cancel" : "Reply"}
-            </Button>
+            {/* Social Actions: Heart, Zap, Comment (Reply) */}
+            <SocialActions
+              station={event as any}
+              className="flex-shrink-0"
+              showDebug={false}
+              onCommentClick={() => setShowReplyForm(!showReplyForm)}
+            />
           </div>
         </div>
 
