@@ -182,21 +182,17 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
             {station.name || "Unnamed Station"}
           </h3>
           {/* Station Description */}
-          <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+          <p className="text-gray-600 text-xs mb-2 line-clamp-2 flex-1">
             {station.description || "No description available"}
           </p>
           {/* Station Genres */}
           {station.genres && station.genres.length > 0 && (
             <div className="flex gap-1">
               {station.genres.slice(0, 2).map((genre, index) => (
-                <Badge className="text-xs px-2.5 py-0.5" key={index}>
-                  {genre}
-                </Badge>
+                <Badge key={index}>{genre}</Badge>
               ))}
               {station.genres.length > 2 && (
-                <Badge className="text-xs px-2.5 py-0.5">
-                  +{station.genres.length - 2}
-                </Badge>
+                <Badge>+{station.genres.length - 2}</Badge>
               )}
             </div>
           )}
@@ -280,7 +276,8 @@ export const RadioCard: React.FC<RadioCardProps> = ({ station }) => {
         <div className="flex flex-col justify-between min-w-0 p-1 w-full">
           {/* Station Name */}
           <h3 className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1">
-            {station.name || "Unnamed Station"} {station.description ? ` - ${station.description}` : ""}
+            {station.name || "Unnamed Station"}{" "}
+            {station.description ? ` - ${station.description}` : ""}
           </h3>
 
           {/* Station Genres */}
