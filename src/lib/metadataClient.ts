@@ -3,6 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { NostrClientTransport } from "@contextvm/sdk";
 import { PrivateKeySigner } from "@contextvm/sdk";
 import { SimpleRelayPool } from "@contextvm/sdk";
+import { config } from "../config/env";
 
 // Server public key - should match the server's keypair
 const METADATA_SERVER_PUBKEY =
@@ -12,8 +13,6 @@ const METADATA_SERVER_PUBKEY =
 const CLIENT_PRIVATE_KEY =
   //   process.env.METADATA_CLIENT_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000002"; // Dev client key
-
-const RELAYS = ["ws://localhost:3334"]; // [process.env.RELAY_URL || "ws://localhost:3334"];
 
 let clientInstance: Client | null = null;
 let clientTransport: NostrClientTransport | null = null;
@@ -29,7 +28,7 @@ export async function initMetadataClient(): Promise<Client> {
   console.log("🔌 Initializing metadata client...");
 
   const signer = new PrivateKeySigner(CLIENT_PRIVATE_KEY);
-  const relayPool = new SimpleRelayPool(RELAYS);
+  const relayPool = new SimpleRelayPool([config.relayUrl]);
 
   clientTransport = new NostrClientTransport({
     signer,
