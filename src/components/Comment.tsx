@@ -3,9 +3,11 @@ import { formatDistanceToNow } from "date-fns";
 import React, { useState } from "react";
 import type { CommentNode } from "../lib/hooks/useComments";
 import { CommentForm } from "./CommentForm";
+import { CommentContent } from "./CommentContent";
 import { SocialActions } from "./SocialActions";
 import { Button } from "./ui/button";
 import { UserAvatar } from "./UserAvatar";
+import EmbeddableComment from "./EmbeddableComment";
 
 interface CommentProps {
   commentNode: CommentNode;
@@ -31,11 +33,10 @@ export const Comment: React.FC<CommentProps> = ({
   maxDepth = 5,
 }) => {
   const { event, children, depth } = commentNode;
-  const {ndk} = useNDK();
+  const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showReplyForm, setShowReplyForm] = useState(false);
-
 
   const timestamp = event.created_at
     ? formatDistanceToNow(new Date(event.created_at * 1000), {
@@ -109,9 +110,10 @@ export const Comment: React.FC<CommentProps> = ({
           </div>
 
           {/* Comment Content */}
-          <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-            {event.content}
-          </p>
+          <EmbeddableComment
+            content={event.content}
+            allowVideoEmbeds
+          />
 
           {/* Actions Row */}
           <div className="flex items-center gap-2">
