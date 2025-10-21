@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import type { NDKStation } from "../lib/NDKStation";
 import { AuthRequiredButton } from "./AuthRequiredButton";
-import { CommentsDialog } from "./CommentsDialog";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
 import { HeartIcon } from "./ui/icons/lucide-heart";
@@ -16,6 +15,7 @@ interface SocialActionsProps {
   station: NDKStation;
   className?: string;
   showDebug?: boolean;
+  onCommentClick?: () => void; // Callback to open detail sheet and focus comment form
 }
 
 /**
@@ -31,6 +31,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
   station,
   className = "",
   showDebug = true,
+  onCommentClick,
 }) => {
   const currentUser = useNDKCurrentUser();
   const {
@@ -44,7 +45,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
   } = useSocialInteractions(station);
 
   const [showZapDialog, setShowZapDialog] = useState(false);
-  const [showCommentsDialog, setShowCommentsDialog] = useState(false);
   const [showDebugDialog, setShowDebugDialog] = useState(false);
 
   const handleReaction = async () => {
@@ -67,23 +67,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
       // await station.zap(...)
     } catch (error) {
       console.error("Error zapping:", error);
-    }
-  };
-
-  const handleComment = async (content: string) => {
-    if (!currentUser) {
-      alert("Please log in to comment on stations");
-      return;
-    }
-
-    try {
-      // Use NDK's built-in reply method with NIP-22 support
-      const reply = station.reply(true); // forceNip22 = true
-      reply.content = content;
-      await reply.publish();
-      console.log("Commented on station:", station.name, content);
-    } catch (error) {
-      console.error("Error commenting:", error);
     }
   };
 
@@ -139,7 +122,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setShowCommentsDialog(true)}
+        onClick={onCommentClick}
         disabled={isLoading}
         className={`gap-1.5 ${
           userHasCommented
@@ -175,15 +158,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         open={showZapDialog}
         onOpenChange={setShowZapDialog}
         onZap={handleZap}
-      />
-
-      {/* Comments Dialog */}
-      <CommentsDialog
-        station={station}
-        open={showCommentsDialog}
-        onOpenChange={setShowCommentsDialog}
-        commentCount={comments}
-        onComment={handleComment}
       />
 
       {/* Debug Dialog */}

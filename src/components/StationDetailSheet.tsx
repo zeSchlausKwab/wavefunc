@@ -1,4 +1,4 @@
-import { ExternalLink, Globe, Languages, MapPin, Radio } from "lucide-react";
+import { ExternalLink, Globe, Languages, MapPin, Radio, Play, Pause } from "lucide-react";
 import React from "react";
 import type { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
@@ -13,12 +13,18 @@ import {
 } from "./ui/sheet";
 import { StreamSelector } from "./StreamSelector";
 import { SocialActions } from "./SocialActions";
-import { Play, Pause } from "lucide-react";
+import { useComments } from "../lib/hooks/useComments";
+import { Comment } from "./Comment";
+import { CommentForm } from "./CommentForm";
+import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
 
 interface StationDetailSheetProps {
   station: NDKStation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  focusCommentForm?: boolean;
+  onCommentFormFocused?: () => void;
 }
 
 /**
@@ -30,20 +36,56 @@ export const StationDetailSheet: React.FC<StationDetailSheetProps> = ({
   station,
   open,
   onOpenChange,
+  focusCommentForm = false,
+  onCommentFormFocused,
 }) => {
+  const currentUser = useNDKCurrentUser();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const [selectedStream, setSelectedStream] = React.useState(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
+  const commentFormRef = React.useRef<HTMLTextAreaElement>(null);
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
+
+  // Fetch comments using the useComments hook
+  const { comments, totalCount } = useComments(station);
+
+  // Handle focus when sheet opens with focusCommentForm prop
+  React.useEffect(() => {
+    if (open && focusCommentForm && commentFormRef.current) {
+      // Small delay to ensure sheet animation completes
+      const timer = setTimeout(() => {
+        commentFormRef.current?.focus();
+        onCommentFormFocused?.();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [open, focusCommentForm, onCommentFormFocused]);
 
   const handlePlayClick = () => {
     if (isCurrentlyPlaying) {
       pause();
     } else {
       playStation(station, selectedStream);
+    }
+  };
+
+  const handleRootComment = async (content: string) => {
+    if (!currentUser) {
+      alert("Please log in to comment on stations");
+      return;
+    }
+
+    try {
+      const reply = station.reply(true); // forceNip22 = true
+      reply.content = content;
+      await reply.publish();
+      console.log("Posted root comment on station:", station.name);
+    } catch (error) {
+      console.error("Error posting comment:", error);
+      throw error;
     }
   };
 
@@ -159,18 +201,18 @@ export const StationDetailSheet: React.FC<StationDetailSheetProps> = ({
             )}
 
             {/* Homepage */}
-            {station.homepage && (
+            {station.website && (
               <div className="flex items-start gap-3">
                 <Globe className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-gray-900">Website</p>
                   <a
-                    href={station.homepage}
+                    href={station.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
                   >
-                    {new URL(station.homepage).hostname}
+                    {new URL(station.website).hostname}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -184,6 +226,45 @@ export const StationDetailSheet: React.FC<StationDetailSheetProps> = ({
               <h3 className="text-sm font-semibold text-gray-700">Interact</h3>
               <SocialActions station={station} />
             </div>
+          </div>
+
+          {/* Comments Section (NIP-22 Threaded Comments) */}
+          <div className="pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-2 mb-4">
+              <MessageCircleIcon className="w-5 h-5 text-green-500" />
+              <h3 className="text-sm font-semibold text-gray-700">
+                Comments {totalCount > 0 && `(${totalCount})`}
+              </h3>
+            </div>
+
+            {/* Comments Thread */}
+            <div className="space-y-4 mb-4">
+              {comments.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                  <MessageCircleIcon className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm font-medium">No comments yet</p>
+                  <p className="text-xs mt-1">
+                    Be the first to share your thoughts
+                  </p>
+                </div>
+              ) : (
+                comments.map((commentNode) => (
+                  <Comment
+                    key={commentNode.event.id}
+                    commentNode={commentNode}
+                    stationAddress={station.address}
+                    stationId={station.id}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Root Comment Form (always visible) */}
+            <CommentForm
+              ref={commentFormRef}
+              onSubmit={handleRootComment}
+              placeholder="Share your thoughts about this station..."
+            />
           </div>
 
           {/* Stream URLs (for debugging/advanced users) */}

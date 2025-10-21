@@ -25,9 +25,15 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
+  const [focusCommentForm, setFocusCommentForm] = useState(false);
   const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
+
+  const handleCommentClick = () => {
+    setShowDetailSheet(true);
+    setFocusCommentForm(true);
+  };
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
@@ -212,7 +218,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                 : station.languages[0]}
             </div>
 
-            <SocialActions station={station} />
+            <SocialActions station={station} onCommentClick={handleCommentClick} />
           </div>
         </div>
       </div>
@@ -311,7 +317,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                 : station.languages[0]}
             </div>
 
-            <SocialActions station={station} />
+            <SocialActions station={station} onCommentClick={handleCommentClick} />
           </div>
         </div>
 
@@ -370,7 +376,12 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
       <StationDetailSheet
         station={station}
         open={showDetailSheet}
-        onOpenChange={setShowDetailSheet}
+        onOpenChange={(open) => {
+          setShowDetailSheet(open);
+          if (!open) setFocusCommentForm(false);
+        }}
+        focusCommentForm={focusCommentForm}
+        onCommentFormFocused={() => setFocusCommentForm(false)}
       />
     </Card>
   );
