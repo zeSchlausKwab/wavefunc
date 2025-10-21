@@ -4,15 +4,18 @@ import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import type { NDKStation } from "../lib/NDKStation";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { CommentsDialog } from "./CommentsDialog";
+import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
 import { HeartIcon } from "./ui/icons/lucide-heart";
 import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
 import { ZapIcon } from "./ui/icons/lucide-zap";
+import { FileJsonIcon } from "./ui/icons/lucide-file-json";
 import { ZapDialog } from "./ZapDialog";
 
 interface SocialActionsProps {
   station: NDKStation;
   className?: string;
+  showDebug?: boolean;
 }
 
 /**
@@ -27,6 +30,7 @@ interface SocialActionsProps {
 export const SocialActions: React.FC<SocialActionsProps> = ({
   station,
   className = "",
+  showDebug = true,
 }) => {
   const currentUser = useNDKCurrentUser();
   const {
@@ -41,6 +45,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
 
   const [showZapDialog, setShowZapDialog] = useState(false);
   const [showCommentsDialog, setShowCommentsDialog] = useState(false);
+  const [showDebugDialog, setShowDebugDialog] = useState(false);
 
   const handleReaction = async () => {
     if (!currentUser) {
@@ -151,6 +156,19 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         )}
       </Button>
 
+      {/* Debug/JSON Button */}
+      {showDebug && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowDebugDialog(true)}
+          className="gap-1.5 text-gray-600 hover:text-gray-900"
+          title="View raw event data"
+        >
+          <FileJsonIcon className="w-4 h-4" />
+        </Button>
+      )}
+
       {/* Zap Dialog */}
       <ZapDialog
         station={station}
@@ -167,6 +185,15 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         commentCount={comments}
         onComment={handleComment}
       />
+
+      {/* Debug Dialog */}
+      {showDebug && (
+        <DebugDialog
+          station={station}
+          open={showDebugDialog}
+          onOpenChange={setShowDebugDialog}
+        />
+      )}
     </div>
   );
 };
