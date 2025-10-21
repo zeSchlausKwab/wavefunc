@@ -9,6 +9,9 @@ import {
   getCleanStationName,
 } from "./lib/station-normalizer";
 import { mergeStations, getMergeStats } from "./lib/station-merger";
+import { faker } from "@faker-js/faker";
+import { NDKWFFavorites } from "../src/lib/NDKWFFavorites";
+import { devUser1, devUser2, devUser3, devUser4, devUser5 } from "../src/lib/fixtures";
 
 // App key for publishing stations
 const APP_PRIVATE_KEY =
@@ -391,6 +394,108 @@ function selectRandomStations(
   return shuffled.slice(0, Math.min(count, uniqueStations.length));
 }
 
+// Seed favorites lists for dev users with migrated stations
+async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
+  console.log("\n❤️  Starting favorites lists seeding...");
+
+  const devUsers = [devUser1, devUser2, devUser3, devUser4, devUser5];
+  const stationAddresses = publishedEvents.map((event) => {
+    const dTag = event.tags.find((t) => t[0] === "d")?.[1];
+    return `31237:${event.pubkey}:${dTag}`;
+  });
+
+  if (stationAddresses.length === 0) {
+    console.log("⚠️  No stations available for favorites lists");
+    return;
+  }
+
+  let favoritesCount = 0;
+
+  for (let userIndex = 0; userIndex < devUsers.length; userIndex++) {
+    const user = devUsers[userIndex];
+    const signer = new NDKPrivateKeySigner(user.sk);
+    await signer.blockUntilReady();
+    const pubkey = (await signer.user()).pubkey;
+
+    console.log(
+      `Creating favorites lists for user ${pubkey.substring(0, 8)}...`
+    );
+
+    // Seed faker for consistent but varied results per user
+    faker.seed(userIndex + 5000);
+
+    // Generate 3 unique lists with faker
+    const listCount = 3;
+    for (let listIndex = 0; listIndex < listCount; listIndex++) {
+      try {
+        // Generate unique list metadata with faker
+        const musicGenre = faker.music.genre();
+        const adjective = faker.word.adjective();
+
+        const listNames = [
+          {
+            name: `${faker.helpers.arrayElement(['My', 'Best', 'Top', 'Favorite'])} ${musicGenre} Stations`,
+            desc: `${faker.helpers.arrayElement(['A curated collection of', 'My favorite', 'The best', 'Premium selection of'])} ${musicGenre.toLowerCase()} radio stations`,
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+          },
+          {
+            name: `${adjective.charAt(0).toUpperCase() + adjective.slice(1)} ${faker.helpers.arrayElement(['Vibes', 'Mix', 'Playlist', 'Collection'])}`,
+            desc: `${faker.helpers.arrayElement(['Perfect for', 'Great for', 'Ideal for'])} ${faker.helpers.arrayElement(['relaxing', 'working', 'studying', 'partying', 'driving'])}`,
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+          },
+          {
+            name: faker.helpers.arrayElement(['Weekend', 'Morning', 'Evening', 'Night', 'Road Trip']) + ' Radio',
+            desc: faker.lorem.sentence(),
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+          },
+        ];
+
+        const listInfo = listNames[listIndex]!;
+
+        // Create favorites list
+        const favoritesList = NDKWFFavorites.createDefault(
+          ndk,
+          listInfo.name,
+          listInfo.desc
+        );
+        favoritesList.pubkey = pubkey;
+        favoritesList.banner = listInfo.banner;
+
+        // Add 5-8 random stations to this list
+        const numStations = faker.number.int({ min: 5, max: 8 });
+        const selectedStations = faker.helpers.arrayElements(
+          stationAddresses,
+          Math.min(numStations, stationAddresses.length)
+        );
+
+        for (const stationAddress of selectedStations) {
+          favoritesList.addStation(stationAddress);
+        }
+
+        // Sign and publish
+        ndk.signer = signer;
+        await favoritesList.sign();
+        const relays = await favoritesList.publish();
+
+        favoritesCount++;
+        console.log(
+          `  ✓ Created "${listInfo.name}" with ${selectedStations.length} stations (published to ${relays.size} relays)`
+        );
+
+        // Small delay to ensure relay processing
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error(
+          `  ✗ Failed to create favorites list for user ${userIndex}:`,
+          error
+        );
+      }
+    }
+  }
+
+  console.log(`\n✅ Successfully seeded ${favoritesCount} favorites lists!`);
+}
+
 async function migrateStations() {
   console.log("🚀 Starting legacy station migration...\n");
 
@@ -399,7 +504,7 @@ async function migrateStations() {
   const allStations = extractStationsFromSQL(sqlPath);
 
   // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 10;
+  const count = process.argv[2] ? parseInt(process.argv[2]) : 500;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 
@@ -415,6 +520,7 @@ async function migrateStations() {
   // Migrate stations
   let successCount = 0;
   let failCount = 0;
+  const publishedEvents: NDKEvent[] = [];
 
   for (let i = 0; i < selectedStations.length; i++) {
     const station = selectedStations[i];
@@ -437,6 +543,7 @@ async function migrateStations() {
       await event.publish();
 
       successCount++;
+      publishedEvents.push(event);
       console.log(`  ✅ Published (ID: ${event.id?.substring(0, 16)}...)`);
     } catch (error) {
       failCount++;
@@ -447,6 +554,11 @@ async function migrateStations() {
   console.log(`\n📊 Migration Complete!`);
   console.log(`   Success: ${successCount}`);
   console.log(`   Failed: ${failCount}`);
+
+  // Seed favorites lists with the migrated stations
+  if (successCount > 0) {
+    await seedFavoritesLists(publishedEvents);
+  }
 
   process.exit(0);
 }

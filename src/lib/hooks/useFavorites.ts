@@ -1,14 +1,14 @@
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import {
-  useSubscribe,
-  wrapEvent,
+  NDKKind,
   useNDK,
   useNDKCurrentUser,
-  NDKKind,
+  useSubscribe,
+  wrapEvent,
 } from "@nostr-dev-kit/react";
-import { useEffect, useState, useCallback, useRef } from "react";
-import { NDKWFFavorites } from "../NDKWFFavorites";
+import { useCallback, useEffect, useRef, useState } from "react";
 import NDKStation from "../NDKStation";
+import { NDKWFFavorites } from "../NDKWFFavorites";
 
 // Extend window for debug throttling
 declare global {
@@ -45,7 +45,7 @@ export function useFavorites() {
         "#l": ["user_favourite_list"],
       };
 
-      const events = await ndk.fetchEvents(filter);
+      const events = await ndk.fetchEvents(filter, { groupable: false});
       const favoritesEvents = Array.from(events).map((event) =>
         NDKWFFavorites.from(event)
       );
@@ -385,7 +385,7 @@ export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
       "#d": dTags,
     };
 
-    const sub = ndk.subscribe(filter, { closeOnEose: false });
+    const sub = ndk.subscribe(filter, { closeOnEose: false, groupable: false });
     const byAddress = new Map<string, NDKStation>();
 
     sub.on("event", (event: any) => {

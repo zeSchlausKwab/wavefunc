@@ -130,26 +130,28 @@ async function seedData() {
     // Seed faker for consistent but varied results per user
     faker.seed(userIndex + 5000);
 
-    // Create 2-3 favorites lists per user
-    const numLists = faker.number.int({ min: 2, max: 3 });
-
-    const listNames = [
+    // Create exactly 3 favorites lists per user
+    const listConfigs = [
       {
         name: "My Favorite Stations",
         desc: "My personal collection of favorite radio stations",
+        banner: "https://picsum.photos/seed/fav1/1200/400",
       },
-      { name: "Chill Vibes", desc: "Stations for relaxing and unwinding" },
+      {
+        name: "Chill Vibes",
+        desc: "Stations for relaxing and unwinding",
+        banner: "https://picsum.photos/seed/chill/1200/400",
+      },
       {
         name: "Work Background",
         desc: "Perfect stations for working and focusing",
+        banner: "https://picsum.photos/seed/work/1200/400",
       },
-      { name: "Discovery Mix", desc: "New stations I'm exploring" },
-      { name: "Top Picks", desc: "The best of the best radio stations" },
-    ];
+    ] as const;
 
-    for (let listIndex = 0; listIndex < numLists; listIndex++) {
+    for (let listIndex = 0; listIndex < listConfigs.length; listIndex++) {
       try {
-        const listInfo = faker.helpers.arrayElement(listNames);
+        const listInfo = listConfigs[listIndex]!;
 
         // Create favorites list
         const favoritesList = NDKWFFavorites.createDefault(
@@ -159,8 +161,11 @@ async function seedData() {
         );
         favoritesList.pubkey = pubkey;
 
-        // Add 3-8 random stations to this list
-        const numStations = faker.number.int({ min: 3, max: 8 });
+        // Set banner image
+        favoritesList.banner = listInfo.banner;
+
+        // Add at least 5 random stations to this list
+        const numStations = faker.number.int({ min: 5, max: 8 });
         const selectedStations = faker.helpers.arrayElements(
           stationAddresses,
           Math.min(numStations, stationAddresses.length)
@@ -173,12 +178,15 @@ async function seedData() {
         // Sign and publish
         ndk.signer = signer;
         await favoritesList.sign();
-        await favoritesList.publish();
+        const relays = await favoritesList.publish();
 
         favoritesCount++;
         console.log(
-          `  ✓ Created "${listInfo.name}" with ${selectedStations.length} stations`
+          `  ✓ Created "${listInfo.name}" with ${selectedStations.length} stations and banner (published to ${relays.size} relays)`
         );
+
+        // Small delay to ensure relay processing
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         console.error(
           `  ✗ Failed to create favorites list for user ${userIndex}:`,

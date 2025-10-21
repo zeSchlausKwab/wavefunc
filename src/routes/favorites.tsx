@@ -20,22 +20,16 @@ function Favorites() {
     createFavoritesList,
     isLoading: favoritesLoading,
     isLoggedIn,
+    currentUser,
   } = useFavorites();
 
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [newListDescription, setNewListDescription] = useState("");
-  const [selectedList, setSelectedList] = useState<string | null>(null);
 
   const favoriteCount = getFavoriteCount();
-  const currentList = selectedList
-    ? favoritesLists.find((list) => list.favoritesId === selectedList) || null
-    : null;
-
-  const { stations, isLoading: stationsLoading } =
-    useFavoriteStations(currentList);
-  const isLoading = favoritesLoading || stationsLoading;
+  const isLoading = favoritesLoading;
 
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +37,6 @@ function Favorites() {
 
     const newList = await createFavoritesList(newListName, newListDescription);
     if (newList) {
-      setSelectedList(newList.favoritesId!);
       setShowCreateForm(false);
       setNewListName("");
       setNewListDescription("");
@@ -95,7 +88,7 @@ function Favorites() {
 
         {/* Create List Form */}
         {showCreateForm && (
-          <div className="max-w-2xl mx-auto bg-muted/50 p-6 rounded-lg">
+          <div className="bg-muted/50 p-6 rounded-lg">
             <h2 className="text-lg font-semibold mb-4">
               Create a New Favorites List
             </h2>
@@ -153,10 +146,10 @@ function Favorites() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Lists Tabs */}
+      {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-3">
             <Heart className="w-6 h-6 text-red-500" fill="currentColor" />
             <h1 className="text-2xl font-bold">My Favorites</h1>
             <span className="bg-muted text-muted-foreground px-2 py-1 rounded-full text-sm">
@@ -198,7 +191,6 @@ function Favorites() {
                   placeholder="List name"
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
                 <Input
@@ -228,132 +220,102 @@ function Favorites() {
             </form>
           </div>
         )}
-
-        {/* Lists Tabs */}
-        {favoritesLists.length > 0 && (
-          <div className="border-b">
-            <nav className="flex space-x-6 overflow-x-auto min-h-[48px]">
-              <Button
-                onClick={() => setSelectedList(null)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  !selectedList
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                All Lists ({favoriteCount})
-              </Button>
-              {favoritesLists.map((list) => {
-                const listStationCount = list.getStationCount();
-                return (
-                  <Button
-                    key={list.favoritesId}
-                    onClick={() => setSelectedList(list.favoritesId!)}
-                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                      selectedList === list.favoritesId
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
-                  >
-                    {list.name} ({listStationCount})
-                  </Button>
-                );
-              })}
-            </nav>
-          </div>
-        )}
       </div>
 
-      {/* Current List Content */}
-      {currentList ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">{currentList.name}</h2>
-              {currentList.description && (
-                <p className="text-muted-foreground text-sm">
-                  {currentList.description}
-                </p>
-              )}
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {stations.length} station{stations.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {stations.map((station) => (
-              <RadioCard key={station.id} station={station} />
-            ))}
-          </div>
-
-          {stations.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">
-                This list is empty. Start adding stations!
-              </p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">All Favorites</h2>
-
-          {favoritesLists.map((list) => (
-            <FavoriteListSection
-              key={list.favoritesId}
-              list={list}
-              onViewAll={() => setSelectedList(list.favoritesId!)}
-            />
-          ))}
-        </div>
-      )}
+      {/* All Lists as Cards */}
+      <div className="space-y-6">
+        {favoritesLists.map((list) => (
+          <FavoriteListCard
+            key={list.favoritesId}
+            list={list}
+            isOwner={currentUser?.pubkey === list.pubkey}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function FavoriteListSection({
+function FavoriteListCard({
   list,
-  onViewAll,
+  isOwner,
 }: {
   list: NDKWFFavorites;
-  onViewAll: () => void;
+  isOwner: boolean;
 }) {
   const { stations: listStations } = useFavoriteStations(list);
+  const { removeFavorite } = useFavorites();
+
+  const handleRemoveStation = async (station: any) => {
+    if (isOwner) {
+      await removeFavorite(station);
+    }
+  };
+
+  // Generate a gradient based on list name for banner
+  const getBannerGradient = (name: string) => {
+    const colors = [
+      "from-purple-500 to-pink-500",
+      "from-blue-500 to-cyan-500",
+      "from-green-500 to-emerald-500",
+      "from-orange-500 to-red-500",
+      "from-indigo-500 to-purple-500",
+      "from-rose-500 to-pink-500",
+    ];
+    const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
+  };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-medium">{list.name}</h3>
-          {list.description && (
-            <p className="text-sm text-muted-foreground">{list.description}</p>
-          )}
-        </div>
-        <span className="text-sm text-muted-foreground">
+    <div className="border rounded-lg overflow-hidden bg-card">
+      {/* Banner with Title and Description */}
+      <div
+        className={`bg-gradient-to-r ${list.banner ? "" : getBannerGradient(list.name || "")} p-6 text-white relative`}
+        style={
+          list.banner
+            ? {
+                backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${list.banner})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
+        <h2 className="text-2xl font-bold mb-2">{list.name}</h2>
+        {list.description && (
+          <p className="text-white/90 text-sm">{list.description}</p>
+        )}
+        <div className="mt-3 text-white/80 text-sm">
           {listStations.length} station{listStations.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {listStations.slice(0, 8).map((station) => (
-          <RadioCard key={station.id} station={station} />
-        ))}
-      </div>
-
-      {listStations.length > 8 && (
-        <Button
-          onClick={onViewAll}
-        >
-          View all {listStations.length} stations
-        </Button>
-      )}
-
-      {listStations.length === 0 && (
-        <div className="text-center py-4 text-muted-foreground text-sm">
-          This list is empty
         </div>
-      )}
+      </div>
+
+      {/* Stations Grid */}
+      <div className="p-4">
+        {listStations.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            This list is empty. Start adding stations!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {listStations.map((station) => (
+              <div key={station.id} className="relative group">
+                <RadioCard station={station} />
+                {isOwner && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-50"
+                    onClick={() => handleRemoveStation(station)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
