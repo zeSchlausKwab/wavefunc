@@ -10,6 +10,7 @@ import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { config, initConfig } from "./config/env";
 
 // Initialize Dexie cache adapter for efficient caching and cache invalidation
 const dexieAdapter = new NDKCacheAdapterDexie({
@@ -20,39 +21,46 @@ const dexieAdapter = new NDKCacheAdapterDexie({
   saveSig: true,
 });
 
-const elem = document.getElementById("root")!;
-const app = (
-  <StrictMode>
-    <NDKHeadless
-      ndk={{
-        explicitRelayUrls: [
-          "ws://localhost:3334",
-          // "ws://localhost:10547",
-          // "wss://relay.primal.net",
-          // "wss://relay.damus.io",
-          // "wss://purplepag.es",
-          // "wss://relay.nostr.band",
-          // "wss://nos.lol",
-          // "wss://relay.nostr.net",
-          // "wss://relay.minibits.cash",
-          // "wss://relay.coinos.io/",
-        ],
-        cacheAdapter: dexieAdapter,
-      }}
-      session={{
-        storage: new NDKSessionLocalStorage(),
-        opts: { follows: true, profile: true },
-      }}
-    />
-    <App />
-  </StrictMode>
-);
+// Initialize config and render app
+async function startApp() {
+  await initConfig();
 
-if (import.meta.hot) {
-  // With hot module reloading, `import.meta.hot.data` is persisted.
-  const root = (import.meta.hot.data.root ??= createRoot(elem));
-  root.render(app);
-} else {
-  // The hot module reloading API is not available in production.
-  createRoot(elem).render(app);
+  const elem = document.getElementById("root")!;
+  const app = (
+    <StrictMode>
+      <NDKHeadless
+        ndk={{
+          explicitRelayUrls: [
+            config.relayUrl,
+            // "ws://localhost:10547",
+            // "wss://relay.primal.net",
+            // "wss://relay.damus.io",
+            // "wss://purplepag.es",
+            // "wss://relay.nostr.band",
+            // "wss://nos.lol",
+            // "wss://relay.nostr.net",
+            // "wss://relay.minibits.cash",
+            // "wss://relay.coinos.io/",
+          ],
+          cacheAdapter: dexieAdapter,
+        }}
+        session={{
+          storage: new NDKSessionLocalStorage(),
+          opts: { follows: true, profile: true },
+        }}
+      />
+      <App />
+    </StrictMode>
+  );
+
+  if (import.meta.hot) {
+    // With hot module reloading, `import.meta.hot.data` is persisted.
+    const root = (import.meta.hot.data.root ??= createRoot(elem));
+    root.render(app);
+  } else {
+    // The hot module reloading API is not available in production.
+    createRoot(elem).render(app);
+  }
 }
+
+startApp();

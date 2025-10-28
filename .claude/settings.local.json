@@ -15,7 +15,15 @@
       "Bash(find /Users/schlaus/workspace/wavefunc-rewrite -name \"go.mod\" -path \"*/relay/*\" -exec grep -A 5 \"khatru\" {} ;)",
       "Bash(cat node_modules/@music-metadata/icy/package.json)",
       "Bash(echo \"The seeded users are:\nUser 1: npub1s65ze2cck2fl20964t5vmjlw8alvgflal8uujv7mw7qqhd008zsqd2nnah (pk: 86a82cab...)\nUser 2: npub1m9p7jmtzd9dnrz5uqev280fl4740gsdqd8vtl5zde8lnn35uc7pqkxtwzu (pk: d943e96d...)\n\nTo see the seeded favorites, you need to log in as one of these users using their private key (sk) from fixtures.ts\")",
-      "Bash(bun scripts/migrate_legacy.ts 20)"
+      "Bash(bun scripts/migrate_legacy.ts 20)",
+      "Bash(bunx @tanstack/router-cli --help)",
+      "Bash(bunx @tanstack/router-cli generate --help)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill -9)",
+      "Bash(bun src/index.tsx)",
+      "Bash(curl -s -H \"User-Agent: facebookexternalhit/1.0\" http://localhost:3000/)",
+      "Bash(bun --help serve)",
+      "Bash(NODE_ENV=production bun src/index.tsx)"
     ],
     "deny": [],
     "ask": []

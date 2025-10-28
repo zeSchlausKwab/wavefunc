@@ -504,7 +504,7 @@ async function migrateStations() {
   const allStations = extractStationsFromSQL(sqlPath);
 
   // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 500;
+  const count = process.argv[2] ? parseInt(process.argv[2]) : 50;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 

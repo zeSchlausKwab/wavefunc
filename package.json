@@ -17,6 +17,8 @@
     "migrate": "bun run scripts/migrate_legacy.ts",
     "start": "NODE_ENV=production bun src/index.tsx",
     "build": "bun run build.ts",
+    "routes:generate": "bunx @tanstack/router-cli generate",
+    "routes:watch": "bunx @tanstack/router-cli watch",
     "tauri": "tauri",
     "tauri:dev": "bun run relay & sleep 1 && bun run migrate && bun run contextvm & tauri dev",
     "tauri:build": "tauri build",

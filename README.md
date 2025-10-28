@@ -85,6 +85,13 @@ bun dev
 - `cd relay && make dev` - Run relay in development mode
 - `cd relay && make reset-all` - Reset all data
 
+### Tauri (Desktop & Mobile)
+
+- `bun run tauri:dev` - Start Tauri desktop development
+- `bun run tauri:build` - Build Tauri desktop application
+- `bun run tauri:android` - Initialize and run Android emulator
+- `bun run tauri:android:build` - Build Android APK
+
 ### Migration
 
 - `bun run migrate` - Migrate 500 random stations from legacy database (default)
@@ -151,6 +158,27 @@ sqlite3 data/events.db
 # Check data directory
 ls -la data/
 ```
+
+### Android Development
+
+The app automatically detects when running on Android and uses the correct relay URL:
+
+- **Desktop/Web**: `ws://localhost:3334`
+- **Android Emulator**: `ws://10.0.2.2:3334` (Android's special IP to reach host machine)
+
+To develop for Android:
+
+1. Ensure the relay is running on your host machine:
+   ```bash
+   bun run relay
+   ```
+
+2. Start the Android emulator:
+   ```bash
+   bun run tauri:android
+   ```
+
+The app will automatically connect to the relay using the platform-appropriate URL. No additional configuration needed!
 
 ## Event Kinds Supported
 
