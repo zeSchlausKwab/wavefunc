@@ -1,6 +1,7 @@
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
-import { Edit3, MoreVertical, Pause, Play, Radio } from "lucide-react";
+import { Edit3, MoreVertical, Pause, Play, Radio, ExternalLink } from "lucide-react";
 import React, { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
@@ -187,13 +188,29 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
         )}
 
         <div className="flex flex-col justify-between min-w-0 p-2 h-full w-full">
-          {/* Station Name */}
-          <h3
-            className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
-            onClick={() => setShowDetailSheet(true)}
-          >
-            {station.name || "Unnamed Station"}
-          </h3>
+          {/* Station Name with External Link */}
+          <div className="flex items-center gap-1 mb-1 min-w-0">
+            <h3
+              className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
+              onClick={() => setShowDetailSheet(true)}
+            >
+              {station.name || "Unnamed Station"}
+            </h3>
+            <Link
+              to="/station/$naddr"
+              params={{ naddr: station.naddr }}
+              className="flex-shrink-0"
+              title="Open full page"
+            >
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-5 w-5 p-0 hover:bg-gray-100"
+              >
+                <ExternalLink className="h-3 w-3 text-gray-500 hover:text-blue-600" />
+              </Button>
+            </Link>
+          </div>
           {/* Station Description */}
           <p className="text-gray-600 text-xs mb-2 line-clamp-2 flex-1">
             {station.description || "No description available"}
@@ -287,14 +304,30 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
 
         {/* Center: Station Info */}
         <div className="flex flex-col justify-between min-w-0 p-1 w-full">
-          {/* Station Name */}
-          <h3
-            className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors"
-            onClick={() => setShowDetailSheet(true)}
-          >
-            {station.name || "Unnamed Station"}{" "}
-            {station.description ? ` - ${station.description}` : ""}
-          </h3>
+          {/* Station Name with External Link */}
+          <div className="flex items-center gap-1 mb-1 min-w-0">
+            <h3
+              className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
+              onClick={() => setShowDetailSheet(true)}
+            >
+              {station.name || "Unnamed Station"}{" "}
+              {station.description ? ` - ${station.description}` : ""}
+            </h3>
+            <Link
+              to="/station/$naddr"
+              params={{ naddr: station.naddr }}
+              className="flex-shrink-0"
+              title="Open full page"
+            >
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-5 w-5 p-0 hover:bg-gray-100"
+              >
+                <ExternalLink className="h-3 w-3 text-gray-500 hover:text-blue-600" />
+              </Button>
+            </Link>
+          </div>
 
           {/* Station Genres */}
           {station.genres && station.genres.length > 0 && (
