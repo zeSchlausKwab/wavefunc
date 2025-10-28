@@ -68,6 +68,15 @@ function InlineEmbedsText({
 
 type EmbedKind = "image" | "video" | "link";
 
+interface OGPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+  type?: string;
+}
+
 const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"];
 const YT_REGEX =
   /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i;
@@ -108,6 +117,8 @@ function LinkWithEmbed({
   );
   const [kind, setKind] = useState<EmbedKind>(initialKind);
   const [open, setOpen] = useState(true);
+  const [ogPreview, setOgPreview] = useState<OGPreview | null>(null);
+  const [ogLoading, setOgLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,11 +128,31 @@ function LinkWithEmbed({
         try {
           const res = await fetch(url, { method: "HEAD", signal: ac.signal });
           const ct = res.headers.get("content-type") || "";
-          if (ct.startsWith("image/")) setKind("image");
-          else if (allowVideoEmbeds && isLikelyVideoContentType(ct))
+          if (ct.startsWith("image/")) {
+            setKind("image");
+          } else if (allowVideoEmbeds && isLikelyVideoContentType(ct)) {
             setKind("video");
+          } else if (ct.includes("text/html")) {
+            // Fetch Open Graph preview for HTML pages
+            setOgLoading(true);
+            try {
+              const ogRes = await fetch(
+                `/api/og-preview?url=${encodeURIComponent(url)}`,
+                { signal: ac.signal }
+              );
+              if (ogRes.ok) {
+                const data = await ogRes.json();
+                if (!cancelled && !data.error) {
+                  setOgPreview(data);
+                }
+              }
+            } catch (e) {
+              // Silent fail for OG preview
+            } finally {
+              if (!cancelled) setOgLoading(false);
+            }
+          }
         } catch {}
-        if (cancelled) return;
       })();
     }
     return () => {
@@ -141,7 +172,7 @@ function LinkWithEmbed({
       >
         {url}
       </a>
-      {kind !== "link" && (
+      {(kind !== "link" || ogPreview) && (
         <Button
           variant="ghost"
           size="sm"
@@ -154,6 +185,9 @@ function LinkWithEmbed({
       {open && kind === "image" && <InlineImage url={url} />}
       {open && kind === "video" && allowVideoEmbeds && (
         <InlineVideo url={url} />
+      )}
+      {open && kind === "link" && ogPreview && !ogLoading && (
+        <InlineOGPreview preview={ogPreview} />
       )}
     </span>
   );
@@ -224,6 +258,56 @@ function InlineVideo({ url }: { url: string }) {
           {url}
         </a>
       </figcaption>
+    </figure>
+  );
+}
+
+function InlineOGPreview({ preview }: { preview: OGPreview }) {
+  return (
+    <figure className="my-2">
+      <Card className="overflow-hidden hover:border-primary/50 transition-colors">
+        <a
+          href={preview.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="block no-underline"
+        >
+          {preview.image && (
+            <CardContent className="p-0">
+              <img
+                src={preview.image}
+                alt={preview.title || "Preview image"}
+                loading="lazy"
+                className="w-full max-h-64 object-cover bg-muted"
+                onError={(e) => {
+                  // Hide image if it fails to load
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </CardContent>
+          )}
+          <CardContent className="p-3 space-y-1">
+            {preview.siteName && (
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {preview.siteName}
+              </div>
+            )}
+            {preview.title && (
+              <div className="font-semibold text-sm line-clamp-2 text-foreground">
+                {preview.title}
+              </div>
+            )}
+            {preview.description && (
+              <div className="text-xs text-muted-foreground line-clamp-2">
+                {preview.description}
+              </div>
+            )}
+            <div className="text-[10px] text-muted-foreground truncate">
+              {new URL(preview.url).hostname}
+            </div>
+          </CardContent>
+        </a>
+      </Card>
     </figure>
   );
 }
