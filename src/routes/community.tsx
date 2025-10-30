@@ -60,7 +60,7 @@ function Community() {
 
   // Subscribe to NIP-22 comments with #wavefunc tag
   const filters = useMemo(() => {
-    if (!shoutboxEvent) return undefined;
+    if (!shoutboxEvent) return false; // Disable subscription when shoutboxEvent is not ready
     
     return [
       {

@@ -11,6 +11,18 @@
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
 /**
+ * Get environment variable value (works in both Node and browser contexts)
+ */
+function getEnv(key: string): string | undefined {
+  // In Node.js/Bun server context
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  // In browser, these are replaced at build time
+  return undefined;
+}
+
+/**
  * Detect platform when running in Tauri
  */
 async function getPlatform(): Promise<string | null> {
@@ -34,6 +46,12 @@ async function getPlatform(): Promise<string | null> {
  * - Web: Uses localhost (for development)
  */
 async function getRelayUrl(): Promise<string> {
+  // Check for environment variable first
+  const envRelayUrl = getEnv('RELAY_URL');
+  if (envRelayUrl) {
+    return envRelayUrl;
+  }
+
   const platformName = await getPlatform();
 
   // Android emulator needs special IP to reach host machine
@@ -50,7 +68,7 @@ async function getRelayUrl(): Promise<string> {
  * Initialize this at app startup
  */
 export const config = {
-  relayUrl: 'ws://localhost:3334', // Default value
+  relayUrl: getEnv('RELAY_URL') || 'ws://localhost:3334', // Default value
 };
 
 /**

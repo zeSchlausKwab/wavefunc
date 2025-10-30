@@ -1,0 +1,42 @@
+# Replace with your actual domain or IP
+# For IP-based access (no HTTPS):
+:80 {
+    # Nostr relay WebSocket endpoint
+    handle /relay/* {
+        reverse_proxy localhost:3334
+    }
+
+    # Main web application
+    handle {
+        reverse_proxy localhost:3000
+    }
+
+    # Enable gzip compression
+    encode gzip
+
+    # Access logs
+    log {
+        output file /var/log/caddy/wavefunc-access.log
+        format json
+    }
+}
+
+# For domain-based access (automatic HTTPS), uncomment and edit:
+# yourdomain.com {
+#     tls schlauskwab@proton.me
+#
+#     handle /relay/* {
+#         reverse_proxy localhost:3334
+#     }
+#
+#     handle {
+#         reverse_proxy localhost:3000
+#     }
+#
+#     encode gzip
+#
+#     log {
+#         output file /var/log/caddy/wavefunc-access.log
+#         format json
+#     }
+# }

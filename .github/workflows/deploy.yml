@@ -1,0 +1,133 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build frontend
+        run: bun run build.ts
+
+      - name: Build Go relay
+        run: |
+          cd relay
+          go build -o relay -ldflags="-s -w" .
+          cd ..
+
+      - name: Create deployment archive
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude='contextvm/node_modules' \
+            dist/ \
+            src/ \
+            relay/relay \
+            contextvm/ \
+            ecosystem.config.cjs \
+            Caddyfile \
+            package.json \
+            bun.lock
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
+          scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+
+      - name: Deploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          TLS_EMAIL: ${{ secrets.TLS_EMAIL }}
+          METADATA_SERVER_KEY: ${{ secrets.METADATA_SERVER_KEY }}
+          METADATA_SERVER_PUBKEY: ${{ secrets.METADATA_SERVER_PUBKEY }}
+          METADATA_CLIENT_KEY: ${{ secrets.METADATA_CLIENT_KEY }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST << 'EOF'
+            set -e
+            cd $VPS_PATH
+
+            # Load Bun into PATH
+            export BUN_INSTALL="$HOME/.bun"
+            export PATH="$BUN_INSTALL/bin:$PATH"
+
+            # Extract archive
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+
+            # Create .env from secrets
+            cat > .env << ENVEOF
+          NODE_ENV=production
+          PORT=3000
+          DOMAIN=${DOMAIN}
+          TLS_EMAIL=${TLS_EMAIL}
+          RELAY_URL=wss://${DOMAIN}/relay
+          RELAY_PORT=3334
+          METADATA_SERVER_KEY=${METADATA_SERVER_KEY}
+          METADATA_SERVER_PUBKEY=${METADATA_SERVER_PUBKEY}
+          METADATA_CLIENT_KEY=${METADATA_CLIENT_KEY}
+          ENVEOF
+
+            # Install dependencies if needed
+            if [ ! -d "node_modules" ]; then
+              echo "Installing dependencies..."
+              bun install --production
+            fi
+
+            # Create logs directory
+            mkdir -p logs
+
+            # Update Caddy configuration
+            if systemctl is-active --quiet caddy; then
+              echo "Reloading Caddy..."
+              sudo cp Caddyfile /etc/caddy/Caddyfile
+              sudo systemctl reload caddy
+            fi
+
+            # Restart PM2 processes
+            echo "Restarting PM2 processes..."
+            pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+            pm2 save
+
+            echo "Deployment complete!"
+            pm2 list
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
+          rm -f deploy.tar.gz

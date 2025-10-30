@@ -5,13 +5,23 @@ import { PrivateKeySigner } from "@contextvm/sdk";
 import { SimpleRelayPool } from "@contextvm/sdk";
 import { config } from "../config/env";
 
+/**
+ * Get environment variable value (works in both Node and browser contexts)
+ */
+function getEnv(key: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  return undefined;
+}
+
 // Server public key - should match the server's keypair
 const METADATA_SERVER_PUBKEY =
-  //   process.env.METADATA_SERVER_PUBKEY ||
+  getEnv('METADATA_SERVER_PUBKEY') ||
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"; // Example pubkey from dev key
 
 const CLIENT_PRIVATE_KEY =
-  //   process.env.METADATA_CLIENT_KEY ||
+  getEnv('METADATA_CLIENT_KEY') ||
   "0000000000000000000000000000000000000000000000000000000000000002"; // Dev client key
 
 let clientInstance: Client | null = null;

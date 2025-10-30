@@ -23,7 +23,10 @@
       "Bash(bun src/index.tsx)",
       "Bash(curl -s -H \"User-Agent: facebookexternalhit/1.0\" http://localhost:3000/)",
       "Bash(bun --help serve)",
-      "Bash(NODE_ENV=production bun src/index.tsx)"
+      "Bash(NODE_ENV=production bun src/index.tsx)",
+      "Bash(chmod:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

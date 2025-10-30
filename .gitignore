@@ -17,10 +17,14 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # dotenv environment variable files
 .env
+.env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
-.env.local
+
+# deployment artifacts
+deploy.tar.gz
 
 # caches
 .eslintcache
