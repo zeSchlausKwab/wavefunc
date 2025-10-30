@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import plugin from "bun-plugin-tailwind";
 import { existsSync } from "fs";
-import { rm } from "fs/promises";
+import { rm, cp, mkdir } from "fs/promises";
 import path from "path";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -146,6 +146,17 @@ const outputTable = result.outputs.map(output => ({
 }));
 
 console.table(outputTable);
+
+// Copy .well-known directory to dist
+const wellKnownSrc = path.join(process.cwd(), "public", ".well-known");
+const wellKnownDest = path.join(outdir, ".well-known");
+
+if (existsSync(wellKnownSrc)) {
+  console.log(`\n📋 Copying .well-known directory to ${wellKnownDest}`);
+  await mkdir(wellKnownDest, { recursive: true });
+  await cp(wellKnownSrc, wellKnownDest, { recursive: true });
+}
+
 const buildTime = (end - start).toFixed(2);
 
 console.log(`\n✅ Build completed in ${buildTime}ms\n`);

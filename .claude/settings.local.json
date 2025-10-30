@@ -27,7 +27,8 @@
       "Bash(chmod:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(ssh deploy@203.161.49.124:*)"
+      "Bash(ssh deploy@203.161.49.124:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
