@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StationNaddrRouteImport } from './routes/station.$naddr'
 import { Route as ProfilePubkeyRouteImport } from './routes/profile.$pubkey'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FavoritesRoute = FavoritesRouteImport.update({
   id: '/favorites',
   path: '/favorites',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/settings': typeof SettingsRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/settings': typeof SettingsRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -60,6 +68,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/settings': typeof SettingsRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -69,15 +78,23 @@ export interface FileRouteTypes {
     | '/'
     | '/community'
     | '/favorites'
+    | '/settings'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/community' | '/favorites' | '/profile/$pubkey' | '/station/$naddr'
+  to:
+    | '/'
+    | '/community'
+    | '/favorites'
+    | '/settings'
+    | '/profile/$pubkey'
+    | '/station/$naddr'
   id:
     | '__root__'
     | '/'
     | '/community'
     | '/favorites'
+    | '/settings'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesById: FileRoutesById
@@ -86,12 +103,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CommunityRoute: typeof CommunityRoute
   FavoritesRoute: typeof FavoritesRoute
+  SettingsRoute: typeof SettingsRoute
   ProfilePubkeyRoute: typeof ProfilePubkeyRoute
   StationNaddrRoute: typeof StationNaddrRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/favorites': {
       id: '/favorites'
       path: '/favorites'
@@ -134,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CommunityRoute: CommunityRoute,
   FavoritesRoute: FavoritesRoute,
+  SettingsRoute: SettingsRoute,
   ProfilePubkeyRoute: ProfilePubkeyRoute,
   StationNaddrRoute: StationNaddrRoute,
 }

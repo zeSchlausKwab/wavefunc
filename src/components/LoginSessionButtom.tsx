@@ -15,10 +15,12 @@ import { KeyRoundIcon } from "./ui/icons/lucide-key-round";
 import { QrCodeIcon } from "./ui/icons/lucide-qr-code";
 import { WalletButton } from "./WalletButton";
 import { LogOutIcon } from "./ui/icons/lucide-log-out";
+import { SettingsIcon } from "./ui/icons/lucide-settings";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
 import { useUIStore } from "../stores/uiStore";
 import { useTauri } from "../lib/hooks/useTauri";
+import { Link } from "@tanstack/react-router";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
@@ -68,6 +70,11 @@ export function LoginSessionButtons() {
         <ButtonGroup>
           <WalletButton />
           <MiniProfile userOrPubkey={currentUser} />
+          <Link to="/settings">
+            <Button>
+              <SettingsIcon className="w-5 h-5" />
+            </Button>
+          </Link>
           <Button onClick={() => logout()}>
             <LogOutIcon className="w-5 h-5" />
           </Button>

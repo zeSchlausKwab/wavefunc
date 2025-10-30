@@ -14,8 +14,8 @@ export function MiniProfile({
 
   return (
     <Link to={`/profile/${pubkey}`}>
-      <Button>
-        <Avatar>
+      <Button className="p-1">
+        <Avatar className="w-8 h-8">
           <AvatarImage src={profile?.picture} />
           <AvatarFallback>{profile?.name?.substring(0, 2)}</AvatarFallback>
         </Avatar>
