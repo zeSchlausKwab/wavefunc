@@ -29,9 +29,11 @@ echo ""
 echo "📦 Creating deployment archive..."
 tar -czf deploy.tar.gz \
     --exclude='contextvm/node_modules' \
+    --exclude='relay/relay' \
+    --exclude='relay/data' \
     dist/ \
     src/ \
-    relay/relay \
+    relay/ \
     contextvm/ \
     ecosystem.config.cjs \
     Caddyfile \
@@ -52,9 +54,9 @@ ssh $VPS_USER@$VPS_HOST bash << EOF
     set -e
     cd $VPS_PATH
 
-    # Load Bun into PATH
+    # Load Bun and Go into PATH
     export BUN_INSTALL="\$HOME/.bun"
-    export PATH="\$BUN_INSTALL/bin:\$PATH"
+    export PATH="\$BUN_INSTALL/bin:/usr/local/go/bin:\$PATH"
 
     # Verify Bun is available
     if ! command -v bun &> /dev/null; then
@@ -62,7 +64,14 @@ ssh $VPS_USER@$VPS_HOST bash << EOF
         exit 1
     fi
 
+    # Verify Go is available
+    if ! command -v go &> /dev/null; then
+        echo "❌ Go not found in PATH. Please install Go on the VPS."
+        exit 1
+    fi
+
     echo "Using Bun: \$(which bun)"
+    echo "Using Go: \$(which go)"
 
     # Extract archive
     tar -xzf deploy.tar.gz
@@ -73,6 +82,12 @@ ssh $VPS_USER@$VPS_HOST bash << EOF
         echo "📦 Installing dependencies..."
         bun install --production
     fi
+
+    # Build Go relay on VPS with CGO enabled (required for SQLite)
+    echo "🔧 Building Go relay..."
+    cd relay
+    CGO_ENABLED=1 go build -o relay -ldflags="-s -w" .
+    cd ..
 
     # Create logs directory
     mkdir -p logs

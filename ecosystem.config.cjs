@@ -1,14 +1,20 @@
+// PM2 requires absolute path to Bun executable
+// On VPS this will be ~/.bun/bin/bun, locally it might be different
+const os = require('os');
+const path = require('path');
+const bunPath = process.env.BUN_INSTALL
+  ? path.join(process.env.BUN_INSTALL, 'bin', 'bun')
+  : path.join(os.homedir(), '.bun', 'bin', 'bun');
+
 module.exports = {
   apps: [
     {
       name: 'wavefunc-web',
       script: 'src/index.tsx',
-      interpreter: 'bun',
-      cwd: '/var/www/wavefunc',
+      interpreter: bunPath,
       env: {
         NODE_ENV: 'production',
-        PORT: 3000,
-        PATH: `${process.env.HOME}/.bun/bin:${process.env.PATH}`
+        PORT: 3000
       },
       instances: 1,
       autorestart: true,
@@ -22,7 +28,6 @@ module.exports = {
     {
       name: 'wavefunc-relay',
       script: './relay/relay',
-      cwd: '/var/www/wavefunc',
       env: {
         PORT: 3334
       },
@@ -38,11 +43,9 @@ module.exports = {
     {
       name: 'wavefunc-contextvm',
       script: 'contextvm/server.ts',
-      interpreter: 'bun',
-      cwd: '/var/www/wavefunc',
+      interpreter: bunPath,
       env: {
-        NODE_ENV: 'production',
-        PATH: `${process.env.HOME}/.bun/bin:${process.env.PATH}`
+        NODE_ENV: 'production'
       },
       instances: 1,
       autorestart: true,

@@ -30,19 +30,15 @@ jobs:
       - name: Build frontend
         run: bun run build.ts
 
-      - name: Build Go relay
-        run: |
-          cd relay
-          go build -o relay -ldflags="-s -w" .
-          cd ..
-
       - name: Create deployment archive
         run: |
           tar -czf deploy.tar.gz \
             --exclude='contextvm/node_modules' \
+            --exclude='relay/relay' \
+            --exclude='relay/data' \
             dist/ \
             src/ \
-            relay/relay \
+            relay/ \
             contextvm/ \
             ecosystem.config.cjs \
             Caddyfile \
@@ -80,9 +76,9 @@ jobs:
             set -e
             cd $VPS_PATH
 
-            # Load Bun into PATH
+            # Load Bun and Go into PATH
             export BUN_INSTALL="$HOME/.bun"
-            export PATH="$BUN_INSTALL/bin:$PATH"
+            export PATH="$BUN_INSTALL/bin:/usr/local/go/bin:$PATH"
 
             # Extract archive
             tar -xzf deploy.tar.gz
@@ -106,6 +102,12 @@ jobs:
               echo "Installing dependencies..."
               bun install --production
             fi
+
+            # Build Go relay on VPS with CGO enabled (required for SQLite)
+            echo "Building Go relay..."
+            cd relay
+            CGO_ENABLED=1 go build -o relay -ldflags="-s -w" .
+            cd ..
 
             # Create logs directory
             mkdir -p logs

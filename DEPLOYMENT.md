@@ -78,6 +78,17 @@ sudo apt install unzip
 # Install Bun
 curl -fsSL https://bun.sh/install | bash
 
+# Install Go (required for building the relay)
+wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+rm go1.21.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify Go installation
+go version
+
 # Install Node.js (required for PM2)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
