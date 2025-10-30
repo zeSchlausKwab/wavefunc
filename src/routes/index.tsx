@@ -17,9 +17,6 @@ function Index() {
   return (
     <>
       <StationView searchQuery={search || ""} />
-      <div className="mt-8">
-        <PostView />
-      </div>
     </>
   );
 }
