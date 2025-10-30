@@ -102,9 +102,37 @@ ssh $VPS_USER@$VPS_HOST bash << EOF
         echo "   ssh $VPS_USER@$VPS_HOST 'sudo cp /var/www/wavefunc/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy'"
     fi
 
-    # Restart PM2 processes
-    echo "🔄 Restarting PM2 processes..."
-    pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+    # Stop and delete old PM2 processes
+    echo "🔄 Stopping old PM2 processes..."
+    pm2 delete all || true
+
+    # Start PM2 processes with explicit Bun interpreter and environment variables
+    echo "🚀 Starting PM2 processes..."
+    BUN_PATH="\$HOME/.bun/bin/bun"
+
+    NODE_ENV=production PORT=3000 pm2 start src/index.tsx \
+        --name wavefunc-web \
+        --interpreter "\$BUN_PATH" \
+        --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
+        --error logs/web-error.log \
+        --output logs/web-out.log \
+        --merge-logs
+
+    PORT=3334 pm2 start relay/relay \
+        --name wavefunc-relay \
+        --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
+        --error logs/relay-error.log \
+        --output logs/relay-out.log \
+        --merge-logs
+
+    NODE_ENV=production pm2 start contextvm/server.ts \
+        --name wavefunc-contextvm \
+        --interpreter "\$BUN_PATH" \
+        --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
+        --error logs/contextvm-error.log \
+        --output logs/contextvm-out.log \
+        --merge-logs
+
     pm2 save
 
     echo ""
