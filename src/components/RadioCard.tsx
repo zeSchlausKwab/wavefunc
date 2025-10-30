@@ -217,7 +217,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
           </p>
           {/* Station Genres */}
           {station.genres && station.genres.length > 0 && (
-            <div className="flex gap-1">
+            <div className="flex gap-1 overflow-hidden min-w-0">
               {station.genres.slice(0, 2).map((genre, index) => (
                 <Badge key={index}>{genre}</Badge>
               ))}
@@ -331,7 +331,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
 
           {/* Station Genres */}
           {station.genres && station.genres.length > 0 && (
-            <div className="flex gap-1">
+            <div className="flex gap-1 overflow-hidden min-w-0">
               {station.genres.slice(0, 2).map((genre, index) => (
                 <Badge key={index}>{genre}</Badge>
               ))}
