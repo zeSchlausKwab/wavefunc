@@ -1,6 +1,13 @@
 import { SettingsIcon } from "@/components/ui/icons/lucide-settings";
 import { createFileRoute } from "@tanstack/react-router";
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { WalletsSettings } from "@/components/settings/WalletsSettings";
+import { MyStationsSettings } from "@/components/settings/MyStationsSettings";
+import { MyFavouritesSettings } from "@/components/settings/MyFavouritesSettings";
+import { RelaysSettings } from "@/components/settings/RelaysSettings";
+import { User, Wallet, Radio, Star, Wifi } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
@@ -24,33 +31,56 @@ function Settings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <SettingsIcon className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">Settings</h1>
-        </div>
+      <div className="flex items-center gap-3">
+        <SettingsIcon className="w-6 h-6" />
+        <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
-      {/* Settings content */}
-      <div className="space-y-6 max-w-2xl">
-        <div className="rounded-lg border border-border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Account</h2>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Public Key: {currentUser.pubkey}
-            </p>
-          </div>
-        </div>
+      {/* Tabs */}
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="profile">
+            <User className="w-4 h-4" />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger value="wallets">
+            <Wallet className="w-4 h-4" />
+            Wallets
+          </TabsTrigger>
+          <TabsTrigger value="stations">
+            <Radio className="w-4 h-4" />
+            My Stations
+          </TabsTrigger>
+          <TabsTrigger value="favourites">
+            <Star className="w-4 h-4" />
+            My Favourites
+          </TabsTrigger>
+          <TabsTrigger value="relays">
+            <Wifi className="w-4 h-4" />
+            Relays
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="rounded-lg border border-border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Application</h2>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              More settings coming soon...
-            </p>
-          </div>
-        </div>
-      </div>
+        <TabsContent value="profile" className="mt-6">
+          <ProfileSettings />
+        </TabsContent>
+
+        <TabsContent value="wallets" className="mt-6">
+          <WalletsSettings />
+        </TabsContent>
+
+        <TabsContent value="stations" className="mt-6">
+          <MyStationsSettings />
+        </TabsContent>
+
+        <TabsContent value="favourites" className="mt-6">
+          <MyFavouritesSettings />
+        </TabsContent>
+
+        <TabsContent value="relays" className="mt-6">
+          <RelaysSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
