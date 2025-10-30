@@ -7,9 +7,10 @@ import { StationManagementSheet } from "../StationManagementSheet";
 
 export function MyStationsSettings() {
   const currentUser = useNDKCurrentUser();
-  const { stations, isLoading } = useStations({
-    authors: currentUser ? [currentUser.pubkey] : undefined,
-  });
+  const { events: stations, eose } = useStations(
+    currentUser ? [{ authors: [currentUser.pubkey] }] : [{}]
+  );
+  const isLoading = !eose;
 
   if (!currentUser) {
     return (
