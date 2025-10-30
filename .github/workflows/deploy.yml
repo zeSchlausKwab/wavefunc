@@ -61,31 +61,15 @@ jobs:
           ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
           scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
 
-      - name: Deploy on VPS
+      - name: Create .env file from secrets
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PATH: ${{ secrets.VPS_PATH }}
           DOMAIN: ${{ secrets.DOMAIN }}
           TLS_EMAIL: ${{ secrets.TLS_EMAIL }}
           METADATA_SERVER_KEY: ${{ secrets.METADATA_SERVER_KEY }}
           METADATA_SERVER_PUBKEY: ${{ secrets.METADATA_SERVER_PUBKEY }}
           METADATA_CLIENT_KEY: ${{ secrets.METADATA_CLIENT_KEY }}
         run: |
-          ssh $VPS_USER@$VPS_HOST << 'EOF'
-            set -e
-            cd $VPS_PATH
-
-            # Load Bun and Go into PATH
-            export BUN_INSTALL="$HOME/.bun"
-            export PATH="$BUN_INSTALL/bin:/usr/local/go/bin:$PATH"
-
-            # Extract archive
-            tar -xzf deploy.tar.gz
-            rm deploy.tar.gz
-
-            # Create .env from secrets
-            cat > .env << ENVEOF
+          cat > .env.production << EOF
           NODE_ENV=production
           PORT=3000
           DOMAIN=${DOMAIN}
@@ -95,66 +79,26 @@ jobs:
           METADATA_SERVER_KEY=${METADATA_SERVER_KEY}
           METADATA_SERVER_PUBKEY=${METADATA_SERVER_PUBKEY}
           METADATA_CLIENT_KEY=${METADATA_CLIENT_KEY}
-          ENVEOF
-
-            # Install dependencies if needed
-            if [ ! -d "node_modules" ]; then
-              echo "Installing dependencies..."
-              bun install --production
-            fi
-
-            # Build Go relay on VPS with CGO enabled (required for SQLite)
-            echo "Building Go relay..."
-            cd relay
-            CGO_ENABLED=1 go build -o relay -ldflags="-s -w" .
-            cd ..
-
-            # Create logs directory
-            mkdir -p logs
-
-            # Update Caddy configuration
-            if systemctl is-active --quiet caddy; then
-              echo "Reloading Caddy..."
-              sudo cp Caddyfile /etc/caddy/Caddyfile
-              sudo systemctl reload caddy
-            fi
-
-            # Stop and delete old PM2 processes
-            echo "Stopping old PM2 processes..."
-            pm2 delete all || true
-
-            # Start PM2 processes with explicit Bun interpreter and environment variables
-            echo "Starting PM2 processes..."
-            BUN_PATH="$HOME/.bun/bin/bun"
-
-            NODE_ENV=production PORT=3000 pm2 start src/index.tsx \
-                --name wavefunc-web \
-                --interpreter "$BUN_PATH" \
-                --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
-                --error logs/web-error.log \
-                --output logs/web-out.log \
-                --merge-logs
-
-            PORT=3334 pm2 start relay/relay \
-                --name wavefunc-relay \
-                --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
-                --error logs/relay-error.log \
-                --output logs/relay-out.log \
-                --merge-logs
-
-            NODE_ENV=production pm2 start contextvm/server.ts \
-                --name wavefunc-contextvm \
-                --interpreter "$BUN_PATH" \
-                --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
-                --error logs/contextvm-error.log \
-                --output logs/contextvm-out.log \
-                --merge-logs
-
-            pm2 save
-
-            echo "Deployment complete!"
-            pm2 list
           EOF
+
+      - name: Upload deployment files
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
+          scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+          scp .env.production $VPS_USER@$VPS_HOST:$VPS_PATH/.env
+          scp scripts/deploy-remote.sh $VPS_USER@$VPS_HOST:$VPS_PATH/
+
+      - name: Execute deployment on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "cd $VPS_PATH && bash deploy-remote.sh"
 
       - name: Cleanup
         if: always()

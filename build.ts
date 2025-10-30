@@ -131,6 +131,8 @@ const result = await Bun.build({
   sourcemap: "linked",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    // Inject RELAY_URL from environment (defaults to localhost for local builds)
+    "process.env.RELAY_URL": JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334"),
   },
   ...cliConfig,
 });
