@@ -18,6 +18,7 @@ import { LogOutIcon } from "./ui/icons/lucide-log-out";
 import { SettingsIcon } from "./ui/icons/lucide-settings";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
+import { SignupDialog } from "./SignupDialog";
 import { useUIStore } from "../stores/uiStore";
 import { useTauri } from "../lib/hooks/useTauri";
 import { Link } from "@tanstack/react-router";
@@ -30,13 +31,14 @@ export function LoginSessionButtons() {
   const isTauri = useTauri();
 
   const [loading, setLoading] = useState(false);
+  const [showSignupDialog, setShowSignupDialog] = useState(false);
 
-  const handleSignup = async () => {
+  const handleSignup = async (signer: NDKPrivateKeySigner) => {
     try {
-      const signer = NDKPrivateKeySigner.generate();
       await login(signer);
     } catch (error) {
       console.error("Login failed:", error);
+      throw error;
     }
   };
 
@@ -89,7 +91,7 @@ export function LoginSessionButtons() {
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={'secondary'} onClick={handleSignup}>
+              <Button variant={'secondary'} onClick={() => setShowSignupDialog(true)}>
                 <KeyRoundIcon className="w-5 h-5" />
                 signup
               </Button>
@@ -129,6 +131,13 @@ export function LoginSessionButtons() {
           </Tooltip>
         </ButtonGroup>
       )}
+
+      {/* Signup Dialog */}
+      <SignupDialog
+        open={showSignupDialog}
+        onOpenChange={setShowSignupDialog}
+        onConfirm={handleSignup}
+      />
     </div>
   );
 }
