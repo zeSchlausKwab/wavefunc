@@ -133,6 +133,9 @@ const result = await Bun.build({
     "process.env.NODE_ENV": JSON.stringify("production"),
     // Inject RELAY_URL from environment (defaults to localhost for local builds)
     "process.env.RELAY_URL": JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334"),
+    // Inject metadata server configuration
+    "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(process.env.METADATA_SERVER_PUBKEY || "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2"),
+    "process.env.METADATA_CLIENT_KEY": JSON.stringify(process.env.METADATA_CLIENT_KEY || "4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c"),
   },
   ...cliConfig,
 });
@@ -148,7 +151,7 @@ const outputTable = result.outputs.map(output => ({
 console.table(outputTable);
 
 // Copy .well-known directory to dist
-const wellKnownSrc = path.join(process.cwd(), "public", ".well-known");
+const wellKnownSrc = path.join(process.cwd(), "src", ".well-known");
 const wellKnownDest = path.join(outdir, ".well-known");
 
 if (existsSync(wellKnownSrc)) {

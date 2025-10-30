@@ -91,6 +91,8 @@ async function getRelayUrl(): Promise<string> {
  */
 export const config = {
   relayUrl: getEnv('RELAY_URL') || 'ws://localhost:3334', // Default value
+  metadataServerPubkey: getEnv('METADATA_SERVER_PUBKEY') || 'bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2',
+  metadataClientKey: getEnv('METADATA_CLIENT_KEY') || '4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c',
 };
 
 /**

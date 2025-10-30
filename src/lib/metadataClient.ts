@@ -5,69 +5,84 @@ import { PrivateKeySigner } from "@contextvm/sdk";
 import { SimpleRelayPool } from "@contextvm/sdk";
 import { config } from "../config/env";
 
-/**
- * Get environment variable value (works in both Node and browser contexts)
- */
-function getEnv(key: string): string | undefined {
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env[key];
-  }
-  return undefined;
-}
-
-// Server public key - should match the server's keypair
-const METADATA_SERVER_PUBKEY =
-  getEnv('METADATA_SERVER_PUBKEY') ||
-  "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"; // Example pubkey from dev key
-
-const CLIENT_PRIVATE_KEY =
-  getEnv('METADATA_CLIENT_KEY') ||
-  "0000000000000000000000000000000000000000000000000000000000000002"; // Dev client key
-
 let clientInstance: Client | null = null;
 let clientTransport: NostrClientTransport | null = null;
+let isConnecting = false;
+let connectionPromise: Promise<Client> | null = null;
 
 /**
- * Initialize the metadata client
+ * Initialize the metadata client with connection reuse and timeout handling
  */
 export async function initMetadataClient(): Promise<Client> {
+  // Return existing client if already connected
   if (clientInstance) {
     return clientInstance;
   }
 
-  console.log("🔌 Initializing metadata client...");
+  // Wait for ongoing connection attempt
+  if (isConnecting && connectionPromise) {
+    return connectionPromise;
+  }
 
-  const signer = new PrivateKeySigner(CLIENT_PRIVATE_KEY);
-  const relayPool = new SimpleRelayPool([config.relayUrl]);
+  // Start new connection
+  isConnecting = true;
+  connectionPromise = (async () => {
+    try {
+      const signer = new PrivateKeySigner(config.metadataClientKey);
+      const relayPool = new SimpleRelayPool([config.relayUrl]);
 
-  clientTransport = new NostrClientTransport({
-    signer,
-    relayHandler: relayPool,
-    serverPubkey: METADATA_SERVER_PUBKEY,
-  });
+      clientTransport = new NostrClientTransport({
+        signer,
+        relayHandler: relayPool,
+        serverPubkey: config.metadataServerPubkey,
+      });
 
-  clientInstance = new Client({
-    name: "wavefunc-client",
-    version: "1.0.0",
-  });
+      clientInstance = new Client({
+        name: "wavefunc-client",
+        version: "1.0.0",
+      });
 
-  await clientInstance.connect(clientTransport);
-  console.log("✅ Metadata client connected");
+      // Add timeout to connection attempt (30 seconds)
+      const connectPromise = clientInstance.connect(clientTransport);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout after 30s")), 30000)
+      );
 
-  return clientInstance;
+      await Promise.race([connectPromise, timeoutPromise]);
+
+      return clientInstance;
+    } catch (error) {
+      // Reset state on failure
+      clientInstance = null;
+      clientTransport = null;
+      throw error;
+    } finally {
+      isConnecting = false;
+      connectionPromise = null;
+    }
+  })();
+
+  return connectionPromise;
 }
 
 /**
- * Extract metadata from a stream URL
+ * Extract metadata from a stream URL with timeout
  */
-export async function extractStreamMetadata(url: string): Promise<any> {
+export async function extractStreamMetadata(url: string, timeoutMs: number = 10000): Promise<any> {
   try {
     const client = await initMetadataClient();
 
-    const result = (await client.callTool({
+    // Add timeout to the tool call
+    const callPromise = client.callTool({
       name: "extract_stream_metadata",
       arguments: { url },
-    })) as any;
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Tool call timeout after ${timeoutMs}ms`)), timeoutMs)
+    );
+
+    const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
     if (
       result.content &&
@@ -82,26 +97,37 @@ export async function extractStreamMetadata(url: string): Promise<any> {
 
     return { error: "No metadata returned" };
   } catch (error: any) {
-    console.error("Failed to extract stream metadata:", error);
+    // Reset client on certain errors to force reconnection
+    if (error.message?.includes("timeout") || error.message?.includes("closed")) {
+      await closeMetadataClient();
+    }
+
     return { error: error.message };
   }
 }
 
 /**
- * Search MusicBrainz for track information
+ * Search MusicBrainz for track information with timeout
  */
 export async function searchMusicBrainz(params: {
   artist?: string;
   track?: string;
   query?: string;
-}): Promise<any[]> {
+}, timeoutMs: number = 10000): Promise<any[]> {
   try {
     const client = await initMetadataClient();
 
-    const result = (await client.callTool({
+    // Add timeout to the tool call
+    const callPromise = client.callTool({
       name: "musicbrainz_search",
       arguments: params,
-    })) as any;
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Tool call timeout after ${timeoutMs}ms`)), timeoutMs)
+    );
+
+    const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
     if (
       result.content &&
@@ -116,7 +142,11 @@ export async function searchMusicBrainz(params: {
 
     return [];
   } catch (error: any) {
-    console.error("Failed to search MusicBrainz:", error);
+    // Reset client on certain errors to force reconnection
+    if (error.message?.includes("timeout") || error.message?.includes("closed")) {
+      await closeMetadataClient();
+    }
+
     return [];
   }
 }
@@ -129,6 +159,5 @@ export async function closeMetadataClient(): Promise<void> {
     await clientInstance.close();
     clientInstance = null;
     clientTransport = null;
-    console.log("🔌 Metadata client disconnected");
   }
 }

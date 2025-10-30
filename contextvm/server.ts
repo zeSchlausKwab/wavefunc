@@ -125,13 +125,18 @@ async function main() {
   });
 
   // 6. Connect the server
+  console.log("🔗 Connecting MCP server to Nostr transport...");
   await mcpServer.connect(serverTransport);
 
   console.log("✅ Server is running and listening for requests on Nostr");
   console.log("📋 Available tools:");
   console.log("   - extract_stream_metadata");
   console.log("   - musicbrainz_search");
-  console.log("\n💡 Press Ctrl+C to exit.\n");
+  console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
+  console.log("💡 Press Ctrl+C to exit.\n");
+
+  // Log when requests are received
+  console.log("👂 Listening for tool requests...\n");
 }
 
 // Start the server

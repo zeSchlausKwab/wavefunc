@@ -28,7 +28,10 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(ssh deploy@203.161.49.124:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(bun -e:*)",
+      "Bash(echo:*)",
+      "Read(//private/tmp/**)"
     ],
     "deny": [],
     "ask": []
