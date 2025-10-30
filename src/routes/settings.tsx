@@ -29,7 +29,7 @@ function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mb-22">
       {/* Header */}
       <div className="flex items-center gap-3">
         <SettingsIcon className="w-6 h-6" />
