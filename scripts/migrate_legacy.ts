@@ -18,8 +18,19 @@ const APP_PRIVATE_KEY =
   "96c727f4d1ea18a80d03621520ebfe3c9be1387033009a4f5b65959d09222eec";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
-// const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334", "ws://localhost:10547"] });
-const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"] });
+// Parse relay URL from command line
+// Usage: bun run scripts/migrate_legacy.ts [count] [--relay=URL]
+function getRelayUrl(): string {
+  const relayArg = process.argv.find(arg => arg.startsWith('--relay='));
+  if (relayArg) {
+    const url = relayArg.split('=')[1];
+    return url || "ws://localhost:3334";
+  }
+  return process.env.RELAY_URL || "ws://localhost:3334";
+}
+
+const RELAY_URL = getRelayUrl();
+const ndk = new NDK({ explicitRelayUrls: [RELAY_URL] });
 
 
 // Legacy DB Station structure
@@ -503,13 +514,14 @@ async function migrateStations() {
   const sqlPath = path.join(process.cwd(), "legacy-db", "latest.sql");
   const allStations = extractStationsFromSQL(sqlPath);
 
-  // Select random stations
-  const count = process.argv[2] ? parseInt(process.argv[2]) : 50;
+  // Select random stations (first non-relay arg is count)
+  const countArg = process.argv.find((arg, i) => i > 1 && !arg.startsWith('--'));
+  const count = countArg ? parseInt(countArg) : 50;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 
   // Connect to relay
-  console.log("🔌 Connecting to relay...");
+  console.log(`🔌 Connecting to relay: ${RELAY_URL}`);
   await ndk.connect();
   console.log("✅ Connected!\n");
 

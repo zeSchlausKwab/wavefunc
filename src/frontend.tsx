@@ -5,6 +5,9 @@
  * It is included in `src/index.html`.
  */
 
+// Import polyfills first (for crypto.randomUUID, global, process, etc.)
+import "./polyfills";
+
 import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 import { StrictMode } from "react";

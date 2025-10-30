@@ -54,17 +54,24 @@ async function getRelayUrl(): Promise<string> {
 
   // If running in browser (not Tauri), construct from current location
   if (typeof window !== 'undefined' && !isTauri) {
+    // Determine WebSocket protocol based on page protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
+    const host = window.location.hostname;
 
-    // In production, use /relay path (proxied by Caddy)
-    // In development (localhost:3000), connect directly to :3334
+    // In development (localhost:3000), connect directly to relay on :3334
     if (host.includes('localhost') || host.includes('127.0.0.1')) {
-      const devHost = host.split(':')[0];
-      return `${protocol}//${devHost}:3334`;
-    } else {
-      return `${protocol}//${host}/relay`;
+      return `${protocol}//${host}:3334`;
     }
+
+    // If accessing via IP address, don't try to construct subdomain
+    // This happens during initial deployment before DNS is fully working
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+      console.warn('⚠️ Accessing via IP address - using fallback relay URL');
+      return `${protocol}//${host}/relay/`;
+    }
+
+    // In production with domain, use relay subdomain (e.g., relay.wavefunc.live)
+    return `${protocol}//relay.${host}`;
   }
 
   const platformName = await getPlatform();
