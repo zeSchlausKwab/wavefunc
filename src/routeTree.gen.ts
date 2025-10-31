@@ -15,6 +15,7 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StationNaddrRouteImport } from './routes/station.$naddr'
 import { Route as ProfilePubkeyRouteImport } from './routes/profile.$pubkey'
+import { Route as BrowseGenresRouteImport } from './routes/browse.genres'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -46,12 +47,18 @@ const ProfilePubkeyRoute = ProfilePubkeyRouteImport.update({
   path: '/profile/$pubkey',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrowseGenresRoute = BrowseGenresRouteImport.update({
+  id: '/browse/genres',
+  path: '/browse/genres',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/settings': typeof SettingsRoute
+  '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/settings': typeof SettingsRoute
+  '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/settings': typeof SettingsRoute
+  '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/favorites'
     | '/settings'
+    | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/favorites'
     | '/settings'
+    | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/favorites'
     | '/settings'
+    | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   FavoritesRoute: typeof FavoritesRoute
   SettingsRoute: typeof SettingsRoute
+  BrowseGenresRoute: typeof BrowseGenresRoute
   ProfilePubkeyRoute: typeof ProfilePubkeyRoute
   StationNaddrRoute: typeof StationNaddrRoute
 }
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfilePubkeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/browse/genres': {
+      id: '/browse/genres'
+      path: '/browse/genres'
+      fullPath: '/browse/genres'
+      preLoaderRoute: typeof BrowseGenresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   FavoritesRoute: FavoritesRoute,
   SettingsRoute: SettingsRoute,
+  BrowseGenresRoute: BrowseGenresRoute,
   ProfilePubkeyRoute: ProfilePubkeyRoute,
   StationNaddrRoute: StationNaddrRoute,
 }

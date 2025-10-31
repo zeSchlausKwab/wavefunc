@@ -2,16 +2,32 @@ import { useStationsObserver } from "../lib/hooks/useStations";
 import { RadioCard } from "./RadioCard";
 import { useMemo } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
+import { useFilterStore } from "../stores/filterStore";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { X, Filter } from "lucide-react";
 
 interface StationViewProps {
   searchQuery: string;
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
+  const {
+    genres,
+    languages,
+    countries,
+    removeGenre,
+    removeLanguage,
+    removeCountry,
+    clearAllFilters,
+    hasActiveFilters,
+    getActiveFilterCount,
+  } = useFilterStore();
+
   // Build filter based on search query
   const filter = useMemo<Omit<NDKFilter, "kinds">>(() => {
     const baseFilter: Omit<NDKFilter, "kinds"> = {
-      limit: 50,
+      limit: 500, // Increase limit for client-side filtering
     };
 
     if (searchQuery.trim()) {
@@ -21,8 +37,18 @@ export function StationView({ searchQuery }: StationViewProps) {
     return baseFilter;
   }, [searchQuery]);
 
+  // Build client-side filters
+  const clientSideFilters = useMemo(
+    () => ({
+      genres: genres.length > 0 ? genres : undefined,
+      languages: languages.length > 0 ? languages : undefined,
+      countries: countries.length > 0 ? countries : undefined,
+    }),
+    [genres, languages, countries]
+  );
+
   // Use the elegant observer hook with flexible filtering
-  const { events, eose } = useStationsObserver(filter);
+  const { events, eose } = useStationsObserver(filter, clientSideFilters);
 
   return (
     <div className="space-y-6">
@@ -36,6 +62,65 @@ export function StationView({ searchQuery }: StationViewProps) {
           </span>
         )}
       </div>
+
+      {/* Active Filters Bar */}
+      {hasActiveFilters() && (
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-1 text-sm font-medium text-gray-700">
+            <Filter className="w-4 h-4" />
+            <span>Active Filters ({getActiveFilterCount()}):</span>
+          </div>
+
+          {/* Genre Filters */}
+          {genres.map((genre) => (
+            <Badge
+              key={`genre-${genre}`}
+              variant="secondary"
+              className="cursor-pointer hover:bg-destructive/80 transition-colors"
+              onClick={() => removeGenre(genre)}
+            >
+              {genre}
+              <X className="w-3 h-3 ml-1" />
+            </Badge>
+          ))}
+
+          {/* Language Filters */}
+          {languages.map((language) => (
+            <Badge
+              key={`lang-${language}`}
+              variant="secondary"
+              className="cursor-pointer hover:bg-destructive/80 transition-colors"
+              onClick={() => removeLanguage(language)}
+            >
+              {language}
+              <X className="w-3 h-3 ml-1" />
+            </Badge>
+          ))}
+
+          {/* Country Filters */}
+          {countries.map((country) => (
+            <Badge
+              key={`country-${country}`}
+              variant="secondary"
+              className="cursor-pointer hover:bg-destructive/80 transition-colors"
+              onClick={() => removeCountry(country)}
+            >
+              {country}
+              <X className="w-3 h-3 ml-1" />
+            </Badge>
+          ))}
+
+          {/* Clear All Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAllFilters}
+            className="ml-auto text-sm"
+          >
+            Clear All
+          </Button>
+        </div>
+      )}
 
       {/* Grid layout for RadioCard components */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">

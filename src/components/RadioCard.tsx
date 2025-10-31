@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
+import { useFilterStore } from "../stores/filterStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { SocialActions } from "./SocialActions";
 import { StationManagementSheet } from "./StationManagementSheet";
@@ -23,6 +24,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
   const { currentStation, currentStream, isPlaying, playStation, pause } =
     usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
+  const { toggleGenre } = useFilterStore();
   const currentUser = useNDKCurrentUser();
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
@@ -30,6 +32,11 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
   const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
+
+  const handleGenreClick = (genre: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering card click
+    toggleGenre(genre);
+  };
 
   const handleCommentClick = () => {
     setShowDetailSheet(true);
@@ -231,10 +238,22 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
             {station.genres && station.genres.length > 0 ? (
               <>
                 {station.genres.slice(0, 2).map((genre, index) => (
-                  <Badge key={index}>{genre}</Badge>
+                  <Badge
+                    key={index}
+                    className="cursor-pointer hover:bg-primary/80 transition-colors"
+                    onClick={(e) => handleGenreClick(genre, e)}
+                    title={`Filter by ${genre}`}
+                  >
+                    {genre}
+                  </Badge>
                 ))}
                 {station.genres.length > 2 && (
-                  <Badge>+{station.genres.length - 2}</Badge>
+                  <Badge
+                    className="cursor-default"
+                    title={station.genres.slice(2).join(', ')}
+                  >
+                    +{station.genres.length - 2}
+                  </Badge>
                 )}
               </>
             ) : null}
@@ -348,10 +367,22 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
           {station.genres && station.genres.length > 0 && (
             <div className="flex gap-1 overflow-hidden min-w-0">
               {station.genres.slice(0, 2).map((genre, index) => (
-                <Badge key={index}>{genre}</Badge>
+                <Badge
+                  key={index}
+                  className="cursor-pointer hover:bg-primary/80 transition-colors"
+                  onClick={(e) => handleGenreClick(genre, e)}
+                  title={`Filter by ${genre}`}
+                >
+                  {genre}
+                </Badge>
               ))}
               {station.genres.length > 2 && (
-                <Badge>+{station.genres.length - 2}</Badge>
+                <Badge
+                  className="cursor-default"
+                  title={station.genres.slice(2).join(', ')}
+                >
+                  +{station.genres.length - 2}
+                </Badge>
               )}
             </div>
           )}

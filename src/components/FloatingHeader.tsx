@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Heart, Menu, Plus } from "lucide-react";
+import { Heart, Menu, Plus, Music } from "lucide-react";
 import { useState } from "react";
 import { useMedia } from "react-use";
 import { useFavorites } from "../lib/hooks/useFavorites";
@@ -57,6 +57,16 @@ export function FloatingHeader({
 
               {/* Navigation */}
               <nav className="flex items-center gap-6">
+                <Link
+                  to="/browse/genres"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  activeProps={{
+                    className: "text-foreground font-medium",
+                  }}
+                >
+                  <Music className="w-4 h-4" />
+                  Browse
+                </Link>
                 <Link
                   to="/favorites"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
@@ -128,6 +138,18 @@ export function FloatingHeader({
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Home
+                    </Link>
+                    <Link
+                      to="/browse/genres"
+                      className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-gray-200/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors flex items-center gap-2"
+                      activeProps={{
+                        className:
+                          "px-4 py-2 text-sm text-foreground font-medium bg-gray-200/50 dark:bg-gray-700/50 rounded-lg flex items-center gap-2",
+                      }}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Music className="w-4 h-4" />
+                      Browse Genres
                     </Link>
                     <Link
                       to="/favorites"
