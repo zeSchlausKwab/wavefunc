@@ -198,7 +198,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
           </div>
         )}
 
-        <div className="flex flex-col justify-between min-w-0 p-2 h-full w-full">
+        <div className="flex flex-col min-w-0 p-2 flex-1">
           {/* Station Name with External Link */}
           <div className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4" style={{ borderColor: underscoreColor }}>
             <h3
@@ -223,21 +223,24 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
             </Link>
           </div>
           {/* Station Description */}
-          <p className="text-gray-600 text-xs mb-2 line-clamp-2 flex-1">
+          <p className="text-gray-600 text-xs mb-2 line-clamp-2">
             {station.description || "No description available"}
           </p>
-          {/* Station Genres */}
-          {station.genres && station.genres.length > 0 && (
-            <div className="flex gap-1 overflow-hidden min-w-0">
-              {station.genres.slice(0, 2).map((genre, index) => (
-                <Badge key={index}>{genre}</Badge>
-              ))}
-              {station.genres.length > 2 && (
-                <Badge>+{station.genres.length - 2}</Badge>
-              )}
-            </div>
-          )}
-          <div className="flex flex-row justify-between items-center">
+          {/* Station Genres - flexible spacer */}
+          <div className="flex gap-1 overflow-hidden min-w-0 mb-2 min-h-[20px]">
+            {station.genres && station.genres.length > 0 ? (
+              <>
+                {station.genres.slice(0, 2).map((genre, index) => (
+                  <Badge key={index}>{genre}</Badge>
+                ))}
+                {station.genres.length > 2 && (
+                  <Badge>+{station.genres.length - 2}</Badge>
+                )}
+              </>
+            ) : null}
+          </div>
+          {/* Language and Social Actions - always at bottom */}
+          <div className="flex flex-row justify-between items-center mt-auto">
             <div className="text-xs text-gray-500 flex-shrink-0">
               {station.languages?.[0] &&
               station.languages[0] &&
