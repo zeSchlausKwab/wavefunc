@@ -12,7 +12,7 @@ import { StationDetailSheet } from "./StationDetailSheet";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { cn } from "@/lib/utils";
+import { cn, getDeterministicColor } from "@/lib/utils";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -39,6 +39,16 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
   const isOwner = currentUser?.pubkey === station.pubkey;
+
+  // Generate unique, deterministic color based on station ID (d tag)
+  const backgroundColor = station.stationId
+    ? getDeterministicColor(station.stationId, 85)
+    : 'hsl(0, 0%, 85%)'; // Fallback to gray if no stationId
+
+  // Darker version for border underscore
+  const underscoreColor = station.stationId
+    ? getDeterministicColor(station.stationId, 50)
+    : 'hsl(0, 0%, 50%)';
 
   const handlePlayClick = () => {
     if (isCurrentlyPlaying) {
@@ -151,7 +161,8 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
           </div>
         ) : (
           <div
-            className="aspect-[9/16] w-full overflow-hidden relative bg-secondary flex items-center justify-center cursor-pointer"
+            className="aspect-[9/16] w-full overflow-hidden relative flex items-center justify-center cursor-pointer"
+            style={{ backgroundColor }}
             onClick={handlePlayClick}
           >
             {/* Radio Icon Background */}
@@ -189,7 +200,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
 
         <div className="flex flex-col justify-between min-w-0 p-2 h-full w-full">
           {/* Station Name with External Link */}
-          <div className="flex items-center gap-1 mb-1 min-w-0">
+          <div className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4" style={{ borderColor: underscoreColor }}>
             <h3
               className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
               onClick={() => setShowDetailSheet(true)}
@@ -276,7 +287,8 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
             </div>
           ) : (
             <div
-              className="w-full h-full bg-secondary flex items-center justify-center relative cursor-pointer"
+              className="w-full h-full flex items-center justify-center relative cursor-pointer"
+              style={{ backgroundColor }}
               onClick={handlePlayClick}
             >
               <Radio className="w-8 h-8 text-muted-foreground/30 absolute" />
@@ -305,7 +317,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
         {/* Center: Station Info */}
         <div className="flex flex-col justify-between min-w-0 p-1 w-full">
           {/* Station Name with External Link */}
-          <div className="flex items-center gap-1 mb-1 min-w-0">
+          <div className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4" style={{ borderColor: underscoreColor }}>
             <h3
               className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
               onClick={() => setShowDetailSheet(true)}
