@@ -38,28 +38,30 @@ function Settings() {
 
       {/* Tabs */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="profile">
-            <User className="w-4 h-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="wallets">
-            <Wallet className="w-4 h-4" />
-            Wallets
-          </TabsTrigger>
-          <TabsTrigger value="stations">
-            <Radio className="w-4 h-4" />
-            My Stations
-          </TabsTrigger>
-          <TabsTrigger value="favourites">
-            <Star className="w-4 h-4" />
-            My Favourites
-          </TabsTrigger>
-          <TabsTrigger value="relays">
-            <Wifi className="w-4 h-4" />
-            Relays
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto">
+          <TabsList className="w-full justify-start min-w-max">
+            <TabsTrigger value="profile" className="gap-2">
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Profile</span>
+            </TabsTrigger>
+            <TabsTrigger value="wallets" className="gap-2">
+              <Wallet className="w-4 h-4" />
+              <span className="hidden sm:inline">Wallets</span>
+            </TabsTrigger>
+            <TabsTrigger value="stations" className="gap-2">
+              <Radio className="w-4 h-4" />
+              <span className="hidden sm:inline">My Stations</span>
+            </TabsTrigger>
+            <TabsTrigger value="favourites" className="gap-2">
+              <Star className="w-4 h-4" />
+              <span className="hidden sm:inline">My Favourites</span>
+            </TabsTrigger>
+            <TabsTrigger value="relays" className="gap-2">
+              <Wifi className="w-4 h-4" />
+              <span className="hidden sm:inline">Relays</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />

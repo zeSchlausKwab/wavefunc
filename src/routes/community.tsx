@@ -3,10 +3,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserAvatar } from "@/components/UserAvatar";
-import { NDKEvent, NDKKind, useNDK, useNDKCurrentUser, useSubscribe } from "@nostr-dev-kit/react";
+import {
+  NDKEvent,
+  NDKKind,
+  useNDK,
+  useNDKCurrentUser,
+  useSubscribe,
+} from "@nostr-dev-kit/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, MessageCircle } from "lucide-react";
+import {
+  Loader2,
+  MessageCircle,
+  Bug,
+  Sparkles,
+  Hand,
+  MessagesSquare,
+  Layers,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/community")({
@@ -14,27 +28,50 @@ export const Route = createFileRoute("/community")({
 });
 
 // Define the shoutbox categories
-type ShoutboxCategory = 'all' | 'bug' | 'feature' | 'greeting' | 'general';
+type ShoutboxCategory = "all" | "bug" | "feature" | "greeting" | "general";
 
 interface CategoryOption {
   value: ShoutboxCategory;
   label: string;
   description?: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const categoryOptions: CategoryOption[] = [
-  { value: 'bug', label: 'Bug Report', description: 'Report issues and bugs' },
-  { value: 'feature', label: 'Feature Request', description: 'Suggest new features' },
-  { value: 'greeting', label: 'Greeting', description: 'Say hello to the community' },
-  { value: 'general', label: 'General', description: 'General discussion' },
+  {
+    value: "bug",
+    label: "Bug Report",
+    description: "Report issues and bugs",
+    icon: Bug,
+  },
+  {
+    value: "feature",
+    label: "Feature Request",
+    description: "Suggest new features",
+    icon: Sparkles,
+  },
+  {
+    value: "greeting",
+    label: "Greeting",
+    description: "Say hello to the community",
+    icon: Hand,
+  },
+  {
+    value: "general",
+    label: "General",
+    description: "General discussion",
+    icon: MessagesSquare,
+  },
 ];
 
 function Community() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
-  const [activeTab, setActiveTab] = useState<ShoutboxCategory>('all');
+  const [activeTab, setActiveTab] = useState<ShoutboxCategory>("all");
   const [shoutboxEvent, setShoutboxEvent] = useState<NDKEvent | null>(null);
-  const [categoryCount, setCategoryCount] = useState<Record<ShoutboxCategory, number>>({
+  const [categoryCount, setCategoryCount] = useState<
+    Record<ShoutboxCategory, number>
+  >({
     all: 0,
     bug: 0,
     feature: 0,
@@ -45,29 +82,29 @@ function Community() {
   // Create virtual shoutbox event for NIP-22 comments
   useEffect(() => {
     if (!ndk) return;
-    
+
     const virtualEvent = new NDKEvent(ndk);
     virtualEvent.kind = NDKKind.Text;
     virtualEvent.tags = [
-      ['t', 'wavefunc'],
-      ['t', 'shoutbox'],
+      ["t", "wavefunc"],
+      ["t", "shoutbox"],
     ];
-    virtualEvent.content = 'Wavefunc Community Shoutbox';
+    virtualEvent.content = "Wavefunc Community Shoutbox";
     virtualEvent.created_at = Math.floor(Date.now() / 1000);
-    virtualEvent.id = 'wavefunc-community-shoutbox'; // Fixed ID for consistency
+    virtualEvent.id = "wavefunc-community-shoutbox"; // Fixed ID for consistency
     setShoutboxEvent(virtualEvent);
   }, [ndk]);
 
   // Subscribe to NIP-22 comments with #wavefunc tag
   const filters = useMemo(() => {
     if (!shoutboxEvent) return false; // Disable subscription when shoutboxEvent is not ready
-    
+
     return [
       {
         kinds: [1111], // NIP-22 comments
         "#t": ["wavefunc"], // Must have #wavefunc tag
         limit: 100,
-      }
+      },
     ];
   }, [shoutboxEvent]);
 
@@ -79,22 +116,22 @@ function Community() {
 
   // Filter root comments (those that don't reply to other comments)
   const rootComments = useMemo(() => {
-    return allComments.filter(event => {
+    return allComments.filter((event) => {
       // Root comments should not have 'e' tags pointing to other comments
-      const eTags = event.tags.filter(tag => tag[0] === 'e');
+      const eTags = event.tags.filter((tag) => tag[0] === "e");
       return eTags.length === 0;
     });
   }, [allComments]);
 
   // Filter comments by category
   const filteredComments = useMemo(() => {
-    if (activeTab === 'all') {
+    if (activeTab === "all") {
       return rootComments;
     }
-    
-    return rootComments.filter(event => {
+
+    return rootComments.filter((event) => {
       const tags = event.tags || [];
-      return tags.some(tag => tag[0] === 't' && tag[1] === activeTab);
+      return tags.some((tag) => tag[0] === "t" && tag[1] === activeTab);
     });
   }, [rootComments, activeTab]);
 
@@ -108,23 +145,26 @@ function Community() {
       general: 0,
     };
 
-    rootComments.forEach(event => {
+    rootComments.forEach((event) => {
       const tags = event.tags || [];
       let specificCatFound = false;
-      
-      if (tags.some(tag => tag[0] === 't' && tag[1] === 'bug')) {
+
+      if (tags.some((tag) => tag[0] === "t" && tag[1] === "bug")) {
         counts.bug++;
         specificCatFound = true;
       }
-      if (tags.some(tag => tag[0] === 't' && tag[1] === 'feature')) {
+      if (tags.some((tag) => tag[0] === "t" && tag[1] === "feature")) {
         counts.feature++;
         specificCatFound = true;
       }
-      if (tags.some(tag => tag[0] === 't' && tag[1] === 'greeting')) {
+      if (tags.some((tag) => tag[0] === "t" && tag[1] === "greeting")) {
         counts.greeting++;
         specificCatFound = true;
       }
-      if (tags.some(tag => tag[0] === 't' && tag[1] === 'general') || !specificCatFound) {
+      if (
+        tags.some((tag) => tag[0] === "t" && tag[1] === "general") ||
+        !specificCatFound
+      ) {
         counts.general++;
       }
     });
@@ -132,7 +172,10 @@ function Community() {
     setCategoryCount(counts);
   }, [rootComments]);
 
-  const handleRootComment = async (content: string, category: ShoutboxCategory = 'general') => {
+  const handleRootComment = async (
+    content: string,
+    category: ShoutboxCategory = "general"
+  ) => {
     if (!currentUser || !ndk) {
       alert("Please log in to post to the community");
       return;
@@ -143,12 +186,12 @@ function Community() {
       comment.kind = 1111; // NIP-22 comment
       comment.content = content;
       comment.tags = [
-        ['t', 'wavefunc'], // Required tag
+        ["t", "wavefunc"], // Required tag
       ];
 
       // Add category tag if not general
-      if (category !== 'general') {
-        comment.tags.push(['t', category]);
+      if (category !== "general") {
+        comment.tags.push(["t", category]);
       }
 
       await comment.publish();
@@ -170,9 +213,9 @@ function Community() {
       reply.kind = 1111; // NIP-22 comment
       reply.content = content;
       reply.tags = [
-        ['t', 'wavefunc'], // Required tag
-        ['e', parentEvent.id, '', 'reply'], // Reply to parent
-        ['p', parentEvent.pubkey], // Mention parent author
+        ["t", "wavefunc"], // Required tag
+        ["e", parentEvent.id, "", "reply"], // Reply to parent
+        ["p", parentEvent.pubkey], // Mention parent author
       ];
 
       await reply.publish();
@@ -192,7 +235,7 @@ function Community() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -200,32 +243,47 @@ function Community() {
           Community
         </h1>
         <p className="text-gray-600">
-          Share feedback, report bugs, request features, or just say hello to the Wavefunc community!
+          Share feedback, report bugs, request features, or just say hello to
+          the Wavefunc community!
         </p>
       </div>
 
       {/* Category Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ShoutboxCategory)}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="all" className="flex items-center gap-2">
-            All
-            <Badge variant="secondary" className="text-xs">
-              {categoryCount.all}
-            </Badge>
-          </TabsTrigger>
-          {categoryOptions.map((option) => (
-            <TabsTrigger key={option.value} value={option.value} className="flex items-center gap-2">
-              {option.label}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ShoutboxCategory)}
+      >
+        <div className="w-full overflow-x-auto">
+          <TabsList className="w-full justify-start min-w-max inline-flex">
+            <TabsTrigger value="all" className="flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              <span className="hidden sm:inline">All</span>
               <Badge variant="secondary" className="text-xs">
-                {categoryCount[option.value]}
+                {categoryCount.all}
               </Badge>
             </TabsTrigger>
-          ))}
-        </TabsList>
+            {categoryOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <TabsTrigger
+                  key={option.value}
+                  value={option.value}
+                  className="flex items-center gap-2"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{option.label}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {categoryCount[option.value]}
+                  </Badge>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         {/* Tab Contents */}
         <TabsContent value="all" className="space-y-6">
-          <CommunityContent 
+          <CommunityContent
             comments={filteredComments}
             onRootComment={handleRootComment}
             onReply={handleReply}
@@ -234,12 +292,16 @@ function Community() {
         </TabsContent>
 
         {categoryOptions.map((option) => (
-          <TabsContent key={option.value} value={option.value} className="space-y-6">
+          <TabsContent
+            key={option.value}
+            value={option.value}
+            className="space-y-6"
+          >
             <div className="bg-gray-50 p-4 rounded-lg border">
               <h3 className="font-semibold text-lg">{option.label}</h3>
               <p className="text-gray-600 text-sm">{option.description}</p>
             </div>
-            <CommunityContent 
+            <CommunityContent
               comments={filteredComments}
               onRootComment={handleRootComment}
               onReply={handleReply}
@@ -259,7 +321,12 @@ interface CommunityContentProps {
   category: ShoutboxCategory;
 }
 
-function CommunityContent({ comments, onRootComment, onReply, category }: CommunityContentProps) {
+function CommunityContent({
+  comments,
+  onRootComment,
+  onReply,
+  category,
+}: CommunityContentProps) {
   const currentUser = useNDKCurrentUser();
 
   return (
@@ -267,11 +334,15 @@ function CommunityContent({ comments, onRootComment, onReply, category }: Commun
       {/* Comment Form */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <h3 className="font-semibold mb-3">
-          {category === 'general' ? 'Share with the community' : `Post a ${category}`}
+          {category === "general"
+            ? "Share with the community"
+            : `Post a ${category}`}
         </h3>
         <CommentForm
           onSubmit={(content) => onRootComment(content, category)}
-          placeholder={`What's on your mind? ${category !== 'general' ? `(${category})` : ''}`}
+          placeholder={`What's on your mind? ${
+            category !== "general" ? `(${category})` : ""
+          }`}
         />
       </div>
 
@@ -281,15 +352,17 @@ function CommunityContent({ comments, onRootComment, onReply, category }: Commun
           <div className="text-center py-12 text-gray-500">
             <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium">No posts yet</p>
-            <p className="text-sm">Be the first to share something with the community!</p>
+            <p className="text-sm">
+              Be the first to share something with the community!
+            </p>
           </div>
         ) : (
           comments
             .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
             .map((comment) => (
-              <CommunityCommentCard 
-                key={comment.id} 
-                comment={comment} 
+              <CommunityCommentCard
+                key={comment.id}
+                comment={comment}
                 onReply={onReply}
               />
             ))
@@ -309,12 +382,14 @@ function CommunityCommentCard({ comment, onReply }: CommunityCommentCardProps) {
   const currentUser = useNDKCurrentUser();
 
   const timestamp = comment.created_at
-    ? formatDistanceToNow(new Date(comment.created_at * 1000), { addSuffix: true })
+    ? formatDistanceToNow(new Date(comment.created_at * 1000), {
+        addSuffix: true,
+      })
     : "Unknown time";
 
   const categories = comment.tags
-    .filter(tag => tag[0] === 't' && tag[1] !== 'wavefunc')
-    .map(tag => tag[1]);
+    .filter((tag) => tag[0] === "t" && tag[1] !== "wavefunc")
+    .map((tag) => tag[1]);
 
   const handleReplySubmit = async (content: string) => {
     await onReply(content, comment);
@@ -322,7 +397,7 @@ function CommunityCommentCard({ comment, onReply }: CommunityCommentCardProps) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+    <>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -371,6 +446,6 @@ function CommunityCommentCard({ comment, onReply }: CommunityCommentCardProps) {
           />
         </div>
       )}
-    </div>
+    </>
   );
 }

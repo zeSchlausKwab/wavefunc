@@ -23,7 +23,7 @@ export const Route = createRootRoute({
           onSearch={handleSearch}
         />
         {/* TODO: probably too hacky */}
-        <div className="m-2 pt-24 md:m-4 min-w-[90vw]">
+        <div className="m-2 pt-24 pb-24 md:m-4 min-w-[90vw]">
           <Outlet />
         </div>
         <FloatingPlayer />

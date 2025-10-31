@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { StarIcon } from "../ui/icons/lucide-star";
 import { useState } from "react";
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { useMedia } from "react-use";
 
 export function MyFavouritesSettings() {
   const currentUser = useNDKCurrentUser();
@@ -17,6 +18,7 @@ export function MyFavouritesSettings() {
     isLoading,
   } = useFavorites();
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const isMobile = useMedia("(max-width: 768px)");
 
   const favoriteCount = getFavoriteCount();
 
@@ -34,7 +36,11 @@ export function MyFavouritesSettings() {
     );
   }
 
-  const handleCreateList = async (name: string, description: string, banner?: string) => {
+  const handleCreateList = async (
+    name: string,
+    description: string,
+    banner?: string
+  ) => {
     const newList = await createFavoritesList(name, description);
     if (newList && banner) {
       newList.banner = banner;
@@ -45,7 +51,11 @@ export function MyFavouritesSettings() {
   };
 
   const handleDeleteList = async (listId: string) => {
-    if (!confirm("Are you sure you want to delete this favorites list? This action cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this favorites list? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
@@ -82,17 +92,13 @@ export function MyFavouritesSettings() {
                 onClick={() => setShowCreateForm(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                New List
+                {!isMobile && "New List"}
               </Button>
             )}
             {favoriteCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFavorites}
-              >
+              <Button variant="outline" size="sm" onClick={clearFavorites}>
                 <Trash2 className="w-4 h-4 mr-2" />
-                Clear All
+                {!isMobile && "Clear All"}
               </Button>
             )}
           </div>
