@@ -10,13 +10,16 @@ interface LegacyStation {
   Language: string | null;
   Tags: string | null;
   Votes: number;
+  Subcountry: string | null;
   Codec: string | null;
   Bitrate: number;
   UrlCache: string | null;
+  Hls: number;
   CountryCode: string | null;
   GeoLat: number | null;
   GeoLong: number | null;
   LanguageCodes: string | null;
+  ServerUuid: string | null;
   StationUuid: string;
   LastChangeTime?: string | null;
   LastChangeTimeISO8601?: string | null;
@@ -201,7 +204,9 @@ export function mergeStations(duplicates: LegacyStation[]): LegacyStation {
     Homepage: mergeField<string>(duplicates, "Homepage"),
     Favicon: mergeField<string>(duplicates, "Favicon"),
     Country: mergeField<string>(duplicates, "Country"),
+    Subcountry: mergeField<string>(duplicates, "Subcountry"),
     CountryCode: mergeField<string>(duplicates, "CountryCode"),
+    ServerUuid: mergeField<string>(duplicates, "ServerUuid"),
 
     // Merge list fields (combine all unique values)
     Language: mergeCommaSeparatedList(duplicates, "Language"),
@@ -210,6 +215,7 @@ export function mergeStations(duplicates: LegacyStation[]): LegacyStation {
 
     // Merge numeric fields (take maximum)
     Votes: mergeNumericMax(duplicates, "Votes"),
+    Hls: mergeNumericMax(duplicates, "Hls"),
 
     // Use primary stream's codec and bitrate
     Codec: streams[primaryStreamIndex]?.codec || null,

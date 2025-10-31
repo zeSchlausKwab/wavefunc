@@ -32,7 +32,10 @@
       "Bash(bun -e:*)",
       "Bash(echo:*)",
       "Read(//private/tmp/**)",
-      "Bash(bunx @tanstack/router-cli generate:*)"
+      "Bash(bunx @tanstack/router-cli generate:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(bun:*)"
     ],
     "deny": [],
     "ask": []

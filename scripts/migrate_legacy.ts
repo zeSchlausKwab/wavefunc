@@ -44,14 +44,36 @@ interface LegacyStation {
   Language: string | null;
   Tags: string | null;
   Votes: number;
+  Subcountry: string | null;
   Codec: string | null;
   Bitrate: number;
   UrlCache: string | null;
+  Hls: number;
   CountryCode: string | null;
   GeoLat: number | null;
   GeoLong: number | null;
   LanguageCodes: string | null;
+  ServerUuid: string | null;
   StationUuid: string;
+}
+
+// StationCheckHistory for descriptions and extended metadata
+interface StationCheckHistory {
+  StationUuid: string;
+  Description: string | null;
+  Name: string | null;
+  Tags: string | null;
+  Favicon: string | null;
+  Homepage: string | null;
+  MetainfoOverridesDatabase: number;
+}
+
+// StreamingServers for streamingServerUrl
+interface StreamingServer {
+  Uuid: string;
+  Url: string;
+  Software: string | null;
+  Location: string | null;
 }
 
 // Parse a single station INSERT line from SQL
@@ -110,23 +132,26 @@ function parseStationInsert(line: string): LegacyStation | null {
     console.log("DEBUG: First station values:", values.slice(0, 30));
   }
 
-  const station = {
+  const station: LegacyStation = {
     StationID: parseInt(values[0] as string),
-    Name: values[1],
-    Url: values[2],
-    Homepage: values[3],
-    Favicon: values[4],
-    Country: values[6],
-    Language: values[7],
-    Tags: values[8],
+    Name: values[1] || null,
+    Url: values[2] || null,
+    Homepage: values[3] || null,
+    Favicon: values[4] || null,
+    Country: values[6] || null,
+    Language: values[7] || null,
+    Tags: values[8] || null,
     Votes: parseInt(values[9] as string) || 0,
-    Codec: values[14],
+    Subcountry: values[10] || null,
+    Codec: values[14] || null,
     Bitrate: parseInt(values[17] as string) || 0,
-    UrlCache: values[18],
-    CountryCode: values[23],
+    UrlCache: values[18] || null,
+    Hls: parseInt(values[20] as string) || 0,
+    CountryCode: values[23] || null,
     GeoLat: values[26] ? parseFloat(values[26] as string) : null,
     GeoLong: values[27] ? parseFloat(values[27] as string) : null,
-    LanguageCodes: values[29],
+    LanguageCodes: values[29] || null,
+    ServerUuid: values[31] || null,
     StationUuid: values[22] || `legacy-${values[0]}`,
   };
 
@@ -144,7 +169,9 @@ function parseStationInsert(line: string): LegacyStation | null {
 // Convert legacy station to Nostr event
 async function legacyToNostrEvent(
   station: LegacyStation,
-  signer: NDKPrivateKeySigner
+  signer: NDKPrivateKeySigner,
+  checkHistory?: Map<string, StationCheckHistory>,
+  servers?: Map<string, StreamingServer>
 ): Promise<NDKEvent> {
   const event = new NDKEvent(ndk);
   event.kind = 31237; // Radio Station Event
@@ -163,7 +190,7 @@ async function legacyToNostrEvent(
     seenUrls.add(url);
     streams.push({
       url,
-      format: getFormat(dup.Codec),
+      format: getFormat(dup.Codec, dup.Hls),
       quality: {
         bitrate: dup.Bitrate * 1000, // Convert to bps
         codec: (dup.Codec || "mp3").toLowerCase(),
@@ -179,12 +206,27 @@ async function legacyToNostrEvent(
     streams.forEach((s, i) => (s.primary = i === 0));
   }
 
+  // Get description from StationCheckHistory if available
+  const extendedInfo = checkHistory?.get(station.StationUuid);
+  let description = station.Tags || `${station.Name} - ${station.Country || "Unknown"}`;
+
+  if (extendedInfo?.Description) {
+    description = extendedInfo.Description;
+  }
+
+  // Get streamingServerUrl if available
+  const streamingServer = station.ServerUuid ? servers?.get(station.ServerUuid) : undefined;
+
   // Build content JSON
-  const content = {
-    description:
-      station.Tags || `${station.Name} - ${station.Country || "Unknown"}`,
+  const content: any = {
+    description,
     streams,
   };
+
+  // Add streamingServerUrl if available (per SPEC)
+  if (streamingServer?.Url) {
+    content.streamingServerUrl = streamingServer.Url;
+  }
 
   event.content = JSON.stringify(content);
 
@@ -199,8 +241,14 @@ async function legacyToNostrEvent(
     tags.push(["countryCode", station.CountryCode]);
   }
 
-  if (station.Country) {
-    tags.push(["location", station.Country]);
+  // Build location string - use Subcountry if available for better precision
+  let location = station.Country || "";
+  if (station.Subcountry && station.Subcountry.trim()) {
+    location = `${station.Subcountry}, ${station.Country}`;
+  }
+
+  if (location) {
+    tags.push(["location", location]);
   }
 
   if (station.Homepage) {
@@ -244,8 +292,13 @@ async function legacyToNostrEvent(
   return event;
 }
 
-// Get MIME format from codec
-function getFormat(codec: string | null): string {
+// Get MIME format from codec and HLS flag
+function getFormat(codec: string | null, hls: number = 0): string {
+  // HLS streams (m3u8) use application/x-mpegURL or application/vnd.apple.mpegurl
+  if (hls === 1) {
+    return "application/x-mpegURL";
+  }
+
   if (!codec) return "audio/mpeg";
 
   const c = codec.toLowerCase();
@@ -301,6 +354,103 @@ function encodeGeohash(lat: number, lon: number, precision: number): string {
   }
 
   return geohash;
+}
+
+// Extract StationCheckHistory for descriptions
+function extractStationCheckHistory(sqlPath: string): Map<string, StationCheckHistory> {
+  console.log("📖 Reading StationCheckHistory for descriptions...");
+  const sql = readFileSync(sqlPath, "utf-8");
+  const lines = sql.split("\n");
+
+  const checkHistory = new Map<string, StationCheckHistory>();
+  let inCheckHistory = false;
+
+  for (const line of lines) {
+    if (line.includes("INSERT INTO `StationCheckHistory` VALUES")) {
+      inCheckHistory = true;
+      continue;
+    }
+
+    if (inCheckHistory) {
+      if (line.trim() === ";") {
+        inCheckHistory = false;
+        continue;
+      }
+
+      // Parse StationCheckHistory row
+      const match = line.match(/\(([^)]+)\)/);
+      if (!match) continue;
+
+      // Simple parse - just get the fields we need
+      const parts = match[1].split(",").map(p => p.trim().replace(/^'|'$/g, ''));
+      if (parts.length < 15) continue;
+
+      const stationUuid = parts[1]?.replace(/'/g, '') || '';
+      const description = parts[14]?.replace(/'/g, '') || '';
+
+      if (stationUuid && description && description !== 'NULL') {
+        // Keep the most recent entry (last one wins)
+        checkHistory.set(stationUuid, {
+          StationUuid: stationUuid,
+          Description: description,
+          Name: parts[13]?.replace(/'/g, '') || null,
+          Tags: parts[15]?.replace(/'/g, '') || null,
+          Favicon: parts[18]?.replace(/'/g, '') || null,
+          Homepage: parts[17]?.replace(/'/g, '') || null,
+          MetainfoOverridesDatabase: parseInt(parts[11] || '0') || 0,
+        });
+      }
+    }
+  }
+
+  console.log(`✅ Found ${checkHistory.size} stations with extended metadata`);
+  return checkHistory;
+}
+
+// Extract StreamingServers for streamingServerUrl
+function extractStreamingServers(sqlPath: string): Map<string, StreamingServer> {
+  console.log("📖 Reading StreamingServers...");
+  const sql = readFileSync(sqlPath, "utf-8");
+  const lines = sql.split("\n");
+
+  const servers = new Map<string, StreamingServer>();
+  let inServers = false;
+
+  for (const line of lines) {
+    if (line.includes("INSERT INTO `StreamingServers` VALUES")) {
+      inServers = true;
+      continue;
+    }
+
+    if (inServers) {
+      if (line.trim() === ";") {
+        inServers = false;
+        continue;
+      }
+
+      // Parse StreamingServer row
+      const match = line.match(/\(([^)]+)\)/);
+      if (!match) continue;
+
+      const parts = match[1].split(",").map(p => p.trim().replace(/^'|'$/g, ''));
+      if (parts.length < 4) continue;
+
+      const uuid = parts[1]?.replace(/'/g, '') || '';
+      const url = parts[2]?.replace(/'/g, '') || '';
+
+      if (uuid && url) {
+        servers.set(uuid, {
+          Uuid: uuid,
+          Url: url,
+          Software: parts[9]?.replace(/'/g, '') || null,
+          Location: parts[8]?.replace(/'/g, '') || null,
+        });
+      }
+    }
+  }
+
+  console.log(`✅ Found ${servers.size} streaming servers`);
+  return servers;
 }
 
 // Extract stations from SQL dump
@@ -514,6 +664,10 @@ async function migrateStations() {
   const sqlPath = path.join(process.cwd(), "legacy-db", "latest.sql");
   const allStations = extractStationsFromSQL(sqlPath);
 
+  // Load extended metadata
+  const checkHistory = extractStationCheckHistory(sqlPath);
+  const servers = extractStreamingServers(sqlPath);
+
   // Select random stations (first non-relay arg is count)
   const countArg = process.argv.find((arg, i) => i > 1 && !arg.startsWith('--'));
   const count = countArg ? parseInt(countArg) : 50;
@@ -551,7 +705,7 @@ async function migrateStations() {
         }${streamInfo}`
       );
 
-      const event = await legacyToNostrEvent(station, signer);
+      const event = await legacyToNostrEvent(station, signer, checkHistory, servers);
       await event.publish();
 
       successCount++;
