@@ -139,7 +139,7 @@ function Favorites() {
                 onClick={() => setShowCreateForm(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                {isMobile ?? "Create New List"}
+                {!isMobile && "Create New List"}
               </Button>
             )}
             {favoriteCount > 0 && (
@@ -149,7 +149,7 @@ function Favorites() {
                 onClick={clearFavorites}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {isMobile ?? "Clear All"}
+                {!isMobile && "Clear All"}
               </Button>
             )}
           </div>
