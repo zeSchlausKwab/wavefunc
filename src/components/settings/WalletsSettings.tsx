@@ -38,41 +38,48 @@ export function WalletsSettings() {
       </div>
 
       <div className="space-y-4">
-        {/* Active Wallet Selection */}
+        {/* Current Balance Display */}
         {(nwcConnection || cashuConnection) && (
-          <div className="rounded-lg border border-border p-6 space-y-4">
-            <Label>Active Wallet</Label>
-            <Select
-              value={activeWalletType || ""}
-              onValueChange={(value) =>
-                setActiveWalletType(value as "nwc" | "cashu")
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select active wallet" />
-              </SelectTrigger>
-              <SelectContent>
-                {nwcConnection && (
-                  <SelectItem value="nwc">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      <span>Nostr Wallet Connect</span>
-                    </div>
-                  </SelectItem>
-                )}
-                {cashuConnection && (
-                  <SelectItem value="cashu">
-                    <div className="flex items-center gap-2">
-                      <Coins className="w-4 h-4" />
-                      <span>Cashu Wallet</span>
-                    </div>
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+          <div className="rounded-lg border border-border bg-muted/50 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              <Label className="text-base font-semibold">Current Balance</Label>
+            </div>
             <div className="flex items-center gap-4">
               <WalletButton />
             </div>
+            {nwcConnection && cashuConnection && (
+              <div className="space-y-2">
+                <Label className="text-sm">Active Wallet</Label>
+                <Select
+                  value={activeWalletType || ""}
+                  onValueChange={(value) =>
+                    setActiveWalletType(value as "nwc" | "cashu")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select active wallet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nwc">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        <span>Nostr Wallet Connect</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="cashu">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4" />
+                        <span>Cashu Wallet</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose which wallet to use for zaps and payments
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -115,6 +122,7 @@ export function WalletsSettings() {
             </div>
           ) : (
             <Button variant="outline" onClick={() => setNwcDialogOpen(true)}>
+              <Zap className="w-4 h-4 mr-2" />
               Configure NWC
             </Button>
           )}
@@ -126,6 +134,10 @@ export function WalletsSettings() {
             <Coins className="w-5 h-5" />
             <h4 className="font-semibold">Cashu Wallet (NIP-60)</h4>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Create or manage your Cashu eCash wallet. This wallet is completely
+            independent of NWC.
+          </p>
           <CashuWalletSetup />
         </div>
       </div>
