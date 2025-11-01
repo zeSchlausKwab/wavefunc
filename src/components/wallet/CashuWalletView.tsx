@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { NDKCashuWallet } from "@nostr-dev-kit/wallet";
 import { QRCodeSVG } from "qrcode.react";
+import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Coins,
   TrendingUp,
@@ -19,11 +20,14 @@ import {
   Plus,
   Trash2,
   Star,
+  Scan,
+  X,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Textarea } from "../ui/textarea";
 import { useWalletStore } from "../../stores/walletStore";
 import { formatDistanceToNow } from "date-fns";
 
@@ -58,7 +62,13 @@ export function CashuWalletView() {
   const [depositInvoice, setDepositInvoice] = useState<string | null>(null);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositSuccess, setDepositSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [cashuTokenInput, setCashuTokenInput] = useState("");
+  const [isRedeemingToken, setIsRedeemingToken] = useState(false);
+  const [showDepositQR, setShowDepositQR] = useState(false);
+  const [depositBalanceSnapshot, setDepositBalanceSnapshot] =
+    useState<number>(0);
 
   // Withdraw state
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -66,6 +76,10 @@ export function CashuWalletView() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+  const [showWithdrawQR, setShowWithdrawQR] = useState(false);
+  const [mintTokenAmount, setMintTokenAmount] = useState("");
+  const [mintedToken, setMintedToken] = useState<string | null>(null);
+  const [isMintingToken, setIsMintingToken] = useState(false);
 
   // Settings state
   const [mints, setMints] = useState<string[]>(cashuConnection?.mints || []);
@@ -104,6 +118,42 @@ export function CashuWalletView() {
       loadBalance(); // Reload to get per-mint breakdown
     }
   }, [cashuBalance]);
+
+  // Debug withdraw state
+  useEffect(() => {
+    console.log("Withdraw state:", {
+      withdrawAmount,
+      withdrawAddress,
+      isWithdrawing,
+      buttonDisabled: isWithdrawing || !withdrawAmount || !withdrawAddress,
+    });
+  }, [withdrawAmount, withdrawAddress, isWithdrawing]);
+
+  // Monitor balance changes for deposit success detection
+  useEffect(() => {
+    if (
+      depositInvoice &&
+      depositBalanceSnapshot > 0 &&
+      balance > depositBalanceSnapshot
+    ) {
+      console.log(
+        "Deposit detected! Balance increased from",
+        depositBalanceSnapshot,
+        "to",
+        balance
+      );
+      setDepositSuccess(true);
+      setDepositError(null);
+
+      // Auto-clear success message and reset after a few seconds
+      setTimeout(() => {
+        setDepositSuccess(false);
+        setDepositInvoice(null);
+        setDepositAmount("");
+        setDepositBalanceSnapshot(0);
+      }, 5000);
+    }
+  }, [balance, depositInvoice, depositBalanceSnapshot]);
 
   const loadBalance = async () => {
     if (!cashuWallet) return;
@@ -210,6 +260,7 @@ export function CashuWalletView() {
 
     setIsGeneratingInvoice(true);
     setDepositError(null);
+    setDepositSuccess(false);
 
     try {
       const wallet = cashuWallet as NDKCashuWallet;
@@ -220,6 +271,10 @@ export function CashuWalletView() {
       if (!depositMint) {
         throw new Error("No mints configured");
       }
+
+      // Capture current balance to detect changes
+      setDepositBalanceSnapshot(balance);
+      console.log("Invoice generated, balance snapshot:", balance);
 
       // Generate deposit invoice using the primary mint
       const deposit = wallet.deposit(amount, depositMint);
@@ -296,6 +351,133 @@ export function CashuWalletView() {
       );
     } finally {
       setIsWithdrawing(false);
+    }
+  };
+
+  const handleRedeemToken = async () => {
+    if (!cashuWallet || !cashuTokenInput.trim()) return;
+
+    setIsRedeemingToken(true);
+    setDepositError(null);
+
+    try {
+      const wallet = cashuWallet as NDKCashuWallet;
+
+      // Parse the Cashu token
+      const token = cashuTokenInput.trim();
+
+      // Redeem the token - this will add the sats to the wallet
+      // @ts-ignore - NDK method signature varies
+      await wallet.redeemNutzaps([token], wallet.mints, wallet.relays);
+
+      // Refresh balance and transactions
+      await loadBalance();
+      await loadTransactions();
+
+      setCashuTokenInput("");
+      setDepositError(null);
+    } catch (error) {
+      console.error("Failed to redeem token:", error);
+      setDepositError(
+        error instanceof Error ? error.message : "Failed to redeem token"
+      );
+    } finally {
+      setIsRedeemingToken(false);
+    }
+  };
+
+  const handleMintToken = async () => {
+    if (!cashuWallet || !mintTokenAmount) return;
+
+    const amount = parseInt(mintTokenAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError("Please enter a valid amount");
+      return;
+    }
+
+    if (amount > balance) {
+      setWithdrawError("Insufficient balance");
+      return;
+    }
+
+    setIsMintingToken(true);
+    setWithdrawError(null);
+
+    try {
+      const wallet = cashuWallet as NDKCashuWallet;
+
+      // Get the primary mint
+      const mint = cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+      if (!mint) {
+        throw new Error("No mint configured");
+      }
+
+      // Create a Cashu token from wallet balance
+      // This involves creating a token that can be shared
+      // @ts-ignore - WalletState API may vary
+      const proofs = await wallet.state?.getProofsForAmount(amount, mint);
+
+      if (!proofs || proofs.length === 0) {
+        throw new Error("No proofs available to create token");
+      }
+
+      // Encode proofs as a Cashu token string
+      const token = JSON.stringify({
+        token: [
+          {
+            mint,
+            proofs,
+          },
+        ],
+      });
+
+      const encodedToken = `cashuA${btoa(token)}`;
+      setMintedToken(encodedToken);
+
+      // Refresh balance and transactions
+      await loadBalance();
+      await loadTransactions();
+    } catch (error) {
+      console.error("Failed to mint token:", error);
+      setWithdrawError(
+        error instanceof Error ? error.message : "Failed to mint token"
+      );
+    } finally {
+      setIsMintingToken(false);
+    }
+  };
+
+  const handleDepositQRScan = (result: string) => {
+    // Check if it's a Cashu token
+    if (result.startsWith("cashuA") || result.includes("cashu")) {
+      setCashuTokenInput(result);
+      setShowDepositQR(false);
+    }
+  };
+
+  const handleWithdrawQRScan = (result: string) => {
+    // Clean up the result
+    const cleaned = result.trim();
+    console.log("Scanned Lightning QR code:", cleaned);
+
+    // Check if it's a Lightning invoice (various formats)
+    const lowerResult = cleaned.toLowerCase();
+    if (
+      lowerResult.startsWith("lnbc") ||
+      lowerResult.startsWith("lnurl") ||
+      lowerResult.startsWith("lightning:")
+    ) {
+      // Remove lightning: prefix if present
+      const invoice = cleaned.replace(/^lightning:/i, "");
+      console.log("Detected Lightning invoice:", invoice);
+      setWithdrawAddress(invoice);
+      setShowWithdrawQR(false);
+    } else {
+      // If it doesn't look like a Lightning invoice, still try to set it
+      // in case it's a valid format we didn't recognize
+      console.log("Unknown format, setting anyway:", cleaned);
+      setWithdrawAddress(cleaned);
+      setShowWithdrawQR(false);
     }
   };
 
@@ -463,11 +645,12 @@ export function CashuWalletView() {
 
         {/* Deposit Tab */}
         <TabsContent value="deposit" className="space-y-4">
+          {/* Lightning Invoice Deposit */}
           <div className="rounded-lg border border-border p-6 space-y-4">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <ArrowDownToLine className="w-5 h-5" />
-                Deposit Sats
+                Deposit via Lightning
               </h3>
               <p className="text-sm text-muted-foreground">
                 Generate a Lightning invoice to deposit sats into your Cashu
@@ -528,49 +711,161 @@ export function CashuWalletView() {
               </>
             ) : (
               <div className="space-y-4">
-                <div className="flex justify-center p-6 bg-white rounded-lg">
-                  <QRCodeSVG value={depositInvoice} size={256} level="M" />
-                </div>
+                {!depositSuccess ? (
+                  <>
+                    <div className="flex justify-center p-6 bg-white rounded-lg">
+                      <QRCodeSVG value={depositInvoice} size={256} level="M" />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>Lightning Invoice</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={depositInvoice}
-                      readOnly
-                      className="font-mono text-xs"
-                    />
+                    <div className="space-y-2">
+                      <Label>Lightning Invoice</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={depositInvoice}
+                          readOnly
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => copyToClipboard(depositInvoice)}
+                        >
+                          {copied ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="p-3 text-sm bg-blue-500/10 rounded-md border border-blue-500/20">
+                      <p className="text-blue-600 dark:text-blue-400">
+                        Scan this QR code or copy the invoice to pay with any
+                        Lightning wallet. Waiting for payment...
+                      </p>
+                    </div>
+
                     <Button
                       variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(depositInvoice)}
+                      onClick={() => {
+                        setDepositInvoice(null);
+                        setDepositAmount("");
+                        setDepositBalanceSnapshot(0);
+                      }}
+                      className="w-full"
                     >
-                      {copied ? (
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col items-center justify-center p-12 space-y-4">
+                      <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <Check className="w-12 h-12 text-green-600" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-green-600">
+                        Payment Received!
+                      </h3>
+                      <p className="text-muted-foreground text-center">
+                        Your deposit of {depositAmount} sats has been added to
+                        your wallet
+                      </p>
+                    </div>
+
+                    <div className="p-4 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
+                      <div className="flex items-center gap-2 mb-2">
                         <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                        <span className="font-semibold">
+                          Transaction Successful
+                        </span>
+                      </div>
+                      <p className="text-xs">
+                        New balance: {formatAmount(balance)} sats
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Cashu Token Redemption */}
+          <div className="rounded-lg border border-border p-6 space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Coins className="w-5 h-5" />
+                Redeem Cashu Token
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Paste or scan a Cashu token to add sats to your wallet
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cashu-token">Cashu Token</Label>
+              <Textarea
+                id="cashu-token"
+                placeholder="cashuA..."
+                value={cashuTokenInput}
+                onChange={(e) => setCashuTokenInput(e.target.value)}
+                className="font-mono text-xs min-h-[100px]"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDepositQR(true)}
+                className="flex-1"
+              >
+                <Scan className="w-4 h-4 mr-2" />
+                Scan QR Code
+              </Button>
+              <Button
+                onClick={handleRedeemToken}
+                disabled={isRedeemingToken || !cashuTokenInput.trim()}
+                className="flex-1"
+              >
+                {isRedeemingToken ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Redeeming...
+                  </>
+                ) : (
+                  <>
+                    <Coins className="w-4 h-4 mr-2" />
+                    Redeem Token
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* QR Scanner Modal */}
+            {showDepositQR && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-background rounded-lg p-6 max-w-md w-full space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold">Scan Cashu Token</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDepositQR(false)}
+                    >
+                      <X className="w-4 h-4" />
                     </Button>
                   </div>
+                  <Scanner
+                    onScan={(result) => {
+                      if (result && result.length > 0 && result[0]?.rawValue) {
+                        handleDepositQRScan(result[0].rawValue);
+                      }
+                    }}
+                    styles={{
+                      container: { width: "100%" },
+                    }}
+                  />
                 </div>
-
-                <div className="p-3 text-sm bg-blue-500/10 rounded-md border border-blue-500/20">
-                  <p className="text-blue-600 dark:text-blue-400">
-                    Scan this QR code or copy the invoice to pay with any
-                    Lightning wallet
-                  </p>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDepositInvoice(null);
-                    setDepositAmount("");
-                  }}
-                  className="w-full"
-                >
-                  Generate New Invoice
-                </Button>
               </div>
             )}
           </div>
@@ -597,7 +892,10 @@ export function CashuWalletView() {
                 type="number"
                 placeholder="1000"
                 value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
+                onChange={(e) => {
+                  console.log("Withdraw amount changed:", e.target.value);
+                  setWithdrawAmount(e.target.value);
+                }}
               />
               <p className="text-xs text-muted-foreground">
                 Available: {formatAmount(balance)} sats
@@ -630,13 +928,26 @@ export function CashuWalletView() {
               <Label htmlFor="withdraw-address">
                 Lightning Address or Invoice
               </Label>
-              <Input
-                id="withdraw-address"
-                type="text"
-                placeholder="user@getalby.com or lnbc..."
-                value={withdrawAddress}
-                onChange={(e) => setWithdrawAddress(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="withdraw-address"
+                  type="text"
+                  placeholder="user@getalby.com or lnbc..."
+                  value={withdrawAddress}
+                  onChange={(e) => {
+                    console.log("Withdraw address changed:", e.target.value);
+                    setWithdrawAddress(e.target.value);
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowWithdrawQR(true)}
+                >
+                  <Scan className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
             {withdrawError && (
@@ -648,6 +959,16 @@ export function CashuWalletView() {
             {withdrawSuccess && (
               <div className="p-3 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
                 Withdrawal successful! Your sats are on the way.
+              </div>
+            )}
+
+            {/* Debug info */}
+            {(!withdrawAmount || !withdrawAddress) && (
+              <div className="p-2 text-xs text-muted-foreground bg-muted/50 rounded-md">
+                {!withdrawAmount && <div>⚠️ Please enter an amount</div>}
+                {!withdrawAddress && (
+                  <div>⚠️ Please enter a Lightning address or invoice</div>
+                )}
               </div>
             )}
 
@@ -672,6 +993,148 @@ export function CashuWalletView() {
                 </>
               )}
             </Button>
+
+            {/* QR Scanner Modal for Lightning Invoice */}
+            {showWithdrawQR && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-background rounded-lg p-6 max-w-md w-full space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold">Scan Lightning Invoice</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowWithdrawQR(false)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <Scanner
+                    onScan={(result) => {
+                      if (result && result.length > 0 && result[0]?.rawValue) {
+                        handleWithdrawQRScan(result[0].rawValue);
+                      }
+                    }}
+                    styles={{
+                      container: { width: "100%" },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mint Cashu Token */}
+          <div className="rounded-lg border border-border p-6 space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Coins className="w-5 h-5" />
+                Mint Cashu Token
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Create a Cashu token from your wallet balance to share or use
+                offline
+              </p>
+            </div>
+
+            {!mintedToken ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="mint-amount">Amount (sats)</Label>
+                  <Input
+                    id="mint-amount"
+                    type="number"
+                    placeholder="1000"
+                    value={mintTokenAmount}
+                    onChange={(e) => setMintTokenAmount(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Available: {formatAmount(balance)} sats
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  {[1000, 5000, 10000].map((amt) => (
+                    <Button
+                      key={amt}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMintTokenAmount(amt.toString())}
+                      disabled={amt > balance}
+                    >
+                      {formatAmount(amt)}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  onClick={handleMintToken}
+                  disabled={isMintingToken || !mintTokenAmount}
+                  className="w-full"
+                >
+                  {isMintingToken ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Minting...
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="w-4 h-4 mr-2" />
+                      Mint Token
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-center p-6 bg-white rounded-lg">
+                  <QRCodeSVG value={mintedToken} size={256} level="M" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Cashu Token</Label>
+                  <Textarea
+                    value={mintedToken}
+                    readOnly
+                    className="font-mono text-xs min-h-[100px]"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => copyToClipboard(mintedToken)}
+                    className="w-full"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Token
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="p-3 text-sm bg-blue-500/10 rounded-md border border-blue-500/20">
+                  <p className="text-blue-600 dark:text-blue-400">
+                    Share this token to send sats. The recipient can redeem it
+                    in any Cashu wallet.
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setMintedToken(null);
+                    setMintTokenAmount("");
+                  }}
+                  className="w-full"
+                >
+                  Mint New Token
+                </Button>
+              </div>
+            )}
           </div>
         </TabsContent>
 
