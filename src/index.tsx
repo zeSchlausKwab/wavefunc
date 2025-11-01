@@ -204,22 +204,33 @@ if (!isProduction) {
 // Start server
 (async () => {
   if (isProduction) {
-    // Production: Serve static files from dist/
+    // Production: Serve static files from dist/ and public/
     const server = serve({
       routes: {
+        ...apiRoutes,
         "/*": async (req) => {
           const url = new URL(req.url);
           const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
-          const filePath = join(process.cwd(), "dist", pathname);
 
-          try {
-            return new Response(file(filePath));
-          } catch (error) {
-            // If file not found, serve index.html for client-side routing
-            return new Response(file(join(process.cwd(), "dist", "index.html")));
+          // Try to serve from public/ first (for static assets like images)
+          const publicPath = join(process.cwd(), "public", pathname);
+          const publicFile = file(publicPath);
+
+          if (await publicFile.exists()) {
+            return new Response(publicFile);
           }
+
+          // Try to serve from dist/ (built assets)
+          const filePath = join(process.cwd(), "dist", pathname);
+          const staticFile = file(filePath);
+
+          if (await staticFile.exists()) {
+            return new Response(staticFile);
+          }
+
+          // If file not found, serve index.html for client-side routing
+          return new Response(file(join(process.cwd(), "dist", "index.html")));
         },
-        ...apiRoutes,
       },
     });
 
@@ -230,8 +241,21 @@ if (!isProduction) {
 
     const server = serve({
       routes: {
-        "/*": index,
         ...apiRoutes,
+        // Serve static files from public/ directory
+        "/images/*": async (req) => {
+          const url = new URL(req.url);
+          const filePath = join(process.cwd(), "public", url.pathname);
+          const staticFile = file(filePath);
+
+          if (await staticFile.exists()) {
+            return new Response(staticFile);
+          }
+
+          return new Response("Not found", { status: 404 });
+        },
+        // Catch-all for SPA routing
+        "/*": index,
       },
 
       development: {

@@ -14,6 +14,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { cn, getDeterministicColor } from "@/lib/utils";
+import { UserAvatar } from "./UserAvatar";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -229,6 +230,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
               </Button>
             </Link>
           </div>
+          <UserAvatar pubkey={station.pubkey} mode="avatar-name" />
           {/* Station Description */}
           <p className="text-gray-600 text-xs mb-2 line-clamp-2">
             {station.description || "No description available"}

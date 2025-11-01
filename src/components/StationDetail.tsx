@@ -7,7 +7,7 @@ import {
   Play,
   Pause,
 } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
 import type { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { Badge } from "./ui/badge";
@@ -19,6 +19,7 @@ import { Comment } from "./Comment";
 import { CommentForm } from "./CommentForm";
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
+import { UserAvatar } from "./UserAvatar";
 
 interface StationDetailProps {
   station: NDKStation;
@@ -52,7 +53,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   const { comments, totalCount } = useComments(station);
 
   // Handle focus when focusCommentForm prop changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (focusCommentForm && commentFormRef.current) {
       // Small delay to ensure rendering completes
       const timer = setTimeout(() => {
@@ -89,7 +90,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   };
 
   return (
-    <div className={'w-full'}>
+    <div className={"w-full"}>
       {/* Header with Thumbnail */}
       <div className="relative">
         {station.thumbnail ? (
@@ -133,6 +134,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
           <h1 className="text-2xl font-bold">
             {station.name || "Unnamed Station"}
           </h1>
+          <UserAvatar pubkey={station.pubkey} mode="full-profile" />
           {station.description && (
             <p className="text-base text-muted-foreground mt-2">
               {station.description}
