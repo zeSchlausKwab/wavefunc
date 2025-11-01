@@ -13,8 +13,11 @@ console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;
 const EXPECTED_PUBKEY = APP_PRIVATE_KEY ? getPublicKey(hexToBytes(APP_PRIVATE_KEY)) : undefined;
 
+// Simple in-memory rate limiting for migration endpoint
+const migrationLock = { isRunning: false, lastRun: 0 };
+
 // Define route handlers that work in both modes
-const apiRoutes = {
+const apiRoutes: Record<string, any> = {
   "/api/hello": {
     async GET(req) {
       return Response.json({
@@ -37,49 +40,24 @@ const apiRoutes = {
     });
   },
 
-  "/api/debug/pubkey": {
-    async GET() {
-      return Response.json({
-        hasPrivateKey: !!APP_PRIVATE_KEY,
-        expectedPubkey: EXPECTED_PUBKEY || "NOT SET",
-        nodeEnv: process.env.NODE_ENV,
-      });
-    },
-  },
-
-  "/api/debug/nip98": {
-    async POST(req: Request) {
-      const authHeader = req.headers.get("Authorization");
-      const url = new URL(req.url);
-
-      // Handle reverse proxy
-      const proto = req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
-      const host = req.headers.get("X-Forwarded-Host") || url.host;
-      const fullUrl = `${proto}://${host}${url.pathname}`;
-
-      console.log("\n=== NIP-98 Debug Request ===");
-      console.log("Request URL:", req.url);
-      console.log("Parsed Full URL:", fullUrl);
-      console.log("Protocol:", url.protocol);
-      console.log("Host:", url.host);
-      console.log("Pathname:", url.pathname);
-      console.log("Expected Pubkey:", EXPECTED_PUBKEY);
-      console.log("Auth Header:", authHeader?.substring(0, 100));
-
-      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY, undefined, true);
-
-      return Response.json({
-        success: !!authEvent,
-        fullUrl,
-        expectedPubkey: EXPECTED_PUBKEY,
-        authEventPubkey: authEvent?.pubkey,
-      });
-    },
-  },
-
   "/api/migrate": {
     async POST(req: Request) {
-      console.log("\n=== Migration API Request Received ===");
+      // Check if migration is already running (prevent concurrent migrations)
+      if (migrationLock.isRunning) {
+        return Response.json(
+          { error: "Migration already in progress" },
+          { status: 429 }
+        );
+      }
+
+      // Rate limit: minimum 60 seconds between migrations
+      const now = Date.now();
+      if (now - migrationLock.lastRun < 60000) {
+        return Response.json(
+          { error: "Please wait before starting another migration" },
+          { status: 429 }
+        );
+      }
 
       // Verify NIP-98 authentication
       const authHeader = req.headers.get("Authorization");
@@ -90,36 +68,49 @@ const apiRoutes = {
       const host = req.headers.get("X-Forwarded-Host") || url.host;
       const fullUrl = `${proto}://${host}${url.pathname}`;
 
-      console.log("Full URL:", fullUrl);
-      console.log("Expected Pubkey:", EXPECTED_PUBKEY);
-      console.log("Has Auth Header:", !!authHeader);
-
       // Parse request body for validation
       const bodyText = await req.text();
       const body = bodyText ? JSON.parse(bodyText) : undefined;
 
-      console.log("Body:", body);
-
-      // Always enable debug for now
-      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY, body, true);
+      // Verify NIP-98 auth token
+      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY, body);
 
       if (!authEvent) {
-        console.log("❌ Authentication failed");
         return Response.json(
           { error: "Unauthorized - Invalid NIP-98 authentication" },
           { status: 401 }
         );
       }
 
-      console.log("✅ Authentication successful");
-      console.log("Authenticated Pubkey:", authEvent.pubkey);
+      // Set migration lock
+      migrationLock.isRunning = true;
+      migrationLock.lastRun = now;
 
       // Parse request body for migration parameters
       let count = 500;
       let relayUrl = process.env.RELAY_URL || "ws://localhost:3334";
 
-      if (body?.count) count = parseInt(body.count);
-      if (body?.relayUrl) relayUrl = body.relayUrl;
+      // Validate and sanitize inputs
+      if (body?.count) {
+        const parsedCount = parseInt(body.count);
+        // Limit to reasonable range to prevent DoS
+        if (!isNaN(parsedCount) && parsedCount > 0 && parsedCount <= 100000) {
+          count = parsedCount;
+        }
+      }
+
+      if (body?.relayUrl) {
+        // Validate relay URL format (must be ws:// or wss://)
+        const urlStr = body.relayUrl.toString();
+        if (urlStr.match(/^wss?:\/\/[a-zA-Z0-9.-]+(:[0-9]+)?(\/[a-zA-Z0-9._-]*)?$/)) {
+          relayUrl = urlStr;
+        } else {
+          return Response.json(
+            { error: "Invalid relay URL format" },
+            { status: 400 }
+          );
+        }
+      }
 
       // Run migration in background
       const migrationProc = Bun.spawn([
@@ -161,6 +152,9 @@ const apiRoutes = {
           const exitCode = await migrationProc.exited;
           controller.enqueue(encoder.encode(`\nMigration completed with exit code: ${exitCode}\n`));
           controller.close();
+
+          // Release migration lock
+          migrationLock.isRunning = false;
         }
       });
 
@@ -173,6 +167,39 @@ const apiRoutes = {
     },
   },
 };
+
+// Add debug endpoints in development only
+if (!isProduction) {
+  apiRoutes["/api/debug/pubkey"] = {
+    async GET() {
+      return Response.json({
+        hasPrivateKey: !!APP_PRIVATE_KEY,
+        expectedPubkey: EXPECTED_PUBKEY || "NOT SET",
+        nodeEnv: process.env.NODE_ENV,
+      });
+    },
+  };
+
+  apiRoutes["/api/debug/nip98"] = {
+    async POST(req: Request) {
+      const authHeader = req.headers.get("Authorization");
+      const url = new URL(req.url);
+
+      const proto = req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
+      const host = req.headers.get("X-Forwarded-Host") || url.host;
+      const fullUrl = `${proto}://${host}${url.pathname}`;
+
+      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY);
+
+      return Response.json({
+        success: !!authEvent,
+        fullUrl,
+        expectedPubkey: EXPECTED_PUBKEY,
+        authEventPubkey: authEvent?.pubkey,
+      });
+    },
+  };
+}
 
 // Start server
 (async () => {

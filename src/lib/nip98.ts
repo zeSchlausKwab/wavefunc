@@ -23,11 +23,9 @@ export async function verifyNIP98Auth(
   url: string,
   method: string,
   expectedPubkey?: string,
-  body?: any,
-  debug = false
+  body?: any
 ): Promise<NIP98AuthEvent | null> {
   if (!authHeader) {
-    if (debug) console.error("❌ Missing Authorization header");
     return null;
   }
 
@@ -37,43 +35,24 @@ export async function verifyNIP98Auth(
       ? authHeader.substring(6)
       : authHeader;
 
-    if (debug) {
-      console.log("NIP-98 Verification Debug:");
-      console.log("  Expected URL:", url);
-      console.log("  Expected Method:", method);
-      console.log("  Expected Pubkey:", expectedPubkey || "(none)");
-      console.log("  Has Body:", !!body);
-    }
-
     // Unpack event from token
     const event = await unpackEventFromToken(token);
 
-    if (debug) {
-      console.log("  Event Pubkey:", event.pubkey);
-      console.log("  Event Kind:", event.kind);
-      console.log("  Event Created:", event.created_at);
-      console.log("  Event Tags:", event.tags);
-    }
-
-    // Validate event using nostr-tools
+    // Validate event using nostr-tools (signature, kind, timestamp, URL, method, payload)
     const isValid = await validateEvent(event, url, method, body);
 
     if (!isValid) {
-      if (debug) console.error("❌ Event validation failed");
       return null;
     }
 
     // Verify pubkey if provided
     if (expectedPubkey && event.pubkey !== expectedPubkey) {
-      if (debug) console.error("❌ Pubkey mismatch:", event.pubkey, "!=", expectedPubkey);
       return null;
     }
 
-    if (debug) console.log("✅ NIP-98 verification successful");
-
     return event as NIP98AuthEvent;
   } catch (error) {
-    if (debug) console.error("❌ Failed to verify NIP-98 auth:", error);
+    // Silent fail - invalid token format or verification failed
     return null;
   }
 }
