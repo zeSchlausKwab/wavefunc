@@ -77,17 +77,25 @@ Creates platform-specific installers in `src-tauri/target/release/bundle/`
 ### Android Development
 
 ```bash
-# First time setup
+# Complete workflow: build, install, launch, and show logs
 bun run tauri:android
-
-# After setup, just run:
-bunx tauri android dev
 ```
 
-**Note**: Sometimes the app builds successfully but doesn't auto-install. If you don't see the app in the emulator:
+This command will:
+1. Build the frontend
+2. Compile the Rust library for Android
+3. Build the APK
+4. Install it on your connected device/emulator
+5. Launch the app
+6. Stream logs (press Ctrl+C to stop logging)
 
+**Alternative - Build only (no auto-install):**
 ```bash
-# Manually install and launch
+bun run tauri:android:build-only
+```
+
+**Manual install after build:**
+```bash
 adb install src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk
 adb shell am start -n com.wavefunc.app/.MainActivity
 ```

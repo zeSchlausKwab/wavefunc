@@ -37,7 +37,11 @@
       "Bash(sed:*)",
       "Bash(bun:*)",
       "Bash(./scripts/deploy.sh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(tauri android init:*)",
+      "Bash(tauri android dev:*)",
+      "Bash(bunx tauri android init:*)",
+      "Bash(bunx tauri:*)"
     ],
     "deny": [],
     "ask": []
