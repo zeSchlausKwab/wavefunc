@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import { NDKCashuWallet } from "@nostr-dev-kit/wallet";
 import { QRCodeSVG } from "qrcode.react";
 import { Scanner } from "@yudiel/react-qr-scanner";
@@ -15,6 +16,13 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { saveSentToken } from "../../lib/sentTokensDb";
 
 interface WithdrawTabProps {
@@ -43,12 +51,30 @@ export function WithdrawTab({
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [showWithdrawQR, setShowWithdrawQR] = useState(false);
+  const [selectedWithdrawMint, setSelectedWithdrawMint] = useState<string>("");
 
   // Mint Token state
   const [mintTokenAmount, setMintTokenAmount] = useState("");
   const [mintedToken, setMintedToken] = useState<string | null>(null);
   const [isMintingToken, setIsMintingToken] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [selectedMintForToken, setSelectedMintForToken] = useState<string>("");
+
+  // Get mint balances
+  const getMintBalance = (mintUrl: string): number => {
+    return cashuWallet.mintBalance(mintUrl);
+  };
+
+  // Set default mints when component mounts or mints change
+  React.useEffect(() => {
+    const primaryMint = cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+    if (primaryMint && !selectedWithdrawMint) {
+      setSelectedWithdrawMint(primaryMint);
+    }
+    if (primaryMint && !selectedMintForToken) {
+      setSelectedMintForToken(primaryMint);
+    }
+  }, [cashuConnection]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat().format(amount);
@@ -106,16 +132,11 @@ export function WithdrawTab({
   };
 
   const handleMintToken = async () => {
-    if (!cashuWallet || !mintTokenAmount) return;
+    if (!cashuWallet || !mintTokenAmount || !selectedMintForToken) return;
 
     const amount = parseInt(mintTokenAmount);
     if (isNaN(amount) || amount <= 0) {
       setWithdrawError("Please enter a valid amount");
-      return;
-    }
-
-    if (amount > balance) {
-      setWithdrawError("Insufficient balance");
       return;
     }
 
@@ -125,18 +146,17 @@ export function WithdrawTab({
     try {
       const wallet = cashuWallet as NDKCashuWallet;
 
-      // Get the primary mint for token creation
-      const mintUrl =
-        cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+      // Use the selected mint
+      const mintUrl = selectedMintForToken;
       if (!mintUrl) {
-        throw new Error("No mint configured");
+        throw new Error("No mint selected");
       }
 
       // Check if we have proofs for this mint
       const mintBalance = wallet.mintBalance(mintUrl);
       if (mintBalance < amount) {
         throw new Error(
-          `Insufficient balance in ${mintUrl}. Available: ${mintBalance} sats`
+          `Insufficient balance in this mint. Available: ${mintBalance} sats`
         );
       }
 
@@ -381,6 +401,41 @@ export function WithdrawTab({
 
         {!mintedToken ? (
           <>
+            {/* Mint Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="mint-selector">Select Mint</Label>
+              <Select
+                value={selectedMintForToken}
+                onValueChange={setSelectedMintForToken}
+              >
+                <SelectTrigger id="mint-selector">
+                  <SelectValue placeholder="Select a mint" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cashuConnection?.mints?.map((mint) => {
+                    const mintBalance = getMintBalance(mint);
+                    return (
+                      <SelectItem key={mint} value={mint}>
+                        <div className="flex justify-between items-center w-full">
+                          <span className="truncate max-w-[200px]">
+                            {new URL(mint).hostname}
+                          </span>
+                          <span className="ml-4 font-semibold">
+                            {formatAmount(mintBalance)} sats
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedMintForToken && (
+                <p className="text-xs text-muted-foreground">
+                  Available in this mint: {formatAmount(getMintBalance(selectedMintForToken))} sats
+                </p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="mint-amount">Amount (sats)</Label>
               <Input
@@ -390,28 +445,40 @@ export function WithdrawTab({
                 value={mintTokenAmount}
                 onChange={(e) => setMintTokenAmount(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Available: {formatAmount(balance)} sats
-              </p>
             </div>
 
             <div className="flex gap-2">
-              {[1000, 5000, 10000].map((amt) => (
-                <Button
-                  key={amt}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMintTokenAmount(amt.toString())}
-                  disabled={amt > balance}
-                >
-                  {formatAmount(amt)}
-                </Button>
-              ))}
+              {[1000, 5000, 10000].map((amt) => {
+                const mintBalance = selectedMintForToken ? getMintBalance(selectedMintForToken) : 0;
+                return (
+                  <Button
+                    key={amt}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMintTokenAmount(amt.toString())}
+                    disabled={amt > mintBalance}
+                  >
+                    {formatAmount(amt)}
+                  </Button>
+                );
+              })}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedMintForToken) {
+                    setMintTokenAmount(getMintBalance(selectedMintForToken).toString());
+                  }
+                }}
+                disabled={!selectedMintForToken || getMintBalance(selectedMintForToken) === 0}
+              >
+                Max
+              </Button>
             </div>
 
             <Button
               onClick={handleMintToken}
-              disabled={isMintingToken || !mintTokenAmount}
+              disabled={isMintingToken || !mintTokenAmount || !selectedMintForToken}
               className="w-full"
             >
               {isMintingToken ? (

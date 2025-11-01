@@ -7,7 +7,6 @@ import {
   History,
   Wallet,
   Settings,
-  Send,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useWalletStore } from "../../stores/walletStore";
@@ -16,7 +15,7 @@ import { DepositTab } from "./DepositTab";
 import { WithdrawTab } from "./WithdrawTab";
 import { HistoryTab, type Transaction } from "./HistoryTab";
 import { SettingsTab } from "./SettingsTab";
-import { SentTokensTab } from "./SentTokensTab";
+import { getUnredeemedTokens } from "../../lib/sentTokensDb";
 
 export function CashuWalletView() {
   const { ndk } = useNDK();
@@ -129,6 +128,20 @@ export function CashuWalletView() {
         }
       }
 
+      // Add sent tokens from local storage
+      const sentTokens = getUnredeemedTokens();
+      for (const sentToken of sentTokens) {
+        txs.push({
+          id: `sent-${sentToken.id}`,
+          type: "send",
+          amount: -sentToken.amount,
+          timestamp: sentToken.createdAt,
+          status: "pending", // Unredeemed tokens are pending
+          memo: sentToken.description || `Sent token #${sentToken.id}`,
+          mint: sentToken.mint,
+        });
+      }
+
       // Sort by timestamp, newest first
       txs.sort((a, b) => b.timestamp - a.timestamp);
 
@@ -168,7 +181,7 @@ export function CashuWalletView() {
 
       {/* Action Tabs */}
       <Tabs defaultValue="deposit" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="deposit">
             <ArrowDownToLine className="w-4 h-4 mr-2" />
             Deposit
@@ -176,10 +189,6 @@ export function CashuWalletView() {
           <TabsTrigger value="withdraw">
             <ArrowUpFromLine className="w-4 h-4 mr-2" />
             Withdraw
-          </TabsTrigger>
-          <TabsTrigger value="sent">
-            <Send className="w-4 h-4 mr-2" />
-            Sent
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="w-4 h-4 mr-2" />
@@ -213,18 +222,14 @@ export function CashuWalletView() {
           />
         </TabsContent>
 
-        {/* Sent Tokens Tab */}
-        <TabsContent value="sent" className="space-y-4 max-w-full">
-          <SentTokensTab
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-4 max-w-full">
+          <HistoryTab
+            transactions={transactions}
             cashuWallet={cashuWallet as NDKCashuWallet}
             onBalanceUpdate={loadBalance}
             onTransactionsUpdate={loadTransactions}
           />
-        </TabsContent>
-
-        {/* History Tab */}
-        <TabsContent value="history" className="space-y-4 max-w-full">
-          <HistoryTab transactions={transactions} />
         </TabsContent>
 
         {/* Settings Tab */}
