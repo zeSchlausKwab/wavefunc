@@ -337,7 +337,7 @@ export function SignupDialog({
                     How to import your key:
                   </h4>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Click the arrow in the red warning box above</li>
+                    <li>Click the chevron icon in the red warning box above</li>
                     <li>
                       Enter your private key (starts with "nsec1" or
                       64-character hex)
