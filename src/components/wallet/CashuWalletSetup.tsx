@@ -8,32 +8,20 @@ import { useWalletStore } from "../../stores/walletStore";
 import { Plus, Trash2, Coins, Loader2 } from "lucide-react";
 import { CashuWalletView } from "./CashuWalletView";
 import { useCashuWallet } from "../../lib/hooks/useCashuWallet";
-
-const DEFAULT_MINTS = [
-  "https://mint.minibits.cash/Bitcoin",
-  "https://mint.coinos.io",
-  "https://mint.cypherflow.ai",
-];
-
-const DEFAULT_RELAYS = [
-  "wss://relay.damus.io",
-  "wss://relay.primal.net",
-  "wss://relay.minibits.cash",
-  "wss://relay.coinos.io",
-  "wss://nos.lol",
-  "wss://relay.wavefunc.live",
-  "wss://relay.cypherflow.ai",
-];
+import {
+  DEFAULT_CASHU_MINTS,
+  DEFAULT_CASHU_RELAYS,
+} from "../../lib/walletConstants";
 
 export function CashuWalletSetup() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
   const { setCashuWallet, cashuWallet } = useWalletStore();
   const { isLoading: isLoadingExisting, error: loadError } = useCashuWallet();
-  const [mints, setMints] = useState<string[]>(DEFAULT_MINTS);
-  const [relays, setRelays] = useState<string[]>(DEFAULT_RELAYS);
+  const [mints, setMints] = useState<string[]>(DEFAULT_CASHU_MINTS);
+  const [relays, setRelays] = useState<string[]>(DEFAULT_CASHU_RELAYS);
   const [primaryMint, setPrimaryMint] = useState<string>(
-    DEFAULT_MINTS[0] || ""
+    DEFAULT_CASHU_MINTS[0] || ""
   );
   const [newMint, setNewMint] = useState("");
   const [newRelay, setNewRelay] = useState("");

@@ -3,6 +3,7 @@ import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { NDKCashuWallet } from "@nostr-dev-kit/wallet";
 import { useWalletStore } from "../../stores/walletStore";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
+import { DEFAULT_CASHU_RELAYS } from "../walletConstants";
 
 /**
  * Hook to automatically load existing Cashu wallet (NIP-60) from Nostr
@@ -11,7 +12,8 @@ import type { NDKFilter } from "@nostr-dev-kit/ndk";
 export function useCashuWallet() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
-  const { cashuWallet, setCashuWallet, updateCashuBalance } = useWalletStore();
+  const { cashuWallet, cashuConnection, setCashuWallet, updateCashuBalance } =
+    useWalletStore();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,9 +62,31 @@ export function useCashuWallet() {
         }
 
         // Get relays from the wallet's relaySet
-        const relays = wallet.relaySet
-          ? Array.from(wallet.relaySet.relays).map((relay) => relay.url)
-          : [];
+        let relays: string[] = [];
+        if (wallet.relaySet) {
+          relays = Array.from(wallet.relaySet.relays).map((relay) => relay.url);
+        }
+
+        console.log("Wallet relaySet:", wallet.relaySet);
+        console.log("Extracted relays:", relays);
+        console.log("Wallet mints:", wallet.mints);
+
+        // If no relays found, try to get from store or use defaults
+        if (relays.length === 0) {
+          if (cashuConnection?.relays && cashuConnection.relays.length > 0) {
+            console.log(
+              "No relays in wallet, using stored relays:",
+              cashuConnection.relays
+            );
+            relays = cashuConnection.relays;
+          } else {
+            console.log(
+              "No relays found, using defaults:",
+              DEFAULT_CASHU_RELAYS
+            );
+            relays = DEFAULT_CASHU_RELAYS;
+          }
+        }
 
         // Store the wallet
         const primaryMint = wallet.mints?.[0];
