@@ -46,17 +46,17 @@ export function WalletButton() {
 
   if (!hasWallet) {
     return (
-      <Button variant="outline" size="sm" onClick={handleClick}>
+      <Button variant="outline" onClick={handleClick}>
         <BitcoinFillIcon className="w-4 h-4 mr-2" />
-        <span>Connect Wallet</span>
+        <span className="text-sm">Connect Wallet</span>
       </Button>
     );
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleClick}>
+    <Button variant="outline" onClick={handleClick}>
       <BitcoinFillIcon className="w-4 h-4 mr-2" />
-      <span className="font-semibold">
+      <span className="font-semibold text-sm">
         {new Intl.NumberFormat().format(balance)}
       </span>
       <span className="text-xs text-muted-foreground ml-1">sats</span>
