@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "../stores/playerStore";
+import { useSearchStore } from "../stores/searchStore";
 import { Play, Pause, X, Volume2, VolumeX, Radio } from "lucide-react";
 import Hls from "hls.js";
 import { useMedia } from "react-use";
@@ -32,6 +33,8 @@ export function FloatingPlayer() {
     setError,
   } = usePlayerStore();
 
+  const { triggerMusicBrainzSearch } = useSearchStore();
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -39,10 +42,19 @@ export function FloatingPlayer() {
   const formatLabel = currentStream
     ? currentStream.url?.includes(".m3u8")
       ? "HLS"
-      : (currentStream.format || "stream")
-          .replace("audio/", "")
-          .toUpperCase()
+      : (currentStream.format || "stream").replace("audio/", "").toUpperCase()
     : "";
+
+  // Handler to search MusicBrainz with current metadata
+  const handleSearchMetadata = () => {
+    if (!currentMetadata?.song) return;
+
+    const query = currentMetadata.artist
+      ? `${currentMetadata.song} ${currentMetadata.artist}`
+      : currentMetadata.song;
+
+    triggerMusicBrainzSearch(query);
+  };
 
   // Initialize audio element in the store
   useEffect(() => {
@@ -181,7 +193,11 @@ export function FloatingPlayer() {
                 {isPlaying && (
                   <>
                     {currentMetadata?.song ? (
-                      <p className="truncate text-xs text-foreground mt-0.5">
+                      <p
+                        className="truncate text-xs text-foreground mt-0.5 cursor-pointer hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
+                        onClick={handleSearchMetadata}
+                        title="Click to search on MusicBrainz"
+                      >
                         {currentMetadata.song}
                         {currentMetadata.artist && (
                           <span className="text-muted-foreground">
@@ -196,7 +212,13 @@ export function FloatingPlayer() {
                             {currentMetadata.musicBrainz.releaseDate && (
                               <span>
                                 {" "}
-                                ({currentMetadata.musicBrainz.releaseDate.split("-")[0]})
+                                (
+                                {
+                                  currentMetadata.musicBrainz.releaseDate.split(
+                                    "-"
+                                  )[0]
+                                }
+                                )
                               </span>
                             )}
                           </span>
@@ -246,7 +268,10 @@ export function FloatingPlayer() {
             {/* Volume Control - Desktop only */}
             {!isMobile && (
               <>
-                <Separator orientation="vertical" className="h-8 relative z-10" />
+                <Separator
+                  orientation="vertical"
+                  className="h-8 relative z-10"
+                />
                 <div className="relative z-10 flex items-center gap-2">
                   <Button
                     size="icon"

@@ -3,10 +3,14 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { IconButtonInput } from "./ui/icon-button-input";
-import { MusicBrainzResults, type MusicBrainzResult } from "./MusicBrainzResults";
+import {
+  MusicBrainzResults,
+  type MusicBrainzResult,
+} from "./MusicBrainzResults";
 import { searchMusicBrainz } from "../lib/metadataClient";
 import { SearchIcon } from "./ui/icons/lucide-search";
 import { XIcon } from "./ui/icons/lucide-x";
+import { useSearchStore } from "../stores/searchStore";
 
 export type SearchMode = "stations" | "musicbrainz";
 
@@ -22,11 +26,20 @@ export function UnifiedSearchInput({
   onStationSearch,
 }: UnifiedSearchInputProps) {
   const [searchMode, setSearchMode] = useState<SearchMode>("stations");
-  const [musicBrainzResults, setMusicBrainzResults] = useState<MusicBrainzResult[]>([]);
+  const [musicBrainzResults, setMusicBrainzResults] = useState<
+    MusicBrainzResult[]
+  >([]);
   const [musicBrainzLoading, setMusicBrainzLoading] = useState(false);
   const [musicBrainzError, setMusicBrainzError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    searchQuery: storeSearchQuery,
+    searchMode: storeSearchMode,
+    triggerSearch,
+    resetTrigger,
+  } = useSearchStore();
 
   // Close results when clicking outside
   useEffect(() => {
@@ -49,6 +62,38 @@ export function UnifiedSearchInput({
     setMusicBrainzError(null);
     setShowResults(false);
   }, [searchMode]);
+
+  // Listen for triggered searches from the store (e.g., from FloatingPlayer)
+  useEffect(() => {
+    if (triggerSearch && storeSearchQuery) {
+      setSearchMode(storeSearchMode);
+      setSearchInput(storeSearchQuery);
+      // Execute the search
+      const executeSearch = async () => {
+        setMusicBrainzLoading(true);
+        setMusicBrainzError(null);
+        setShowResults(true);
+
+        try {
+          const data = await searchMusicBrainz({ query: storeSearchQuery });
+          setMusicBrainzResults(data);
+        } catch (err: any) {
+          setMusicBrainzError(err.message || "Failed to search MusicBrainz");
+          setMusicBrainzResults([]);
+        } finally {
+          setMusicBrainzLoading(false);
+        }
+      };
+      executeSearch();
+      resetTrigger();
+    }
+  }, [
+    triggerSearch,
+    storeSearchQuery,
+    storeSearchMode,
+    setSearchInput,
+    resetTrigger,
+  ]);
 
   const handleMusicBrainzSearch = async (query: string) => {
     if (!query.trim()) {
@@ -118,7 +163,8 @@ export function UnifiedSearchInput({
             type="text"
             startIcon={{
               icon: SearchIcon,
-              onClick: () => handleSubmit({ preventDefault: () => {} } as React.FormEvent),
+              onClick: () =>
+                handleSubmit({ preventDefault: () => {} } as React.FormEvent),
               disabled: !searchInput.trim(),
               type: "submit",
               title: "Search",
