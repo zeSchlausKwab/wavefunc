@@ -114,21 +114,10 @@ export function CashuWalletView() {
   useEffect(() => {
     // When the store balance changes, update local state and reload breakdown
     if (cashuBalance !== balance && cashuWallet) {
-      console.log("Store balance changed to:", cashuBalance);
       setBalance(cashuBalance);
       loadBalance(); // Reload to get per-mint breakdown
     }
   }, [cashuBalance]);
-
-  // Debug withdraw state
-  useEffect(() => {
-    console.log("Withdraw state:", {
-      withdrawAmount,
-      withdrawAddress,
-      isWithdrawing,
-      buttonDisabled: isWithdrawing || !withdrawAmount || !withdrawAddress,
-    });
-  }, [withdrawAmount, withdrawAddress, isWithdrawing]);
 
   // Monitor balance changes for deposit success detection
   useEffect(() => {
@@ -137,12 +126,6 @@ export function CashuWalletView() {
       depositBalanceSnapshot > 0 &&
       balance > depositBalanceSnapshot
     ) {
-      console.log(
-        "Deposit detected! Balance increased from",
-        depositBalanceSnapshot,
-        "to",
-        balance
-      );
       setDepositSuccess(true);
       setDepositError(null);
 
@@ -166,8 +149,6 @@ export function CashuWalletView() {
       // Get balance using the wallet state methods
       const totalBal = wallet.state?.getBalance() || 0;
       const mintBals = wallet.state?.getMintsBalance() || {};
-
-      console.log("Loading balance - Total:", totalBal, "Per mint:", mintBals);
 
       setBalance(totalBal);
       setMintBalances(mintBals);
@@ -275,7 +256,6 @@ export function CashuWalletView() {
 
       // Capture current balance to detect changes
       setDepositBalanceSnapshot(balance);
-      console.log("Invoice generated, balance snapshot:", balance);
 
       // Generate deposit invoice using the primary mint
       const deposit = wallet.deposit(amount, depositMint);
@@ -365,8 +345,6 @@ export function CashuWalletView() {
       const wallet = cashuWallet as NDKCashuWallet;
       const token = cashuTokenInput.trim();
 
-      console.log("Receiving Cashu token...");
-
       // Receive the token - this will add the sats to the wallet
       // The receiveToken method handles decoding and mint extraction automatically
       const result = await wallet.receiveToken(token, "Deposited via QR/paste");
@@ -374,8 +352,6 @@ export function CashuWalletView() {
       if (!result) {
         throw new Error("Failed to receive token");
       }
-
-      console.log("Token received successfully");
 
       // Refresh balance and transactions
       await loadBalance();
@@ -469,12 +445,9 @@ export function CashuWalletView() {
   };
 
   const handleWithdrawQRScan = (result: string) => {
-    // Clean up the result
     const cleaned = result.trim();
-    console.log("Scanned Lightning QR code:", cleaned);
-
-    // Check if it's a Lightning invoice (various formats)
     const lowerResult = cleaned.toLowerCase();
+
     if (
       lowerResult.startsWith("lnbc") ||
       lowerResult.startsWith("lnurl") ||
@@ -482,13 +455,10 @@ export function CashuWalletView() {
     ) {
       // Remove lightning: prefix if present
       const invoice = cleaned.replace(/^lightning:/i, "");
-      console.log("Detected Lightning invoice:", invoice);
       setWithdrawAddress(invoice);
       setShowWithdrawQR(false);
     } else {
-      // If it doesn't look like a Lightning invoice, still try to set it
-      // in case it's a valid format we didn't recognize
-      console.log("Unknown format, setting anyway:", cleaned);
+      // Try to set it anyway in case it's a valid format we didn't recognize
       setWithdrawAddress(cleaned);
       setShowWithdrawQR(false);
     }
@@ -920,10 +890,7 @@ export function CashuWalletView() {
                 type="number"
                 placeholder="1000"
                 value={withdrawAmount}
-                onChange={(e) => {
-                  console.log("Withdraw amount changed:", e.target.value);
-                  setWithdrawAmount(e.target.value);
-                }}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
                 Available: {formatAmount(balance)} sats
@@ -962,10 +929,7 @@ export function CashuWalletView() {
                   type="text"
                   placeholder="user@getalby.com or lnbc..."
                   value={withdrawAddress}
-                  onChange={(e) => {
-                    console.log("Withdraw address changed:", e.target.value);
-                    setWithdrawAddress(e.target.value);
-                  }}
+                  onChange={(e) => setWithdrawAddress(e.target.value)}
                   className="flex-1"
                 />
                 <Button
@@ -987,16 +951,6 @@ export function CashuWalletView() {
             {withdrawSuccess && (
               <div className="p-3 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
                 Withdrawal successful! Your sats are on the way.
-              </div>
-            )}
-
-            {/* Debug info */}
-            {(!withdrawAmount || !withdrawAddress) && (
-              <div className="p-2 text-xs text-muted-foreground bg-muted/50 rounded-md">
-                {!withdrawAmount && <div>⚠️ Please enter an amount</div>}
-                {!withdrawAddress && (
-                  <div>⚠️ Please enter a Lightning address or invoice</div>
-                )}
               </div>
             )}
 
