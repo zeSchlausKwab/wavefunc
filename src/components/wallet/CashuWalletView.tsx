@@ -395,32 +395,72 @@ export function CashuWalletView() {
     try {
       const wallet = cashuWallet as NDKCashuWallet;
 
-      // Get the primary mint
-      const mint = cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
-      if (!mint) {
+      // Get the primary mint for token creation
+      const mintUrl =
+        cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+      if (!mintUrl) {
         throw new Error("No mint configured");
       }
 
-      // Create a Cashu token from wallet balance
-      // This involves creating a token that can be shared
-      // @ts-ignore - WalletState API may vary
-      const proofs = await wallet.state?.getProofsForAmount(amount, mint);
-
-      if (!proofs || proofs.length === 0) {
-        throw new Error("No proofs available to create token");
+      // Check if we have proofs for this mint
+      const mintBalance = wallet.mintBalance(mintUrl);
+      if (mintBalance < amount) {
+        throw new Error(
+          `Insufficient balance in ${mintUrl}. Available: ${mintBalance} sats`
+        );
       }
 
-      // Encode proofs as a Cashu token string
-      const token = JSON.stringify({
+      // Set the mint on the wallet
+      // @ts-ignore - NDK wallet requires mint to be set
+      wallet.mint = mintUrl;
+
+      // Get the internal cashu-ts wallet for this mint
+      // @ts-ignore - NDK internal method
+      const cashuWalletInstance = await wallet.getCashuWallet(mintUrl);
+
+      // Get available proofs for this mint from the wallet state
+      // @ts-ignore - accessing wallet state
+      const availableProofs =
+        wallet.state?.getProofs({
+          mint: mintUrl,
+          onlyAvailable: true,
+        }) || [];
+
+      if (availableProofs.length === 0) {
+        throw new Error("No available proofs to create token");
+      }
+
+      // Use the cashu-ts wallet directly to send/create token
+      // This handles amount splitting automatically
+      const { send: sendProofs, keep: keepProofs } =
+        await cashuWalletInstance.send(amount, availableProofs);
+
+      if (!sendProofs || sendProofs.length === 0) {
+        throw new Error("Failed to create token proofs");
+      }
+
+      // Update the NDK wallet state to reflect the proofs being sent out
+      // @ts-ignore - updating wallet state
+      await wallet.state?.update(
+        {
+          destroy: availableProofs,
+          store: keepProofs,
+          mint: mintUrl,
+        },
+        "Token created"
+      );
+
+      // Encode as cashuA token
+      const tokenObj = {
         token: [
           {
-            mint,
-            proofs,
+            mint: mintUrl,
+            proofs: sendProofs,
           },
         ],
-      });
+      };
+      const encodedToken = `cashuA${btoa(JSON.stringify(tokenObj))}`;
 
-      const encodedToken = `cashuA${btoa(token)}`;
       setMintedToken(encodedToken);
 
       // Refresh balance and transactions
