@@ -5,24 +5,31 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { useWalletStore } from "../../stores/walletStore";
-import { Plus, Trash2, Coins } from "lucide-react";
+import { Plus, Trash2, Coins, Loader2 } from "lucide-react";
+import { CashuWalletView } from "./CashuWalletView";
+import { useCashuWallet } from "../../lib/hooks/useCashuWallet";
 
 const DEFAULT_MINTS = [
   "https://mint.minibits.cash/Bitcoin",
   "https://mint.coinos.io",
+  "https://mint.cypherflow.ai",
 ];
 
 const DEFAULT_RELAYS = [
   "wss://relay.damus.io",
   "wss://relay.primal.net",
+  "wss://relay.minibits.cash",
+  "wss://relay.coinos.io",
   "wss://nos.lol",
   "wss://relay.wavefunc.live",
+  "wss://relay.cypherflow.ai",
 ];
 
 export function CashuWalletSetup() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
   const { setCashuWallet, cashuWallet } = useWalletStore();
+  const { isLoading: isLoadingExisting, error: loadError } = useCashuWallet();
   const [mints, setMints] = useState<string[]>(DEFAULT_MINTS);
   const [relays, setRelays] = useState<string[]>(DEFAULT_RELAYS);
   const [newMint, setNewMint] = useState("");
@@ -73,59 +80,37 @@ export function CashuWalletSetup() {
 
     try {
       // Create Cashu wallet with specified mints and relays
+      // @ts-ignore - NDK type mismatch between packages
       const wallet = await NDKCashuWallet.create(ndk, mints, relays);
+
+      // Start the wallet to begin monitoring
+      await wallet.start();
 
       // Store the wallet
       setCashuWallet(wallet, mints, relays);
-
-      console.log("Cashu wallet created successfully");
     } catch (err) {
       console.error("Failed to create Cashu wallet:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to create wallet"
-      );
+      setError(err instanceof Error ? err.message : "Failed to create wallet");
     } finally {
       setIsCreating(false);
     }
   };
 
-  if (cashuWallet) {
+  // Show loading state while checking for existing wallet
+  if (isLoadingExisting) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Coins className="w-5 h-5 text-primary" />
-            <div>
-              <h4 className="font-semibold">Cashu Wallet Connected</h4>
-              <p className="text-sm text-muted-foreground">
-                Using {mints.length} mint(s)
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setCashuWallet(null)}
-          >
-            Disconnect
-          </Button>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Active Mints</Label>
-          <div className="space-y-1">
-            {mints.map((mint) => (
-              <div
-                key={mint}
-                className="text-xs p-2 bg-muted rounded-md break-all"
-              >
-                {mint}
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center p-8 space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Checking for existing wallet...
+        </p>
       </div>
     );
+  }
+
+  // Show wallet view if wallet exists
+  if (cashuWallet) {
+    return <CashuWalletView />;
   }
 
   return (
@@ -137,6 +122,12 @@ export function CashuWalletSetup() {
           stored encrypted on Nostr relays.
         </p>
       </div>
+
+      {loadError && (
+        <div className="p-3 text-sm text-amber-600 bg-amber-600/10 rounded-md">
+          Failed to load existing wallet: {loadError}
+        </div>
+      )}
 
       {/* Mints Configuration */}
       <div className="space-y-3">

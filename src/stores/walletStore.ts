@@ -21,6 +21,10 @@ interface WalletState {
   nwcConnection: WalletConnection | null;
   cashuConnection: WalletConnection | null;
 
+  // Balance tracking
+  cashuBalance: number;
+  nwcBalance: number;
+
   // Actions
   setNWCWallet: (wallet: NDKWallet | null, connectionString?: string) => void;
   setCashuWallet: (
@@ -32,6 +36,8 @@ interface WalletState {
   disconnectNWC: () => void;
   disconnectCashu: () => void;
   getActiveWallet: () => NDKWallet | null;
+  updateCashuBalance: (balance: number) => void;
+  updateNWCBalance: (balance: number) => void;
 }
 
 export const useWalletStore = create<WalletState>()(
@@ -42,6 +48,8 @@ export const useWalletStore = create<WalletState>()(
       activeWalletType: null,
       nwcConnection: null,
       cashuConnection: null,
+      cashuBalance: 0,
+      nwcBalance: 0,
 
       setNWCWallet: (wallet, connectionString) => {
         set({
@@ -80,6 +88,7 @@ export const useWalletStore = create<WalletState>()(
         set({
           nwcWallet: null,
           nwcConnection: null,
+          nwcBalance: 0,
           activeWalletType:
             get().activeWalletType === "nwc" ? null : get().activeWalletType,
         });
@@ -89,6 +98,7 @@ export const useWalletStore = create<WalletState>()(
         set({
           cashuWallet: null,
           cashuConnection: null,
+          cashuBalance: 0,
           activeWalletType:
             get().activeWalletType === "cashu" ? null : get().activeWalletType,
         });
@@ -100,6 +110,14 @@ export const useWalletStore = create<WalletState>()(
         if (state.activeWalletType === "cashu") return state.cashuWallet;
         return null;
       },
+
+      updateCashuBalance: (balance) => {
+        set({ cashuBalance: balance });
+      },
+
+      updateNWCBalance: (balance) => {
+        set({ nwcBalance: balance });
+      },
     }),
     {
       name: "wavefunc-wallet-storage",
@@ -107,6 +125,8 @@ export const useWalletStore = create<WalletState>()(
         nwcConnection: state.nwcConnection,
         cashuConnection: state.cashuConnection,
         activeWalletType: state.activeWalletType,
+        cashuBalance: state.cashuBalance,
+        nwcBalance: state.nwcBalance,
       }),
     }
   )
