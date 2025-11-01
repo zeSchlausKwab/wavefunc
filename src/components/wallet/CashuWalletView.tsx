@@ -594,7 +594,7 @@ export function CashuWalletView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-hidden">
       {/* Balance Card */}
       <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-background p-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-3xl" />
@@ -667,9 +667,9 @@ export function CashuWalletView() {
         </TabsList>
 
         {/* Deposit Tab */}
-        <TabsContent value="deposit" className="space-y-4">
+        <TabsContent value="deposit" className="space-y-4 max-w-full">
           {/* Lightning Invoice Deposit */}
-          <div className="rounded-lg border border-border p-6 space-y-4">
+          <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <ArrowDownToLine className="w-5 h-5" />
@@ -742,15 +742,16 @@ export function CashuWalletView() {
 
                     <div className="space-y-2">
                       <Label>Lightning Invoice</Label>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 max-w-full overflow-hidden">
                         <Input
                           value={depositInvoice}
                           readOnly
-                          className="font-mono text-xs"
+                          className="font-mono text-xs break-all min-w-0 flex-1"
                         />
                         <Button
                           variant="outline"
                           size="icon"
+                          className="flex-shrink-0"
                           onClick={() => copyToClipboard(depositInvoice)}
                         >
                           {copied ? (
@@ -814,7 +815,7 @@ export function CashuWalletView() {
           </div>
 
           {/* Cashu Token Redemption */}
-          <div className="rounded-lg border border-border p-6 space-y-4">
+          <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Coins className="w-5 h-5" />
@@ -832,7 +833,7 @@ export function CashuWalletView() {
                 placeholder="cashuA..."
                 value={cashuTokenInput}
                 onChange={(e) => setCashuTokenInput(e.target.value)}
-                className="font-mono text-xs min-h-[100px]"
+                className="font-mono text-xs min-h-[100px] break-all"
               />
             </div>
 
@@ -910,8 +911,8 @@ export function CashuWalletView() {
         </TabsContent>
 
         {/* Withdraw Tab */}
-        <TabsContent value="withdraw" className="space-y-4">
-          <div className="rounded-lg border border-border p-6 space-y-4">
+        <TabsContent value="withdraw" className="space-y-4 max-w-full">
+          <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <ArrowUpFromLine className="w-5 h-5" />
@@ -1046,7 +1047,7 @@ export function CashuWalletView() {
           </div>
 
           {/* Mint Cashu Token */}
-          <div className="rounded-lg border border-border p-6 space-y-4">
+          <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Coins className="w-5 h-5" />
@@ -1117,7 +1118,7 @@ export function CashuWalletView() {
                   <Textarea
                     value={mintedToken}
                     readOnly
-                    className="font-mono text-xs min-h-[100px]"
+                    className="font-mono text-xs min-h-[100px] break-all"
                   />
                   <Button
                     variant="outline"
@@ -1161,8 +1162,8 @@ export function CashuWalletView() {
         </TabsContent>
 
         {/* History Tab */}
-        <TabsContent value="history" className="space-y-4">
-          <div className="rounded-lg border border-border p-6 space-y-4">
+        <TabsContent value="history" className="space-y-4 max-w-full">
+          <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <History className="w-5 h-5" />
@@ -1246,8 +1247,8 @@ export function CashuWalletView() {
         </TabsContent>
 
         {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-4">
-          <div className="rounded-lg border border-border p-6 space-y-6">
+        <TabsContent value="settings" className="space-y-4 max-w-full">
+          <div className="rounded-lg border border-border p-6 space-y-6 max-w-full overflow-hidden">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Settings className="w-5 h-5" />
