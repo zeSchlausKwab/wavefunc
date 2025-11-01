@@ -66,6 +66,7 @@ export function CashuWalletView() {
   const [copied, setCopied] = useState(false);
   const [cashuTokenInput, setCashuTokenInput] = useState("");
   const [isRedeemingToken, setIsRedeemingToken] = useState(false);
+  const [redeemTokenSuccess, setRedeemTokenSuccess] = useState(false);
   const [showDepositQR, setShowDepositQR] = useState(false);
   const [depositBalanceSnapshot, setDepositBalanceSnapshot] =
     useState<number>(0);
@@ -362,13 +363,19 @@ export function CashuWalletView() {
 
     try {
       const wallet = cashuWallet as NDKCashuWallet;
-
-      // Parse the Cashu token
       const token = cashuTokenInput.trim();
 
-      // Redeem the token - this will add the sats to the wallet
-      // @ts-ignore - NDK method signature varies
-      await wallet.redeemNutzaps([token], wallet.mints, wallet.relays);
+      console.log("Receiving Cashu token...");
+
+      // Receive the token - this will add the sats to the wallet
+      // The receiveToken method handles decoding and mint extraction automatically
+      const result = await wallet.receiveToken(token, "Deposited via QR/paste");
+
+      if (!result) {
+        throw new Error("Failed to receive token");
+      }
+
+      console.log("Token received successfully");
 
       // Refresh balance and transactions
       await loadBalance();
@@ -376,6 +383,12 @@ export function CashuWalletView() {
 
       setCashuTokenInput("");
       setDepositError(null);
+      setRedeemTokenSuccess(true);
+
+      // Auto-clear success message after 3 seconds
+      setTimeout(() => {
+        setRedeemTokenSuccess(false);
+      }, 3000);
     } catch (error) {
       console.error("Failed to redeem token:", error);
       setDepositError(
@@ -840,6 +853,21 @@ export function CashuWalletView() {
                 )}
               </Button>
             </div>
+
+            {redeemTokenSuccess && (
+              <div className="p-3 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  <span className="font-semibold">
+                    Token Redeemed Successfully!
+                  </span>
+                </div>
+                <p className="text-xs mt-1">
+                  Sats have been added to your wallet. New balance:{" "}
+                  {formatAmount(balance)} sats
+                </p>
+              </div>
+            )}
 
             {/* QR Scanner Modal */}
             {showDepositQR && (
