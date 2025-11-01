@@ -32,6 +32,9 @@ export function CashuWalletSetup() {
   const { isLoading: isLoadingExisting, error: loadError } = useCashuWallet();
   const [mints, setMints] = useState<string[]>(DEFAULT_MINTS);
   const [relays, setRelays] = useState<string[]>(DEFAULT_RELAYS);
+  const [primaryMint, setPrimaryMint] = useState<string>(
+    DEFAULT_MINTS[0] || ""
+  );
   const [newMint, setNewMint] = useState("");
   const [newRelay, setNewRelay] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -39,13 +42,23 @@ export function CashuWalletSetup() {
 
   const handleAddMint = () => {
     if (newMint.trim() && !mints.includes(newMint.trim())) {
-      setMints([...mints, newMint.trim()]);
+      const updatedMints = [...mints, newMint.trim()];
+      setMints(updatedMints);
       setNewMint("");
+      // If this is the first mint, set it as primary
+      if (mints.length === 0) {
+        setPrimaryMint(newMint.trim());
+      }
     }
   };
 
   const handleRemoveMint = (mint: string) => {
-    setMints(mints.filter((m) => m !== mint));
+    const updatedMints = mints.filter((m) => m !== mint);
+    setMints(updatedMints);
+    // If removing the primary mint, set a new one
+    if (primaryMint === mint && updatedMints.length > 0) {
+      setPrimaryMint(updatedMints[0] || "");
+    }
   };
 
   const handleAddRelay = () => {
@@ -86,8 +99,8 @@ export function CashuWalletSetup() {
       // Start the wallet to begin monitoring
       await wallet.start();
 
-      // Store the wallet
-      setCashuWallet(wallet, mints, relays);
+      // Store the wallet with primary mint
+      setCashuWallet(wallet, mints, relays, primaryMint);
     } catch (err) {
       console.error("Failed to create Cashu wallet:", err);
       setError(err instanceof Error ? err.message : "Failed to create wallet");
@@ -102,7 +115,10 @@ export function CashuWalletSetup() {
       <div className="flex flex-col items-center justify-center p-8 space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
-          Checking for existing wallet...
+          Loading wallet from relays...
+        </p>
+        <p className="text-xs text-muted-foreground">
+          This may take a few seconds
         </p>
       </div>
     );
@@ -132,12 +148,24 @@ export function CashuWalletSetup() {
       {/* Mints Configuration */}
       <div className="space-y-3">
         <Label>Cashu Mints</Label>
+        <p className="text-xs text-muted-foreground">
+          The first mint will be set as the primary mint for deposits
+        </p>
         <div className="space-y-2">
-          {mints.map((mint) => (
+          {mints.map((mint, idx) => (
             <div
               key={mint}
-              className="flex items-center gap-2 p-2 bg-muted rounded-md"
+              className={`flex items-center gap-2 p-2 rounded-md border ${
+                idx === 0
+                  ? "bg-orange-500/5 border-orange-500/20"
+                  : "bg-muted border-border"
+              }`}
             >
+              {idx === 0 && (
+                <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-600 rounded-full">
+                  Primary
+                </span>
+              )}
               <span className="text-sm flex-1 break-all">{mint}</span>
               <Button
                 variant="ghost"

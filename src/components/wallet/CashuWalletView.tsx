@@ -16,6 +16,9 @@ import {
   RefreshCw,
   ExternalLink,
   Settings,
+  Plus,
+  Trash2,
+  Star,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -37,7 +40,13 @@ interface Transaction {
 export function CashuWalletView() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
-  const { cashuWallet, cashuConnection, updateCashuBalance } = useWalletStore();
+  const {
+    cashuWallet,
+    cashuConnection,
+    cashuBalance,
+    updateCashuBalance,
+    updateCashuConnection,
+  } = useWalletStore();
 
   const [balance, setBalance] = useState<number>(0);
   const [mintBalances, setMintBalances] = useState<Record<string, number>>({});
@@ -58,32 +67,43 @@ export function CashuWalletView() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
 
+  // Settings state
+  const [mints, setMints] = useState<string[]>(cashuConnection?.mints || []);
+  const [relays, setRelays] = useState<string[]>(cashuConnection?.relays || []);
+  const [primaryMint, setPrimaryMint] = useState<string>(
+    cashuConnection?.primaryMint || cashuConnection?.mints?.[0] || ""
+  );
+  const [newMint, setNewMint] = useState("");
+  const [newRelay, setNewRelay] = useState("");
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+
   // Load balance and transactions on mount
   useEffect(() => {
     loadBalance();
     loadTransactions();
   }, [cashuWallet]);
 
-  // Listen for wallet balance updates
+  // Sync local state with store
   useEffect(() => {
-    if (!cashuWallet) return;
+    if (cashuConnection) {
+      setMints(cashuConnection.mints || []);
+      setRelays(cashuConnection.relays || []);
+      setPrimaryMint(
+        cashuConnection.primaryMint || cashuConnection.mints?.[0] || ""
+      );
+    }
+  }, [cashuConnection]);
 
-    const wallet = cashuWallet as NDKCashuWallet;
-
-    // Listen for balance updates
-    const handleBalanceUpdate = (newBalance?: { amount: number }) => {
-      if (newBalance) {
-        setBalance(newBalance.amount);
-        updateCashuBalance(newBalance.amount);
-      }
-    };
-
-    wallet.on("balance_updated", handleBalanceUpdate);
-
-    return () => {
-      wallet.off("balance_updated", handleBalanceUpdate);
-    };
-  }, [cashuWallet, updateCashuBalance]);
+  // Listen for wallet balance updates from the store
+  useEffect(() => {
+    // When the store balance changes, update local state and reload breakdown
+    if (cashuBalance !== balance && cashuWallet) {
+      console.log("Store balance changed to:", cashuBalance);
+      setBalance(cashuBalance);
+      loadBalance(); // Reload to get per-mint breakdown
+    }
+  }, [cashuBalance]);
 
   const loadBalance = async () => {
     if (!cashuWallet) return;
@@ -95,6 +115,8 @@ export function CashuWalletView() {
       // Get balance using the wallet state methods
       const totalBal = wallet.state?.getBalance() || 0;
       const mintBals = wallet.state?.getMintsBalance() || {};
+
+      console.log("Loading balance - Total:", totalBal, "Per mint:", mintBals);
 
       setBalance(totalBal);
       setMintBalances(mintBals);
@@ -192,14 +214,15 @@ export function CashuWalletView() {
     try {
       const wallet = cashuWallet as NDKCashuWallet;
 
-      // Get the first mint
-      const mints = cashuConnection?.mints || [];
-      if (mints.length === 0) {
+      // Get the primary mint
+      const depositMint =
+        cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+      if (!depositMint) {
         throw new Error("No mints configured");
       }
 
-      // Generate deposit invoice
-      const deposit = wallet.deposit(amount, mints[0]);
+      // Generate deposit invoice using the primary mint
+      const deposit = wallet.deposit(amount, depositMint);
 
       // Start the deposit and get the invoice
       const invoice = await deposit.start();
@@ -222,7 +245,7 @@ export function CashuWalletView() {
         amount,
         timestamp: Date.now(),
         status: "pending",
-        mint: mints[0],
+        mint: depositMint,
       };
       setTransactions([newTransaction, ...transactions]);
     } catch (error) {
@@ -290,6 +313,72 @@ export function CashuWalletView() {
     return new Intl.NumberFormat().format(amount);
   };
 
+  // Settings handlers
+  const handleAddMint = () => {
+    if (newMint.trim() && !mints.includes(newMint.trim())) {
+      const updatedMints = [...mints, newMint.trim()];
+      setMints(updatedMints);
+      setNewMint("");
+      // If this is the first mint, set it as primary
+      if (!primaryMint) {
+        setPrimaryMint(newMint.trim());
+      }
+    }
+  };
+
+  const handleRemoveMint = (mint: string) => {
+    if (mints.length <= 1) {
+      setSettingsError("You must have at least one mint configured");
+      return;
+    }
+    const updatedMints = mints.filter((m) => m !== mint);
+    setMints(updatedMints);
+    // If removing the primary mint, set a new one
+    if (primaryMint === mint) {
+      setPrimaryMint(updatedMints[0] || "");
+    }
+    setSettingsError(null);
+  };
+
+  const handleAddRelay = () => {
+    if (newRelay.trim() && !relays.includes(newRelay.trim())) {
+      setRelays([...relays, newRelay.trim()]);
+      setNewRelay("");
+    }
+  };
+
+  const handleRemoveRelay = (relay: string) => {
+    setRelays(relays.filter((r) => r !== relay));
+  };
+
+  const handleSetPrimaryMint = (mint: string) => {
+    setPrimaryMint(mint);
+  };
+
+  const handleSaveSettings = () => {
+    if (mints.length === 0) {
+      setSettingsError("You must have at least one mint configured");
+      return;
+    }
+
+    if (!primaryMint || !mints.includes(primaryMint)) {
+      setSettingsError("Primary mint must be one of the configured mints");
+      return;
+    }
+
+    try {
+      updateCashuConnection(mints, relays, primaryMint);
+      setSettingsSuccess(true);
+      setSettingsError(null);
+      setTimeout(() => setSettingsSuccess(false), 3000);
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      setSettingsError(
+        error instanceof Error ? error.message : "Failed to save settings"
+      );
+    }
+  };
+
   if (!cashuWallet) {
     return (
       <div className="text-center p-8 text-muted-foreground">
@@ -353,7 +442,7 @@ export function CashuWalletView() {
 
       {/* Action Tabs */}
       <Tabs defaultValue="deposit" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="deposit">
             <ArrowDownToLine className="w-4 h-4 mr-2" />
             Deposit
@@ -365,6 +454,10 @@ export function CashuWalletView() {
           <TabsTrigger value="history">
             <History className="w-4 h-4 mr-2" />
             History
+          </TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
           </TabsTrigger>
         </TabsList>
 
@@ -664,6 +757,155 @@ export function CashuWalletView() {
                 ))}
               </div>
             )}
+          </div>
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="space-y-4">
+          <div className="rounded-lg border border-border p-6 space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                Wallet Settings
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Manage your Cashu mints and backup relays
+              </p>
+            </div>
+
+            {/* Mints Configuration */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Cashu Mints</Label>
+                <p className="text-sm text-muted-foreground">
+                  Mints are trusted servers that issue Cashu tokens. You need at
+                  least one mint configured.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {mints.map((mint) => (
+                  <div
+                    key={mint}
+                    className={`flex items-center gap-2 p-3 rounded-md border ${
+                      mint === primaryMint
+                        ? "bg-orange-500/5 border-orange-500/20"
+                        : "bg-muted border-border"
+                    }`}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSetPrimaryMint(mint)}
+                      className={`p-1 ${
+                        mint === primaryMint
+                          ? "text-orange-500"
+                          : "text-muted-foreground"
+                      }`}
+                      title={
+                        mint === primaryMint
+                          ? "Primary mint (used for deposits)"
+                          : "Set as primary mint"
+                      }
+                    >
+                      <Star
+                        className={`w-4 h-4 ${
+                          mint === primaryMint ? "fill-current" : ""
+                        }`}
+                      />
+                    </Button>
+                    <span className="text-sm flex-1 break-all">{mint}</span>
+                    {mint === primaryMint && (
+                      <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-600 rounded-full">
+                        Primary
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveMint(mint)}
+                      disabled={mints.length === 1}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://mint.example.com"
+                  value={newMint}
+                  onChange={(e) => setNewMint(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddMint()}
+                />
+                <Button onClick={handleAddMint} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {/* Relays Configuration */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Backup Relays</Label>
+                <p className="text-sm text-muted-foreground">
+                  Relays store your encrypted Cashu tokens. Using multiple
+                  relays ensures your tokens are backed up.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {relays.map((relay) => (
+                  <div
+                    key={relay}
+                    className="flex items-center gap-2 p-3 bg-muted rounded-md border border-border"
+                  >
+                    <span className="text-sm flex-1 break-all">{relay}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveRelay(relay)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  placeholder="wss://relay.example.com"
+                  value={newRelay}
+                  onChange={(e) => setNewRelay(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddRelay()}
+                />
+                <Button onClick={handleAddRelay} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {settingsError && (
+              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+                {settingsError}
+              </div>
+            )}
+
+            {settingsSuccess && (
+              <div className="p-3 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
+                Settings saved successfully!
+              </div>
+            )}
+
+            <Button onClick={handleSaveSettings} className="w-full">
+              <Settings className="w-4 h-4 mr-2" />
+              Save Settings
+            </Button>
           </div>
         </TabsContent>
       </Tabs>

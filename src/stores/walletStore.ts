@@ -7,6 +7,7 @@ export interface WalletConnection {
   connectionString?: string; // For NWC
   mints?: string[]; // For Cashu
   relays?: string[]; // For Cashu
+  primaryMint?: string; // For Cashu - the main mint used for deposits
   name?: string;
   connectedAt: number;
 }
@@ -30,7 +31,13 @@ interface WalletState {
   setCashuWallet: (
     wallet: NDKWallet | null,
     mints?: string[],
-    relays?: string[]
+    relays?: string[],
+    primaryMint?: string
+  ) => void;
+  updateCashuConnection: (
+    mints: string[],
+    relays: string[],
+    primaryMint?: string
   ) => void;
   setActiveWalletType: (type: "nwc" | "cashu" | null) => void;
   disconnectNWC: () => void;
@@ -65,7 +72,7 @@ export const useWalletStore = create<WalletState>()(
         });
       },
 
-      setCashuWallet: (wallet, mints, relays) => {
+      setCashuWallet: (wallet, mints, relays, primaryMint) => {
         set({
           cashuWallet: wallet,
           cashuConnection: wallet
@@ -73,11 +80,26 @@ export const useWalletStore = create<WalletState>()(
                 type: "cashu",
                 mints,
                 relays,
+                primaryMint: primaryMint || mints?.[0],
                 connectedAt: Date.now(),
               }
             : null,
           activeWalletType: wallet ? "cashu" : get().activeWalletType,
         });
+      },
+
+      updateCashuConnection: (mints, relays, primaryMint) => {
+        const currentConnection = get().cashuConnection;
+        if (currentConnection) {
+          set({
+            cashuConnection: {
+              ...currentConnection,
+              mints,
+              relays,
+              primaryMint: primaryMint || mints[0],
+            },
+          });
+        }
       },
 
       setActiveWalletType: (type) => {

@@ -65,14 +65,42 @@ export function useCashuWallet() {
           : [];
 
         // Store the wallet
-        setCashuWallet(wallet, wallet.mints, relays);
+        const primaryMint = wallet.mints?.[0];
+        setCashuWallet(wallet, wallet.mints, relays, primaryMint);
 
-        // Start the wallet to begin monitoring and loading tokens
-        await wallet.start();
+        // Get initial balance (may be 0 until tokens load)
+        const initialBalance = wallet.state?.getBalance() || 0;
+        console.log("Initial balance:", initialBalance);
+        updateCashuBalance(initialBalance);
 
-        // Update balance
-        const balance = wallet.state?.getBalance() || 0;
-        updateCashuBalance(balance);
+        // Start the wallet async and check balance periodically as it loads
+        wallet
+          .start()
+          .then(() => {
+            console.log("Wallet started, checking final balance");
+            const finalBalance = wallet.state?.getBalance() || 0;
+            updateCashuBalance(finalBalance);
+          })
+          .catch((err) => {
+            console.error("Wallet start error:", err);
+            // Still check balance even if there was an error
+            const balance = wallet.state?.getBalance() || 0;
+            updateCashuBalance(balance);
+          });
+
+        // Check balance a few times while tokens are loading
+        // This handles cases where wallet.start() completes but tokens are still being processed
+        const checkBalance = () => {
+          const currentBalance = wallet.state?.getBalance() || 0;
+          if (currentBalance !== initialBalance) {
+            console.log("Balance changed to:", currentBalance);
+            updateCashuBalance(currentBalance);
+          }
+        };
+
+        setTimeout(checkBalance, 1000);
+        setTimeout(checkBalance, 2000);
+        setTimeout(checkBalance, 4000);
       } catch (err) {
         console.error("Failed to load Cashu wallet:", err);
         setError(err instanceof Error ? err.message : "Failed to load wallet");
