@@ -26,11 +26,20 @@ echo "📦 Building frontend..."
 
 # Create deployment archive
 echo "📦 Creating archive..."
+
+# Check if legacy-db exists before including it
+INCLUDE_LEGACY_DB=""
+if [ -d "legacy-db" ] && [ -f "legacy-db/latest.sql" ]; then
+    echo "   Including legacy-db/latest.sql..."
+    INCLUDE_LEGACY_DB="legacy-db/"
+fi
+
 tar -czf deploy.tar.gz \
     --exclude='contextvm/node_modules' \
     --exclude='relay/relay' \
     --exclude='relay/data' \
-    dist/ src/ relay/ contextvm/ \
+    dist/ src/ relay/ contextvm/ scripts/ \
+    $INCLUDE_LEGACY_DB \
     ecosystem.config.cjs \
     Caddyfile \
     package.json \

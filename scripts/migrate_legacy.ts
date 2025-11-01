@@ -13,9 +13,12 @@ import { faker } from "@faker-js/faker";
 import { NDKWFFavorites } from "../src/lib/NDKWFFavorites";
 import { devUser1, devUser2, devUser3, devUser4, devUser5 } from "../src/lib/fixtures";
 
-// App key for publishing stations
-const APP_PRIVATE_KEY =
-  "96c727f4d1ea18a80d03621520ebfe3c9be1387033009a4f5b65959d09222eec";
+// App key for publishing stations - must be set in environment
+const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;
+if (!APP_PRIVATE_KEY) {
+  console.error("❌ APP_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
 // Parse relay URL from command line
@@ -680,7 +683,7 @@ async function migrateStations() {
   console.log("✅ Connected!\n");
 
   // Create signer
-  const signer = new NDKPrivateKeySigner(APP_PRIVATE_KEY);
+  const signer = new NDKPrivateKeySigner(APP_PRIVATE_KEY!); // Safe: checked at startup
   await signer.blockUntilReady();
 
   // Migrate stations
