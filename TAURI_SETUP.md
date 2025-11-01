@@ -39,6 +39,16 @@ Install Android prerequisites:
 bunx tauri android init
 ```
 
+**Important**: Set the NDK environment variable in your shell profile (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"  # or your NDK version
+export PATH="$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+```
+
+Then reload: `source ~/.zshrc` (or restart terminal)
+
 ## Running the App
 
 ### Desktop Development
@@ -72,6 +82,14 @@ bun run tauri:android
 
 # After setup, just run:
 bunx tauri android dev
+```
+
+**Note**: Sometimes the app builds successfully but doesn't auto-install. If you don't see the app in the emulator:
+
+```bash
+# Manually install and launch
+adb install src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk
+adb shell am start -n com.wavefunc.app/.MainActivity
 ```
 
 ### Android Production Build
@@ -154,6 +172,18 @@ await open("https://example.com");
 const isTauri = window.__TAURI__ !== undefined;
 ```
 
+### Important: Tauri Detection in Development
+
+The `useTauri()` hook checks for `window.__TAURI__` to detect if running in Tauri.
+
+**This will NOT work when using `bun dev`** (the regular web dev server). The `__TAURI__` global is only injected when:
+
+- Running `bun run tauri:dev` (desktop Tauri app)
+- Running `bunx tauri android dev` (Android Tauri app)
+- Using the built app (`bun run tauri:build`)
+
+If you need to test Tauri-specific features during development, use `bun run tauri:dev` instead of `bun dev`.
+
 ## Development Workflow
 
 ### Web (Original)
@@ -190,11 +220,66 @@ Run: `cargo build` in `src-tauri/` to download Rust dependencies
 - Desktop: Ensure relay is running on `localhost:3334`
 - Android: Use remote relay or configure network security
 
-### Android build fails
+### Android build fails with "can't find crate for `core`"
+
+This usually means you're using Homebrew's Rust instead of rustup's Rust.
+
+**Check which Rust you're using:**
+```bash
+which rustc
+# If it shows /opt/homebrew/bin/rustc, that's the problem
+```
+
+**Solution 1: Prioritize rustup's Rust in PATH**
+
+Add this to the **beginning** of your `~/.zshrc`:
+```bash
+# Put rustup's Rust before Homebrew in PATH
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+Then reload: `source ~/.zshrc`
+
+**Solution 2: Use rustup to override Homebrew**
+```bash
+rustup default stable
+```
+
+**Verify the fix:**
+```bash
+which rustc
+# Should show: /Users/schlaus/.cargo/bin/rustc (not /opt/homebrew/bin/rustc)
+```
+
+You also need the NDK configured. Create `.cargo/config.toml` in your project root:
+
+```toml
+# .cargo/config.toml
+[target.aarch64-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+
+[target.armv7-linux-androideabi]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi24-clang"
+
+[target.i686-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/i686-linux-android24-clang"
+
+[target.x86_64-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang"
+```
+
+(This file has already been created for you)
+
+### Other Android build issues
 
 1. Run `bunx tauri android init` first
 2. Ensure Android Studio is installed
-3. Check `ANDROID_HOME` environment variable
+3. Check `ANDROID_HOME` environment variable is set
+4. Verify NDK is installed: `ls "$ANDROID_HOME/ndk"`
 
 ## Next Steps
 
