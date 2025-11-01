@@ -15,6 +15,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { saveSentToken } from "../../lib/sentTokensDb";
 
 interface WithdrawTabProps {
   cashuWallet: NDKCashuWallet;
@@ -189,6 +190,15 @@ export function WithdrawTab({
         ],
       };
       const encodedToken = `cashuA${btoa(JSON.stringify(tokenObj))}`;
+
+      // Save the sent token to local storage for tracking/reclaiming
+      const tokenId = saveSentToken(
+        encodedToken,
+        amount,
+        mintUrl,
+        `Token sent #${Date.now()}`
+      );
+      console.log(`Saved sent token with ID: ${tokenId}`);
 
       setMintedToken(encodedToken);
 
