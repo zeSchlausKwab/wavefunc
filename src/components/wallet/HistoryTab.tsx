@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { History, TrendingUp, TrendingDown, Copy, Check, QrCode, Undo2, X } from "lucide-react";
+import {
+  History,
+  TrendingUp,
+  TrendingDown,
+  Copy,
+  Check,
+  QrCode,
+  Undo2,
+  X,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../ui/button";
@@ -91,7 +100,9 @@ export function HistoryTab({
   };
 
   const isSentToken = (tx: Transaction) => {
-    return tx.type === "send" && tx.status === "pending" && tx.id.startsWith("sent-");
+    return (
+      tx.type === "send" && tx.status === "pending" && tx.id.startsWith("sent-")
+    );
   };
 
   const getSentTokenData = (tx: Transaction) => {
@@ -102,7 +113,7 @@ export function HistoryTab({
 
   return (
     <div className="space-y-4 max-w-full">
-      <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <History className="w-5 h-5" />
@@ -219,7 +230,11 @@ export function HistoryTab({
                         disabled={reclaimingId === tx.id}
                         title="Reclaim token"
                       >
-                        <Undo2 className={`w-4 h-4 ${reclaimingId === tx.id ? "animate-spin" : ""}`} />
+                        <Undo2
+                          className={`w-4 h-4 ${
+                            reclaimingId === tx.id ? "animate-spin" : ""
+                          }`}
+                        />
                       </Button>
                     </div>
                   )}
@@ -231,52 +246,53 @@ export function HistoryTab({
       </div>
 
       {/* QR Code Modal */}
-      {showQRId && (() => {
-        const tx = transactions.find(t => t.id === showQRId);
-        const sentToken = tx ? getSentTokenData(tx) : null;
+      {showQRId &&
+        (() => {
+          const tx = transactions.find((t) => t.id === showQRId);
+          const sentToken = tx ? getSentTokenData(tx) : null;
 
-        return sentToken ? (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold">Cashu Token QR Code</h4>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowQRId(null)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex justify-center p-6 bg-white rounded-lg">
-                <QRCodeSVG value={sentToken.token} size={256} level="M" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground text-center">
-                  {formatAmount(Math.abs(sentToken.amount))} sats
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => copyToClipboard(sentToken.token, showQRId)}
-                  className="w-full"
-                >
-                  {copiedId === showQRId ? (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy Token
-                    </>
-                  )}
-                </Button>
+          return sentToken ? (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-background rounded-lg p-2 md:p-4 max-w-md w-full space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Cashu Token QR Code</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowQRId(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex justify-center p-2 md:p-4 bg-white rounded-lg">
+                  <QRCodeSVG value={sentToken.token} size={256} level="M" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground text-center">
+                    {formatAmount(Math.abs(sentToken.amount))} sats
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => copyToClipboard(sentToken.token, showQRId)}
+                    className="w-full"
+                  >
+                    {copiedId === showQRId ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Token
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : null;
-      })()}
+          ) : null;
+        })()}
     </div>
   );
 }

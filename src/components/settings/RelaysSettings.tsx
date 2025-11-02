@@ -24,7 +24,9 @@ export function RelaysSettings() {
       ndk.addExplicitRelay(newRelayUrl);
       setNewRelayUrl("");
     } catch (error) {
-      alert("Invalid relay URL. Please enter a valid WebSocket URL (ws:// or wss://)");
+      alert(
+        "Invalid relay URL. Please enter a valid WebSocket URL (ws:// or wss://)"
+      );
     }
   };
 
@@ -46,11 +48,12 @@ export function RelaysSettings() {
           <h3 className="text-lg font-semibold">Relay Configuration</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          Manage the Nostr relays you connect to for discovering and publishing content.
+          Manage the Nostr relays you connect to for discovering and publishing
+          content.
         </p>
       </div>
 
-      <div className="rounded-lg border border-border p-6 space-y-4">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4">
         <Label htmlFor="new-relay">Add New Relay</Label>
         <div className="flex gap-2">
           <Input
@@ -86,7 +89,7 @@ export function RelaysSettings() {
               return (
                 <div
                   key={relay.url}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border"
+                  className="flex items-center justify-between p-2 rounded-lg border border-border"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -115,9 +118,10 @@ export function RelaysSettings() {
       <div className="rounded-lg bg-muted p-4 space-y-2">
         <h4 className="font-semibold text-sm">About Relays</h4>
         <p className="text-sm text-muted-foreground">
-          Relays are servers that store and distribute Nostr events. Connecting to multiple
-          relays increases redundancy and helps you discover more content. Popular relays
-          include wss://relay.damus.io and wss://nos.lol.
+          Relays are servers that store and distribute Nostr events. Connecting
+          to multiple relays increases redundancy and helps you discover more
+          content. Popular relays include wss://relay.damus.io and
+          wss://nos.lol.
         </p>
       </div>
     </div>

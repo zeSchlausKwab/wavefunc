@@ -67,7 +67,8 @@ export function WithdrawTab({
 
   // Set default mints when component mounts or mints change
   React.useEffect(() => {
-    const primaryMint = cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
+    const primaryMint =
+      cashuConnection?.primaryMint || cashuConnection?.mints?.[0];
     if (primaryMint && !selectedWithdrawMint) {
       setSelectedWithdrawMint(primaryMint);
     }
@@ -258,7 +259,7 @@ export function WithdrawTab({
   return (
     <div className="space-y-4 max-w-full">
       {/* Lightning Withdraw */}
-      <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <ArrowUpFromLine className="w-5 h-5" />
@@ -352,7 +353,10 @@ export function WithdrawTab({
             <>
               <ArrowUpFromLine className="w-4 h-4 mr-2" />
               Withdraw{" "}
-              {withdrawAmount ? formatAmount(parseInt(withdrawAmount)) : ""} sats
+              {withdrawAmount
+                ? formatAmount(parseInt(withdrawAmount))
+                : ""}{" "}
+              sats
             </>
           )}
         </Button>
@@ -360,7 +364,7 @@ export function WithdrawTab({
         {/* QR Scanner Modal for Lightning Invoice */}
         {showWithdrawQR && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full space-y-4">
+            <div className="bg-background rounded-lg p-2 md:p-4 max-w-md w-full space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Scan Lightning Invoice</h4>
                 <Button
@@ -387,7 +391,7 @@ export function WithdrawTab({
       </div>
 
       {/* Mint Cashu Token */}
-      <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Coins className="w-5 h-5" />
@@ -431,7 +435,8 @@ export function WithdrawTab({
               </Select>
               {selectedMintForToken && (
                 <p className="text-xs text-muted-foreground">
-                  Available in this mint: {formatAmount(getMintBalance(selectedMintForToken))} sats
+                  Available in this mint:{" "}
+                  {formatAmount(getMintBalance(selectedMintForToken))} sats
                 </p>
               )}
             </div>
@@ -449,7 +454,9 @@ export function WithdrawTab({
 
             <div className="flex gap-2">
               {[1000, 5000, 10000].map((amt) => {
-                const mintBalance = selectedMintForToken ? getMintBalance(selectedMintForToken) : 0;
+                const mintBalance = selectedMintForToken
+                  ? getMintBalance(selectedMintForToken)
+                  : 0;
                 return (
                   <Button
                     key={amt}
@@ -467,10 +474,15 @@ export function WithdrawTab({
                 size="sm"
                 onClick={() => {
                   if (selectedMintForToken) {
-                    setMintTokenAmount(getMintBalance(selectedMintForToken).toString());
+                    setMintTokenAmount(
+                      getMintBalance(selectedMintForToken).toString()
+                    );
                   }
                 }}
-                disabled={!selectedMintForToken || getMintBalance(selectedMintForToken) === 0}
+                disabled={
+                  !selectedMintForToken ||
+                  getMintBalance(selectedMintForToken) === 0
+                }
               >
                 Max
               </Button>
@@ -478,7 +490,9 @@ export function WithdrawTab({
 
             <Button
               onClick={handleMintToken}
-              disabled={isMintingToken || !mintTokenAmount || !selectedMintForToken}
+              disabled={
+                isMintingToken || !mintTokenAmount || !selectedMintForToken
+              }
               className="w-full"
             >
               {isMintingToken ? (
@@ -496,7 +510,7 @@ export function WithdrawTab({
           </>
         ) : (
           <div className="space-y-4">
-            <div className="flex justify-center p-6 bg-white rounded-lg">
+            <div className="flex justify-center p-2 md:p-4 bg-white rounded-lg">
               <QRCodeSVG value={mintedToken} size={256} level="M" />
             </div>
 

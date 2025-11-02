@@ -6,7 +6,11 @@ import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 
 interface EditFavoritesListFormProps {
   list: NDKWFFavorites;
-  onSubmit: (name: string, description: string, banner?: string) => Promise<void>;
+  onSubmit: (
+    name: string,
+    description: string,
+    banner?: string
+  ) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -28,7 +32,7 @@ export function EditFavoritesListForm({
   };
 
   return (
-    <div className="bg-muted/50 p-6 rounded-lg border">
+    <div className="bg-muted/50 p-2 md:p-4 rounded-lg border">
       <h3 className="text-lg font-semibold mb-4">Edit Favorites List</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-4">
@@ -80,7 +84,8 @@ export function EditFavoritesListForm({
                     onError={(e) => {
                       e.currentTarget.src = "";
                       e.currentTarget.alt = "Invalid image URL";
-                      e.currentTarget.className = "w-full h-full flex items-center justify-center bg-muted text-muted-foreground";
+                      e.currentTarget.className =
+                        "w-full h-full flex items-center justify-center bg-muted text-muted-foreground";
                     }}
                   />
                 </div>

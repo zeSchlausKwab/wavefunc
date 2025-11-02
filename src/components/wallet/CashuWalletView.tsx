@@ -16,6 +16,7 @@ import { WithdrawTab } from "./WithdrawTab";
 import { HistoryTab, type Transaction } from "./HistoryTab";
 import { SettingsTab } from "./SettingsTab";
 import { getUnredeemedTokens } from "../../lib/sentTokensDb";
+import { useMedia } from "react-use";
 
 export function CashuWalletView() {
   const { ndk } = useNDK();
@@ -27,6 +28,8 @@ export function CashuWalletView() {
     updateCashuBalance,
     updateCashuConnection,
   } = useWalletStore();
+
+  const isMobile = useMedia("(max-width: 768px)");
 
   const [balance, setBalance] = useState<number>(0);
   const [mintBalances, setMintBalances] = useState<Record<string, number>>({});
@@ -184,19 +187,19 @@ export function CashuWalletView() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="deposit">
             <ArrowDownToLine className="w-4 h-4 mr-2" />
-            Deposit
+            {!isMobile && "Deposit"}
           </TabsTrigger>
           <TabsTrigger value="withdraw">
             <ArrowUpFromLine className="w-4 h-4 mr-2" />
-            Withdraw
+            {!isMobile && "Withdraw"}
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="w-4 h-4 mr-2" />
-            History
+            {!isMobile && "History"}
           </TabsTrigger>
           <TabsTrigger value="settings">
             <Settings className="w-4 h-4 mr-2" />
-            Settings
+            {!isMobile && "Settings"}
           </TabsTrigger>
         </TabsList>
 

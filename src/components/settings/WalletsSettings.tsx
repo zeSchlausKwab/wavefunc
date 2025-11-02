@@ -40,7 +40,7 @@ export function WalletsSettings() {
       <div className="space-y-4">
         {/* Current Balance Display */}
         {(nwcConnection || cashuConnection) && (
-          <div className="rounded-lg border border-border bg-muted/50 p-6 space-y-4">
+          <div className="rounded-lg border border-border bg-muted/50 p-2 md:p-4 space-y-4">
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5" />
               <Label className="text-base font-semibold">Current Balance</Label>
@@ -84,7 +84,7 @@ export function WalletsSettings() {
         )}
 
         {/* NWC Section */}
-        <div className="rounded-lg border border-border p-6 space-y-4">
+        <div className="rounded-lg border border-border p-2 md:p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5" />
             <h4 className="font-semibold">Nostr Wallet Connect (NWC)</h4>
@@ -129,7 +129,7 @@ export function WalletsSettings() {
         </div>
 
         {/* Cashu Wallet Section */}
-        <div className="rounded-lg border border-border p-6 space-y-4">
+        <div className="rounded-lg border border-border p-2 md:p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Coins className="w-5 h-5" />
             <h4 className="font-semibold">Cashu Wallet (NIP-60)</h4>

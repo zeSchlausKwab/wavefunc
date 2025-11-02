@@ -43,7 +43,8 @@ export function DepositTab({
   const [depositError, setDepositError] = useState<string | null>(null);
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [depositBalanceSnapshot, setDepositBalanceSnapshot] = useState<number>(0);
+  const [depositBalanceSnapshot, setDepositBalanceSnapshot] =
+    useState<number>(0);
 
   // Cashu Token Redemption state
   const [cashuTokenInput, setCashuTokenInput] = useState("");
@@ -177,7 +178,7 @@ export function DepositTab({
   return (
     <div className="space-y-4 max-w-full">
       {/* Lightning Invoice Deposit */}
-      <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <ArrowDownToLine className="w-5 h-5" />
@@ -243,7 +244,7 @@ export function DepositTab({
           <div className="space-y-4">
             {!depositSuccess ? (
               <>
-                <div className="flex justify-center p-6 bg-white rounded-lg">
+                <div className="flex justify-center p-2 md:p-4 bg-white rounded-lg">
                   <QRCodeSVG value={depositInvoice} size={256} level="M" />
                 </div>
 
@@ -307,7 +308,9 @@ export function DepositTab({
                 <div className="p-4 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
                   <div className="flex items-center gap-2 mb-2">
                     <Check className="w-4 h-4" />
-                    <span className="font-semibold">Transaction Successful</span>
+                    <span className="font-semibold">
+                      Transaction Successful
+                    </span>
                   </div>
                   <p className="text-xs">
                     New balance: {formatAmount(balance)} sats
@@ -320,7 +323,7 @@ export function DepositTab({
       </div>
 
       {/* Cashu Token Redemption */}
-      <div className="rounded-lg border border-border p-6 space-y-4 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-4 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Coins className="w-5 h-5" />
@@ -374,7 +377,9 @@ export function DepositTab({
           <div className="p-3 text-sm text-green-600 bg-green-600/10 rounded-md border border-green-600/20">
             <div className="flex items-center gap-2">
               <Check className="w-4 h-4" />
-              <span className="font-semibold">Token Redeemed Successfully!</span>
+              <span className="font-semibold">
+                Token Redeemed Successfully!
+              </span>
             </div>
             <p className="text-xs mt-1">
               Sats have been added to your wallet. New balance:{" "}
@@ -386,7 +391,7 @@ export function DepositTab({
         {/* QR Scanner Modal */}
         {showDepositQR && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full space-y-4">
+            <div className="bg-background rounded-lg p-2 md:p-4 max-w-md w-full space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Scan Cashu Token</h4>
                 <Button

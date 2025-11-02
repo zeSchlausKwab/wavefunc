@@ -4,7 +4,11 @@ import { Button } from "./ui/button";
 import { Image } from "lucide-react";
 
 interface CreateFavoritesListFormProps {
-  onSubmit: (name: string, description: string, banner?: string) => Promise<void>;
+  onSubmit: (
+    name: string,
+    description: string,
+    banner?: string
+  ) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -27,7 +31,7 @@ export function CreateFavoritesListForm({
   };
 
   return (
-    <div className="bg-muted/50 p-6 rounded-lg border">
+    <div className="bg-muted/50 p-2 md:p-4 rounded-lg border">
       <h3 className="text-lg font-semibold mb-4">Create New Favorites List</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-4">
@@ -79,7 +83,8 @@ export function CreateFavoritesListForm({
                     onError={(e) => {
                       e.currentTarget.src = "";
                       e.currentTarget.alt = "Invalid image URL";
-                      e.currentTarget.className = "w-full h-full flex items-center justify-center bg-muted text-muted-foreground";
+                      e.currentTarget.className =
+                        "w-full h-full flex items-center justify-center bg-muted text-muted-foreground";
                     }}
                   />
                 </div>

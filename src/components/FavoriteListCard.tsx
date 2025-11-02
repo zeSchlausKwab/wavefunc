@@ -18,7 +18,11 @@ interface FavoriteListCardProps {
   onDeleteList?: () => void;
 }
 
-export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCardProps) {
+export function FavoriteListCard({
+  list,
+  isOwner,
+  onDeleteList,
+}: FavoriteListCardProps) {
   const { stations: listStations } = useFavoriteStations(list);
   const { removeFavorite } = useFavorites();
   const [isEditing, setIsEditing] = useState(false);
@@ -29,7 +33,11 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
     }
   };
 
-  const handleEditList = async (name: string, description: string, banner?: string) => {
+  const handleEditList = async (
+    name: string,
+    description: string,
+    banner?: string
+  ) => {
     list.name = name;
     list.description = description;
     if (banner) {
@@ -50,13 +58,15 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
       "from-indigo-500 to-purple-500",
       "from-rose-500 to-pink-500",
     ];
-    const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hash = name
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
 
   if (isEditing) {
     return (
-      <div className="border rounded-lg overflow-hidden bg-card shadow-md p-6">
+      <div className="border rounded-lg overflow-hidden bg-card shadow-md p-2 md:p-4">
         <EditFavoritesListForm
           list={list}
           onSubmit={handleEditList}
@@ -70,7 +80,9 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
     <div className="border rounded-lg overflow-hidden bg-card shadow-md">
       {/* Banner with Title and Description - Made Bigger */}
       <div
-        className={`bg-gradient-to-r ${list.banner ? "" : getBannerGradient(list.name || "")} p-10 text-white relative min-h-[240px] flex flex-col justify-end`}
+        className={`bg-gradient-to-r ${
+          list.banner ? "" : getBannerGradient(list.name || "")
+        } p-10 text-white relative min-h-[240px] flex flex-col justify-end`}
         style={
           list.banner
             ? {
@@ -116,9 +128,13 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
 
         {/* Content */}
         <div className="relative z-10">
-          <h2 className="text-3xl font-bold mb-2 drop-shadow-lg">{list.name}</h2>
+          <h2 className="text-3xl font-bold mb-2 drop-shadow-lg">
+            {list.name}
+          </h2>
           {list.description && (
-            <p className="text-white/95 text-base drop-shadow-md">{list.description}</p>
+            <p className="text-white/95 text-base drop-shadow-md">
+              {list.description}
+            </p>
           )}
           <div className="mt-4 text-white/90 text-sm font-medium">
             {listStations.length} station{listStations.length !== 1 ? "s" : ""}

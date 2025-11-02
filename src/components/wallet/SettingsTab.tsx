@@ -10,10 +10,17 @@ interface SettingsTabProps {
     relays?: string[];
     primaryMint?: string;
   };
-  onSaveSettings: (mints: string[], relays: string[], primaryMint: string) => void;
+  onSaveSettings: (
+    mints: string[],
+    relays: string[],
+    primaryMint: string
+  ) => void;
 }
 
-export function SettingsTab({ cashuConnection, onSaveSettings }: SettingsTabProps) {
+export function SettingsTab({
+  cashuConnection,
+  onSaveSettings,
+}: SettingsTabProps) {
   const [mints, setMints] = useState<string[]>(cashuConnection?.mints || []);
   const [relays, setRelays] = useState<string[]>(cashuConnection?.relays || []);
   const [primaryMint, setPrimaryMint] = useState<string>(
@@ -102,7 +109,7 @@ export function SettingsTab({ cashuConnection, onSaveSettings }: SettingsTabProp
 
   return (
     <div className="space-y-4 max-w-full">
-      <div className="rounded-lg border border-border p-6 space-y-6 max-w-full overflow-hidden">
+      <div className="rounded-lg border border-border p-2 md:p-4 space-y-6 max-w-full overflow-hidden">
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Settings className="w-5 h-5" />
