@@ -70,6 +70,14 @@ export const useWalletStore = create<WalletState>()(
             : null,
           activeWalletType: wallet ? "nwc" : get().activeWalletType,
         });
+
+        // Update balance from wallet if available
+        if (wallet && wallet.balance) {
+          const balance = wallet.balance;
+          if (balance && typeof balance.amount === "number") {
+            get().updateNWCBalance(balance.amount);
+          }
+        }
       },
 
       setCashuWallet: (wallet, mints, relays, primaryMint) => {

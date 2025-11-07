@@ -1,9 +1,9 @@
 import { useNDK } from "@nostr-dev-kit/react";
 import { useState } from "react";
-import { NDKNWCWallet } from "@nostr-dev-kit/wallet";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { Link as LinkIcon, QrCode } from "lucide-react";
 import { useWalletStore } from "../../stores/walletStore";
+import { initializeNWCWallet } from "../../lib/nwcWalletUtils";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -47,42 +47,15 @@ export function NWCConnectionDialog({
     setError(null);
 
     try {
-      console.log("Attempting NWC connection with string:", connectionString);
-
-      // NWC connection strings typically start with "nostr+walletconnect://"
       if (!connectionString.startsWith("nostr+walletconnect://")) {
         throw new Error(
           'Connection string must start with "nostr+walletconnect://"'
         );
       }
 
-      // Parse the NWC connection string
-      const url = new URL(connectionString);
-      const pubkey = url.hostname || url.pathname.replace(/^\/\//, "");
-      const relay = url.searchParams.get("relay");
-      const secret = url.searchParams.get("secret");
-
-      console.log("Parsed NWC params:", { pubkey, relay, secret: secret ? "***" : null });
-
-      if (!pubkey || !relay || !secret) {
-        throw new Error("Invalid NWC connection string format");
-      }
-
-      // Create NWC wallet instance
-      console.log("Creating NDKNWCWallet instance...");
-      const wallet = new NDKNWCWallet(ndk, {
-        pubkey,
-        relayUrls: [relay],
-        secret,
-        timeout: 5000, // 5 second timeout for wallet operations
-      });
-
-      console.log("NWC Wallet created successfully");
-
-      // Store the wallet (connection will be tested when actually used)
+      const wallet = initializeNWCWallet(ndk, connectionString);
       setNWCWallet(wallet, connectionString);
 
-      // Close dialog and reset state
       setConnectionString("");
       setMode("input");
       onOpenChange(false);
@@ -154,7 +127,7 @@ export function NWCConnectionDialog({
               <div className="aspect-square w-full max-w-md mx-auto rounded-lg overflow-hidden bg-black">
                 <Scanner
                   onScan={(result) => {
-                    if (result && result.length > 0) {
+                    if (result && result.length > 0 && result[0]) {
                       handleScan(result[0].rawValue);
                     }
                   }}
@@ -192,7 +165,10 @@ export function NWCConnectionDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleConnect} disabled={isConnecting || !connectionString}>
+          <Button
+            onClick={handleConnect}
+            disabled={isConnecting || !connectionString}
+          >
             {isConnecting ? "Connecting..." : "Connect"}
           </Button>
         </DialogFooter>

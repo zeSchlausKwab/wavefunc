@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import NDKStation from "./lib/NDKStation";
 import { NDKWFFavorites } from "./lib/NDKWFFavorites";
 import { routeTree } from "./routeTree.gen";
+import { useWalletInit } from "./lib/hooks/useWalletInit";
 import "./index.css";
 
 // Create a new router instance
@@ -17,6 +18,9 @@ declare module "@tanstack/react-router" {
 }
 
 export function App() {
+  // Initialize wallets from localStorage
+  useWalletInit();
+
   useEffect(() => {
     registerEventClass(NDKStation);
     registerEventClass(NDKWFFavorites);
