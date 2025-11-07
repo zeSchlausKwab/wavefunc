@@ -40,7 +40,7 @@ sleep 2
 
 # Run migration
 echo "🔄 Running migration..."
-bun run scripts/migrate_legacy.ts 200
+bun run scripts/migrate_legacy.ts 20
 
 # Start ContextVM in background
 echo "🤖 Starting ContextVM..."

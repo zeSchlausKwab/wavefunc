@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from "react";
+import { type NDKPaymentConfirmationLN } from "@nostr-dev-kit/ndk";
 import {
+  NDKEvent,
+  NDKZapper,
   useNDK,
   useNDKCurrentUser,
-  NDKZapper,
-  NDKEvent,
 } from "@nostr-dev-kit/react";
-import { type NDKPaymentConfirmationLN } from "@nostr-dev-kit/ndk";
+import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Check, Zap, ExternalLink, QrCode } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import type { NDKStation } from "../lib/NDKStation";
+import { useWalletStore } from "../stores/walletStore";
+import { Button } from "./ui/button";
 import {
   Dialog,
   DialogContent,
@@ -16,13 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { Button } from "./ui/button";
+import { ZapIcon } from "./ui/icons/lucide-zap";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { ZapIcon } from "./ui/icons/lucide-zap";
-import type { NDKStation } from "../lib/NDKStation";
-import { useWalletStore } from "../stores/walletStore";
-import type { WebLNProvider } from "webln";
 
 type ZapState = "input" | "processing" | "invoice" | "success" | "error";
 
@@ -32,6 +31,10 @@ interface ZapDialogProps {
   onOpenChange: (open: boolean) => void;
   onZap?: (amount: number) => Promise<void>;
 }
+
+const ZAP_TIMEOUT_MS = 90000; // 90 seconds
+const SUCCESS_AUTO_CLOSE_MS = 2000; // 2 seconds
+const PRESET_AMOUNTS = [3, 7, 10, 21, 100, 500, 1000, 5000];
 
 export const ZapDialog: React.FC<ZapDialogProps> = ({
   station,
@@ -54,33 +57,33 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const [paymentDetected, setPaymentDetected] = useState(false);
   const [zapStartTime, setZapStartTime] = useState<number>(0);
 
-  const presetAmounts = [3, 7, 10, 21, 100, 500, 1000, 5000];
+  // Helper to handle successful zap
+  const handleZapSuccess = (amountSats: number) => {
+    setPaymentDetected(true);
+    setWaitingForPayment(false);
+    setZapReceipt(`Zapped ${amountSats} sats to ${station.name}`);
+    setZapState("success");
 
-  // Subscribe to zap receipts when we have an invoice
+    if (onZap) {
+      onZap(amountSats);
+    }
+
+    setTimeout(() => onOpenChange(false), SUCCESS_AUTO_CLOSE_MS);
+  };
+
+  // Monitor for zap receipts after invoice is generated
   useEffect(() => {
     if (!ndk || !invoice || zapState !== "invoice") return;
 
-    console.log(
-      "🔔 Starting zap monitoring for invoice:",
-      invoice.substring(0, 30) + "..."
-    );
     setWaitingForPayment(true);
-
     let isActive = true;
     let timeoutId: NodeJS.Timeout;
 
-    // Subscribe to zap receipts (kind 9735) for this specific addressable event
-    // Addressable events use "a" tags, not "e" tags!
-    // Format: kind:pubkey:d-tag
-    const stationAddress = `${station.kind}:${
-      station.pubkey
-    }:${station.tagValue("d")}`;
-    console.log("Subscribing to zap receipts for address:", station.address);
-
+    // Subscribe to zap receipts for this addressable event
     const sub = ndk.subscribe(
       {
-        kinds: [9735], // Zap receipt
-        "#a": [station.address], // Only zaps for this addressable station event
+        kinds: [9735],
+        "#a": [station.address],
         since: zapStartTime,
       },
       { closeOnEose: false }
@@ -89,121 +92,38 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     sub.on("event", (zapEvent) => {
       if (!isActive) return;
 
-      console.log("📨 Zap receipt received:", {
-        id: zapEvent.id,
-        created_at: zapEvent.created_at,
-        tags: zapEvent.tags.map((t) => `${t[0]}: ${t[1]?.substring(0, 20)}`),
-      });
+      // Check if bolt11 matches our invoice
+      const bolt11 = zapEvent.getMatchingTags("bolt11")[0]?.[1];
+      const isMatch = bolt11 === invoice;
 
-      // Check if this zap receipt is for our invoice
-      // Zap receipts have a "bolt11" tag with the invoice
-      const bolt11Tag = zapEvent.getMatchingTags("bolt11")[0];
-      const bolt11 = bolt11Tag?.[1];
-
-      // Also check the description tag which might contain the zap request
-      const descriptionTag = zapEvent.getMatchingTags("description")[0];
-      const description = descriptionTag?.[1];
-
-      console.log("Zap receipt details:", {
-        bolt11Preview: bolt11?.substring(0, 50),
-        expectedPreview: invoice.substring(0, 50),
-        hasBolt11: !!bolt11,
-        hasDescription: !!description,
-        bolt11Match: bolt11 === invoice,
-      });
-
-      // Try matching by bolt11 directly
-      if (bolt11 === invoice) {
-        console.log("✅ Zap receipt matches our invoice (bolt11)!");
-
+      // Accept if bolt11 matches, or if the #a tag filter matched (addressable event)
+      if (isMatch || !bolt11) {
         isActive = false;
         clearTimeout(timeoutId);
-
-        setPaymentDetected(true);
-        setWaitingForPayment(false);
-        setZapReceipt(`Zapped ${amount} sats to ${station.name}`);
-        setZapState("success");
-
-        if (onZap) {
-          onZap(parseInt(amount));
-        }
-
-        // Auto-close after 2 seconds
-        setTimeout(() => {
-          onOpenChange(false);
-        }, 2000);
-
-        // Stop subscription
         sub.stop();
-        return;
+        handleZapSuccess(parseInt(amount));
       }
-
-      // If bolt11 doesn't match, check if we got a zap for our addressable event
-      // Since we're filtering by #a tag, this should be for us
-      console.log(
-        "⚡ Zap receipt received for our station (filtered by #a tag)"
-      );
-      console.log(
-        "Accepting zap even without bolt11 match since #a tag matches"
-      );
-
-      isActive = false;
-      clearTimeout(timeoutId);
-
-      setPaymentDetected(true);
-      setWaitingForPayment(false);
-      setZapReceipt(`Zapped ${amount} sats to ${station.name}`);
-      setZapState("success");
-
-      if (onZap) {
-        onZap(parseInt(amount));
-      }
-
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 2000);
-
-      sub.stop();
     });
 
-    // Set timeout for 90 seconds (like the working example)
+    // Timeout after 90 seconds
     timeoutId = setTimeout(() => {
       if (isActive) {
-        console.log("⏱️ Zap monitoring timeout after 90 seconds");
         setWaitingForPayment(false);
         isActive = false;
         sub.stop();
       }
-    }, 90000);
+    }, ZAP_TIMEOUT_MS);
 
-    // Cleanup subscription when component unmounts or invoice changes
     return () => {
-      console.log("🔕 Cleaning up zap receipt subscription");
       isActive = false;
       clearTimeout(timeoutId);
-
-      // Add small delay to prevent race conditions
       setTimeout(() => {
         try {
           sub.stop();
-        } catch (error) {
-          console.warn("Error stopping subscription:", error);
-        }
+        } catch {}
       }, 10);
     };
-  }, [
-    ndk,
-    invoice,
-    zapState,
-    station.id,
-    station.kind,
-    station.pubkey,
-    station.name,
-    zapStartTime,
-    amount,
-    onZap,
-    onOpenChange,
-  ]);
+  }, [ndk, invoice, zapState, station.address, zapStartTime, amount]);
 
   // Reset state when dialog closes
   useEffect(() => {
@@ -219,317 +139,183 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     }
   }, [open]);
 
-  // Check for WebLN support
-  const checkWebLN = async (): Promise<WebLNProvider | null> => {
-    if (typeof window !== "undefined" && (window as any).webln) {
-      try {
-        await (window as any).webln.enable();
-        return (window as any).webln;
-      } catch (err) {
-        console.error("WebLN enable failed:", err);
-        return null;
-      }
-    }
-    return null;
-  };
-
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+    } catch {}
+  };
+
+  // Create and execute a zapper with a payment callback
+  const executeZap = async (
+    amountSats: number,
+    lnPay: (payment: any) => Promise<NDKPaymentConfirmationLN>
+  ): Promise<boolean> => {
+    if (!ndk) throw new Error("NDK not available");
+
+    const zapper = new NDKZapper(station, amountSats * 1000, "msats", {
+      comment,
+      lnPay,
+    });
+
+    // Set signer if available
+    if (ndk.signer && zapper.ndk && !zapper.ndk.signer) {
+      zapper.ndk.signer = ndk.signer;
     }
+
+    const results = await zapper.zap();
+    return results.size > 0;
   };
 
   const zapWithNWC = async (amountSats: number): Promise<boolean> => {
     const wallet = getActiveWallet();
-    if (!wallet || !ndk) {
-      throw new Error("NWC wallet not available");
-    }
+    if (!wallet?.lnPay) throw new Error("NWC wallet not available");
 
-    console.log("Zapping with NWC wallet...");
-
-    // Get NDK signer (optional - will use anonymous zap if not available)
-    const signer = ndk.signer;
-
-    // Create lnPay callback (like the working example)
-    const lnPay = async (payment: any) => {
-      console.log("Paying invoice with NWC:", payment.pr);
-      if (!wallet.lnPay) {
-        throw new Error("Wallet does not support Lightning payments");
-      }
-
-      const result = await wallet.lnPay({ pr: payment.pr } as any);
+    return executeZap(amountSats, async (payment) => {
+      const result = await wallet.lnPay!({ pr: payment.pr } as any);
       return result as NDKPaymentConfirmationLN;
-    };
-
-    // Zap the station event with minimal config
-    const zapperConfig: any = {
-      comment,
-      lnPay,
-    };
-
-    const zapper = new NDKZapper(
-      station,
-      amountSats * 1000,
-      "msats",
-      zapperConfig
-    );
-
-    // If the zapper's NDK has no signer, set it
-    if (!zapper.ndk?.signer && signer) {
-      if (zapper.ndk) {
-        zapper.ndk.signer = signer;
-      }
-    }
-
-    // Execute zap
-    const results = await zapper.zap();
-    console.log("Zap results:", results);
-
-    return results.size > 0;
+    });
   };
 
   const zapWithWebLN = async (amountSats: number): Promise<boolean> => {
-    const webln = await checkWebLN();
-    if (!webln || !ndk) {
+    if (typeof window === "undefined" || !(window as any).webln) {
       throw new Error("WebLN not available");
     }
 
-    console.log("Zapping with WebLN...");
+    const webln = (window as any).webln;
+    await webln.enable();
 
-    // Get NDK signer (optional - will use anonymous zap if not available)
-    const signer = ndk.signer;
-
-    // Create lnPay callback (like the working example)
-    const lnPay = async (payment: any) => {
-      console.log("Paying invoice with WebLN:", payment.pr);
+    return executeZap(amountSats, async (payment) => {
       const result = await webln.sendPayment(payment.pr);
-      return {
-        preimage: result.preimage,
-      } as NDKPaymentConfirmationLN;
-    };
+      return { preimage: result.preimage } as NDKPaymentConfirmationLN;
+    });
+  };
 
-    // Zap the station event with minimal config
-    const zapperConfig: any = {
-      comment,
-      lnPay,
-    };
+  // Fetch Lightning address from station owner's profile
+  const fetchLightningAddress = async () => {
+    if (!ndk) throw new Error("NDK not available");
 
-    const zapper = new NDKZapper(
-      station,
-      amountSats * 1000,
-      "msats",
-      zapperConfig
+    const stationUser = ndk.getUser({ pubkey: station.pubkey });
+    await stationUser.fetchProfile();
+
+    const lud16 = stationUser.profile?.lud16;
+    const lud06 = stationUser.profile?.lud06;
+
+    if (!lud06 && !lud16) {
+      throw new Error(
+        `Station owner (${station.name}) has no Lightning address configured`
+      );
+    }
+
+    return { lud16, lud06 };
+  };
+
+  // Create a NIP-57 zap request event
+  const createZapRequest = async (
+    amountMsat: number,
+    allowsNostr: boolean
+  ): Promise<NDKEvent | null> => {
+    if (!ndk?.signer || !allowsNostr) return null;
+
+    const zapRequestEvent = new NDKEvent(ndk);
+    zapRequestEvent.kind = 9734;
+    zapRequestEvent.content = comment || "";
+    zapRequestEvent.tags = [
+      [
+        "relays",
+        ...Array.from(ndk.pool.connectedRelays()).map((r) => r.url),
+      ].slice(0, 5),
+      ["amount", amountMsat.toString()],
+      ["p", station.pubkey],
+      ["a", station.address],
+    ];
+
+    await zapRequestEvent.sign(ndk.signer);
+    return zapRequestEvent;
+  };
+
+  // Generate invoice via LNURL
+  const getInvoice = async (amountSats: number): Promise<string> => {
+    const { lud16, lud06 } = await fetchLightningAddress();
+    const amountMsat = amountSats * 1000;
+
+    // Convert Lightning address to LNURL endpoint
+    let lnurlEndpoint: string;
+    if (lud16) {
+      const [username, domain] = lud16.split("@");
+      if (!username || !domain) {
+        throw new Error("Invalid Lightning address format");
+      }
+      lnurlEndpoint = `https://${domain}/.well-known/lnurlp/${username}`;
+    } else if (lud06) {
+      throw new Error("lud06 decoding not implemented yet, please use lud16");
+    } else {
+      throw new Error("No Lightning address available");
+    }
+
+    // Fetch LNURL data
+    const lnurlResponse = await fetch(lnurlEndpoint);
+    if (!lnurlResponse.ok) {
+      throw new Error(`LNURL endpoint returned ${lnurlResponse.status}`);
+    }
+
+    const lnurlData = await lnurlResponse.json();
+    if (lnurlData.status === "ERROR") {
+      throw new Error(lnurlData.reason || "LNURL endpoint returned error");
+    }
+
+    const { callback, minSendable, maxSendable } = lnurlData;
+    if (!callback) throw new Error("No callback URL in LNURL response");
+
+    // Validate amount
+    if (minSendable && amountMsat < minSendable) {
+      throw new Error(`Amount too low. Minimum: ${minSendable / 1000} sats`);
+    }
+    if (maxSendable && amountMsat > maxSendable) {
+      throw new Error(`Amount too high. Maximum: ${maxSendable / 1000} sats`);
+    }
+
+    // Create zap request for NIP-57
+    const zapRequestEvent = await createZapRequest(
+      amountMsat,
+      lnurlData.allowsNostr
     );
 
-    // If the zapper's NDK has no signer, set it
-    if (!zapper.ndk?.signer && signer) {
-      if (zapper.ndk) {
-        zapper.ndk.signer = signer;
-      }
+    // Request invoice
+    const callbackUrl = new URL(callback);
+    callbackUrl.searchParams.set("amount", amountMsat.toString());
+    if (comment) {
+      callbackUrl.searchParams.set("comment", comment);
     }
-
-    // Execute zap
-    const results = await zapper.zap();
-    console.log("Zap results:", results);
-
-    return results.size > 0;
-  };
-
-  const getInvoice = async (amountSats: number): Promise<string> => {
-    if (!ndk) {
-      throw new Error("NDK not available");
-    }
-
-    console.log("Getting invoice for station:", station);
-    console.log("Station details:", {
-      id: station.id,
-      pubkey: station.pubkey,
-      name: station.name,
-      tags: station.tags,
-    });
-
-    // Check if the station pubkey has a profile with zap info
-    let lud16: string | undefined;
-    let lud06: string | undefined;
-    let stationUser;
-
-    try {
-      stationUser = ndk.getUser({ pubkey: station.pubkey });
-      await stationUser.fetchProfile();
-      console.log("Station user profile:", {
-        pubkey: stationUser.pubkey,
-        profile: stationUser.profile,
-        lud06: stationUser.profile?.lud06,
-        lud16: stationUser.profile?.lud16,
-      });
-
-      lud16 = stationUser.profile?.lud16;
-      lud06 = stationUser.profile?.lud06;
-
-      if (!lud06 && !lud16) {
-        throw new Error(
-          `Station owner (${station.name}) has no Lightning address configured. They need to add a Lightning address (lud16) or LNURL (lud06) to their Nostr profile.`
-        );
-      }
-
-      // DEBUG: Check what NDK's getZapInfo returns
-      console.log("DEBUG: Calling stationUser.getZapInfo()...");
-      try {
-        const zapInfo = await stationUser.getZapInfo(5000);
-        console.log("DEBUG: getZapInfo() returned:", {
-          size: zapInfo.size,
-          keys: Array.from(zapInfo.keys()),
-          nip57: zapInfo.get("nip57"),
-          nip61: zapInfo.get("nip61"),
-        });
-      } catch (zapInfoError) {
-        console.error("DEBUG: getZapInfo() failed:", zapInfoError);
-      }
-    } catch (error) {
-      console.error("Error fetching station user profile:", error);
-      throw error;
-    }
-
-    // Try getting invoice directly from Lightning address
-    console.log("Attempting to get invoice directly from Lightning address...");
-
-    try {
-      // Convert lud16 to LNURL if needed
-      let lnurlEndpoint: string;
-
-      if (lud16) {
-        console.log("Converting lud16 to LNURL:", lud16);
-        // lud16 format: user@domain.com -> https://domain.com/.well-known/lnurlp/user
-        const [username, domain] = lud16.split("@");
-        if (!username || !domain) {
-          throw new Error("Invalid Lightning address format");
-        }
-        lnurlEndpoint = `https://${domain}/.well-known/lnurlp/${username}`;
-      } else if (lud06) {
-        console.log("Decoding lud06 LNURL:", lud06);
-        // Decode bech32 lud06 to get the URL
-        // For now, we'll use lud16 primarily
-        throw new Error("lud06 decoding not implemented yet, please use lud16");
-      } else {
-        throw new Error("No Lightning address available");
-      }
-
-      console.log("Fetching LNURL endpoint:", lnurlEndpoint);
-
-      // Step 1: Get the callback URL from the LNURL endpoint
-      const lnurlResponse = await fetch(lnurlEndpoint);
-      if (!lnurlResponse.ok) {
-        throw new Error(`LNURL endpoint returned ${lnurlResponse.status}`);
-      }
-
-      const lnurlData = await lnurlResponse.json();
-      console.log("LNURL response:", lnurlData);
-
-      if (lnurlData.status === "ERROR") {
-        throw new Error(lnurlData.reason || "LNURL endpoint returned error");
-      }
-
-      const { callback, minSendable, maxSendable } = lnurlData;
-
-      if (!callback) {
-        throw new Error("No callback URL in LNURL response");
-      }
-
-      // Check amount bounds (amounts are in millisatoshis)
-      const amountMsat = amountSats * 1000;
-      if (minSendable && amountMsat < minSendable) {
-        throw new Error(`Amount too low. Minimum: ${minSendable / 1000} sats`);
-      }
-      if (maxSendable && amountMsat > maxSendable) {
-        throw new Error(`Amount too high. Maximum: ${maxSendable / 1000} sats`);
-      }
-
-      console.log("Requesting invoice from callback:", callback);
-
-      // Step 2: Create a zap request event (kind 9734) for NIP-57
-      // This tells the Lightning service to publish a zap receipt after payment
-      const signer = ndk.signer;
-      let zapRequestEvent: NDKEvent | null = null;
-
-      if (signer && lnurlData.allowsNostr) {
-        console.log("Creating zap request event (kind 9734)...");
-        zapRequestEvent = new NDKEvent(ndk);
-        zapRequestEvent.kind = 9734; // Zap request
-        zapRequestEvent.content = comment || "";
-        zapRequestEvent.tags = [
-          [
-            "relays",
-            ...Array.from(ndk.pool.connectedRelays()).map((r) => r.url),
-          ].slice(0, 5), // Include some relay hints
-          ["amount", amountMsat.toString()],
-          ["p", station.pubkey], // Person being zapped
-        ];
-
-        // For addressable events, use 'a' tag instead of 'e' tag
-        const stationAddress = `${station.kind}:${
-          station.pubkey
-        }:${station.tagValue("d")}`;
-        zapRequestEvent.tags.push(["a", stationAddress]);
-
-        await zapRequestEvent.sign(signer);
-        console.log("Zap request event created and signed:", {
-          id: zapRequestEvent.id,
-          pubkey: zapRequestEvent.pubkey,
-          tags: zapRequestEvent.tags,
-        });
-      } else {
-        console.log("Anonymous zap (no signer or nostr not supported)");
-      }
-
-      // Step 3: Request the invoice from the callback
-      const callbackUrl = new URL(callback);
-      callbackUrl.searchParams.set("amount", amountMsat.toString());
-      if (comment) {
-        callbackUrl.searchParams.set("comment", comment);
-      }
-      // Include the zap request event if we have one
-      if (zapRequestEvent) {
-        callbackUrl.searchParams.set(
-          "nostr",
-          JSON.stringify(zapRequestEvent.rawEvent())
-        );
-      }
-
-      console.log("Callback URL:", callbackUrl.toString());
-
-      const invoiceResponse = await fetch(callbackUrl.toString());
-      if (!invoiceResponse.ok) {
-        throw new Error(`Invoice callback returned ${invoiceResponse.status}`);
-      }
-
-      const invoiceData = await invoiceResponse.json();
-      console.log("Invoice response:", invoiceData);
-
-      if (invoiceData.status === "ERROR") {
-        throw new Error(invoiceData.reason || "Invoice generation failed");
-      }
-
-      const invoice = invoiceData.pr;
-      if (!invoice) {
-        throw new Error("No invoice in response");
-      }
-
-      console.log(
-        "Invoice generated successfully:",
-        invoice.substring(0, 50) + "..."
+    if (zapRequestEvent) {
+      callbackUrl.searchParams.set(
+        "nostr",
+        JSON.stringify(zapRequestEvent.rawEvent())
       );
-      return invoice;
-    } catch (error) {
-      console.error("Direct invoice generation failed:", error);
-      throw error;
     }
+
+    const invoiceResponse = await fetch(callbackUrl.toString());
+    if (!invoiceResponse.ok) {
+      throw new Error(`Invoice callback returned ${invoiceResponse.status}`);
+    }
+
+    const invoiceData = await invoiceResponse.json();
+    if (invoiceData.status === "ERROR") {
+      throw new Error(invoiceData.reason || "Invoice generation failed");
+    }
+
+    const invoice = invoiceData.pr;
+    if (!invoice) throw new Error("No invoice in response");
+
+    return invoice;
   };
 
-  const handleZapWithNWC = async () => {
+  // Generic handler for all zap methods
+  const handleZap = async (
+    zapMethod: (amount: number) => Promise<boolean>,
+    errorMessage: string
+  ) => {
     const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) return;
 
@@ -537,59 +323,20 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     setError(null);
 
     try {
-      const success = await zapWithNWC(amountNum);
-
+      const success = await zapMethod(amountNum);
       if (success) {
-        setZapReceipt(`Zapped ${amountNum} sats to ${station.name}`);
-        setZapState("success");
-
-        if (onZap) {
-          await onZap(amountNum);
-        }
-
-        setTimeout(() => {
-          onOpenChange(false);
-          setAmount("21");
-          setComment("");
-        }, 2000);
+        handleZapSuccess(amountNum);
       }
     } catch (err) {
-      console.error("Error zapping with NWC:", err);
-      setError(err instanceof Error ? err.message : "Failed to zap with NWC");
+      setError(err instanceof Error ? err.message : errorMessage);
       setZapState("error");
     }
   };
 
-  const handleZapWithWebLN = async () => {
-    const amountNum = parseInt(amount, 10);
-    if (!amountNum || amountNum <= 0) return;
-
-    setZapState("processing");
-    setError(null);
-
-    try {
-      const success = await zapWithWebLN(amountNum);
-
-      if (success) {
-        setZapReceipt(`Zapped ${amountNum} sats to ${station.name}`);
-        setZapState("success");
-
-        if (onZap) {
-          await onZap(amountNum);
-        }
-
-        setTimeout(() => {
-          onOpenChange(false);
-          setAmount("21");
-          setComment("");
-        }, 2000);
-      }
-    } catch (err) {
-      console.error("Error zapping with WebLN:", err);
-      setError(err instanceof Error ? err.message : "Failed to zap with WebLN");
-      setZapState("error");
-    }
-  };
+  const handleZapWithNWC = () =>
+    handleZap(zapWithNWC, "Failed to zap with NWC");
+  const handleZapWithWebLN = () =>
+    handleZap(zapWithWebLN, "Failed to zap with WebLN");
 
   const handleShowInvoice = async () => {
     const amountNum = parseInt(amount, 10);
@@ -597,21 +344,20 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
     setZapState("processing");
     setError(null);
-
-    // Set the start time for zap receipt filtering (current Unix timestamp)
-    const startTime = Math.floor(Date.now() / 1000);
-    setZapStartTime(startTime);
-    console.log("Set zap start time:", startTime);
+    setZapStartTime(Math.floor(Date.now() / 1000));
 
     try {
       const inv = await getInvoice(amountNum);
       setInvoice(inv);
       setZapState("invoice");
     } catch (err) {
-      console.error("Error getting invoice:", err);
       setError(err instanceof Error ? err.message : "Failed to get invoice");
       setZapState("error");
     }
+  };
+
+  const handleManualPaymentConfirm = () => {
+    handleZapSuccess(parseInt(amount));
   };
 
   const isProcessing = zapState === "processing";
@@ -649,7 +395,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
             <div className="space-y-2">
               <Label>Quick amounts</Label>
               <div className="flex flex-wrap gap-2">
-                {presetAmounts.map((preset) => (
+                {PRESET_AMOUNTS.map((preset) => (
                   <Button
                     key={preset}
                     variant="outline"
@@ -767,24 +513,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
                 Open in Wallet
               </Button>
 
-              <Button
-                className="w-full"
-                onClick={() => {
-                  console.log("Manual payment confirmation");
-                  setPaymentDetected(true);
-                  setWaitingForPayment(false);
-                  setZapReceipt(`Zapped ${amount} sats to ${station.name}`);
-                  setZapState("success");
-
-                  if (onZap) {
-                    onZap(parseInt(amount));
-                  }
-
-                  setTimeout(() => {
-                    onOpenChange(false);
-                  }, 2000);
-                }}
-              >
+              <Button className="w-full" onClick={handleManualPaymentConfirm}>
                 <Check className="w-4 h-4 mr-2" />
                 I've Paid
               </Button>
