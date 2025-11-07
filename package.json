@@ -31,7 +31,7 @@
     "tauri:android:build": "tauri android build"
   },
   "dependencies": {
-    "@cashu/cashu-ts": "^3.0.2",
+    "@cashu/cashu-ts": "2.7.4",
     "@cashu/crypto": "^0.3.4",
     "@contextvm/sdk": "^0.1.38",
     "@faker-js/faker": "^10.1.0",
