@@ -85,36 +85,42 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const zapWithNWC = async (amountSats: number): Promise<boolean> => {
     const wallet = getActiveWallet();
-    if (!wallet || !ndk || !currentUser) {
+    if (!wallet || !ndk) {
       throw new Error("NWC wallet not available");
     }
 
     console.log("Zapping with NWC wallet...");
 
-    // Get NDK signer
+    // Get NDK signer (optional - will use anonymous zap if not available)
     const signer = ndk.signer;
-    if (!signer) {
-      throw new Error("No signer available");
-    }
 
     // Zap the station event directly (not the author)
     // NDKZapper can target events or users
-    const zapper = new NDKZapper(station, amountSats * 1000, "msat", {
+    const zapperConfig: any = {
       comment,
-      signer,
-      lnPay: async (payment: any) => {
-        console.log("Paying invoice with NWC:", payment);
+      ndk,
+      lnPay: async ({ pr }: { pr: string }) => {
+        console.log("Paying invoice with NWC:", pr);
         if (!wallet.lnPay) {
           throw new Error("Wallet does not support Lightning payments");
         }
 
-        // Extract the invoice/pr from the payment object
-        const pr = payment.pr || payment.invoice || payment;
-
-        const result = await wallet.lnPay({ pr });
+        const result = await wallet.lnPay({ pr } as any);
         return result as NDKPaymentConfirmationLN;
       },
-    });
+    };
+
+    // Add signer only if available (for authenticated zaps)
+    if (signer) {
+      zapperConfig.signer = signer;
+    }
+
+    const zapper = new NDKZapper(
+      station,
+      amountSats * 1000,
+      "msat",
+      zapperConfig
+    );
 
     // Execute zap
     const results = await zapper.zap();
@@ -125,32 +131,39 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const zapWithWebLN = async (amountSats: number): Promise<boolean> => {
     const webln = await checkWebLN();
-    if (!webln || !ndk || !currentUser) {
+    if (!webln || !ndk) {
       throw new Error("WebLN not available");
     }
 
     console.log("Zapping with WebLN...");
 
-    // Get NDK signer
+    // Get NDK signer (optional - will use anonymous zap if not available)
     const signer = ndk.signer;
-    if (!signer) {
-      throw new Error("No signer available");
-    }
 
     // Create zapper instance
-    const zapper = new NDKZapper(station, amountSats * 1000, "msat", {
+    const zapperConfig: any = {
       comment,
-      signer: signer as any,
-      lnPay: async (payment: any) => {
-        console.log("Paying invoice with WebLN:", payment);
-        const result = await webln.sendPayment(
-          payment.pr || payment.invoice || payment
-        );
+      ndk,
+      lnPay: async ({ pr }: { pr: string }) => {
+        console.log("Paying invoice with WebLN:", pr);
+        const result = await webln.sendPayment(pr);
         return {
           preimage: result.preimage,
         } as NDKPaymentConfirmationLN;
       },
-    });
+    };
+
+    // Add signer only if available (for authenticated zaps)
+    if (signer) {
+      zapperConfig.signer = signer;
+    }
+
+    const zapper = new NDKZapper(
+      station,
+      amountSats * 1000,
+      "msat",
+      zapperConfig
+    );
 
     // Execute zap
     const results = await zapper.zap();
@@ -160,32 +173,40 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   };
 
   const getInvoice = async (amountSats: number): Promise<string> => {
-    if (!ndk || !currentUser) {
-      throw new Error("NDK or user not available");
+    if (!ndk) {
+      throw new Error("NDK not available");
     }
 
-    // Get NDK signer
+    console.log("Getting invoice for station:", station);
+
+    // Get NDK signer (optional - will create anonymous zap if not available)
     const signer = ndk.signer;
-    if (!signer) {
-      throw new Error("No signer available");
-    }
 
-    // Create zapper instance
-    const zapper = new NDKZapper(station, amountSats * 1000, "msat", {
-      comment,
-      signer: signer as any,
-    });
-
-    // Get invoice without paying
     return new Promise((resolve, reject) => {
-      zapper.on("ln_invoice" as any, (invoiceData: any) => {
-        console.log("Invoice received:", invoiceData);
-        resolve(invoiceData.invoice || invoiceData.pr || invoiceData);
-      });
+      // Create zapper instance with lnPay callback to capture invoice
+      const zapperConfig: any = {
+        comment,
+        ndk,
+        lnPay: async ({ pr }: { pr: string }) => {
+          console.log("Invoice received:", pr);
+          // Resolve with the payment request (invoice)
+          resolve(pr);
+          // Return undefined to not actually pay
+          return undefined as any;
+        },
+      };
 
-      zapper.on("notice" as any, (notice: any) => {
-        console.log("Zapper notice:", notice);
-      });
+      // Add signer only if available (for authenticated zaps)
+      if (signer) {
+        zapperConfig.signer = signer;
+      }
+
+      const zapper = new NDKZapper(
+        station,
+        amountSats * 1000,
+        "msat",
+        zapperConfig
+      );
 
       // Trigger zap to generate invoice
       zapper.zap().catch(reject);
@@ -198,11 +219,6 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const handleZapWithNWC = async () => {
     const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) return;
-
-    if (!currentUser) {
-      setError("Please log in to zap");
-      return;
-    }
 
     setZapState("processing");
     setError(null);
@@ -235,11 +251,6 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) return;
 
-    if (!currentUser) {
-      setError("Please log in to zap");
-      return;
-    }
-
     setZapState("processing");
     setError(null);
 
@@ -270,11 +281,6 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const handleShowInvoice = async () => {
     const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) return;
-
-    if (!currentUser) {
-      setError("Please log in to zap");
-      return;
-    }
 
     setZapState("processing");
     setError(null);
@@ -357,10 +363,11 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
             {/* Login Notice */}
             {!currentUser && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                <p className="font-semibold">Login Required</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <p className="font-semibold">Anonymous Zap</p>
                 <p className="text-xs mt-1">
-                  Please log in to zap this station
+                  You're not logged in. Your zap will be anonymous. Log in to
+                  zap with your identity.
                 </p>
               </div>
             )}
@@ -466,7 +473,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               {nwcConnection && (
                 <Button
                   onClick={handleZapWithNWC}
-                  disabled={!amount || parseInt(amount) <= 0 || isProcessing || !currentUser}
+                  disabled={!amount || parseInt(amount) <= 0 || isProcessing}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
                   <Zap className="w-4 h-4 mr-2" />
@@ -477,7 +484,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               {/* WebLN Button */}
               <Button
                 onClick={handleZapWithWebLN}
-                disabled={!amount || parseInt(amount) <= 0 || isProcessing || !currentUser}
+                disabled={!amount || parseInt(amount) <= 0 || isProcessing}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
@@ -487,7 +494,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               {/* Invoice/QR Button */}
               <Button
                 onClick={handleShowInvoice}
-                disabled={!amount || parseInt(amount) <= 0 || isProcessing || !currentUser}
+                disabled={!amount || parseInt(amount) <= 0 || isProcessing}
                 variant="outline"
                 className="w-full"
               >
@@ -495,7 +502,11 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
                 Show Invoice QR
               </Button>
 
-              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full mt-2">
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                className="w-full mt-2"
+              >
                 Cancel
               </Button>
             </div>

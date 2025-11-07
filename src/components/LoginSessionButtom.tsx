@@ -91,7 +91,10 @@ export function LoginSessionButtons() {
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={'secondary'} onClick={() => setShowSignupDialog(true)}>
+              <Button
+                variant={"secondary"}
+                onClick={() => setShowSignupDialog(true)}
+              >
                 <KeyRoundIcon className="w-5 h-5" />
                 signup
               </Button>
@@ -103,7 +106,11 @@ export function LoginSessionButtons() {
           {!isTauri && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant={'secondary'} onClick={handleNip07Login} disabled={loading}>
+                <Button
+                  variant={"secondary"}
+                  onClick={handleNip07Login}
+                  disabled={loading}
+                >
                   <AppWindowIcon className="w-5 h-5" />
                   {loading ? "Logging in..." : "extension"}
                 </Button>
@@ -118,7 +125,7 @@ export function LoginSessionButtons() {
               onLogin={handleNip46Login}
               trigger={
                 <TooltipTrigger asChild>
-                  <Button variant={'secondary'} disabled={loading}>
+                  <Button variant={"secondary"} disabled={loading}>
                     <QrCodeIcon className="w-5 h-5" />
                     {loading ? "Logging in..." : "signer"}
                   </Button>
