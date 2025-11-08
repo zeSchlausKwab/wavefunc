@@ -203,6 +203,25 @@ const results = await searchMusicBrainz({ query: "Beatles" });
 // Returns: (MusicBrainzArtist | MusicBrainzRelease | MusicBrainzRecording)[]
 ```
 
+## Album Artwork Support
+
+Albums (releases) now display cover art from the **Cover Art Archive** ([coverartarchive.org](https://coverartarchive.org/)), which is MusicBrainz's official cover art repository.
+
+### Implementation
+
+- Uses the release MBID to fetch cover art: `https://coverartarchive.org/release/{mbid}/front-250`
+- 250px thumbnails for performance
+- Graceful fallbacks with loading states
+- If no cover art is available, shows a disc icon placeholder
+- Works in both `ReleaseResultCard` and `MusicBrainzSearch` components
+
+### Visual Improvements
+
+- 📀 **64x64px** thumbnails in dropdown results (`ReleaseResultCard`)
+- 📀 **80x80px** thumbnails in full search page (`MusicBrainzSearch`)
+- Smooth loading animation with pulsing disc icon
+- Rounded corners and proper aspect ratio handling
+
 ## Conclusion
 
-The refactoring successfully achieves the goal of creating reusable, focused ContextVM tools that better reflect the MusicBrainz API while maintaining full backward compatibility with existing code. The client-side composition approach provides flexibility and aligns with modern API design principles.
+The refactoring successfully achieves the goal of creating reusable, focused ContextVM tools that better reflect the MusicBrainz API while maintaining full backward compatibility with existing code. The client-side composition approach provides flexibility and aligns with modern API design principles. Album artwork integration provides a visually rich user experience.

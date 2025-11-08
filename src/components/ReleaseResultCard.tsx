@@ -1,4 +1,5 @@
 import { ExternalLink, Disc3 } from "lucide-react";
+import { useState } from "react";
 import type { ReleaseResult } from "../types/musicbrainz";
 
 interface ReleaseResultCardProps {
@@ -6,20 +7,48 @@ interface ReleaseResultCardProps {
 }
 
 export function ReleaseResultCard({ result }: ReleaseResultCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  // Cover Art Archive API - provides album artwork
+  const coverArtUrl = `https://coverartarchive.org/release/${result.id}/front-250`;
+
   return (
     <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
       <div className="flex justify-between items-start gap-4">
-        <div className="flex gap-3 flex-1 min-w-0">
-          {/* Icon */}
-          <div className="flex-shrink-0 mt-1">
-            <Disc3 className="w-5 h-5 text-green-500" />
-          </div>
+        {/* Album Artwork */}
+        <div className="flex-shrink-0">
+          {!imageError ? (
+            <div className="relative w-16 h-16 rounded overflow-hidden bg-gray-200 dark:bg-gray-700">
+              {imageLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Disc3 className="w-6 h-6 text-gray-400 animate-pulse" />
+                </div>
+              )}
+              <img
+                src={coverArtUrl}
+                alt={`${result.title} cover`}
+                className="w-full h-full object-cover"
+                onLoad={() => setImageLoading(false)}
+                onError={() => {
+                  setImageError(true);
+                  setImageLoading(false);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+              <Disc3 className="w-8 h-8 text-gray-400" />
+            </div>
+          )}
+        </div>
 
+        <div className="flex gap-3 flex-1 min-w-0">
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded font-medium">
-                ALBUM
+                💿 ALBUM
               </span>
               <h4 className="font-bold text-base truncate">{result.title}</h4>
             </div>
@@ -29,14 +58,12 @@ export function ReleaseResultCard({ result }: ReleaseResultCardProps) {
             </p>
 
             <div className="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-500 flex-wrap">
-              {result.date && (
-                <span>{result.date}</span>
-              )}
-              {result.country && (
-                <span>{result.country}</span>
-              )}
+              {result.date && <span>{result.date}</span>}
+              {result.country && <span>{result.country}</span>}
               {result.trackCount && (
-                <span>{result.trackCount} track{result.trackCount !== 1 ? 's' : ''}</span>
+                <span>
+                  {result.trackCount} track{result.trackCount !== 1 ? "s" : ""}
+                </span>
               )}
               {result.status && (
                 <span className="capitalize">{result.status}</span>

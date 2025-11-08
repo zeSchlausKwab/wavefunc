@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { ReleaseResultWithImage } from "./ReleaseResultWithImage";
 
 type EntityType = "artists" | "releases" | "recordings" | "labels";
 
@@ -205,68 +206,17 @@ export function MusicBrainzSearch() {
     if (result.type === "release") {
       const release = result as ReleaseResult;
       return (
-        <Card
+        <ReleaseResultWithImage
           key={release.id}
-          className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+          release={release}
           onClick={() => {
             // Future: trigger release search in main UI
             console.log("Release clicked:", release.title);
           }}
-        >
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h4 className="font-bold text-lg">💿 {release.title}</h4>
-              <p
-                className="text-gray-600 dark:text-gray-400 cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log("Artist clicked:", release.artist);
-                }}
-              >
-                {release.artist}
-              </p>
-              <div className="flex gap-3 mt-1 text-sm text-gray-500 dark:text-gray-500">
-                {release.date && <span>📅 {release.date}</span>}
-                {release.country && <span>🌍 {release.country}</span>}
-                {release.trackCount && <span>{release.trackCount} tracks</span>}
-                {release.status && (
-                  <span className="capitalize">{release.status}</span>
-                )}
-              </div>
-              {release.barcode && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Barcode: {release.barcode}
-                </p>
-              )}
-              {release.tags && release.tags.length > 0 && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {release.tags.slice(0, 5).map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="ml-4 text-right">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Score: {release.score}
-              </div>
-              <a
-                href={`https://musicbrainz.org/release/${release.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 text-sm mt-1 inline-block"
-                onClick={(e) => e.stopPropagation()}
-              >
-                View on MusicBrainz →
-              </a>
-            </div>
-          </div>
-        </Card>
+          onArtistClick={() => {
+            console.log("Artist clicked:", release.artist);
+          }}
+        />
       );
     }
 
