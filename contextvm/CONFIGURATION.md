@@ -51,18 +51,30 @@ Then derive the public key using nostr-tools or similar library.
 Once configured, the metadata client will automatically connect when you call metadata functions:
 
 ```typescript
-import { extractStreamMetadata, searchMusicBrainz } from "./lib/metadataClient";
+import {
+  extractStreamMetadata,
+  searchRecordings,
+  searchArtists,
+  searchReleases,
+} from "./lib/metadataClient";
 
 // Extract "now playing" from stream
 const metadata = await extractStreamMetadata("http://stream.example.com/radio");
 console.log(metadata);
 // { title: "Artist - Song", artist: "Artist", song: "Song", ... }
 
-// Search MusicBrainz for details
-const results = await searchMusicBrainz({
-  artist: metadata.artist,
-  track: metadata.song,
-});
-console.log(results[0]);
-// { id: "mbid", title: "Song", artist: "Artist", release: "Album", ... }
+// Search MusicBrainz for specific recordings
+const recordings = await searchRecordings(metadata.song, metadata.artist);
+console.log(recordings[0]);
+// { id: "mbid", type: "recording", title: "Song", artist: "Artist", release: "Album", ... }
+
+// Search for artists
+const artists = await searchArtists("Led Zeppelin");
+console.log(artists[0]);
+// { id: "mbid", type: "artist", name: "Led Zeppelin", country: "GB", ... }
+
+// Search for releases/albums
+const albums = await searchReleases("IV", "Led Zeppelin");
+console.log(albums[0]);
+// { id: "mbid", type: "release", title: "IV", artist: "Led Zeppelin", ... }
 ```

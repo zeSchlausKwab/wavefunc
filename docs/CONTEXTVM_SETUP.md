@@ -33,12 +33,30 @@ Extracts "now playing" info from streams.
 **Input:** `{ url: string }`  
 **Output:** `{ title, artist, song, station, genre, bitrate }`
 
-### 2. `musicbrainz_search`
+### 2. `search_artists`
 
-Searches MusicBrainz for track details.
+Search for artists on MusicBrainz by name.
 
-**Input:** `{ artist?, track?, query? }`  
-**Output:** Array of `{ id, title, artist, release, releaseDate, duration, score, tags }`
+**Input:** `{ query: string, limit?: number }`  
+**Output:** Array of artist results with `{ id, type: 'artist', name, sortName, country, beginDate, endDate, type_, disambiguation, score, tags }`
+
+### 3. `search_releases`
+
+Search for releases (albums) on MusicBrainz.
+
+**Input:** `{ query: string, artist?: string, limit?: number }`  
+**Output:** Array of release results with `{ id, type: 'release', title, artist, artistId, date, country, trackCount, status, barcode, score, tags }`
+
+### 4. `search_recordings`
+
+Search for recordings (songs/tracks) on MusicBrainz.
+
+**Input:** `{ query: string, artist?: string, limit?: number }`  
+**Output:** Array of recording results with `{ id, type: 'recording', title, artist, artistId, release, releaseDate, duration, score, tags }`
+
+### Client-Side Composition
+
+The client-side library provides both individual search functions and a legacy `searchMusicBrainz()` function that composes searches on the client. This allows flexibility in how searches are performed while keeping the server tools simple and reusable.
 
 ## Running
 
@@ -101,9 +119,20 @@ See `contextvm/CONFIGURATION.md` for more details.
 ## Usage Example
 
 ```typescript
-import { extractStreamMetadata, searchMusicBrainz } from "./lib/metadataClient";
+import {
+  extractStreamMetadata,
+  searchRecordings,
+  searchArtists,
+  searchMusicBrainz, // Legacy function for backward compatibility
+} from "./lib/metadataClient";
 
-// In your player store
+// Example 1: Search for a specific recording
+const recordings = await searchRecordings("Paranoid", "Black Sabbath");
+
+// Example 2: Search for artists
+const artists = await searchArtists("Led Zeppelin");
+
+// Example 3: In your player store (legacy usage still works)
 playStation: async (station, stream) => {
   // ... start playback ...
 
@@ -112,10 +141,8 @@ playStation: async (station, stream) => {
     const metadata = await extractStreamMetadata(stream.url);
 
     if (metadata.artist && metadata.song) {
-      const mbResults = await searchMusicBrainz({
-        artist: metadata.artist,
-        track: metadata.song,
-      });
+      // Use specific search for better results
+      const mbResults = await searchRecordings(metadata.song, metadata.artist);
 
       set({
         currentMetadata: {

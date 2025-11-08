@@ -1,14 +1,38 @@
 // MusicBrainz API Tool
 // Searches MusicBrainz for detailed track information
 
-export interface MusicBrainzSearchParams {
-  artist?: string;
-  track?: string;
-  query?: string;
+export interface MusicBrainzArtist {
+  id: string;
+  type: "artist";
+  name: string;
+  sortName: string;
+  country?: string;
+  beginDate?: string;
+  endDate?: string;
+  type_?: string;
+  disambiguation?: string;
+  score: number;
+  tags?: string[];
 }
 
-export interface MusicBrainzResult {
+export interface MusicBrainzRelease {
   id: string;
+  type: "release";
+  title: string;
+  artist: string;
+  artistId?: string;
+  date?: string;
+  country?: string;
+  trackCount?: number;
+  status?: string;
+  barcode?: string;
+  score: number;
+  tags?: string[];
+}
+
+export interface MusicBrainzRecording {
+  id: string;
+  type: "recording";
   title: string;
   artist: string;
   artistId?: string;
@@ -17,80 +41,39 @@ export interface MusicBrainzResult {
   duration?: number; // in milliseconds
   score: number;
   tags?: string[];
-  type?: 'recording' | 'artist' | 'release'; // What type of entity was matched
 }
+
+export interface MusicBrainzLabel {
+  id: string;
+  type: "label";
+  name: string;
+  sortName: string;
+  country?: string;
+  type_?: string; // imprint, production, etc.
+  labelCode?: string;
+  disambiguation?: string;
+  score: number;
+  tags?: string[];
+}
+
+export type MusicBrainzResult =
+  | MusicBrainzArtist
+  | MusicBrainzRelease
+  | MusicBrainzRecording
+  | MusicBrainzLabel;
 
 const MUSICBRAINZ_API = "https://musicbrainz.org/ws/2";
 const USER_AGENT = "WaveFunc/1.0 (https://github.com/wavefunc)";
 
 /**
- * Search MusicBrainz with comprehensive fuzzy matching
- *
- * Searches across recordings, artists, and releases (albums) using fuzzy matching.
- * Example: "led zeppelin" will find:
- * - Artist "Led Zeppelin" (highest priority)
- * - Albums by "Led Zeppelin"
- * - Songs by "Led Zeppelin"
- *
- * Uses Lucene query syntax with proper boosting for better relevance
+ * Search for artists on MusicBrainz
+ * @param query - Artist name to search for
+ * @param limit - Maximum number of results to return
  */
-export async function searchMusicBrainz(
-  params: MusicBrainzSearchParams
-): Promise<MusicBrainzResult[]> {
-  try {
-    const results: MusicBrainzResult[] = [];
-
-    // For single query search, search all three entity types separately
-    // This gives much better results than trying to combine them
-    if (params.query) {
-      const cleanQuery = params.query.replace(/[^\w\s]/g, '').trim();
-
-      // Search artists first (often most relevant for simple queries like "led zeppelin")
-      const artistResults = await searchArtists(cleanQuery);
-      results.push(...artistResults);
-
-      // Search releases (albums)
-      const releaseResults = await searchReleases(cleanQuery);
-      results.push(...releaseResults);
-
-      // Search recordings (songs) - but limit if we already have good artist/album matches
-      const recordingLimit = artistResults.length > 0 ? 5 : 10;
-      const recordingResults = await searchRecordings(cleanQuery, undefined, recordingLimit);
-      results.push(...recordingResults);
-
-      // Sort by score descending
-      results.sort((a, b) => b.score - a.score);
-
-      // Return top 10 across all types
-      return results.slice(0, 10);
-    }
-    // Artist + track search - focus on recordings
-    else if (params.artist && params.track) {
-      return await searchRecordings(params.track, params.artist, 10);
-    }
-    // Artist-only search
-    else if (params.artist) {
-      return await searchArtists(params.artist);
-    }
-    // Track-only search - search recordings and releases
-    else if (params.track) {
-      const recordingResults = await searchRecordings(params.track, undefined, 7);
-      const releaseResults = await searchReleases(params.track, 3);
-      return [...recordingResults, ...releaseResults].sort((a, b) => b.score - a.score);
-    }
-    else {
-      throw new Error("Must provide query, artist, or track");
-    }
-  } catch (error: any) {
-    console.error(`MusicBrainz search error: ${error.message}`);
-    throw new Error(`MusicBrainz search failed: ${error.message}`);
-  }
-}
-
-/**
- * Search for artists
- */
-async function searchArtists(query: string, limit = 3): Promise<MusicBrainzResult[]> {
+export async function searchArtists(
+  query: string,
+  limit = 10
+): Promise<MusicBrainzArtist[]> {
   const url = new URL(`${MUSICBRAINZ_API}/artist`);
   url.searchParams.set("query", `artist:${query}~2`);
   url.searchParams.set("fmt", "json");
@@ -111,7 +94,7 @@ async function searchArtists(query: string, limit = 3): Promise<MusicBrainzResul
 
   return artists.map((artist: any) => ({
     id: artist.id,
-    type: 'artist' as const,
+    type: "artist" as const,
     name: artist.name,
     sortName: artist["sort-name"],
     country: artist.country,
@@ -125,9 +108,16 @@ async function searchArtists(query: string, limit = 3): Promise<MusicBrainzResul
 }
 
 /**
- * Search for releases (albums)
+ * Search for releases (albums) on MusicBrainz
+ * @param query - Release/album title to search for
+ * @param limit - Maximum number of results to return
+ * @param artist - Optional artist name to filter results
  */
-async function searchReleases(query: string, limit = 3, artist?: string): Promise<MusicBrainzResult[]> {
+export async function searchReleases(
+  query: string,
+  limit = 10,
+  artist?: string
+): Promise<MusicBrainzRelease[]> {
   const url = new URL(`${MUSICBRAINZ_API}/release`);
 
   let searchQuery: string;
@@ -157,7 +147,7 @@ async function searchReleases(query: string, limit = 3, artist?: string): Promis
 
   return releases.map((release: any) => ({
     id: release.id,
-    type: 'release' as const,
+    type: "release" as const,
     title: release.title,
     artist: release["artist-credit"]?.[0]?.name || "Unknown",
     artistId: release["artist-credit"]?.[0]?.artist?.id,
@@ -172,25 +162,28 @@ async function searchReleases(query: string, limit = 3, artist?: string): Promis
 }
 
 /**
- * Search for recordings (songs)
+ * Search for recordings (songs/tracks) on MusicBrainz
+ * @param query - Recording/track title to search for
+ * @param artist - Optional artist name to filter results
+ * @param limit - Maximum number of results to return
  */
-async function searchRecordings(
-  track: string,
+export async function searchRecordings(
+  query: string,
   artist?: string,
   limit = 10
-): Promise<MusicBrainzResult[]> {
+): Promise<MusicBrainzRecording[]> {
   const url = new URL(`${MUSICBRAINZ_API}/recording`);
 
-  let query: string;
+  let searchQuery: string;
   if (artist) {
     // Specific artist + track search
-    query = `recording:${track}~2 AND artist:${artist}~2`;
+    searchQuery = `recording:${query}~2 AND artist:${artist}~2`;
   } else {
     // Track search - boost exact matches in recording title, also check artist
-    query = `(recording:${track}~2^2 OR artist:${track}~2)`;
+    searchQuery = `(recording:${query}~2^2 OR artist:${query}~2)`;
   }
 
-  url.searchParams.set("query", query);
+  url.searchParams.set("query", searchQuery);
   url.searchParams.set("fmt", "json");
   url.searchParams.set("limit", limit.toString());
 
@@ -209,7 +202,7 @@ async function searchRecordings(
 
   return recordings.map((rec: any) => ({
     id: rec.id,
-    type: 'recording' as const,
+    type: "recording" as const,
     title: rec.title,
     artist: rec["artist-credit"]?.[0]?.name || "Unknown",
     artistId: rec["artist-credit"]?.[0]?.artist?.id,
@@ -218,6 +211,88 @@ async function searchRecordings(
     duration: rec.length,
     score: rec.score || 0,
     tags: rec.tags?.map((t: any) => t.name),
+  }));
+}
+
+/**
+ * Search for labels on MusicBrainz
+ * @param query - Label name to search for
+ * @param limit - Maximum number of results to return
+ */
+export async function searchLabels(
+  query: string,
+  limit = 10
+): Promise<MusicBrainzLabel[]> {
+  const url = new URL(`${MUSICBRAINZ_API}/label`);
+  url.searchParams.set("query", `label:${query}~2`);
+  url.searchParams.set("fmt", "json");
+  url.searchParams.set("limit", limit.toString());
+
+  console.log(`🔍 Label search: ${url.toString()}`);
+
+  const response = await fetch(url.toString(), {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`MusicBrainz API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const labels = data.labels || [];
+
+  return labels.map((label: any) => ({
+    id: label.id,
+    type: "label" as const,
+    name: label.name,
+    sortName: label["sort-name"],
+    country: label.country,
+    type_: label.type?.toLowerCase(),
+    labelCode: label["label-code"] ? String(label["label-code"]) : undefined,
+    disambiguation: label.disambiguation,
+    score: label.score || 0,
+    tags: label.tags?.map((t: any) => t.name),
+  }));
+}
+
+/**
+ * Search for labels on MusicBrainz
+ * @param query - Label name to search for
+ * @param limit - Maximum number of results to return
+ */
+export async function searchLabels(
+  query: string,
+  limit = 10
+): Promise<MusicBrainzLabel[]> {
+  const url = new URL(`${MUSICBRAINZ_API}/label`);
+  url.searchParams.set("query", `label:${query}~2`);
+  url.searchParams.set("fmt", "json");
+  url.searchParams.set("limit", limit.toString());
+
+  console.log(`🔍 Label search: ${url.toString()}`);
+
+  const response = await fetch(url.toString(), {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`MusicBrainz API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const labels = data.labels || [];
+
+  return labels.map((label: any) => ({
+    id: label.id,
+    type: "label" as const,
+    name: label.name,
+    sortName: label["sort-name"],
+    country: label.country,
+    type_: label.type?.toLowerCase(),
+    labelCode: label["label-code"]?.toString(),
+    disambiguation: label.disambiguation,
+    score: label.score || 0,
+    tags: label.tags?.map((t: any) => t.name),
   }));
 }
 

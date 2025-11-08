@@ -1,4 +1,4 @@
-import { Radio, Music } from "lucide-react";
+import { Radio, Music, User, Disc3, Building2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
@@ -7,12 +7,18 @@ import {
   MusicBrainzResults,
   type MusicBrainzResult,
 } from "./MusicBrainzResults";
-import { searchMusicBrainz } from "../lib/metadataClient";
+import {
+  searchArtists,
+  searchRecordings,
+  searchReleases,
+  searchLabels,
+} from "../lib/metadataClient";
 import { SearchIcon } from "./ui/icons/lucide-search";
 import { XIcon } from "./ui/icons/lucide-x";
 import { useSearchStore } from "../stores/searchStore";
 
 export type SearchMode = "stations" | "musicbrainz";
+export type EntityType = "artists" | "releases" | "recordings" | "labels";
 
 interface UnifiedSearchInputProps {
   searchInput: string;
@@ -26,12 +32,14 @@ export function UnifiedSearchInput({
   onStationSearch,
 }: UnifiedSearchInputProps) {
   const [searchMode, setSearchMode] = useState<SearchMode>("stations");
+  const [entityType, setEntityType] = useState<EntityType>("recordings");
   const [musicBrainzResults, setMusicBrainzResults] = useState<
     MusicBrainzResult[]
   >([]);
   const [musicBrainzLoading, setMusicBrainzLoading] = useState(false);
   const [musicBrainzError, setMusicBrainzError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [showEntitySelector, setShowEntitySelector] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -75,7 +83,22 @@ export function UnifiedSearchInput({
         setShowResults(true);
 
         try {
-          const data = await searchMusicBrainz({ query: storeSearchQuery });
+          // Use entity-specific search
+          let data: any[] = [];
+          switch (entityType) {
+            case "artists":
+              data = await searchArtists(storeSearchQuery);
+              break;
+            case "releases":
+              data = await searchReleases(storeSearchQuery);
+              break;
+            case "recordings":
+              data = await searchRecordings(storeSearchQuery);
+              break;
+            case "labels":
+              data = await searchLabels(storeSearchQuery);
+              break;
+          }
           setMusicBrainzResults(data);
         } catch (err: any) {
           setMusicBrainzError(err.message || "Failed to search MusicBrainz");
@@ -93,6 +116,7 @@ export function UnifiedSearchInput({
     storeSearchMode,
     setSearchInput,
     resetTrigger,
+    entityType,
   ]);
 
   const handleMusicBrainzSearch = async (query: string) => {
@@ -107,7 +131,22 @@ export function UnifiedSearchInput({
     setShowResults(true);
 
     try {
-      const data = await searchMusicBrainz({ query });
+      // Use entity-specific search based on selected type
+      let data: any[] = [];
+      switch (entityType) {
+        case "artists":
+          data = await searchArtists(query);
+          break;
+        case "releases":
+          data = await searchReleases(query);
+          break;
+        case "recordings":
+          data = await searchRecordings(query);
+          break;
+        case "labels":
+          data = await searchLabels(query);
+          break;
+      }
       setMusicBrainzResults(data);
     } catch (err: any) {
       setMusicBrainzError(err.message || "Failed to search MusicBrainz");
@@ -139,6 +178,33 @@ export function UnifiedSearchInput({
     setShowResults(false);
   };
 
+  const getEntityIcon = (type: EntityType) => {
+    switch (type) {
+      case "artists":
+        return User;
+      case "releases":
+        return Disc3;
+      case "recordings":
+        return Music;
+      case "labels":
+        return Building2;
+    }
+  };
+
+  const getPlaceholder = () => {
+    if (searchMode === "stations") return "Search stations...";
+    switch (entityType) {
+      case "artists":
+        return "Search artists...";
+      case "releases":
+        return "Search albums...";
+      case "recordings":
+        return "Search songs...";
+      case "labels":
+        return "Search labels...";
+    }
+  };
+
   return (
     <div className="relative w-full" ref={searchContainerRef}>
       <form onSubmit={handleSubmit}>
@@ -148,17 +214,63 @@ export function UnifiedSearchInput({
             variant={searchMode === "stations" ? "default" : "outline"}
             onClick={() => setSearchMode("stations")}
             className="px-3"
+            title="Search Stations"
           >
             <Radio className="w-4 h-4" />
           </Button>
-          <Button
-            type="button"
-            variant={searchMode === "musicbrainz" ? "default" : "outline"}
-            onClick={() => setSearchMode("musicbrainz")}
-            className="px-3"
-          >
-            <Music className="w-4 h-4" />
-          </Button>
+
+          {/* Entity Type Buttons for MusicBrainz */}
+          {searchMode === "musicbrainz" ? (
+            <>
+              <Button
+                type="button"
+                variant={entityType === "artists" ? "default" : "outline"}
+                onClick={() => setEntityType("artists")}
+                className="px-3"
+                title="Search Artists"
+              >
+                <User className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={entityType === "releases" ? "default" : "outline"}
+                onClick={() => setEntityType("releases")}
+                className="px-3"
+                title="Search Albums"
+              >
+                <Disc3 className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={entityType === "recordings" ? "default" : "outline"}
+                onClick={() => setEntityType("recordings")}
+                className="px-3"
+                title="Search Songs"
+              >
+                <Music className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={entityType === "labels" ? "default" : "outline"}
+                onClick={() => setEntityType("labels")}
+                className="px-3"
+                title="Search Labels"
+              >
+                <Building2 className="w-4 h-4" />
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSearchMode("musicbrainz")}
+              className="px-3"
+              title="Switch to MusicBrainz Search"
+            >
+              <Music className="w-4 h-4" />
+            </Button>
+          )}
+
           <IconButtonInput
             type="text"
             startIcon={{
@@ -182,11 +294,7 @@ export function UnifiedSearchInput({
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setSearchInput(e.target.value)
             }
-            placeholder={
-              searchMode === "stations"
-                ? "Search stations..."
-                : "Search artists or tracks..."
-            }
+            placeholder={getPlaceholder()}
             className="flex-1"
           />
         </ButtonGroup>

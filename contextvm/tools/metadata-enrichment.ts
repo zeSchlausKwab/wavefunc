@@ -1,4 +1,4 @@
-import { searchMusicBrainz } from "./musicbrainz.ts";
+import { searchRecordings } from "./musicbrainz.ts";
 
 export interface RawMetadata {
   artist?: string;
@@ -55,9 +55,9 @@ export async function enrichMetadata(
     // Search MusicBrainz with fuzzy matching
     console.log(`🔍 Enriching: ${artist} - ${title}`);
 
-    const results = await searchMusicBrainz({ artist, track: title });
+    const results = await searchRecordings(title, artist);
 
-    if (results.length === 0) {
+    if (results.length === 0 || !results[0]) {
       console.log(`⚠️ No MusicBrainz results found for: ${artist} - ${title}`);
       return {
         artist,
@@ -81,7 +81,9 @@ export async function enrichMetadata(
       confidence = "low";
     }
 
-    console.log(`✅ Found match: ${bestMatch.artist} - ${bestMatch.title} (score: ${bestMatch.score}, confidence: ${confidence})`);
+    console.log(
+      `✅ Found match: ${bestMatch.artist} - ${bestMatch.title} (score: ${bestMatch.score}, confidence: ${confidence})`
+    );
 
     return {
       artist: bestMatch.artist,
@@ -112,7 +114,10 @@ export async function enrichMetadata(
  * - "Title by Artist"
  * - "Artist: Title"
  */
-function parseStreamTitle(streamTitle: string): { artist?: string; title?: string } {
+function parseStreamTitle(streamTitle: string): {
+  artist?: string;
+  title?: string;
+} {
   const trimmed = streamTitle.trim();
 
   // Format: "Artist - Title"
@@ -162,7 +167,7 @@ export async function enrichMetadataBatch(
     results.push(enriched);
 
     // Rate limit: MusicBrainz requires 1 request per second
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   return results;

@@ -5,7 +5,12 @@ import { SimpleRelayPool } from "@contextvm/sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { extractIcecastMetadata } from "./tools/stream-metadata.ts";
-import { searchMusicBrainz } from "./tools/musicbrainz.ts";
+import {
+  searchArtists,
+  searchReleases,
+  searchRecordings,
+  searchLabels,
+} from "./tools/musicbrainz.ts";
 
 // Configuration
 const SERVER_PRIVATE_KEY =
@@ -69,27 +74,25 @@ async function main() {
     }
   );
 
-  // 4. Register Tool: MusicBrainz Search
+  // 4. Register Tool: Search MusicBrainz Artists
   mcpServer.registerTool(
-    "musicbrainz_search",
+    "search_artists",
     {
-      title: "MusicBrainz Search",
+      title: "Search MusicBrainz Artists",
       description:
-        "Search MusicBrainz for detailed track information (artist, album, release date, etc.)",
+        "Search for artists on MusicBrainz by name. Returns artist details including country, dates, disambiguation, and tags.",
       inputSchema: {
-        artist: z.string().optional(),
-        track: z.string().optional(),
-        query: z.string().optional(),
+        query: z.string().describe("Artist name to search for"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of results (default: 10)"),
       },
     },
-    async ({ artist, track, query }) => {
+    async ({ query, limit }) => {
       try {
-        console.log(
-          `🔍 Searching MusicBrainz: ${artist || ""} - ${track || ""} ${
-            query || ""
-          }`
-        );
-        const results = await searchMusicBrainz({ artist, track, query });
+        console.log(`🔍 Searching MusicBrainz artists: ${query}`);
+        const results = await searchArtists(query, limit);
 
         return {
           content: [
@@ -100,7 +103,7 @@ async function main() {
           ],
         };
       } catch (error: any) {
-        console.error(`❌ MusicBrainz search failed: ${error.message}`);
+        console.error(`❌ Artist search failed: ${error.message}`);
         return {
           content: [
             {
@@ -114,7 +117,146 @@ async function main() {
     }
   );
 
-  // 5. Configure the Nostr Server Transport
+  // 5. Register Tool: Search MusicBrainz Releases
+  mcpServer.registerTool(
+    "search_releases",
+    {
+      title: "Search MusicBrainz Releases",
+      description:
+        "Search for releases (albums) on MusicBrainz. Returns release details including artist, date, country, track count, and tags.",
+      inputSchema: {
+        query: z.string().describe("Release/album title to search for"),
+        artist: z.string().optional().describe("Filter by artist name"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of results (default: 10)"),
+      },
+    },
+    async ({ query, artist, limit }) => {
+      try {
+        console.log(
+          `🔍 Searching MusicBrainz releases: ${query}${
+            artist ? ` by ${artist}` : ""
+          }`
+        );
+        const results = await searchReleases(query, limit, artist);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(results, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        console.error(`❌ Release search failed: ${error.message}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ error: error.message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 6. Register Tool: Search MusicBrainz Recordings
+  mcpServer.registerTool(
+    "search_recordings",
+    {
+      title: "Search MusicBrainz Recordings",
+      description:
+        "Search for recordings (songs/tracks) on MusicBrainz. Returns recording details including artist, release, duration, and tags.",
+      inputSchema: {
+        query: z.string().describe("Recording/track title to search for"),
+        artist: z.string().optional().describe("Filter by artist name"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of results (default: 10)"),
+      },
+    },
+    async ({ query, artist, limit }) => {
+      try {
+        console.log(
+          `🔍 Searching MusicBrainz recordings: ${query}${
+            artist ? ` by ${artist}` : ""
+          }`
+        );
+        const results = await searchRecordings(query, artist, limit);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(results, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        console.error(`❌ Recording search failed: ${error.message}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ error: error.message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 7. Register Tool: Search MusicBrainz Labels
+  mcpServer.registerTool(
+    "search_labels",
+    {
+      title: "Search MusicBrainz Labels",
+      description:
+        "Search for record labels on MusicBrainz. Returns label details including country, label code, type, and tags.",
+      inputSchema: {
+        query: z.string().describe("Label name to search for"),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of results (default: 10)"),
+      },
+    },
+    async ({ query, limit }) => {
+      try {
+        console.log(`🔍 Searching MusicBrainz labels: ${query}`);
+        const results = await searchLabels(query, limit);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(results, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        console.error(`❌ Label search failed: ${error.message}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ error: error.message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 8. Configure the Nostr Server Transport
   const serverTransport = new NostrServerTransport({
     signer,
     relayHandler: relayPool,
@@ -131,7 +273,10 @@ async function main() {
   console.log("✅ Server is running and listening for requests on Nostr");
   console.log("📋 Available tools:");
   console.log("   - extract_stream_metadata");
-  console.log("   - musicbrainz_search");
+  console.log("   - search_artists");
+  console.log("   - search_releases");
+  console.log("   - search_recordings");
+  console.log("   - search_labels");
   console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
   console.log("💡 Press Ctrl+C to exit.\n");
 

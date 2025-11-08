@@ -8,7 +8,7 @@ export interface BaseMusicBrainzResult {
 }
 
 export interface RecordingResult extends BaseMusicBrainzResult {
-  type: 'recording';
+  type: "recording";
   title: string;
   artist: string;
   artistId?: string;
@@ -18,9 +18,9 @@ export interface RecordingResult extends BaseMusicBrainzResult {
 }
 
 export interface ArtistResult extends BaseMusicBrainzResult {
-  type: 'artist';
+  type: "artist";
   name: string;
-  sortName?: string;
+  sortName: string;
   country?: string;
   beginDate?: string;
   endDate?: string;
@@ -29,7 +29,7 @@ export interface ArtistResult extends BaseMusicBrainzResult {
 }
 
 export interface ReleaseResult extends BaseMusicBrainzResult {
-  type: 'release';
+  type: "release";
   title: string;
   artist: string;
   artistId?: string;
@@ -40,7 +40,21 @@ export interface ReleaseResult extends BaseMusicBrainzResult {
   barcode?: string;
 }
 
-export type MusicBrainzResult = RecordingResult | ArtistResult | ReleaseResult;
+export interface LabelResult extends BaseMusicBrainzResult {
+  type: "label";
+  name: string;
+  sortName: string;
+  country?: string;
+  type_?: string; // imprint, production, etc.
+  labelCode?: string;
+  disambiguation?: string;
+}
+
+export type MusicBrainzResult =
+  | RecordingResult
+  | ArtistResult
+  | ReleaseResult
+  | LabelResult;
 
 export interface MusicBrainzResultsProps {
   results: MusicBrainzResult[];
