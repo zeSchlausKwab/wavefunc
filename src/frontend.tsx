@@ -8,8 +8,8 @@
 // Import polyfills first (for crypto.randomUUID, global, process, etc.)
 import "./polyfills";
 
-import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
+import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";

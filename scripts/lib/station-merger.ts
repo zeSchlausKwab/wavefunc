@@ -60,26 +60,21 @@ function mergeField<T>(
 ): T | null {
   // Filter stations that have non-null value for this field
   const withValue = duplicates.filter(
-    (s) => s[fieldName] !== null && s[fieldName] !== undefined && s[fieldName] !== ""
+    (s) =>
+      s[fieldName] !== null && s[fieldName] !== undefined && s[fieldName] !== ""
   );
 
   if (withValue.length === 0) return null;
-  if (withValue.length === 1) return withValue[0][fieldName] as T;
+  if (withValue.length === 1) return withValue[0]?.[fieldName] as T;
 
   // Sort by lastchangetime (most recent first)
   const sorted = withValue.sort((a, b) => {
-    const timeA = parseDateTime(
-      a.LastChangeTimeISO8601,
-      a.LastChangeTime
-    );
-    const timeB = parseDateTime(
-      b.LastChangeTimeISO8601,
-      b.LastChangeTime
-    );
+    const timeA = parseDateTime(a.LastChangeTimeISO8601, a.LastChangeTime);
+    const timeB = parseDateTime(b.LastChangeTimeISO8601, b.LastChangeTime);
     return timeB - timeA; // Descending (newest first)
   });
 
-  return sorted[0][fieldName] as T;
+  return sorted[0]?.[fieldName] as T;
 }
 
 /**
@@ -177,15 +172,42 @@ function determinePrimaryStream(streams: StreamInfo[]): number {
   // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
 
-  return scored[0].index;
+  return scored[0]?.index || 0;
 }
 
 /**
  * Merge duplicate stations into one enriched station with multiple streams
  */
 export function mergeStations(duplicates: LegacyStation[]): LegacyStation {
-  if (duplicates.length === 1) {
+  if (duplicates.length === 1 && duplicates[0]) {
     return { ...duplicates[0], _duplicates: duplicates };
+  }
+
+  if (duplicates.length === 0 || !duplicates[0]) {
+    // Fallback for empty array - shouldn't happen but needed for type safety
+    return {
+      StationID: 0,
+      StationUuid: "",
+      Name: "Unknown Station",
+      Url: null,
+      Homepage: null,
+      Favicon: null,
+      Country: null,
+      Language: null,
+      Tags: null,
+      Votes: 0,
+      Subcountry: null,
+      Codec: null,
+      Bitrate: 0,
+      UrlCache: null,
+      Hls: 0,
+      CountryCode: null,
+      GeoLat: null,
+      GeoLong: null,
+      LanguageCodes: null,
+      ServerUuid: null,
+      _duplicates: duplicates,
+    };
   }
 
   // Collect all streams
@@ -195,8 +217,8 @@ export function mergeStations(duplicates: LegacyStation[]): LegacyStation {
   // Build merged station
   const merged: LegacyStation = {
     // Use first station's ID and UUID as base
-    StationID: duplicates[0].StationID,
-    StationUuid: duplicates[0].StationUuid,
+    StationID: duplicates[0]?.StationID || 0,
+    StationUuid: duplicates[0]?.StationUuid || "",
 
     // Merge string fields (prefer most recent)
     Name: mergeField<string>(duplicates, "Name") || "Unknown Station",
@@ -252,6 +274,14 @@ export function getMergeStats(
   const enrichedFields: string[] = [];
   const firstStation = original[0];
 
+  if (!firstStation) {
+    return {
+      duplicateCount: original.length,
+      streamCount: streams.length,
+      enrichedFields: [],
+    };
+  }
+
   const fieldsToCheck: (keyof LegacyStation)[] = [
     "Homepage",
     "Favicon",
@@ -277,4 +307,109 @@ export function getMergeStats(
     streamCount: streams.length,
     enrichedFields,
   };
+}
+
+/**
+ * Advanced grouping: Group stations by normalized name first, then by URL patterns
+ * This is the enhanced algorithm from the legacy implementation
+ */
+export function groupStationsByNameAndUrl(
+  stations: LegacyStation[],
+  normalizeNameFn: (name: string) => string,
+  areRelatedUrlsFn: (url1: string, url2: string) => boolean
+): Map<string, LegacyStation[]> {
+  const groups = new Map<string, LegacyStation[]>();
+  const processedStationIds = new Set<string>();
+
+  // Step 1: Group by normalized name
+  const nameGroups: Record<string, LegacyStation[]> = {};
+  for (const station of stations) {
+    const normalizedName = normalizeNameFn(station.Name || "");
+    if (!nameGroups[normalizedName]) {
+      nameGroups[normalizedName] = [];
+    }
+    nameGroups[normalizedName].push(station);
+  }
+
+  // Step 2: Within each name group, further group by URL patterns
+  for (const [normalizedName, stationsWithSameName] of Object.entries(
+    nameGroups
+  )) {
+    // Skip if only one station
+    if (stationsWithSameName.length <= 1) {
+      if (stationsWithSameName.length === 1) {
+        const station = stationsWithSameName[0];
+        if (station) {
+          const key = `${normalizedName}|${station.StationUuid}`;
+          groups.set(key, [station]);
+          processedStationIds.add(station.StationUuid);
+        }
+      }
+      continue;
+    }
+
+    // Get unprocessed stations in this name group
+    const unprocessed = stationsWithSameName.filter(
+      (s) => !processedStationIds.has(s.StationUuid)
+    );
+
+    // For each unprocessed station, try to form a group based on URL pattern
+    for (let i = 0; i < unprocessed.length; i++) {
+      const mainStation = unprocessed[i];
+
+      if (!mainStation) continue;
+
+      // Skip if already processed
+      if (processedStationIds.has(mainStation.StationUuid)) continue;
+
+      const groupKey = `${normalizedName}|${mainStation.StationUuid}`;
+      const stationGroup: LegacyStation[] = [mainStation];
+      processedStationIds.add(mainStation.StationUuid);
+
+      const seenUrls = new Set<string>([mainStation.Url || ""]);
+
+      // Find other stations with related URLs
+      for (let j = i + 1; j < unprocessed.length; j++) {
+        const candidateStation = unprocessed[j];
+
+        if (!candidateStation) continue;
+
+        // Skip if already processed or URL already seen
+        if (
+          processedStationIds.has(candidateStation.StationUuid) ||
+          seenUrls.has(candidateStation.Url || "")
+        ) {
+          continue;
+        }
+
+        // Check if URLs are related
+        const url1 = mainStation.Url || "";
+        const url2 = candidateStation.Url || "";
+
+        if (!url1 || !url2) continue;
+
+        const urlsAreRelated = areRelatedUrlsFn(url1, url2);
+
+        if (urlsAreRelated) {
+          // Additional validation: country codes should match if both present
+          if (
+            mainStation.CountryCode &&
+            candidateStation.CountryCode &&
+            mainStation.CountryCode !== candidateStation.CountryCode
+          ) {
+            continue; // Different countries = different stations
+          }
+
+          // Add to group
+          stationGroup.push(candidateStation);
+          processedStationIds.add(candidateStation.StationUuid);
+          seenUrls.add(url2);
+        }
+      }
+
+      groups.set(groupKey, stationGroup);
+    }
+  }
+
+  return groups;
 }

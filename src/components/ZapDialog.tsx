@@ -147,20 +147,21 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     } catch {}
   };
 
-  // Create and execute a zapper with a payment callback
-  const executeZap = async (
-    amountSats: number,
-    lnPay: (payment: any) => Promise<NDKPaymentConfirmationLN>
-  ): Promise<boolean> => {
+  // Zap with NWC using the wallet already set on ndk.wallet
+  const zapWithNWC = async (amountSats: number): Promise<boolean> => {
     if (!ndk) throw new Error("NDK not available");
 
+    const wallet = getActiveWallet();
+    if (!wallet?.lnPay) throw new Error("NWC wallet not available");
+
+    // Create zapper - it will automatically use ndk.walletConfig.lnPay
     const zapper = new NDKZapper(station, amountSats * 1000, "msats", {
       comment,
-      lnPay,
+      ndk, // Explicitly pass the NDK instance
     });
 
     // Set signer if available
-    if (ndk.signer && zapper.ndk && !zapper.ndk.signer) {
+    if (ndk.signer && !zapper.ndk.signer) {
       zapper.ndk.signer = ndk.signer;
     }
 
@@ -168,17 +169,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     return results.size > 0;
   };
 
-  const zapWithNWC = async (amountSats: number): Promise<boolean> => {
-    const wallet = getActiveWallet();
-    if (!wallet?.lnPay) throw new Error("NWC wallet not available");
-
-    return executeZap(amountSats, async (payment) => {
-      const result = await wallet.lnPay!({ pr: payment.pr } as any);
-      return result as NDKPaymentConfirmationLN;
-    });
-  };
-
   const zapWithWebLN = async (amountSats: number): Promise<boolean> => {
+    if (!ndk) throw new Error("NDK not available");
     if (typeof window === "undefined" || !(window as any).webln) {
       throw new Error("WebLN not available");
     }
@@ -186,10 +178,23 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     const webln = (window as any).webln;
     await webln.enable();
 
-    return executeZap(amountSats, async (payment) => {
-      const result = await webln.sendPayment(payment.pr);
-      return { preimage: result.preimage } as NDKPaymentConfirmationLN;
+    // Create zapper with WebLN payment callback
+    const zapper = new NDKZapper(station, amountSats * 1000, "msats", {
+      comment,
+      ndk,
+      lnPay: async (payment: any) => {
+        const result = await webln.sendPayment(payment.pr);
+        return { preimage: result.preimage } as NDKPaymentConfirmationLN;
+      },
     });
+
+    // Set signer if available
+    if (ndk.signer && !zapper.ndk.signer) {
+      zapper.ndk.signer = ndk.signer;
+    }
+
+    const results = await zapper.zap();
+    return results.size > 0;
   };
 
   // Fetch Lightning address from station owner's profile

@@ -7,11 +7,23 @@ import path from "path";
 import {
   createGroupingKey,
   getCleanStationName,
+  normalizeStationNameForGrouping,
+  areRelatedUrls,
 } from "./lib/station-normalizer";
-import { mergeStations, getMergeStats } from "./lib/station-merger";
+import {
+  mergeStations,
+  getMergeStats,
+  groupStationsByNameAndUrl,
+} from "./lib/station-merger";
 import { faker } from "@faker-js/faker";
 import { NDKWFFavorites } from "../src/lib/NDKWFFavorites";
-import { devUser1, devUser2, devUser3, devUser4, devUser5 } from "../src/lib/fixtures";
+import {
+  devUser1,
+  devUser2,
+  devUser3,
+  devUser4,
+  devUser5,
+} from "../src/lib/fixtures";
 
 // App key for publishing stations - must be set in environment
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;
@@ -24,9 +36,9 @@ const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 // Parse relay URL from command line
 // Usage: bun run scripts/migrate_legacy.ts [count] [--relay=URL]
 function getRelayUrl(): string {
-  const relayArg = process.argv.find(arg => arg.startsWith('--relay='));
+  const relayArg = process.argv.find((arg) => arg.startsWith("--relay="));
   if (relayArg) {
-    const url = relayArg.split('=')[1];
+    const url = relayArg.split("=")[1];
     return url || "ws://localhost:3334";
   }
   return process.env.RELAY_URL || "ws://localhost:3334";
@@ -34,7 +46,6 @@ function getRelayUrl(): string {
 
 const RELAY_URL = getRelayUrl();
 const ndk = new NDK({ explicitRelayUrls: [RELAY_URL] });
-
 
 // Legacy DB Station structure
 interface LegacyStation {
@@ -84,7 +95,7 @@ function parseStationInsert(line: string): LegacyStation | null {
   // Extract values from INSERT statement
   // Format: (1,'Name','url',...),
   const match = line.match(/\(([^)]+)\)/);
-  if (!match) return null;
+  if (!match || !match[1]) return null;
 
   // Properly parse CSV-like values respecting quotes
   const values: (string | null)[] = [];
@@ -211,14 +222,17 @@ async function legacyToNostrEvent(
 
   // Get description from StationCheckHistory if available
   const extendedInfo = checkHistory?.get(station.StationUuid);
-  let description = station.Tags || `${station.Name} - ${station.Country || "Unknown"}`;
+  let description =
+    station.Tags || `${station.Name} - ${station.Country || "Unknown"}`;
 
   if (extendedInfo?.Description) {
     description = extendedInfo.Description;
   }
 
   // Get streamingServerUrl if available
-  const streamingServer = station.ServerUuid ? servers?.get(station.ServerUuid) : undefined;
+  const streamingServer = station.ServerUuid
+    ? servers?.get(station.ServerUuid)
+    : undefined;
 
   // Build content JSON
   const content: any = {
@@ -360,7 +374,9 @@ function encodeGeohash(lat: number, lon: number, precision: number): string {
 }
 
 // Extract StationCheckHistory for descriptions
-function extractStationCheckHistory(sqlPath: string): Map<string, StationCheckHistory> {
+function extractStationCheckHistory(
+  sqlPath: string
+): Map<string, StationCheckHistory> {
   console.log("📖 Reading StationCheckHistory for descriptions...");
   const sql = readFileSync(sqlPath, "utf-8");
   const lines = sql.split("\n");
@@ -382,25 +398,27 @@ function extractStationCheckHistory(sqlPath: string): Map<string, StationCheckHi
 
       // Parse StationCheckHistory row
       const match = line.match(/\(([^)]+)\)/);
-      if (!match) continue;
+      if (!match || !match[1]) continue;
 
       // Simple parse - just get the fields we need
-      const parts = match[1].split(",").map(p => p.trim().replace(/^'|'$/g, ''));
+      const parts = match[1]
+        .split(",")
+        .map((p) => p.trim().replace(/^'|'$/g, ""));
       if (parts.length < 15) continue;
 
-      const stationUuid = parts[1]?.replace(/'/g, '') || '';
-      const description = parts[14]?.replace(/'/g, '') || '';
+      const stationUuid = parts[1]?.replace(/'/g, "") || "";
+      const description = parts[14]?.replace(/'/g, "") || "";
 
-      if (stationUuid && description && description !== 'NULL') {
+      if (stationUuid && description && description !== "NULL") {
         // Keep the most recent entry (last one wins)
         checkHistory.set(stationUuid, {
           StationUuid: stationUuid,
           Description: description,
-          Name: parts[13]?.replace(/'/g, '') || null,
-          Tags: parts[15]?.replace(/'/g, '') || null,
-          Favicon: parts[18]?.replace(/'/g, '') || null,
-          Homepage: parts[17]?.replace(/'/g, '') || null,
-          MetainfoOverridesDatabase: parseInt(parts[11] || '0') || 0,
+          Name: parts[13]?.replace(/'/g, "") || null,
+          Tags: parts[15]?.replace(/'/g, "") || null,
+          Favicon: parts[18]?.replace(/'/g, "") || null,
+          Homepage: parts[17]?.replace(/'/g, "") || null,
+          MetainfoOverridesDatabase: parseInt(parts[11] || "0") || 0,
         });
       }
     }
@@ -411,7 +429,9 @@ function extractStationCheckHistory(sqlPath: string): Map<string, StationCheckHi
 }
 
 // Extract StreamingServers for streamingServerUrl
-function extractStreamingServers(sqlPath: string): Map<string, StreamingServer> {
+function extractStreamingServers(
+  sqlPath: string
+): Map<string, StreamingServer> {
   console.log("📖 Reading StreamingServers...");
   const sql = readFileSync(sqlPath, "utf-8");
   const lines = sql.split("\n");
@@ -433,20 +453,22 @@ function extractStreamingServers(sqlPath: string): Map<string, StreamingServer> 
 
       // Parse StreamingServer row
       const match = line.match(/\(([^)]+)\)/);
-      if (!match) continue;
+      if (!match || !match[1]) continue;
 
-      const parts = match[1].split(",").map(p => p.trim().replace(/^'|'$/g, ''));
+      const parts = match[1]
+        .split(",")
+        .map((p) => p.trim().replace(/^'|'$/g, ""));
       if (parts.length < 4) continue;
 
-      const uuid = parts[1]?.replace(/'/g, '') || '';
-      const url = parts[2]?.replace(/'/g, '') || '';
+      const uuid = parts[1]?.replace(/'/g, "") || "";
+      const url = parts[2]?.replace(/'/g, "") || "";
 
       if (uuid && url) {
         servers.set(uuid, {
           Uuid: uuid,
           Url: url,
-          Software: parts[9]?.replace(/'/g, '') || null,
-          Location: parts[8]?.replace(/'/g, '') || null,
+          Software: parts[9]?.replace(/'/g, "") || null,
+          Location: parts[8]?.replace(/'/g, "") || null,
         });
       }
     }
@@ -488,41 +510,30 @@ function extractStationsFromSQL(sqlPath: string): LegacyStation[] {
   return stations;
 }
 
-// Group duplicate stations using enhanced normalization
-function groupDuplicateStations(
-  stations: LegacyStation[]
-): Map<string, LegacyStation[]> {
-  const groups = new Map<string, LegacyStation[]>();
-
-  for (const station of stations) {
-    // Use the new normalization key (name + country + homepage)
-    const key = createGroupingKey(station);
-
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
-    groups.get(key)!.push(station);
-  }
-
-  return groups;
-}
-
-// Randomly select N stations (after deduplication)
+// Randomly select N stations (after deduplication using enhanced grouping)
 function selectRandomStations(
   stations: LegacyStation[],
   count: number
 ): LegacyStation[] {
-  console.log("🔍 Deduplicating stations...");
+  console.log(
+    "🔍 Deduplicating stations with enhanced URL pattern matching..."
+  );
 
-  // Group duplicates
-  const groups = groupDuplicateStations(stations);
+  // Use the enhanced grouping algorithm that considers both name and URL patterns
+  const groups = groupStationsByNameAndUrl(
+    stations,
+    normalizeStationNameForGrouping,
+    areRelatedUrls
+  );
+
   console.log(
     `   Found ${groups.size} unique stations (from ${stations.length} total)`
   );
 
-  // Merge duplicates using new enrichment logic
+  // Merge duplicates using enrichment logic
   const uniqueStations: LegacyStation[] = [];
   let enrichmentCount = 0;
+  let multiStreamCount = 0;
 
   for (const duplicates of groups.values()) {
     if (duplicates.length === 0) continue; // Safety check
@@ -530,12 +541,14 @@ function selectRandomStations(
     const firstStation = duplicates[0];
     if (!firstStation) continue; // TypeScript safety
 
-    if (duplicates.length > 1) {
-      const merged = mergeStations(duplicates);
-      const stats = getMergeStats(duplicates, merged);
+    const merged = mergeStations(duplicates);
+    const stats = getMergeStats(duplicates, merged);
 
+    if (duplicates.length > 1) {
       console.log(
-        `   📎 Merging ${duplicates.length} versions of "${getCleanStationName(firstStation)}" → ${stats.streamCount} streams`
+        `   📎 Merging ${duplicates.length} versions of "${getCleanStationName(
+          firstStation
+        )}" → ${stats.streamCount} streams`
       );
 
       if (stats.enrichedFields.length > 0) {
@@ -543,14 +556,21 @@ function selectRandomStations(
         enrichmentCount++;
       }
 
-      uniqueStations.push(merged);
-    } else {
-      uniqueStations.push(mergeStations(duplicates));
+      if (stats.streamCount > 1) {
+        multiStreamCount++;
+      }
     }
+
+    uniqueStations.push(merged);
   }
 
+  console.log(`\n   📊 Grouping Statistics:`);
+  console.log(`      Total unique stations: ${uniqueStations.length}`);
+  console.log(`      Stations with multiple streams: ${multiStreamCount}`);
   if (enrichmentCount > 0) {
-    console.log(`   ✨ Enriched ${enrichmentCount} stations with additional metadata`);
+    console.log(
+      `      ✨ Enriched ${enrichmentCount} stations with additional metadata`
+    );
   }
 
   // Randomly select
@@ -577,6 +597,8 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
 
   for (let userIndex = 0; userIndex < devUsers.length; userIndex++) {
     const user = devUsers[userIndex];
+    if (!user) continue;
+
     const signer = new NDKPrivateKeySigner(user.sk);
     await signer.blockUntilReady();
     const pubkey = (await signer.user()).pubkey;
@@ -598,19 +620,59 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
 
         const listNames = [
           {
-            name: `${faker.helpers.arrayElement(['My', 'Best', 'Top', 'Favorite'])} ${musicGenre} Stations`,
-            desc: `${faker.helpers.arrayElement(['A curated collection of', 'My favorite', 'The best', 'Premium selection of'])} ${musicGenre.toLowerCase()} radio stations`,
-            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+            name: `${faker.helpers.arrayElement([
+              "My",
+              "Best",
+              "Top",
+              "Favorite",
+            ])} ${musicGenre} Stations`,
+            desc: `${faker.helpers.arrayElement([
+              "A curated collection of",
+              "My favorite",
+              "The best",
+              "Premium selection of",
+            ])} ${musicGenre.toLowerCase()} radio stations`,
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(
+              10
+            )}/1200/400`,
           },
           {
-            name: `${adjective.charAt(0).toUpperCase() + adjective.slice(1)} ${faker.helpers.arrayElement(['Vibes', 'Mix', 'Playlist', 'Collection'])}`,
-            desc: `${faker.helpers.arrayElement(['Perfect for', 'Great for', 'Ideal for'])} ${faker.helpers.arrayElement(['relaxing', 'working', 'studying', 'partying', 'driving'])}`,
-            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+            name: `${
+              adjective.charAt(0).toUpperCase() + adjective.slice(1)
+            } ${faker.helpers.arrayElement([
+              "Vibes",
+              "Mix",
+              "Playlist",
+              "Collection",
+            ])}`,
+            desc: `${faker.helpers.arrayElement([
+              "Perfect for",
+              "Great for",
+              "Ideal for",
+            ])} ${faker.helpers.arrayElement([
+              "relaxing",
+              "working",
+              "studying",
+              "partying",
+              "driving",
+            ])}`,
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(
+              10
+            )}/1200/400`,
           },
           {
-            name: faker.helpers.arrayElement(['Weekend', 'Morning', 'Evening', 'Night', 'Road Trip']) + ' Radio',
+            name:
+              faker.helpers.arrayElement([
+                "Weekend",
+                "Morning",
+                "Evening",
+                "Night",
+                "Road Trip",
+              ]) + " Radio",
             desc: faker.lorem.sentence(),
-            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(10)}/1200/400`,
+            banner: `https://picsum.photos/seed/${faker.string.alphanumeric(
+              10
+            )}/1200/400`,
           },
         ];
 
@@ -618,7 +680,7 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
 
         // Create favorites list
         const favoritesList = NDKWFFavorites.createDefault(
-          ndk,
+          ndk as any, // Type mismatch between NDK versions in dependencies
           listInfo.name,
           listInfo.desc
         );
@@ -672,7 +734,9 @@ async function migrateStations() {
   const servers = extractStreamingServers(sqlPath);
 
   // Select random stations (first non-relay arg is count)
-  const countArg = process.argv.find((arg, i) => i > 1 && !arg.startsWith('--'));
+  const countArg = process.argv.find(
+    (arg, i) => i > 1 && !arg.startsWith("--")
+  );
   const count = countArg ? parseInt(countArg) : 50;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
@@ -693,6 +757,8 @@ async function migrateStations() {
 
   for (let i = 0; i < selectedStations.length; i++) {
     const station = selectedStations[i];
+    if (!station) continue;
+
     try {
       const duplicates = (station as any)._duplicates || [station];
       const streamCount = new Set(
@@ -708,7 +774,12 @@ async function migrateStations() {
         }${streamInfo}`
       );
 
-      const event = await legacyToNostrEvent(station, signer, checkHistory, servers);
+      const event = await legacyToNostrEvent(
+        station,
+        signer,
+        checkHistory,
+        servers
+      );
       await event.publish();
 
       successCount++;
