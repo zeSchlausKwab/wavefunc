@@ -17,6 +17,7 @@
     "migrate": "bun run scripts/migrate_legacy.ts",
     "migrate:remote": "bun run scripts/migrate_legacy.ts 50000 --relay=wss://relay.wavefunc.live",
     "migrate:vps": "bun run scripts/trigger_remote_migration.ts",
+    "migrate:vps:reset": "bun run scripts/trigger_remote_migration.ts --reset",
     "start": "NODE_ENV=production bun src/index.tsx",
     "build": "bun run build.ts",
     "build:production": "./scripts/build-production.sh",

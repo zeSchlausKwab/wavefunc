@@ -24,6 +24,7 @@ bun run migrate 500 --relay=wss://relay.example.com
 ```
 
 **Requirements:**
+
 - Legacy database dump at `legacy-db/latest.sql`
 - `APP_PRIVATE_KEY` set in `.env`
 
@@ -44,6 +45,7 @@ APP_PRIVATE_KEY=your_private_key_hex
 ```
 
 2. **Deploy your application** to the VPS with:
+
    - The application running on the VPS
    - `APP_PRIVATE_KEY` set in the VPS `.env.production`
    - Legacy database at `legacy-db/latest.sql`
@@ -59,17 +61,35 @@ bun run migrate:vps 1000
 
 # Migrate to a specific relay (optional)
 bun run migrate:vps 1000 --relay=wss://relay.example.com
+
+# Reset the relay before migrating (deletes all existing data)
+bun run migrate:vps:reset
+
+# Reset and migrate with custom parameters
+bun run migrate:vps 50000 --relay=wss://relay.wavefunc.live --reset
 ```
+
+**⚠️ Warning:** The `--reset` flag will:
+
+- Stop the relay process on the VPS
+- Delete the relay database (`relay/data/events.db`)
+- Delete the search index (`relay/data/search/`)
+- This **permanently removes all events** from the relay
 
 ### How It Works
 
 1. **Local CLI** ([scripts/trigger_remote_migration.ts](scripts/trigger_remote_migration.ts))
+
    - Creates a NIP-98 HTTP Auth event signed with your `APP_PRIVATE_KEY`
    - Sends POST request to `https://{VPS_HOST}/api/migrate`
    - Streams migration output back to your terminal
 
 2. **VPS API Endpoint** ([src/index.tsx](src/index.tsx#L40))
+
    - Verifies NIP-98 authentication using your pubkey
+   - If `--reset` flag is provided:
+     - Kills the relay process
+     - Deletes the database and search index files
    - Spawns migration process on the VPS
    - Streams output back to the client
 
@@ -91,17 +111,21 @@ bun run migrate:vps 1000 --relay=wss://relay.example.com
 ### Troubleshooting
 
 **"APP_PRIVATE_KEY environment variable is required"**
+
 - Make sure `APP_PRIVATE_KEY` is set in your local `.env` file
 
 **"VPS_HOST environment variable is required"**
+
 - Make sure `VPS_HOST` is set in your `.env` file
 
 **"Unauthorized - Invalid NIP-98 authentication"**
+
 - Verify your local `APP_PRIVATE_KEY` matches the VPS `APP_PRIVATE_KEY`
 - Check that the VPS application is running
 - Ensure your system clock is synchronized (NIP-98 requires timestamp within 60s)
 
 **Connection errors**
+
 - Verify your VPS_HOST is correct
 - Check that the application is running on the VPS
 - Ensure HTTPS is properly configured
@@ -137,6 +161,7 @@ All station events are **kind 31237** (Internet Radio) with:
 - `g` tag: Geohash coordinates
 
 Content JSON contains:
+
 ```json
 {
   "description": "Station description",

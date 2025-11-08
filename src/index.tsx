@@ -6,12 +6,16 @@ import { hexToBytes } from "@noble/hashes/utils";
 
 const isProduction = process.env.NODE_ENV === "production";
 
-console.log(`Starting server in ${isProduction ? 'production' : 'development'} mode`);
+console.log(
+  `Starting server in ${isProduction ? "production" : "development"} mode`
+);
 console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
 
 // Get the expected pubkey for migration auth
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;
-const EXPECTED_PUBKEY = APP_PRIVATE_KEY ? getPublicKey(hexToBytes(APP_PRIVATE_KEY)) : undefined;
+const EXPECTED_PUBKEY = APP_PRIVATE_KEY
+  ? getPublicKey(hexToBytes(APP_PRIVATE_KEY))
+  : undefined;
 
 // Simple in-memory rate limiting for migration endpoint
 const migrationLock = { isRunning: false, lastRun: 0 };
@@ -64,7 +68,8 @@ const apiRoutes: Record<string, any> = {
       const url = new URL(req.url);
 
       // Handle reverse proxy (Caddy sends X-Forwarded-Proto)
-      const proto = req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
+      const proto =
+        req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
       const host = req.headers.get("X-Forwarded-Host") || url.host;
       const fullUrl = `${proto}://${host}${url.pathname}`;
 
@@ -73,7 +78,13 @@ const apiRoutes: Record<string, any> = {
       const body = bodyText ? JSON.parse(bodyText) : undefined;
 
       // Verify NIP-98 auth token
-      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY, body);
+      const authEvent = await verifyNIP98Auth(
+        authHeader,
+        fullUrl,
+        "POST",
+        EXPECTED_PUBKEY,
+        body
+      );
 
       if (!authEvent) {
         return Response.json(
@@ -89,6 +100,7 @@ const apiRoutes: Record<string, any> = {
       // Parse request body for migration parameters
       let count = 500;
       let relayUrl = process.env.RELAY_URL || "ws://localhost:3334";
+      let reset = false;
 
       // Validate and sanitize inputs
       if (body?.count) {
@@ -102,7 +114,11 @@ const apiRoutes: Record<string, any> = {
       if (body?.relayUrl) {
         // Validate relay URL format (must be ws:// or wss://)
         const urlStr = body.relayUrl.toString();
-        if (urlStr.match(/^wss?:\/\/[a-zA-Z0-9.-]+(:[0-9]+)?(\/[a-zA-Z0-9._-]*)?$/)) {
+        if (
+          urlStr.match(
+            /^wss?:\/\/[a-zA-Z0-9.-]+(:[0-9]+)?(\/[a-zA-Z0-9._-]*)?$/
+          )
+        ) {
           relayUrl = urlStr;
         } else {
           return Response.json(
@@ -112,23 +128,77 @@ const apiRoutes: Record<string, any> = {
         }
       }
 
+      if (body?.reset === true) {
+        reset = true;
+      }
+
+      // Reset relay if requested
+      if (reset) {
+        console.log("⚠️  Resetting relay...");
+
+        // Kill relay process(es)
+        try {
+          // Kill processes on port 3334
+          await Bun.spawn([
+            "bash",
+            "-c",
+            "lsof -ti:3334 | xargs kill -9 2>/dev/null || true",
+          ]).exited;
+
+          // Kill any go run relay processes
+          await Bun.spawn(["pkill", "-f", "go run.*relay"], {
+            stderr: "ignore",
+            stdout: "ignore",
+          }).exited;
+
+          console.log("✅ Relay processes killed");
+        } catch (error) {
+          console.log(
+            "⚠️  Could not kill relay processes (may not be running)"
+          );
+        }
+
+        // Delete database and search index
+        try {
+          const fs = await import("fs/promises");
+          const path = await import("path");
+
+          const dbPath = path.join(process.cwd(), "relay/data/events.db");
+          const searchPath = path.join(process.cwd(), "relay/data/search");
+
+          await fs.rm(dbPath, { force: true });
+          await fs.rm(searchPath, { recursive: true, force: true });
+          await fs.mkdir(searchPath, { recursive: true });
+
+          console.log("✅ Database and search index deleted");
+        } catch (error) {
+          console.log("⚠️  Could not delete database files:", error);
+        }
+
+        // Small delay to ensure cleanup is complete
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
       // Run migration in background
-      const migrationProc = Bun.spawn([
-        "bun",
-        "run",
-        "scripts/migrate_legacy.ts",
-        count.toString(),
-        `--relay=${relayUrl}`
-      ], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          APP_PRIVATE_KEY: APP_PRIVATE_KEY || "",
-          RELAY_URL: relayUrl,
-        },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
+      const migrationProc = Bun.spawn(
+        [
+          "bun",
+          "run",
+          "scripts/migrate_legacy.ts",
+          count.toString(),
+          `--relay=${relayUrl}`,
+        ],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            APP_PRIVATE_KEY: APP_PRIVATE_KEY || "",
+            RELAY_URL: relayUrl,
+          },
+          stdout: "pipe",
+          stderr: "pipe",
+        }
+      );
 
       // Stream output back to client
       const stream = new ReadableStream({
@@ -142,7 +212,9 @@ const apiRoutes: Record<string, any> = {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              controller.enqueue(encoder.encode(new TextDecoder().decode(value)));
+              controller.enqueue(
+                encoder.encode(new TextDecoder().decode(value))
+              );
             }
           } catch (error) {
             controller.enqueue(encoder.encode(`\nError: ${error}\n`));
@@ -150,12 +222,16 @@ const apiRoutes: Record<string, any> = {
 
           // Wait for process to complete
           const exitCode = await migrationProc.exited;
-          controller.enqueue(encoder.encode(`\nMigration completed with exit code: ${exitCode}\n`));
+          controller.enqueue(
+            encoder.encode(
+              `\nMigration completed with exit code: ${exitCode}\n`
+            )
+          );
           controller.close();
 
           // Release migration lock
           migrationLock.isRunning = false;
-        }
+        },
       });
 
       return new Response(stream, {
@@ -185,11 +261,17 @@ if (!isProduction) {
       const authHeader = req.headers.get("Authorization");
       const url = new URL(req.url);
 
-      const proto = req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
+      const proto =
+        req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
       const host = req.headers.get("X-Forwarded-Host") || url.host;
       const fullUrl = `${proto}://${host}${url.pathname}`;
 
-      const authEvent = await verifyNIP98Auth(authHeader, fullUrl, "POST", EXPECTED_PUBKEY);
+      const authEvent = await verifyNIP98Auth(
+        authHeader,
+        fullUrl,
+        "POST",
+        EXPECTED_PUBKEY
+      );
 
       return Response.json({
         success: !!authEvent,

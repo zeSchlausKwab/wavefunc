@@ -23,9 +23,11 @@ if (!VPS_HOST) {
 const args = process.argv.slice(2);
 const countArg = args.find((arg) => !arg.startsWith("--"));
 const relayArg = args.find((arg) => arg.startsWith("--relay="));
+const resetFlag = args.find((arg) => arg === "--reset");
 
 const count = countArg ? parseInt(countArg) : 500;
 const relayUrl = relayArg ? relayArg.split("=")[1] : undefined;
+const reset = !!resetFlag;
 
 // Determine API URL (support both http and https)
 const apiUrl = VPS_HOST.startsWith("http")
@@ -36,6 +38,7 @@ console.log("🚀 Triggering remote migration...");
 console.log(`   VPS: ${VPS_HOST}`);
 console.log(`   Count: ${count}`);
 if (relayUrl) console.log(`   Relay: ${relayUrl}`);
+if (reset) console.log(`   Reset: ⚠️  YES - Will reset relay before migration`);
 
 async function triggerMigration() {
   try {
@@ -49,6 +52,7 @@ async function triggerMigration() {
     // Prepare request body
     const body: any = { count };
     if (relayUrl) body.relayUrl = relayUrl;
+    if (reset) body.reset = true;
 
     // Create NIP-98 auth token using nostr-tools
     const token = await getToken(
@@ -56,7 +60,7 @@ async function triggerMigration() {
       "POST",
       (event) => finalizeEvent(event, hexToBytes(APP_PRIVATE_KEY!)),
       true, // Include "Nostr " scheme
-      body  // Include payload hash
+      body // Include payload hash
     );
 
     console.log("\n📡 Sending request to VPS...\n");
@@ -73,7 +77,9 @@ async function triggerMigration() {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Request failed: ${response.status} ${response.statusText}`);
+      console.error(
+        `❌ Request failed: ${response.status} ${response.statusText}`
+      );
       console.error(errorText);
       process.exit(1);
     }
