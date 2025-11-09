@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
-import { useNDK, useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
+import { useNDK } from "@nostr-dev-kit/react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 
 /**
@@ -39,42 +39,67 @@ export function useAppPubkey() {
  * These are favorites lists signed by the app pubkey
  */
 export function useFeaturedLists() {
+  const { ndk } = useNDK();
   const {
     appPubkey,
     isLoading: pubkeyLoading,
     error: pubkeyError,
   } = useAppPubkey();
 
-  // Build filters - use a non-matching filter if no pubkey yet to avoid subscription errors
-  const filters: NDKFilter[] = appPubkey
-    ? [
-        {
-          kinds: [30078], // Favorites list kind
-          authors: [appPubkey],
-          // All favorites lists by the app are featured - no special label needed
-        },
-      ]
-    : [
-        {
+  const [featuredLists, setFeaturedLists] = useState<NDKWFFavorites[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch featured lists when we have an app pubkey
+  useEffect(() => {
+    if (!ndk || !appPubkey || pubkeyLoading) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    async function fetchFeaturedLists() {
+      try {
+        // Safety check - these should be defined because of the guard above
+        if (!ndk || !appPubkey) return;
+
+        // Ensure NDK is connected
+        if (!ndk.pool || ndk.pool.connectedRelays().length === 0) {
+          await ndk.connect();
+        }
+
+        const filter: NDKFilter = {
           kinds: [30078],
-          authors: [
-            "0000000000000000000000000000000000000000000000000000000000000000",
-          ], // Dummy pubkey that won't match
-        },
-      ];
+          authors: [appPubkey],
+        };
 
-  // Subscribe to the featured lists
-  const { events, eose } = useSubscribe(filters);
+        const events = await ndk.fetchEvents(filter);
 
-  // Convert events to NDKWFFavorites objects (only if we have a real pubkey)
-  const featuredLists = appPubkey
-    ? events.map((event) => wrapEvent(event) as NDKWFFavorites)
-    : [];
+        if (!cancelled) {
+          const lists = Array.from(events).map((event) =>
+            NDKWFFavorites.from(event)
+          );
+          setFeaturedLists(lists);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to fetch featured lists:", err);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchFeaturedLists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ndk, appPubkey, pubkeyLoading]);
 
   return {
     featuredLists,
-    isLoading:
-      pubkeyLoading || (!eose && featuredLists.length === 0 && !!appPubkey),
+    isLoading: pubkeyLoading || isLoading,
     error: pubkeyError,
     appPubkey,
   };

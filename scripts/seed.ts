@@ -18,8 +18,9 @@ import {
 import { createUserProfileEvent, generateUserProfileData } from "./gen_user";
 import { faker } from "@faker-js/faker";
 
-// Use hardcoded values for seeding (similar to other seed scripts)
+// Use APP_PRIVATE_KEY from environment (same as the API uses)
 const APP_PRIVATE_KEY =
+  process.env.APP_PRIVATE_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
@@ -197,6 +198,70 @@ async function seedData() {
   }
 
   console.log(`\n✅ Successfully seeded ${favoritesCount} favorites lists!`);
+
+  // Create featured lists signed by the app
+  console.log("\nStarting featured lists seeding (app-signed)...");
+  let featuredCount = 0;
+
+  const appSigner = new NDKPrivateKeySigner(APP_PRIVATE_KEY);
+  await appSigner.blockUntilReady();
+
+  const featuredListsConfig = [
+    {
+      name: "Staff Picks",
+      desc: "Our favorite stations handpicked by the Wavefunc team",
+      banner: "https://picsum.photos/seed/staff/1200/400",
+    },
+    {
+      name: "New & Noteworthy",
+      desc: "Recently added stations worth checking out",
+      banner: "https://picsum.photos/seed/new/1200/400",
+    },
+  ] as const;
+
+  for (const listConfig of featuredListsConfig) {
+    try {
+      // Create featured list
+      const featuredList = NDKWFFavorites.createDefault(
+        ndk as any,
+        listConfig.name,
+        listConfig.desc
+      );
+      featuredList.pubkey = APP_PUBKEY;
+      featuredList.banner = listConfig.banner;
+
+      // Add 6-8 random stations to featured list
+      const numStations = faker.number.int({ min: 6, max: 8 });
+      const selectedStations = faker.helpers.arrayElements(
+        stationAddresses,
+        Math.min(numStations, stationAddresses.length)
+      );
+
+      for (const stationAddress of selectedStations) {
+        featuredList.addStation(stationAddress);
+      }
+
+      // Sign and publish
+      ndk.signer = appSigner;
+      await featuredList.sign();
+      const relays = await featuredList.publish();
+
+      featuredCount++;
+      console.log(
+        `  ✓ Created featured list "${listConfig.name}" with ${selectedStations.length} stations (published to ${relays.size} relays)`
+      );
+
+      // Small delay to ensure relay processing
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error(
+        `  ✗ Failed to create featured list "${listConfig.name}":`,
+        error
+      );
+    }
+  }
+
+  console.log(`\n✅ Successfully seeded ${featuredCount} featured lists!`);
   console.log("Seeding complete!");
   process.exit(0);
 }
