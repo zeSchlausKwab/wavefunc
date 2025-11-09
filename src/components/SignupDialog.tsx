@@ -1,5 +1,5 @@
 import { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -12,13 +12,20 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
-import { Copy, CheckCircle2, AlertTriangle, ChevronDown } from "lucide-react";
+import {
+  Copy,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronDown,
+  QrCode,
+} from "lucide-react";
 import { nip19 } from "nostr-tools";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
+import { Scanner } from "@yudiel/react-qr-scanner";
 
 interface SignupDialogProps {
   open: boolean;
@@ -43,6 +50,8 @@ export function SignupDialog({
   const [importKey, setImportKey] = useState("");
   const [importError, setImportError] = useState("");
   const [isImportCollapsed, setIsImportCollapsed] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   // Generate nsec and npub when dialog opens
   useEffect(() => {
@@ -150,6 +159,36 @@ export function SignupDialog({
       setLoading(false);
     }
   };
+
+  const handleScanQR = () => {
+    setShowScanner(true);
+    setScanError(null);
+  };
+
+  const handleScan = useCallback((detectedCodes: any[]) => {
+    if (detectedCodes && detectedCodes.length > 0) {
+      const result = detectedCodes[0].rawValue;
+      if (result) {
+        // Try to parse the scanned result
+        const parsed = parsePrivateKey(result);
+        if (parsed) {
+          setImportKey(result);
+          setImportError("");
+          setShowScanner(false);
+          setScanError(null);
+        } else {
+          setScanError(
+            "The scanned QR code does not contain a valid private key (nsec or hex format)"
+          );
+        }
+      }
+    }
+  }, []);
+
+  const handleScanError = useCallback((err: any) => {
+    console.error(err);
+    setScanError("Error accessing camera: " + (err.message || "Unknown error"));
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -308,17 +347,30 @@ export function SignupDialog({
                     <Label htmlFor="import-key" className="text-base">
                       Private Key (nsec or hex format)
                     </Label>
-                    <Input
-                      id="import-key"
-                      type="password"
-                      placeholder="nsec1... or hex private key"
-                      value={importKey}
-                      onChange={(e) => handleImportKeyChange(e.target.value)}
-                      className={`w-full h-12 text-base font-mono ${
-                        importError ? "border-destructive" : ""
-                      }`}
-                      autoComplete="off"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="import-key"
+                        type="password"
+                        placeholder="nsec1... or hex private key"
+                        value={importKey}
+                        onChange={(e) => handleImportKeyChange(e.target.value)}
+                        className={`flex-1 h-12 text-base font-mono ${
+                          importError ? "border-destructive" : ""
+                        }`}
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleScanQR}
+                        disabled={loading}
+                        title="Scan QR code"
+                        className="h-12 w-12 flex-shrink-0"
+                      >
+                        <QrCode className="h-5 w-5" />
+                      </Button>
+                    </div>
                     {importError && (
                       <p className="text-xs text-destructive">{importError}</p>
                     )}
@@ -374,6 +426,52 @@ export function SignupDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* QR Scanner Dialog */}
+      <Dialog open={showScanner} onOpenChange={setShowScanner}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scan Private Key QR Code</DialogTitle>
+            <DialogDescription>
+              Scan a QR code containing your private key (nsec or hex format)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {scanError ? (
+              <div className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{scanError}</AlertDescription>
+                </Alert>
+                <Button
+                  variant="outline"
+                  onClick={() => setScanError(null)}
+                  className="w-full"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <div className="relative w-full aspect-square overflow-hidden rounded-lg">
+                <Scanner
+                  onScan={handleScan}
+                  onError={handleScanError}
+                  constraints={{
+                    facingMode: "environment",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowScanner(false)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
