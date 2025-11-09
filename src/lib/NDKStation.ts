@@ -698,6 +698,43 @@ export class NDKStation extends NDKEvent {
 
     return cloned;
   }
+
+  /**
+   * Delete this station by publishing a deletion event (NIP-09)
+   * This publishes a kind 5 event that requests deletion of this station
+   */
+  async deleteStation(): Promise<void> {
+    if (!this.ndk) {
+      throw new Error("NDK instance is required to delete station");
+    }
+
+    if (!this.id) {
+      throw new Error("Cannot delete station without event ID");
+    }
+
+    // Create a deletion event (kind 5)
+    const deletionEvent = new NDKEvent(this.ndk);
+    deletionEvent.kind = 5;
+    deletionEvent.content = "Deleted radio station";
+    deletionEvent.tags = [
+      ["e", this.id], // Reference to the event being deleted
+      ["k", "31237"], // Kind of event being deleted
+    ];
+
+    // If this is a parameterized replaceable event, also include the coordinate
+    if (this.stationId) {
+      deletionEvent.tags.push(["a", `31237:${this.pubkey}:${this.stationId}`]);
+    }
+
+    // Sign and publish deletion event
+    await deletionEvent.sign();
+    await deletionEvent.publish();
+
+    // Clear from cache
+    if (this.ndk.cacheAdapter?.deleteEventIds) {
+      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+    }
+  }
 }
 
 export default NDKStation;

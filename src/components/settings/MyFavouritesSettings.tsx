@@ -63,8 +63,9 @@ export function MyFavouritesSettings() {
     if (!list) return;
 
     try {
-      await list.clearStationsAndPublish();
-      console.log("List cleared successfully");
+      // Delete the list (publishes kind 5 deletion event)
+      await list.deleteList();
+      console.log("List deleted successfully");
     } catch (error) {
       console.error("Failed to delete list:", error);
       alert("Failed to delete the list. Please try again.");

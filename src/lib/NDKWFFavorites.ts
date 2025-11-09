@@ -562,6 +562,46 @@ export class NDKWFFavorites extends NDKReplaceableEvent {
       createdAt: new Date(this.created_at! * 1000),
     };
   }
+
+  /**
+   * Delete this favorites list by publishing a deletion event (NIP-09)
+   * This publishes a kind 5 event that requests deletion of this list
+   */
+  async deleteList(): Promise<void> {
+    if (!this.ndk) {
+      throw new Error("NDK instance is required to delete favorites list");
+    }
+
+    if (!this.id) {
+      throw new Error("Cannot delete favorites list without event ID");
+    }
+
+    // Create a deletion event (kind 5)
+    const deletionEvent = new NDKEvent(this.ndk);
+    deletionEvent.kind = 5;
+    deletionEvent.content = "Deleted favorites list";
+    deletionEvent.tags = [
+      ["e", this.id], // Reference to the event being deleted
+      ["k", "30078"], // Kind of event being deleted
+    ];
+
+    // If this is a parameterized replaceable event, also include the coordinate
+    if (this.favoritesId) {
+      deletionEvent.tags.push([
+        "a",
+        `30078:${this.pubkey}:${this.favoritesId}`,
+      ]);
+    }
+
+    // Sign and publish deletion event
+    await deletionEvent.sign();
+    await deletionEvent.publish();
+
+    // Clear from cache
+    if (this.ndk.cacheAdapter?.deleteEventIds) {
+      await this.ndk.cacheAdapter.deleteEventIds([this.id]);
+    }
+  }
 }
 
 export default NDKWFFavorites;

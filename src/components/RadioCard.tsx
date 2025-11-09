@@ -1,5 +1,13 @@
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
-import { Edit3, MoreVertical, Pause, Play, Radio, ExternalLink } from "lucide-react";
+import {
+  Edit3,
+  MoreVertical,
+  Pause,
+  Play,
+  Radio,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
@@ -21,7 +29,10 @@ interface RadioCardProps {
   className?: string;
 }
 
-export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ station, className }) => {
+export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({
+  station,
+  className,
+}) => {
   const { currentStation, currentStream, isPlaying, playStation, pause } =
     usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
@@ -51,12 +62,12 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
   // Generate unique, deterministic color based on station ID (d tag)
   const backgroundColor = station.stationId
     ? getDeterministicColor(station.stationId, 85)
-    : 'hsl(0, 0%, 85%)'; // Fallback to gray if no stationId
+    : "hsl(0, 0%, 85%)"; // Fallback to gray if no stationId
 
   // Darker version for border underscore
   const underscoreColor = station.stationId
     ? getDeterministicColor(station.stationId, 50)
-    : 'hsl(0, 0%, 50%)';
+    : "hsl(0, 0%, 50%)";
 
   const handlePlayClick = () => {
     if (isCurrentlyPlaying) {
@@ -84,6 +95,25 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
     if (station.pubkey && station.stationId) {
       // removeFavorite removes from all lists for now
       await removeFavorite(station);
+    }
+  };
+
+  const handleDeleteStation = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to delete "${station.name}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await station.deleteStation();
+      setShowActionMenu(false);
+      console.log("Station deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete station:", error);
+      alert("Failed to delete the station. Please try again.");
     }
   };
 
@@ -119,12 +149,23 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                       station={station}
                       mode="edit"
                       trigger={
-                        <Button>
-                          <Edit3 className="w-4 h-4" />
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start px-4 py-2 text-sm"
+                        >
+                          <Edit3 className="w-4 h-4 mr-2" />
                           Edit Station
                         </Button>
                       }
                     />
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start px-4 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={handleDeleteStation}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Station
+                    </Button>
                   </div>
                 </div>
               )}
@@ -208,7 +249,10 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
 
         <div className="flex flex-col min-w-0 p-2 flex-1">
           {/* Station Name with External Link */}
-          <div className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4" style={{ borderColor: underscoreColor }}>
+          <div
+            className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4"
+            style={{ borderColor: underscoreColor }}
+          >
             <h3
               className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
               onClick={() => setShowDetailSheet(true)}
@@ -252,7 +296,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                 {station.genres.length > 2 && (
                   <Badge
                     className="cursor-default"
-                    title={station.genres.slice(2).join(', ')}
+                    title={station.genres.slice(2).join(", ")}
                   >
                     +{station.genres.length - 2}
                   </Badge>
@@ -270,7 +314,10 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                 : station.languages[0]}
             </div>
 
-            <SocialActions station={station} onCommentClick={handleCommentClick} />
+            <SocialActions
+              station={station}
+              onCommentClick={handleCommentClick}
+            />
           </div>
         </div>
       </div>
@@ -341,7 +388,10 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
         {/* Center: Station Info */}
         <div className="flex flex-col justify-between min-w-0 p-1 w-full">
           {/* Station Name with External Link */}
-          <div className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4" style={{ borderColor: underscoreColor }}>
+          <div
+            className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4"
+            style={{ borderColor: underscoreColor }}
+          >
             <h3
               className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
               onClick={() => setShowDetailSheet(true)}
@@ -381,7 +431,7 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
               {station.genres.length > 2 && (
                 <Badge
                   className="cursor-default"
-                  title={station.genres.slice(2).join(', ')}
+                  title={station.genres.slice(2).join(", ")}
                 >
                   +{station.genres.length - 2}
                 </Badge>
@@ -398,7 +448,10 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                 : station.languages[0]}
             </div>
 
-            <SocialActions station={station} onCommentClick={handleCommentClick} />
+            <SocialActions
+              station={station}
+              onCommentClick={handleCommentClick}
+            />
           </div>
         </div>
 
@@ -431,12 +484,23 @@ export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({ s
                       station={station}
                       mode="edit"
                       trigger={
-                        <Button>
-                          <Edit3 className="w-4 h-4" />
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start px-4 py-2 text-sm"
+                        >
+                          <Edit3 className="w-4 h-4 mr-2" />
                           Edit Station
                         </Button>
                       }
                     />
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start px-4 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={handleDeleteStation}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Station
+                    </Button>
                   </div>
                 </div>
               )}

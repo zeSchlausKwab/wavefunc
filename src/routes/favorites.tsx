@@ -29,7 +29,11 @@ function Favorites() {
   const favoriteCount = getFavoriteCount();
   const isLoading = favoritesLoading;
 
-  const handleCreateList = async (name: string, description: string, banner?: string) => {
+  const handleCreateList = async (
+    name: string,
+    description: string,
+    banner?: string
+  ) => {
     const newList = await createFavoritesList(name, description);
     if (newList && banner) {
       // Set the banner after creation
@@ -41,21 +45,21 @@ function Favorites() {
   };
 
   const handleDeleteList = async (listId: string) => {
-    if (!confirm("Are you sure you want to delete this favorites list? This action cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this favorites list? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
     const list = favoritesLists.find((l) => l.favoritesId === listId);
     if (!list) return;
 
-    // Delete the list by publishing a deletion event (kind 5)
     try {
-      // Clear all stations first
-      await list.clearStationsAndPublish();
-
-      // Note: In Nostr, we typically delete by publishing a kind 5 deletion event
-      // For now, we'll just clear the list. Full deletion would require implementing NIP-09
-      console.log("List cleared successfully");
+      // Delete the list (publishes kind 5 deletion event per NIP-09)
+      await list.deleteList();
+      console.log("List deleted successfully");
     } catch (error) {
       console.error("Failed to delete list:", error);
       alert("Failed to delete the list. Please try again.");
@@ -143,11 +147,7 @@ function Favorites() {
               </Button>
             )}
             {favoriteCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFavorites}
-              >
+              <Button variant="outline" size="sm" onClick={clearFavorites}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 {!isMobile && "Clear All"}
               </Button>
