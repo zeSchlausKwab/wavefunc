@@ -2,11 +2,6 @@
 
 ## Current Tasks
 
-- [ ] Create a clean way to have featured lists of stations presented on the root page
-
-  - Should fit with the current UI of having stations listed at the beginning
-  - Consider multiple featured categories (trending, new, editor's picks, etc.)
-
 - [ ] Build a ContextVM tool for station migration with NIP-05 verification
 
   - Check if pubkeys can verify ownership of websites listed in existing radio stations
@@ -32,7 +27,16 @@
 
 ## Completed
 
-<!-- Move completed tasks here -->
+- [x] Create a clean way to have featured lists of stations presented on the root page
+  - Featured lists are now displayed on the landing page above all stations
+  - Simple approach: ANY favorites list created by the app pubkey is automatically featured
+  - To create featured lists:
+    1. Log in through the UI using the app's private key (NIP-46 or import)
+    2. Navigate to the Favorites page
+    3. Create new favorites lists and add stations
+    4. That's it! They automatically appear on the landing page
+  - Frontend queries all favorites lists from the app pubkey
+  - Uses the existing FavoriteListCard component for consistent UI
 
 ---
 

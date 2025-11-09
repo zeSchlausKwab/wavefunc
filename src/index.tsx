@@ -242,6 +242,14 @@ const apiRoutes: Record<string, any> = {
       });
     },
   },
+
+  "/api/app-pubkey": {
+    async GET() {
+      return Response.json({
+        pubkey: EXPECTED_PUBKEY || null,
+      });
+    },
+  },
 };
 
 // Add debug endpoints in development only
