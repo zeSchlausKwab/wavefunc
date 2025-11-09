@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
-import { useNDK } from "@nostr-dev-kit/react";
+import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 
 /**
@@ -39,69 +39,51 @@ export function useAppPubkey() {
  * These are favorites lists signed by the app pubkey
  */
 export function useFeaturedLists() {
-  const { ndk } = useNDK();
   const {
     appPubkey,
     isLoading: pubkeyLoading,
     error: pubkeyError,
   } = useAppPubkey();
 
-  const [featuredLists, setFeaturedLists] = useState<NDKWFFavorites[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Fetch featured lists when we have an app pubkey
-  useEffect(() => {
-    if (!ndk || !appPubkey || pubkeyLoading) {
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-
-    async function fetchFeaturedLists() {
-      try {
-        // Safety check - these should be defined because of the guard above
-        if (!ndk || !appPubkey) return;
-
-        // Ensure NDK is connected
-        if (!ndk.pool || ndk.pool.connectedRelays().length === 0) {
-          await ndk.connect();
-        }
-
-        const filter: NDKFilter = {
+  // Build filter once we have the app pubkey - provide a dummy filter when empty
+  const filters: NDKFilter[] = useMemo(() => {
+    if (!appPubkey) {
+      // Return a filter that will never match anything (valid hex but non-existent pubkey)
+      return [
+        {
           kinds: [30078],
-          authors: [appPubkey],
-          "#l": ["wavefunc_user_favourite_list"],
-        };
-
-        const events = await ndk.fetchEvents(filter);
-
-        if (!cancelled) {
-          const lists = Array.from(events).map((event) =>
-            NDKWFFavorites.from(event)
-          );
-          setFeaturedLists(lists);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error("Failed to fetch featured lists:", err);
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+          authors: [
+            "0000000000000000000000000000000000000000000000000000000000000000",
+          ],
+        },
+      ];
     }
 
-    fetchFeaturedLists();
+    return [
+      {
+        kinds: [30078],
+        authors: [appPubkey],
+        "#l": ["wavefunc_user_favourite_list"],
+      },
+    ];
+  }, [appPubkey]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [ndk, appPubkey, pubkeyLoading]);
+  // Subscribe to events using the standard pattern
+  const { events, eose } = useSubscribe(filters, { closeOnEose: false }, [
+    appPubkey,
+  ]);
+
+  // Map events to NDKWFFavorites - only when we have the actual pubkey
+  const featuredLists = useMemo(() => {
+    if (!appPubkey) return [];
+    return events.map((event) => wrapEvent(event) as NDKWFFavorites);
+  }, [events, appPubkey]);
 
   return {
     featuredLists,
-    isLoading: pubkeyLoading || isLoading,
+    isLoading: pubkeyLoading,
     error: pubkeyError,
     appPubkey,
+    eose,
   };
 }

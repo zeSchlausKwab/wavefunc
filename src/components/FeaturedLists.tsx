@@ -9,7 +9,8 @@ import { useEffect } from "react";
  * These lists are displayed on the landing page.
  */
 export function FeaturedLists() {
-  const { featuredLists, isLoading, error, appPubkey } = useFeaturedLists();
+  const { featuredLists, isLoading, error, appPubkey, eose } =
+    useFeaturedLists();
 
   // Log events when they change
   useEffect(() => {
@@ -27,6 +28,9 @@ export function FeaturedLists() {
     return null;
   }
 
+  // Consider loading until we have both pubkey loaded AND end-of-stream
+  const stillLoading = isLoading || !eose;
+
   return (
     <div className="space-y-6 mb-12">
       {/* Section Header */}
@@ -36,7 +40,7 @@ export function FeaturedLists() {
       </div>
 
       {/* Loading State */}
-      {isLoading && (
+      {stillLoading && (
         <div className="text-center text-muted-foreground py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
           <p>Loading featured collections...</p>
@@ -44,7 +48,7 @@ export function FeaturedLists() {
       )}
 
       {/* Error State */}
-      {error && !isLoading && (
+      {error && !stillLoading && (
         <div className="text-center text-red-600 py-8">
           <p className="text-lg mb-2">Failed to load featured collections</p>
           <p className="text-sm">{error}</p>
@@ -52,7 +56,7 @@ export function FeaturedLists() {
       )}
 
       {/* Featured Lists */}
-      {!isLoading && !error && featuredLists.length > 0 && (
+      {!stillLoading && !error && featuredLists.length > 0 && (
         <div className="space-y-8">
           {featuredLists.map((list) => (
             <FavoriteListCard
@@ -66,7 +70,7 @@ export function FeaturedLists() {
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && featuredLists.length === 0 && (
+      {!stillLoading && !error && featuredLists.length === 0 && (
         <div className="text-center text-muted-foreground py-8">
           <p className="text-lg">No featured collections available yet</p>
         </div>
