@@ -71,6 +71,7 @@ export function useFeaturedLists() {
         const filter: NDKFilter = {
           kinds: [30078],
           authors: [appPubkey],
+          "#l": ["wavefunc_user_favourite_list"],
         };
 
         const events = await ndk.fetchEvents(filter);
