@@ -1,6 +1,7 @@
 import { useFeaturedLists } from "../lib/hooks/useFeaturedLists";
 import { FavoriteListCard } from "./FavoriteListCard";
 import { Sparkles } from "lucide-react";
+import { useEffect } from "react";
 
 /**
  * FeaturedLists component displays curated lists of stations
@@ -10,17 +11,19 @@ import { Sparkles } from "lucide-react";
 export function FeaturedLists() {
   const { featuredLists, isLoading, error, appPubkey } = useFeaturedLists();
 
-  // Silently don't render if:
-  // - There's an error
-  // - No app pubkey is configured
-  // - Still loading
-  // - No featured lists exist
-  if (error) {
-    console.error("Error loading featured lists:", error);
-    return null;
-  }
+  // Log events when they change
+  useEffect(() => {
+    if (featuredLists.length > 0) {
+      console.log(
+        `[FeaturedLists] Found ${featuredLists.length} featured list(s):`,
+        featuredLists
+      );
+    }
+  }, [featuredLists]);
 
-  if (!appPubkey || isLoading || featuredLists.length === 0) {
+  // Don't render if there's no app pubkey configured
+  if (!appPubkey && !isLoading) {
+    console.warn("[FeaturedLists] No app pubkey configured");
     return null;
   }
 
@@ -32,17 +35,42 @@ export function FeaturedLists() {
         <h2 className="text-2xl font-bold">Featured Collections</h2>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center text-muted-foreground py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+          <p>Loading featured collections...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <div className="text-center text-red-600 py-8">
+          <p className="text-lg mb-2">Failed to load featured collections</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
       {/* Featured Lists */}
-      <div className="space-y-8">
-        {featuredLists.map((list) => (
-          <FavoriteListCard
-            key={list.favoritesId}
-            list={list}
-            isOwner={false} // Featured lists are owned by app, not the current user
-            onDeleteList={undefined} // No delete action for featured lists
-          />
-        ))}
-      </div>
+      {!isLoading && !error && featuredLists.length > 0 && (
+        <div className="space-y-8">
+          {featuredLists.map((list) => (
+            <FavoriteListCard
+              key={list.favoritesId}
+              list={list}
+              isOwner={false} // Featured lists are owned by app, not the current user
+              onDeleteList={undefined} // No delete action for featured lists
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && featuredLists.length === 0 && (
+        <div className="text-center text-muted-foreground py-8">
+          <p className="text-lg">No featured collections available yet</p>
+        </div>
+      )}
 
       {/* Separator */}
       <div className="border-t border-gray-200 my-12"></div>

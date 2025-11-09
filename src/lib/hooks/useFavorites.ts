@@ -42,10 +42,10 @@ export function useFavorites() {
       const filter: NDKFilter = {
         kinds: [30078],
         authors: [currentUser.pubkey],
-        "#l": ["user_favourite_list"],
+        "#l": ["wavefunc_user_favourite_list"],
       };
 
-      const events = await ndk.fetchEvents(filter, { groupable: false});
+      const events = await ndk.fetchEvents(filter, { groupable: false });
       const favoritesEvents = Array.from(events).map((event) =>
         NDKWFFavorites.from(event)
       );
@@ -91,7 +91,7 @@ export function useFavorites() {
     const filter: NDKFilter = {
       kinds: [30078],
       authors: [currentUser.pubkey],
-      "#l": ["user_favourite_list"],
+      "#l": ["wavefunc_user_favourite_list"],
     };
 
     const sub = ndk.subscribe(filter, { closeOnEose: false });
@@ -323,7 +323,7 @@ export function useFavoritesLists(
   const filters = additionalFilters.map((filter) => ({
     ...filter,
     kinds: NDKWFFavorites.kinds,
-    "#l": ["user_favourite_list"], // Only user favorites, not featured lists
+    "#l": ["wavefunc_user_favourite_list"], // Only user favorites, not featured lists
   }));
 
   const { events, eose } = useSubscribe(filters);

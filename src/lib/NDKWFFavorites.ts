@@ -33,7 +33,7 @@ export class NDKWFFavorites extends NDKReplaceableEvent {
 
     // Set default label for user favorites if not set
     if (!this.tagValue("l")) {
-      this.tags.push(["l", "user_favourite_list"]);
+      this.tags.push(["l", "wavefunc_user_favourite_list"]);
     }
   }
 

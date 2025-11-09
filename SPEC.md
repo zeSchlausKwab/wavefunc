@@ -178,7 +178,7 @@ Favorite stations are stored using 'a' tags with the following format:
   "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
   "tags": [
     ["d", "<random-uuid>"],
-    ["l", "user_favourite_list"],
+    ["l", "wavefunc_user_favourite_list"],
     ["name", "My Favorite Stations"],
     ["description", "Stations I listen to every day"],
     ["p", "<app's pubkey>"],
