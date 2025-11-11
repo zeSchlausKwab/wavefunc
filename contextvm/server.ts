@@ -266,6 +266,10 @@ async function main() {
     isPublicServer: true, // Announce this server on the Nostr network
     serverInfo: {
       name: "WaveFunc Metadata Server",
+      website: "https://wavefunc.live",
+      about:
+        "Tools that are useful for internet radio stations, to help with metadata extraction and MusicBrainz lookups.",
+      picture: "https://wavefunc.live/images/logo.png",
     },
   });
 
