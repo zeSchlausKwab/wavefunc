@@ -1,6 +1,19 @@
 import { z } from "zod";
 
 // ============================================================================
+// Raw Metadata Interfaces (for enrichment input)
+// ============================================================================
+
+export const rawMetadataSchema = z.object({
+  artist: z.string().optional(),
+  title: z.string().optional(),
+  song: z.string().optional(),
+  raw: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type RawMetadata = z.infer<typeof rawMetadataSchema>;
+
+// ============================================================================
 // Stream Metadata Interfaces
 // ============================================================================
 
@@ -14,6 +27,8 @@ export const streamMetadataEnrichedSchema = z.object({
   confidence: z.enum(["high", "medium", "low", "none"]),
   source: z.enum(["musicbrainz", "raw", "none"]),
 });
+
+export type EnrichedMetadata = z.infer<typeof streamMetadataEnrichedSchema>;
 
 export const streamMetadataSchema = z.object({
   title: z.string().optional(),

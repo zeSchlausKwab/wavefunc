@@ -4,34 +4,7 @@
 import { parseIcyResponse } from "@music-metadata/icy";
 import { probeStream } from "./probe.ts";
 import { enrichMetadata } from "./metadata-enrichment.ts";
-
-export interface StreamMetadata {
-  title?: string;
-  artist?: string;
-  song?: string;
-  station?: string;
-  genre?: string;
-  bitrate?: string;
-  description?: string;
-  listeners?: number;
-  method?: string; // How the metadata was extracted
-  url?: string; // Source URL (aligned with NowPlaying)
-  source?: 'ICY' | 'HLS-ID3' | 'PLAYLIST' | 'JSON' | 'HEADERS' | 'STREAM' | 'UNKNOWN'; // Source type (aligned with NowPlaying)
-  raw?: Record<string, unknown>; // Raw metadata (aligned with NowPlaying)
-  notes?: string; // Additional notes (aligned with NowPlaying)
-
-  // Enriched metadata from MusicBrainz
-  enriched?: {
-    artist: string;
-    title: string;
-    album?: string;
-    releaseDate?: string;
-    duration?: number;
-    mbid?: string;
-    confidence: "high" | "medium" | "low" | "none";
-    source: "musicbrainz" | "raw" | "none";
-  };
-}
+import type { StreamMetadata } from "../schemas.ts";
 
 /**
  * Extract metadata from Icecast/Shoutcast stream

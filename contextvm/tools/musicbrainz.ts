@@ -1,66 +1,12 @@
 // MusicBrainz API Tool
 // Searches MusicBrainz for detailed track information
 
-export interface MusicBrainzArtist {
-  id: string;
-  type: "artist";
-  name: string;
-  sortName: string;
-  country?: string;
-  beginDate?: string;
-  endDate?: string;
-  type_?: string;
-  disambiguation?: string;
-  score: number;
-  tags?: string[];
-}
-
-export interface MusicBrainzRelease {
-  id: string;
-  type: "release";
-  title: string;
-  artist: string;
-  artistId?: string;
-  date?: string;
-  country?: string;
-  trackCount?: number;
-  status?: string;
-  barcode?: string;
-  score: number;
-  tags?: string[];
-}
-
-export interface MusicBrainzRecording {
-  id: string;
-  type: "recording";
-  title: string;
-  artist: string;
-  artistId?: string;
-  release?: string;
-  releaseDate?: string;
-  duration?: number; // in milliseconds
-  score: number;
-  tags?: string[];
-}
-
-export interface MusicBrainzLabel {
-  id: string;
-  type: "label";
-  name: string;
-  sortName: string;
-  country?: string;
-  type_?: string; // imprint, production, etc.
-  labelCode?: string;
-  disambiguation?: string;
-  score: number;
-  tags?: string[];
-}
-
-export type MusicBrainzResult =
-  | MusicBrainzArtist
-  | MusicBrainzRelease
-  | MusicBrainzRecording
-  | MusicBrainzLabel;
+import type {
+  MusicBrainzArtist,
+  MusicBrainzRelease,
+  MusicBrainzRecording,
+  MusicBrainzLabel,
+} from "../schemas.ts";
 
 const MUSICBRAINZ_API = "https://musicbrainz.org/ws/2";
 const USER_AGENT = "WaveFunc/1.0 (https://github.com/wavefunc)";

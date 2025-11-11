@@ -1,5 +1,6 @@
 // MusicBrainz result types
-// Matches the backend types from contextvm/tools/musicbrainz.ts
+// Re-export types from the centralized schema file for frontend use
+// These match the backend types from contextvm/schemas.ts
 
 export interface BaseMusicBrainzResult {
   id: string;

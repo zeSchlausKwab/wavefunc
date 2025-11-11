@@ -1,22 +1,5 @@
 import { searchRecordings } from "./musicbrainz.ts";
-
-export interface RawMetadata {
-  artist?: string;
-  title?: string;
-  song?: string;
-  raw?: Record<string, unknown>;
-}
-
-export interface EnrichedMetadata {
-  artist: string;
-  title: string;
-  album?: string;
-  releaseDate?: string;
-  duration?: number;
-  mbid?: string; // MusicBrainz Recording ID
-  confidence: "high" | "medium" | "low" | "none";
-  source: "musicbrainz" | "raw" | "none";
-}
+import type { RawMetadata, EnrichedMetadata } from "../schemas.ts";
 
 /**
  * Enrich raw stream metadata using MusicBrainz
