@@ -69,6 +69,33 @@ export async function initMetadataClient(): Promise<Client> {
 }
 
 /**
+ * Helper function to extract result from MCP response
+ * Handles both structured content (MCP 2025-06-18) and text content
+ */
+function extractResult(result: any, defaultValue: any = null): any {
+  // Check for structured content first (MCP 2025-06-18 spec)
+  if (result.structuredContent?.result !== undefined) {
+    return result.structuredContent.result;
+  }
+
+  // Fall back to text content
+  if (
+    result.content &&
+    Array.isArray(result.content) &&
+    result.content.length > 0
+  ) {
+    const content = result.content[0];
+    if (content?.text) {
+      const parsed = JSON.parse(content.text);
+      // Handle new structured format with result property
+      return parsed.result !== undefined ? parsed.result : parsed;
+    }
+  }
+
+  return defaultValue;
+}
+
+/**
  * Extract metadata from a stream URL with timeout
  */
 export async function extractStreamMetadata(
@@ -93,18 +120,8 @@ export async function extractStreamMetadata(
 
     const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
-    if (
-      result.content &&
-      Array.isArray(result.content) &&
-      result.content.length > 0
-    ) {
-      const content = result.content[0];
-      if (content?.text) {
-        return JSON.parse(content.text);
-      }
-    }
-
-    return { error: "No metadata returned" };
+    const data = extractResult(result, { error: "No metadata returned" });
+    return data;
   } catch (error: any) {
     // Reset client on certain errors to force reconnection
     if (
@@ -193,18 +210,7 @@ export async function searchArtists(
 
     const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
-    if (
-      result.content &&
-      Array.isArray(result.content) &&
-      result.content.length > 0
-    ) {
-      const content = result.content[0];
-      if (content?.text) {
-        return JSON.parse(content.text);
-      }
-    }
-
-    return [];
+    return extractResult(result, []);
   } catch (error: any) {
     if (
       error.message?.includes("timeout") ||
@@ -242,18 +248,7 @@ export async function searchReleases(
 
     const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
-    if (
-      result.content &&
-      Array.isArray(result.content) &&
-      result.content.length > 0
-    ) {
-      const content = result.content[0];
-      if (content?.text) {
-        return JSON.parse(content.text);
-      }
-    }
-
-    return [];
+    return extractResult(result, []);
   } catch (error: any) {
     if (
       error.message?.includes("timeout") ||
@@ -291,18 +286,7 @@ export async function searchRecordings(
 
     const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
-    if (
-      result.content &&
-      Array.isArray(result.content) &&
-      result.content.length > 0
-    ) {
-      const content = result.content[0];
-      if (content?.text) {
-        return JSON.parse(content.text);
-      }
-    }
-
-    return [];
+    return extractResult(result, []);
   } catch (error: any) {
     if (
       error.message?.includes("timeout") ||
@@ -339,18 +323,7 @@ export async function searchLabels(
 
     const result = (await Promise.race([callPromise, timeoutPromise])) as any;
 
-    if (
-      result.content &&
-      Array.isArray(result.content) &&
-      result.content.length > 0
-    ) {
-      const content = result.content[0];
-      if (content?.text) {
-        return JSON.parse(content.text);
-      }
-    }
-
-    return [];
+    return extractResult(result, []);
   } catch (error: any) {
     if (
       error.message?.includes("timeout") ||

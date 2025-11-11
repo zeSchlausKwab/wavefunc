@@ -11,11 +11,16 @@ import {
   searchLabels,
 } from "./tools/musicbrainz.ts";
 import {
-  extractStreamMetadataSchema,
-  searchArtistsSchema,
-  searchReleasesSchema,
-  searchRecordingsSchema,
-  searchLabelsSchema,
+  extractStreamMetadataInputSchema,
+  extractStreamMetadataOutputSchema,
+  searchArtistsInputSchema,
+  searchArtistsOutputSchema,
+  searchReleasesInputSchema,
+  searchReleasesOutputSchema,
+  searchRecordingsInputSchema,
+  searchRecordingsOutputSchema,
+  searchLabelsInputSchema,
+  searchLabelsOutputSchema,
 } from "./schemas.ts";
 
 // Configuration
@@ -51,7 +56,8 @@ async function main() {
       title: "Extract Stream Metadata",
       description:
         "Extracts 'now playing' metadata from Icecast/Shoutcast radio streams",
-      inputSchema: extractStreamMetadataSchema,
+      inputSchema: extractStreamMetadataInputSchema,
+      outputSchema: extractStreamMetadataOutputSchema,
     },
     async ({ url }) => {
       try {
@@ -60,13 +66,15 @@ async function main() {
 
         console.log(`✅ Extracted metadata:`, metadata);
 
+        const output = { result: metadata };
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(metadata, null, 2),
+              text: JSON.stringify(output, null, 2),
             },
           ],
+          structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Failed to extract metadata: ${error.message}`);
@@ -90,20 +98,23 @@ async function main() {
       title: "Search MusicBrainz Artists",
       description:
         "Search for artists on MusicBrainz by name. Returns artist details including country, dates, disambiguation, and tags.",
-      inputSchema: searchArtistsSchema,
+      inputSchema: searchArtistsInputSchema,
+      outputSchema: searchArtistsOutputSchema,
     },
     async ({ query, limit }) => {
       try {
         console.log(`🔍 Searching MusicBrainz artists: ${query}`);
         const results = await searchArtists(query, limit);
 
+        const output = { result: results };
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(output, null, 2),
             },
           ],
+          structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Artist search failed: ${error.message}`);
@@ -127,7 +138,8 @@ async function main() {
       title: "Search MusicBrainz Releases",
       description:
         "Search for releases (albums) on MusicBrainz. Returns release details including artist, date, country, track count, and tags.",
-      inputSchema: searchReleasesSchema,
+      inputSchema: searchReleasesInputSchema,
+      outputSchema: searchReleasesOutputSchema,
     },
     async ({ query, artist, limit }) => {
       try {
@@ -138,13 +150,15 @@ async function main() {
         );
         const results = await searchReleases(query, limit, artist);
 
+        const output = { result: results };
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(output, null, 2),
             },
           ],
+          structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Release search failed: ${error.message}`);
@@ -168,7 +182,8 @@ async function main() {
       title: "Search MusicBrainz Recordings",
       description:
         "Search for recordings (songs/tracks) on MusicBrainz. Returns recording details including artist, release, duration, and tags.",
-      inputSchema: searchRecordingsSchema,
+      inputSchema: searchRecordingsInputSchema,
+      outputSchema: searchRecordingsOutputSchema,
     },
     async ({ query, artist, limit }) => {
       try {
@@ -179,13 +194,15 @@ async function main() {
         );
         const results = await searchRecordings(query, artist, limit);
 
+        const output = { result: results };
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(output, null, 2),
             },
           ],
+          structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Recording search failed: ${error.message}`);
@@ -209,20 +226,23 @@ async function main() {
       title: "Search MusicBrainz Labels",
       description:
         "Search for record labels on MusicBrainz. Returns label details including country, label code, type, and tags.",
-      inputSchema: searchLabelsSchema,
+      inputSchema: searchLabelsInputSchema,
+      outputSchema: searchLabelsOutputSchema,
     },
     async ({ query, limit }) => {
       try {
         console.log(`🔍 Searching MusicBrainz labels: ${query}`);
         const results = await searchLabels(query, limit);
 
+        const output = { result: results };
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(output, null, 2),
             },
           ],
+          structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Label search failed: ${error.message}`);
