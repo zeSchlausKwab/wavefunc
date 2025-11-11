@@ -3,7 +3,6 @@ import { NostrServerTransport } from "@contextvm/sdk";
 import { PrivateKeySigner } from "@contextvm/sdk";
 import { SimpleRelayPool } from "@contextvm/sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { extractIcecastMetadata } from "./tools/stream-metadata.ts";
 import {
   searchArtists,
@@ -11,6 +10,13 @@ import {
   searchRecordings,
   searchLabels,
 } from "./tools/musicbrainz.ts";
+import {
+  extractStreamMetadataSchema,
+  searchArtistsSchema,
+  searchReleasesSchema,
+  searchRecordingsSchema,
+  searchLabelsSchema,
+} from "./schemas.ts";
 
 // Configuration
 const SERVER_PRIVATE_KEY =
@@ -18,7 +24,7 @@ const SERVER_PRIVATE_KEY =
   "0000000000000000000000000000000000000000000000000000000000000001"; // Dev key
 const RELAYS = [
   process.env.RELAY_URL || "ws://localhost:3334",
-  "wss://relay.contextvm.org/",
+  // "wss://relay.contextvm.org/",
 ];
 
 async function main() {
@@ -45,7 +51,7 @@ async function main() {
       title: "Extract Stream Metadata",
       description:
         "Extracts 'now playing' metadata from Icecast/Shoutcast radio streams",
-      inputSchema: { url: z.string() },
+      inputSchema: extractStreamMetadataSchema,
     },
     async ({ url }) => {
       try {
@@ -84,13 +90,7 @@ async function main() {
       title: "Search MusicBrainz Artists",
       description:
         "Search for artists on MusicBrainz by name. Returns artist details including country, dates, disambiguation, and tags.",
-      inputSchema: {
-        query: z.string().describe("Artist name to search for"),
-        limit: z
-          .number()
-          .optional()
-          .describe("Maximum number of results (default: 10)"),
-      },
+      inputSchema: searchArtistsSchema,
     },
     async ({ query, limit }) => {
       try {
@@ -127,14 +127,7 @@ async function main() {
       title: "Search MusicBrainz Releases",
       description:
         "Search for releases (albums) on MusicBrainz. Returns release details including artist, date, country, track count, and tags.",
-      inputSchema: {
-        query: z.string().describe("Release/album title to search for"),
-        artist: z.string().optional().describe("Filter by artist name"),
-        limit: z
-          .number()
-          .optional()
-          .describe("Maximum number of results (default: 10)"),
-      },
+      inputSchema: searchReleasesSchema,
     },
     async ({ query, artist, limit }) => {
       try {
@@ -175,14 +168,7 @@ async function main() {
       title: "Search MusicBrainz Recordings",
       description:
         "Search for recordings (songs/tracks) on MusicBrainz. Returns recording details including artist, release, duration, and tags.",
-      inputSchema: {
-        query: z.string().describe("Recording/track title to search for"),
-        artist: z.string().optional().describe("Filter by artist name"),
-        limit: z
-          .number()
-          .optional()
-          .describe("Maximum number of results (default: 10)"),
-      },
+      inputSchema: searchRecordingsSchema,
     },
     async ({ query, artist, limit }) => {
       try {
@@ -223,13 +209,7 @@ async function main() {
       title: "Search MusicBrainz Labels",
       description:
         "Search for record labels on MusicBrainz. Returns label details including country, label code, type, and tags.",
-      inputSchema: {
-        query: z.string().describe("Label name to search for"),
-        limit: z
-          .number()
-          .optional()
-          .describe("Maximum number of results (default: 10)"),
-      },
+      inputSchema: searchLabelsSchema,
     },
     async ({ query, limit }) => {
       try {
