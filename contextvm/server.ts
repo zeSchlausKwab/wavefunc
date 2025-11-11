@@ -16,7 +16,10 @@ import {
 const SERVER_PRIVATE_KEY =
   process.env.METADATA_SERVER_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001"; // Dev key
-const RELAYS = [process.env.RELAY_URL || "ws://localhost:3334"];
+const RELAYS = [
+  process.env.RELAY_URL || "ws://localhost:3334",
+  "wss://relay.contextvm.org/",
+];
 
 async function main() {
   console.log("🎵 Starting ContextVM Metadata Server...\n");
