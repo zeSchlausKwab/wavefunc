@@ -9,10 +9,8 @@ import { useEffect } from "react";
  * These lists are displayed on the landing page.
  */
 export function FeaturedLists() {
-  const { featuredLists, isLoading, error, appPubkey, eose } =
-    useFeaturedLists();
+  const { featuredLists, isLoading, error, appPubkey } = useFeaturedLists();
 
-  // Log events when they change
   useEffect(() => {
     if (featuredLists.length > 0) {
       console.log(
@@ -22,14 +20,12 @@ export function FeaturedLists() {
     }
   }, [featuredLists]);
 
-  // Don't render if there's no app pubkey configured
   if (!appPubkey && !isLoading) {
     console.warn("[FeaturedLists] No app pubkey configured");
     return null;
   }
 
-  // Consider loading until we have both pubkey loaded AND end-of-stream
-  const stillLoading = isLoading || !eose;
+  const stillLoading = isLoading;
 
   return (
     <div className="space-y-6 mb-12">

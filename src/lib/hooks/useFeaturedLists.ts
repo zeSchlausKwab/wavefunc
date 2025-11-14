@@ -45,18 +45,9 @@ export function useFeaturedLists() {
     error: pubkeyError,
   } = useAppPubkey();
 
-  // Build filter once we have the app pubkey - provide a dummy filter when empty
   const filters: NDKFilter[] = useMemo(() => {
     if (!appPubkey) {
-      // Return a filter that will never match anything (valid hex but non-existent pubkey)
-      return [
-        {
-          kinds: [30078],
-          authors: [
-            "0000000000000000000000000000000000000000000000000000000000000000",
-          ],
-        },
-      ];
+      return [{ kinds: [30078], authors: [], limit: 0 }];
     }
 
     return [
@@ -68,10 +59,8 @@ export function useFeaturedLists() {
     ];
   }, [appPubkey]);
 
-  // Subscribe to events using the standard pattern
   const { events, eose } = useSubscribe(filters, undefined, [appPubkey]);
 
-  // Map events to NDKWFFavorites - only when we have the actual pubkey
   const featuredLists = useMemo(() => {
     if (!appPubkey) return [];
     return events.map((event) => wrapEvent(event) as NDKWFFavorites);
