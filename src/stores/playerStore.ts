@@ -181,19 +181,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             try {
               const metadata = await extractStreamMetadata(candidate.url);
 
-              if (metadata.artist && metadata.song && !metadata.error) {
+              // Normalize metadata: ensure 'song' field is set from 'title' if needed
+              const normalizedMetadata = {
+                ...metadata,
+                song: metadata.song || metadata.title,
+              };
+
+              if (normalizedMetadata.artist && normalizedMetadata.song && !metadata.error) {
                 const mbResults = await searchMusicBrainz({
-                  artist: metadata.artist,
-                  track: metadata.song,
+                  artist: normalizedMetadata.artist,
+                  track: normalizedMetadata.song,
                 });
                 set({
                   currentMetadata: {
-                    ...metadata,
+                    ...normalizedMetadata,
                     musicBrainz: mbResults[0],
                   },
                 });
               } else if (!metadata.error) {
-                set({ currentMetadata: metadata });
+                set({ currentMetadata: normalizedMetadata });
               }
             } catch (err) {
               console.error("Metadata polling error:", err);

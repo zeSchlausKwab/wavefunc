@@ -193,37 +193,44 @@ export function FloatingPlayer() {
                 {isPlaying && (
                   <>
                     {currentMetadata?.song ? (
-                      <p
-                        className="truncate text-xs text-foreground mt-0.5 cursor-pointer hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
-                        onClick={handleSearchMetadata}
-                        title="Click to search on MusicBrainz"
-                      >
-                        {currentMetadata.song}
-                        {currentMetadata.artist && (
-                          <span className="text-muted-foreground">
-                            {" "}
-                            • {currentMetadata.artist}
-                          </span>
-                        )}
-                        {currentMetadata.musicBrainz?.release && (
-                          <span className="text-muted-foreground">
-                            {" "}
-                            • {currentMetadata.musicBrainz.release}
-                            {currentMetadata.musicBrainz.releaseDate && (
-                              <span>
-                                {" "}
-                                (
-                                {
-                                  currentMetadata.musicBrainz.releaseDate.split(
-                                    "-"
-                                  )[0]
-                                }
-                                )
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </p>
+                      currentMetadata.song === "No metadata available" ||
+                      currentMetadata.title === "No metadata available" ? (
+                        <p className="truncate text-xs text-muted-foreground mt-0.5 italic">
+                          No metadata available
+                        </p>
+                      ) : (
+                        <p
+                          className="truncate text-xs text-foreground mt-0.5 cursor-pointer hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
+                          onClick={handleSearchMetadata}
+                          title="Click to search on MusicBrainz"
+                        >
+                          {currentMetadata.song}
+                          {currentMetadata.artist && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • {currentMetadata.artist}
+                            </span>
+                          )}
+                          {currentMetadata.musicBrainz?.release && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • {currentMetadata.musicBrainz.release}
+                              {currentMetadata.musicBrainz.releaseDate && (
+                                <span>
+                                  {" "}
+                                  (
+                                  {
+                                    currentMetadata.musicBrainz.releaseDate.split(
+                                      "-"
+                                    )[0]
+                                  }
+                                  )
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </p>
+                      )
                     ) : (
                       <div className="mt-1 space-y-1">
                         <Skeleton className="h-3 w-32" />
