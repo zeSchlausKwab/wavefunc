@@ -69,9 +69,7 @@ export function useFeaturedLists() {
   }, [appPubkey]);
 
   // Subscribe to events using the standard pattern
-  const { events, eose } = useSubscribe(filters, { closeOnEose: false }, [
-    appPubkey,
-  ]);
+  const { events, eose } = useSubscribe(filters, undefined, [appPubkey]);
 
   // Map events to NDKWFFavorites - only when we have the actual pubkey
   const featuredLists = useMemo(() => {

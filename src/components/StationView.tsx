@@ -6,7 +6,6 @@ import { useFilterStore } from "../stores/filterStore";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { X, Filter } from "lucide-react";
-import { FeaturedLists } from "./FeaturedLists";
 
 interface StationViewProps {
   searchQuery: string;
@@ -53,9 +52,6 @@ export function StationView({ searchQuery }: StationViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Featured Lists - Only show on landing page (no search query) */}
-      {!searchQuery && <FeaturedLists />}
-
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">
           {searchQuery ? `Search: "${searchQuery}"` : "Radio Stations"}

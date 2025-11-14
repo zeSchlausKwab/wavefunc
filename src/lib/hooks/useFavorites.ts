@@ -1,14 +1,14 @@
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import {
-  NDKKind,
   useNDK,
   useNDKCurrentUser,
   useSubscribe,
   wrapEvent,
 } from "@nostr-dev-kit/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import NDKStation from "../NDKStation";
 import { NDKWFFavorites } from "../NDKWFFavorites";
+import { useStations } from "./useStations";
 
 // Extend window for debug throttling
 declare global {
@@ -340,30 +340,20 @@ export function useFavoritesLists(
 /**
  * A hook for getting favorite stations as actual NDKStation objects.
  * This resolves the station addresses in a favorites list to actual station events.
+ *
+ * Reuses the proven useStations hook for consistency and reliability.
  */
 export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
-  const { ndk } = useNDK();
-  const [stations, setStations] = useState<NDKStation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const stationAddresses = favoritesList?.getStations() || [];
 
-  useEffect(() => {
-    if (!ndk || !favoritesList) {
-      setStations([]);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    const stationAddresses = favoritesList.getStations();
+  // Build filter from station addresses
+  const filter = useMemo<Omit<NDKFilter, "kinds">>(() => {
     if (stationAddresses.length === 0) {
-      setStations([]);
-      setIsLoading(false);
-      return;
+      // Return empty filter that will match nothing
+      return { authors: [] };
     }
 
-    // Build a single subscription for all favorite stations using authors + #d
+    // Parse addresses to extract authors and d-tags
     const authors = Array.from(
       new Set(
         stationAddresses
@@ -379,40 +369,18 @@ export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
       )
     );
 
-    const filter: NDKFilter = {
-      kinds: [31237 as NDKKind],
+    return {
       authors,
       "#d": dTags,
     };
+  }, [JSON.stringify(stationAddresses)]);
 
-    const sub = ndk.subscribe(filter, { closeOnEose: false, groupable: false });
-    const byAddress = new Map<string, NDKStation>();
-
-    sub.on("event", (event: any) => {
-      const station = NDKStation.from(event);
-      const address = `31237:${station.pubkey}:${station.stationId}`;
-      if (!byAddress.has(address)) {
-        byAddress.set(address, station);
-        setStations(Array.from(byAddress.values()));
-      } else {
-        // Replace with latest version if newer comes in
-        byAddress.set(address, station);
-        setStations(Array.from(byAddress.values()));
-      }
-    });
-
-    sub.on("eose", () => {
-      setIsLoading(false);
-    });
-
-    return () => {
-      sub.stop();
-    };
-  }, [ndk, favoritesList ? JSON.stringify(favoritesList.getStations()) : null]);
+  // Reuse the proven useStations hook
+  const { events: stations, eose } = useStations([filter]);
 
   return {
     stations,
-    isLoading,
-    error,
+    isLoading: !eose,
+    error: null, // useStations doesn't expose errors, could be enhanced if needed
   };
 }
