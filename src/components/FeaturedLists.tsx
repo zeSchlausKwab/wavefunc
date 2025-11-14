@@ -2,6 +2,7 @@ import { useFeaturedLists } from "../lib/hooks/useFeaturedLists";
 import { FavoriteListCard } from "./FavoriteListCard";
 import { Sparkles } from "lucide-react";
 import { useEffect } from "react";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 
 /**
  * FeaturedLists component displays curated lists of stations
@@ -10,6 +11,7 @@ import { useEffect } from "react";
  */
 export function FeaturedLists() {
   const { featuredLists, isLoading, error, appPubkey } = useFeaturedLists();
+  const [animationParent] = useAutoAnimate();
 
   useEffect(() => {
     if (featuredLists.length > 0) {
@@ -53,7 +55,7 @@ export function FeaturedLists() {
 
       {/* Featured Lists */}
       {!stillLoading && !error && featuredLists.length > 0 && (
-        <div className="space-y-8">
+        <div ref={animationParent} className="space-y-8">
           {featuredLists.map((list) => (
             <FavoriteListCard
               key={list.favoritesId}

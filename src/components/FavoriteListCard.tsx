@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 
 interface FavoriteListCardProps {
   list: NDKWFFavorites;
@@ -23,6 +24,7 @@ export function FavoriteListCard({
   isOwner,
   onDeleteList,
 }: FavoriteListCardProps) {
+  const [animationParent] = useAutoAnimate();
   const { stations: listStations } = useFavoriteStations(list);
   const { removeFavorite } = useFavorites();
   const [isEditing, setIsEditing] = useState(false);
@@ -149,7 +151,10 @@ export function FavoriteListCard({
             This list is empty. Start adding stations!
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div
+            ref={animationParent}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+          >
             {listStations.map((station) => (
               <div key={station.id} className="space-y-2">
                 <RadioCard station={station} />

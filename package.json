@@ -36,6 +36,7 @@
     "@cashu/crypto": "^0.3.4",
     "@contextvm/sdk": "^0.1.38",
     "@faker-js/faker": "^10.1.0",
+    "@formkit/auto-animate": "^0.9.0",
     "@modelcontextprotocol/sdk": "^1.21.0",
     "@music-metadata/icy": "^0.2.1",
     "@nostr-dev-kit/blossom": "^7.0.0",

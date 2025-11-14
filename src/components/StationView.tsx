@@ -6,12 +6,14 @@ import { useFilterStore } from "../stores/filterStore";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { X, Filter } from "lucide-react";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 
 interface StationViewProps {
   searchQuery: string;
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
+  const [animationParent] = useAutoAnimate();
   const {
     genres,
     languages,
@@ -123,7 +125,10 @@ export function StationView({ searchQuery }: StationViewProps) {
       )}
 
       {/* Grid layout for RadioCard components */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div
+        ref={animationParent}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+      >
         {events.map((station) => (
           <RadioCard key={station.id} station={station} />
         ))}
