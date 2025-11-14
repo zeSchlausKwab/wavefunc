@@ -5,7 +5,7 @@ import {
   useSubscribe,
   wrapEvent,
 } from "@nostr-dev-kit/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import NDKStation from "../NDKStation";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import { useStations } from "./useStations";
@@ -25,7 +25,6 @@ declare global {
 export function useFavorites() {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
-  const [defaultList, setDefaultList] = useState<NDKWFFavorites | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filters = useMemo<NDKFilter[] | false>(() => {
@@ -47,23 +46,26 @@ export function useFavorites() {
     return events.map((event) => wrapEvent(event) as NDKWFFavorites);
   }, [events, currentUser?.pubkey]);
 
-  useEffect(() => {
-    if (!currentUser?.pubkey) {
-      setDefaultList(null);
-      return;
-    }
+  // Compute default list directly - no useState/useEffect needed!
+  const defaultList = useMemo(() => {
+    if (!currentUser?.pubkey) return null;
 
     if (favoritesLists.length > 0) {
-      const firstList =
+      // Find "My Favorite Stations" or use first list
+      return (
         favoritesLists.find((list) => list.name === "My Favorite Stations") ||
-        favoritesLists[0];
-      setDefaultList(firstList || null);
+        favoritesLists[0] ||
+        null
+      );
     } else if (eose && ndk) {
+      // No lists found after EOSE - create default
       const newFavorites = NDKWFFavorites.createDefault(ndk);
       newFavorites.pubkey = currentUser.pubkey;
-      setDefaultList(newFavorites);
+      return newFavorites;
     }
-  }, [events.length, eose, currentUser?.pubkey, ndk]);
+
+    return null;
+  }, [favoritesLists, eose, currentUser?.pubkey, ndk]);
 
   const loadFavorites = useCallback(async () => {}, []);
 
