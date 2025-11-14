@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import NDK, { NDKEvent, NDKKind, NDKNip46Signer, NDKPrivateKeySigner } from "@nostr-dev-kit/react";
+import NDK, {
+  NDKEvent,
+  NDKKind,
+  NDKNip46Signer,
+  NDKPrivateKeySigner,
+} from "@nostr-dev-kit/react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Dialog,
@@ -14,6 +19,13 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Loader2, QrCode } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface Nip46LoginDialogProps {
   trigger: React.ReactNode;
@@ -22,353 +34,277 @@ interface Nip46LoginDialogProps {
 
 type TabType = "scan" | "paste";
 
+// Common NIP-46 relays
+const DEFAULT_RELAYS = [
+  { value: "wss://relay.nsec.app", label: "relay.nsec.app (recommended)" },
+  { value: "wss://relay.damus.io", label: "relay.damus.io" },
+  { value: "wss://nos.lol", label: "nos.lol" },
+  { value: "wss://relay.primal.net", label: "relay.primal.net" },
+  { value: "wss://relay.wavefunc.live", label: "relay.wavefunc.live" },
+];
+
+type ConnectionState =
+  | "idle"
+  | "generating"
+  | "waiting"
+  | "connected"
+  | "error";
+
 export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
-  const [bunkerUrl, setBunkerUrl] = useState("");
-  const [loading, setLoading] = useState(false);
+
+  // Simplified state management
+  const [state, setState] = useState<ConnectionState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null);
-  const [localPubkey, setLocalPubkey] = useState<string | null>(null);
-  const [connectionUri, setConnectionUri] = useState<string>("");
-  const [generatingConnectionUrl, setGeneratingConnectionUrl] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [selectedRelay, setSelectedRelay] = useState(DEFAULT_RELAYS[0].value);
+
+  // Scan tab state
+  const [connectionUri, setConnectionUri] = useState("");
+  const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(
+    null
+  );
+
+  // Paste tab state
+  const [bunkerUrl, setBunkerUrl] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  const tempSecretRef = useRef<string>(Math.random().toString(36).substring(2, 15));
-  const isLoggingInRef = useRef(false);
-  const activeSubscriptionRef = useRef<any>(null);
-  const isMountedRef = useRef(true);
-  const hasTriggeredSuccessRef = useRef(false);
-  const nip46NdkRef = useRef<NDK | null>(null);
+  // Refs for cleanup
+  const ndkRef = useRef<NDK | null>(null);
+  const subscriptionRef = useRef<any>(null);
+  const secretRef = useRef<string>("");
+  const isProcessingRef = useRef(false);
 
+  // Cleanup function
   const cleanup = useCallback(() => {
-    if (!isMountedRef.current) return;
+    isProcessingRef.current = false;
 
-    isLoggingInRef.current = false;
-
-    if (activeSubscriptionRef.current) {
+    if (subscriptionRef.current) {
       try {
-        activeSubscriptionRef.current.stop();
+        subscriptionRef.current.stop();
       } catch (e) {
-        console.error('Error stopping subscription:', e);
+        console.error("Error stopping subscription:", e);
       }
-      activeSubscriptionRef.current = null;
+      subscriptionRef.current = null;
     }
 
-    if (nip46NdkRef.current) {
-      try {
-        nip46NdkRef.current = null;
-      } catch (e) {
-        console.error('Error cleaning up NIP-46 NDK:', e);
-      }
+    if (ndkRef.current) {
+      ndkRef.current = null;
     }
-
-    setListening(false);
   }, []);
 
-  const constructBunkerUrl = useCallback(
-    (event: NDKEvent) => {
-      const baseUrl = `bunker://${event.pubkey}?`;
-      const relay = 'wss://relay.nsec.app';
-
-      const params = new URLSearchParams();
-      params.set('relay', relay);
-      params.set('secret', tempSecretRef.current);
-
-      return baseUrl + params.toString();
-    },
-    [],
-  );
-
-  const triggerSuccess = useCallback(() => {
-    if (hasTriggeredSuccessRef.current) {
-      return;
-    }
-
-    hasTriggeredSuccessRef.current = true;
-    cleanup();
-
-    isMountedRef.current = false;
-  }, [cleanup]);
-
-  const handleLoginWithNip46Signer = useCallback(
-    async (event: NDKEvent) => {
-      if (isLoggingInRef.current || !isMountedRef.current || hasTriggeredSuccessRef.current) {
-        return;
-      }
-
-      try {
-        isLoggingInRef.current = true;
-        cleanup();
-
-        const bunkerUrl = constructBunkerUrl(event);
-        if (!localSigner) {
-          throw new Error('No local signer available');
-        }
-
-        setConnectionStatus('connected');
-
-        // Create NIP-46 signer from bunker URL
-        const ndk = new NDK({
-          explicitRelayUrls: ['wss://relay.nsec.app'],
-        });
-        await ndk.connect();
-
-        const nip46Signer = NDKNip46Signer.bunker(ndk, bunkerUrl, localSigner);
-        await nip46Signer.blockUntilReady();
-
-        await onLogin(nip46Signer);
-
-        triggerSuccess();
-        setOpen(false);
-      } catch (err) {
-        console.error('NIP-46 login error:', err);
-
-        if (isMountedRef.current) {
-          setConnectionStatus('error');
-          setError(err instanceof Error ? err.message : 'Connection error');
-        }
-
-        isLoggingInRef.current = false;
-      }
-    },
-    [localSigner, constructBunkerUrl, cleanup, triggerSuccess, onLogin],
-  );
-
-  useEffect(() => {
-    isMountedRef.current = true;
-
-    return () => {
-      isMountedRef.current = false;
-
-      if (activeSubscriptionRef.current) {
-        try {
-          activeSubscriptionRef.current.stop();
-        } catch (e) {
-          console.error('Error stopping subscription:', e);
-        }
-        activeSubscriptionRef.current = null;
-      }
-    };
-  }, []);
-
-  // Initialize the local signer and generate connection URI when dialog opens
-  useEffect(() => {
-    if (!open) return;
-    if (connectionUri) return;
-
-    setGeneratingConnectionUrl(true);
-    const signer = NDKPrivateKeySigner.generate();
-    setLocalSigner(signer);
-
-    signer
-      .user()
-      .then((user) => {
-        if (!isMountedRef.current) return;
-        setLocalPubkey(user.pubkey);
-
-        const relay = 'wss://relay.nsec.app';
-        const params = new URLSearchParams();
-        params.set('relay', relay);
-        params.set('metadata', JSON.stringify({
-          name: 'WaveFunc Radio',
-          description: 'Connect with WaveFunc Radio',
-          url: window.location.origin,
-          icons: [],
-        }));
-        params.set('token', tempSecretRef.current);
-
-        const uri = `nostrconnect://${user.pubkey}?${params.toString()}`;
-        setConnectionUri(uri);
-        setGeneratingConnectionUrl(false);
-      })
-      .catch((err) => {
-        console.error('Failed to get user pubkey:', err);
-        if (!isMountedRef.current) return;
-        setConnectionStatus('error');
-        setError('Failed to initialize connection');
-      });
-  }, [open, connectionUri]);
-
-  // Set up NIP-46 subscription to listen for connection requests
-  useEffect(() => {
-    if (
-      !localPubkey ||
-      !localSigner ||
-      !connectionUri ||
-      isLoggingInRef.current ||
-      hasTriggeredSuccessRef.current ||
-      !isMountedRef.current ||
-      !open
-    ) {
-      return;
-    }
-
-    const initNip46Connection = async () => {
-      setListening(true);
-      setConnectionStatus('connecting');
-
-      const ndk = new NDK({
-        explicitRelayUrls: ['wss://relay.nsec.app'],
-      });
-
-      nip46NdkRef.current = ndk;
-
-      try {
-        await ndk.connect();
-      } catch (error) {
-        console.error('Failed to connect to NIP-46 relay:', error);
-        setConnectionStatus('error');
-        setError('Failed to connect to NIP-46 relay');
-        return;
-      }
-
-      const processedRequestIds = new Set<string>();
-      const processedAckIds = new Set<string>();
-
-      const sub = ndk.subscribe(
-        {
-          kinds: [NDKKind.NostrConnect],
-          '#p': [localPubkey],
-        },
-        { closeOnEose: false },
-      );
-
-      activeSubscriptionRef.current = sub;
-
-      sub.on('event', async (event: NDKEvent) => {
-        if (isLoggingInRef.current || !isMountedRef.current || hasTriggeredSuccessRef.current) {
-          return;
-        }
-
-        try {
-          await event.decrypt(undefined, localSigner);
-          const request = JSON.parse(event.content);
-
-          if (request.method === 'connect') {
-            if (request.id && processedRequestIds.has(request.id)) {
-              return;
-            }
-
-            if (request.id) {
-              processedRequestIds.add(request.id);
-            }
-
-            if (request.params && request.params.token === tempSecretRef.current) {
-              const response = {
-                id: request.id,
-                result: tempSecretRef.current,
-              };
-
-              const responseEvent = new NDKEvent(ndk);
-              responseEvent.kind = NDKKind.NostrConnect;
-              responseEvent.tags = [['p', event.pubkey]];
-              responseEvent.content = JSON.stringify(response);
-
-              try {
-                await responseEvent.sign(localSigner);
-                // @ts-ignore - NDK type mismatch between versions
-                await responseEvent.encrypt(undefined, localSigner, event.pubkey);
-                await responseEvent.publish();
-              } catch (err) {
-                console.error('Error sending NIP-46 approval:', err);
-                if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
-                  setConnectionStatus('error');
-                  setError(err instanceof Error ? err.message : 'Error sending approval');
-                }
-              }
-            }
-          } else if (request.result === 'ack') {
-            if (processedAckIds.has(event.id)) {
-              return;
-            }
-
-            processedAckIds.add(event.id);
-            await handleLoginWithNip46Signer(event);
-          }
-        } catch (error) {
-          console.error('Failed to process NIP-46 event:', error);
-          if (isMountedRef.current && !hasTriggeredSuccessRef.current) {
-            setConnectionStatus('error');
-            setError(error instanceof Error ? error.message : 'Failed to process event');
-          }
-        }
-      });
-
-      const timeout = setTimeout(() => {
-        if (isMountedRef.current && !hasTriggeredSuccessRef.current && connectionStatus !== 'connected' && !isLoggingInRef.current) {
-          cleanup();
-          setConnectionStatus('error');
-          setError('Connection timed out. Please try again.');
-        }
-      }, 300000); // 5 minutes
-
-      return () => {
-        clearTimeout(timeout);
-        cleanup();
-      };
-    };
-
-    initNip46Connection();
-  }, [connectionUri, localPubkey, localSigner, open, handleLoginWithNip46Signer, cleanup, connectionStatus]);
-
+  // Reset all state when dialog closes
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
-      // Reset state when dialog closes
       cleanup();
-      setShowScanner(false);
-      setLocalSigner(null);
-      setLocalPubkey(null);
-      setConnectionUri("");
-      setBunkerUrl("");
+      setState("idle");
       setError(null);
-      setLoading(false);
-      setGeneratingConnectionUrl(false);
-      setConnectionStatus('idle');
+      setConnectionUri("");
+      setLocalSigner(null);
+      setBunkerUrl("");
+      setShowScanner(false);
       setScanError(null);
-      hasTriggeredSuccessRef.current = false;
-      isLoggingInRef.current = false;
+      secretRef.current = "";
     }
   };
 
+  // Reset connection when relay changes
+  const handleRelayChange = (relay: string) => {
+    setSelectedRelay(relay);
+    if (activeTab === "scan" && connectionUri) {
+      // Reset connection to regenerate with new relay
+      cleanup();
+      setConnectionUri("");
+      setState("idle");
+      setError(null);
+    }
+  };
+
+  // Initialize connection for scan tab
+  useEffect(() => {
+    if (!open || activeTab !== "scan" || connectionUri) return;
+
+    const initConnection = async () => {
+      setState("generating");
+      setError(null);
+
+      try {
+        // Generate local keypair
+        const signer = NDKPrivateKeySigner.generate();
+        const user = await signer.user();
+        secretRef.current = Math.random().toString(36).substring(2, 15);
+
+        // Build nostrconnect URI
+        const params = new URLSearchParams({
+          relay: selectedRelay,
+          metadata: JSON.stringify({
+            name: "WaveFunc Radio",
+            description: "Connect with WaveFunc Radio",
+            url: window.location.origin,
+          }),
+          token: secretRef.current,
+        });
+
+        const uri = `nostrconnect://${user.pubkey}?${params.toString()}`;
+
+        setLocalSigner(signer);
+        setConnectionUri(uri);
+        setState("waiting");
+
+        // Start listening for connection
+        await startListening(signer, user.pubkey, selectedRelay);
+      } catch (err) {
+        console.error("Failed to initialize connection:", err);
+        setState("error");
+        setError(err instanceof Error ? err.message : "Failed to initialize");
+      }
+    };
+
+    initConnection();
+  }, [open, activeTab, connectionUri, selectedRelay]);
+
+  // Listen for NIP-46 connection requests
+  const startListening = async (
+    signer: NDKPrivateKeySigner,
+    pubkey: string,
+    relay: string
+  ) => {
+    cleanup(); // Clean up any existing connection
+
+    const ndk = new NDK({ explicitRelayUrls: [relay] });
+    ndkRef.current = ndk;
+
+    try {
+      await ndk.connect();
+    } catch (error) {
+      console.error("Failed to connect to relay:", error);
+      setState("error");
+      setError(`Failed to connect to ${relay}`);
+      return;
+    }
+
+    const processedIds = new Set<string>();
+
+    const sub = ndk.subscribe(
+      { kinds: [NDKKind.NostrConnect], "#p": [pubkey] },
+      { closeOnEose: false }
+    );
+
+    subscriptionRef.current = sub;
+
+    sub.on("event", async (event: NDKEvent) => {
+      if (isProcessingRef.current || processedIds.has(event.id)) return;
+
+      try {
+        await event.decrypt(undefined, signer);
+        const request = JSON.parse(event.content);
+
+        // Handle connect request
+        if (
+          request.method === "connect" &&
+          request.params?.token === secretRef.current
+        ) {
+          if (request.id) processedIds.add(request.id);
+
+          // Send approval
+          const response = new NDKEvent(ndk);
+          response.kind = NDKKind.NostrConnect;
+          response.tags = [["p", event.pubkey]];
+          response.content = JSON.stringify({
+            id: request.id,
+            result: secretRef.current,
+          });
+
+          await response.sign(signer);
+          // @ts-ignore - NDK type mismatch
+          await response.encrypt(undefined, signer, event.pubkey);
+          await response.publish();
+        }
+        // Handle ack - connection successful
+        else if (request.result === "ack") {
+          if (processedIds.has(event.id)) return;
+          processedIds.add(event.id);
+
+          isProcessingRef.current = true;
+          setState("connected");
+
+          // Build bunker URL and create signer
+          const bunkerUrl = `bunker://${event.pubkey}?relay=${relay}&secret=${secretRef.current}`;
+
+          const loginNdk = new NDK({ explicitRelayUrls: [relay] });
+          await loginNdk.connect();
+
+          const nip46Signer = NDKNip46Signer.bunker(
+            loginNdk,
+            bunkerUrl,
+            signer
+          );
+          await nip46Signer.blockUntilReady();
+
+          await onLogin(nip46Signer);
+
+          cleanup();
+          setOpen(false);
+        }
+      } catch (error) {
+        console.error("Failed to process NIP-46 event:", error);
+        setState("error");
+        setError(error instanceof Error ? error.message : "Connection failed");
+        isProcessingRef.current = false;
+      }
+    });
+
+    // 5 minute timeout
+    setTimeout(() => {
+      if (state === "waiting") {
+        cleanup();
+        setState("error");
+        setError("Connection timed out. Please try again.");
+      }
+    }, 300000);
+  };
+
+  // Handle paste tab login
   const handlePasteLogin = async () => {
     if (!bunkerUrl.trim()) {
       setError("Please enter a bunker URL");
       return;
     }
 
-    if (!localSigner) {
-      setError("Local signer not initialized");
-      return;
-    }
-
-    setLoading(true);
+    setState("generating");
     setError(null);
 
     try {
-      // Create NDK instance and signer from bunker URL
-      const ndk = new NDK({
-        explicitRelayUrls: ['wss://relay.nsec.app'],
-      });
+      // Extract relay from bunker URL or use selected relay
+      const url = new URL(bunkerUrl);
+      const relayParam = url.searchParams.get("relay");
+      const relay = relayParam || selectedRelay;
+
+      // Create local signer if needed
+      let signer = localSigner;
+      if (!signer) {
+        signer = NDKPrivateKeySigner.generate();
+        setLocalSigner(signer);
+      }
+
+      const ndk = new NDK({ explicitRelayUrls: [relay] });
       await ndk.connect();
 
-      const signer = NDKNip46Signer.bunker(ndk, bunkerUrl, localSigner);
-      await signer.blockUntilReady();
+      const nip46Signer = NDKNip46Signer.bunker(ndk, bunkerUrl, signer);
+      await nip46Signer.blockUntilReady();
 
-      await onLogin(signer);
+      await onLogin(nip46Signer);
       setOpen(false);
     } catch (err: any) {
       console.error("NIP-46 login failed:", err);
+      setState("error");
       setError(err.message || "Failed to connect with bunker URL");
-    } finally {
-      setLoading(false);
     }
   };
 
+  // QR Scanner handlers
   const handleScanQR = () => {
     setShowScanner(true);
     setScanError(null);
@@ -377,21 +313,25 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const handleScan = useCallback((detectedCodes: any[]) => {
     if (detectedCodes && detectedCodes.length > 0) {
       const result = detectedCodes[0].rawValue;
-      if (result && result.startsWith('bunker://')) {
+      if (result && result.startsWith("bunker://")) {
         setBunkerUrl(result);
         setError(null);
         setShowScanner(false);
       } else if (result) {
-        setScanError('The scanned code is not a valid bunker:// URI');
+        setScanError("The scanned code is not a valid bunker:// URI");
       }
     }
   }, []);
 
   const handleScanError = useCallback((err: any) => {
     console.error(err);
-    setScanError('Error accessing camera: ' + (err.message || 'Unknown error'));
+    setScanError("Error accessing camera: " + (err.message || "Unknown error"));
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => cleanup();
+  }, [cleanup]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -405,6 +345,27 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Relay Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="relay">NIP-46 Relay</Label>
+            <Select value={selectedRelay} onValueChange={handleRelayChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DEFAULT_RELAYS.map((relay) => (
+                  <SelectItem key={relay.value} value={relay.value}>
+                    {relay.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose the relay for NIP-46 connection. Your remote signer should
+              use the same relay.
+            </p>
+          </div>
+
           {/* Tab Buttons */}
           <div className="flex gap-2 border-b border-brutal">
             <button
@@ -432,7 +393,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
           {/* Tab Content */}
           {activeTab === "scan" ? (
             <div className="space-y-4">
-              {connectionStatus === 'connected' ? (
+              {state === "connected" ? (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <div className="text-green-500 mb-2">
                     <svg
@@ -450,13 +411,19 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                       <polyline points="22 4 12 14.01 9 11.01" />
                     </svg>
                   </div>
-                  <p className="text-sm text-green-500 font-medium">Connected successfully!</p>
-                  <p className="text-sm text-muted-foreground">Logging you in...</p>
+                  <p className="text-sm text-green-500 font-medium">
+                    Connected successfully!
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Logging you in...
+                  </p>
                 </div>
-              ) : generatingConnectionUrl ? (
+              ) : state === "generating" ? (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm text-muted-foreground">Generating connection...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Generating connection...
+                  </p>
                 </div>
               ) : connectionUri ? (
                 <>
@@ -479,7 +446,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                     />
                   </a>
 
-                  {listening && (
+                  {state === "waiting" && (
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span className="text-sm">Waiting for approval...</span>
@@ -498,7 +465,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
               ) : (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm text-muted-foreground">Initializing connection...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Initializing connection...
+                  </p>
                 </div>
               )}
             </div>
@@ -507,7 +476,8 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
               <div className="space-y-2">
                 <Label htmlFor="bunker-url">Bunker URL</Label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Paste your bunker:// connection string from your remote signer (e.g., nsec.app, Amber).
+                  Paste your bunker:// connection string from your remote signer
+                  (e.g., nsec.app, Amber).
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -519,7 +489,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                       setBunkerUrl(e.target.value);
                       setError(null);
                     }}
-                    disabled={loading}
+                    disabled={state === "generating"}
                     className="flex-1 font-mono text-sm"
                   />
                   <Button
@@ -527,7 +497,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                     variant="outline"
                     size="icon"
                     onClick={handleScanQR}
-                    disabled={loading}
+                    disabled={state === "generating"}
                     title="Scan QR code"
                   >
                     <QrCode className="h-4 w-4" />
@@ -537,10 +507,10 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
 
               <Button
                 onClick={handlePasteLogin}
-                disabled={loading || !bunkerUrl.trim()}
+                disabled={state === "generating" || !bunkerUrl.trim()}
                 className="w-full"
               >
-                {loading ? (
+                {state === "generating" ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Connecting...
@@ -551,7 +521,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
               </Button>
 
               <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <h4 className="text-sm font-medium mb-2">How to get a bunker URL:</h4>
+                <h4 className="text-sm font-medium mb-2">
+                  How to get a bunker URL:
+                </h4>
                 <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
                   <li>Open your remote signer app (nsec.app, Amber, etc.)</li>
                   <li>Generate or copy your bunker connection string</li>
@@ -599,7 +571,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                   onScan={handleScan}
                   onError={handleScanError}
                   constraints={{
-                    facingMode: 'environment',
+                    facingMode: "environment",
                   }}
                 />
               </div>
