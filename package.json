@@ -60,6 +60,7 @@
     "@tanstack/react-form": "^1.25.0",
     "@tanstack/react-router": "^1.136.1",
     "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-os": "~2",
     "@tauri-apps/plugin-shell": "^2.3.3",
     "@yudiel/react-qr-scanner": "^2.4.1",
     "bun-plugin-tailwind": "^0.1.2",

@@ -8,14 +8,18 @@
 /**
  * Detect if running in Tauri (desktop or mobile)
  */
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-
+export function isTauri(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as any;
+  // v1/v2: __TAURI_INTERNAL__ ist ein guter Indikator, __TAURI__ optional je nach Config
+  return !!w.__TAURI__ || !!w.__TAURI_INTERNAL__;
+}
 /**
  * Get environment variable value (works in both Node and browser contexts)
  */
 function getEnv(key: string): string | undefined {
   // In Node.js/Bun server context
-  if (typeof process !== 'undefined' && process.env) {
+  if (typeof process !== "undefined" && process.env) {
     return process.env[key];
   }
   // In browser, these are replaced at build time
@@ -30,7 +34,7 @@ async function getPlatform(): Promise<string | null> {
 
   try {
     // @ts-ignore - Tauri API may not be typed yet
-    const { platform } = await import('@tauri-apps/api/os');
+    const { platform } = await import("@tauri-apps/api/os");
     return await platform();
   } catch {
     return null;
@@ -47,26 +51,26 @@ async function getPlatform(): Promise<string | null> {
  */
 async function getRelayUrl(): Promise<string> {
   // Check for environment variable first (set at build time)
-  const envRelayUrl = getEnv('RELAY_URL');
+  const envRelayUrl = getEnv("RELAY_URL");
   if (envRelayUrl) {
     return envRelayUrl;
   }
 
   // If running in browser (not Tauri), construct from current location
-  if (typeof window !== 'undefined' && !isTauri) {
+  if (typeof window !== "undefined" && !isTauri) {
     // Determine WebSocket protocol based on page protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname;
 
     // In development (localhost:3000), connect directly to relay on :3334
-    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
       return `${protocol}//${host}:3334`;
     }
 
     // If accessing via IP address, don't try to construct subdomain
     // This happens during initial deployment before DNS is fully working
     if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
-      console.warn('⚠️ Accessing via IP address - using fallback relay URL');
+      console.warn("⚠️ Accessing via IP address - using fallback relay URL");
       return `${protocol}//${host}/relay/`;
     }
 
@@ -77,12 +81,12 @@ async function getRelayUrl(): Promise<string> {
   const platformName = await getPlatform();
 
   // Android emulator needs special IP to reach host machine
-  if (platformName === 'android') {
-    return 'ws://10.0.2.2:3334';
+  if (platformName === "android") {
+    return "ws://10.0.2.2:3334";
   }
 
   // All other platforms can use localhost
-  return 'ws://localhost:3334';
+  return "ws://localhost:3334";
 }
 
 /**
@@ -90,9 +94,13 @@ async function getRelayUrl(): Promise<string> {
  * Initialize this at app startup
  */
 export const config = {
-  relayUrl: getEnv('RELAY_URL') || 'ws://localhost:3334', // Default value
-  metadataServerPubkey: getEnv('METADATA_SERVER_PUBKEY') || 'bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2',
-  metadataClientKey: getEnv('METADATA_CLIENT_KEY') || '4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c',
+  relayUrl: getEnv("RELAY_URL") || "ws://localhost:3334", // Default value
+  metadataServerPubkey:
+    getEnv("METADATA_SERVER_PUBKEY") ||
+    "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2",
+  metadataClientKey:
+    getEnv("METADATA_CLIENT_KEY") ||
+    "4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c",
 };
 
 /**
@@ -101,5 +109,5 @@ export const config = {
  */
 export async function initConfig(): Promise<void> {
   config.relayUrl = await getRelayUrl();
-  console.log('📡 Relay URL configured:', config.relayUrl);
+  console.log("📡 Relay URL configured:", config.relayUrl);
 }

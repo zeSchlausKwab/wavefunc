@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { StarIcon } from "./ui/icons/lucide-star";
 import { SpeechIcon } from "./ui/icons/lucide-speech";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -25,6 +26,7 @@ export function FloatingHeader({
   onSearch,
 }: FloatingHeaderProps) {
   const isMobile = useMedia("(max-width: 768px)");
+  const { isTauri } = usePlatform();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { getFavoriteCount } = useFavorites();
 

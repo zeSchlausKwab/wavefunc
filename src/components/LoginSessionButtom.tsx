@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
 import { SignupDialog } from "./SignupDialog";
 import { useUIStore } from "../stores/uiStore";
-import { useTauri } from "../lib/hooks/useTauri";
+import { usePlatform } from "../lib/hooks/usePlatform";
 import { Link } from "@tanstack/react-router";
 
 export function LoginSessionButtons() {
@@ -28,7 +28,7 @@ export function LoginSessionButtons() {
   const logout = useNDKSessionLogout();
   const currentUser = useNDKCurrentUser();
   const shouldPulseLogin = useUIStore((state) => state.shouldPulseLogin);
-  const isTauri = useTauri();
+  const { isTauri } = usePlatform();
 
   const [loading, setLoading] = useState(false);
   const [showSignupDialog, setShowSignupDialog] = useState(false);

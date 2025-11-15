@@ -4,4 +4,3 @@
 fn main() {
     wavefunc_lib::run()
 }
-
