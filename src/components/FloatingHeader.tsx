@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Music, Plus } from "lucide-react";
+import { Music, Plus, Search } from "lucide-react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { AuthRequiredButton } from "./AuthRequiredButton";
@@ -58,6 +58,16 @@ export function FloatingHeader({
             >
               <Music className="w-4 h-4" />
               Browse
+            </Link>
+            <Link
+              to="/musicbrainz"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              activeProps={{
+                className: "text-foreground font-medium",
+              }}
+            >
+              <Search className="w-4 h-4" />
+              Search
             </Link>
             <Link
               to="/favorites"

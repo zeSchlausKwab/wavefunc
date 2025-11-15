@@ -336,6 +336,52 @@ export async function searchLabels(
 }
 
 /**
+ * Advanced combined search for recordings using multiple criteria
+ * Useful for finding specific recordings when you know multiple details
+ */
+export async function searchRecordingsCombined(
+  params: {
+    recording?: string;
+    artist?: string;
+    release?: string;
+    isrc?: string;
+    country?: string;
+    date?: string;
+    duration?: number;
+  },
+  limit: number = 10,
+  timeoutMs: number = 10000
+): Promise<any[]> {
+  try {
+    const client = await initMetadataClient();
+
+    const callPromise = client.callTool({
+      name: "search_recordings_combined",
+      arguments: { ...params, limit },
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Tool call timeout after ${timeoutMs}ms`)),
+        timeoutMs
+      )
+    );
+
+    const result = (await Promise.race([callPromise, timeoutPromise])) as any;
+
+    return extractResult(result, []);
+  } catch (error: any) {
+    if (
+      error.message?.includes("timeout") ||
+      error.message?.includes("closed")
+    ) {
+      await closeMetadataClient();
+    }
+    return [];
+  }
+}
+
+/**
  * Close the metadata client connection
  */
 export async function closeMetadataClient(): Promise<void> {

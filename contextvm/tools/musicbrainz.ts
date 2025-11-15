@@ -243,6 +243,130 @@ export async function searchLabels(
 }
 
 /**
+ * Advanced combined search for recordings using Lucene query syntax
+ * This is useful when you need precise results combining multiple fields
+ *
+ * @param params - Combined search parameters
+ * @param params.recording - Recording/track title (supports exact phrases with quotes)
+ * @param params.artist - Artist name (supports exact phrases with quotes)
+ * @param params.release - Release/album name (optional)
+ * @param params.isrc - International Standard Recording Code (optional)
+ * @param params.country - Country code (optional)
+ * @param params.date - Release date (optional, YYYY or YYYY-MM-DD)
+ * @param params.duration - Duration in milliseconds (optional)
+ * @param limit - Maximum number of results to return
+ *
+ * @example
+ * // Search for exact recording by exact artist
+ * searchRecordingsCombined({
+ *   recording: '"young men dead"',
+ *   artist: '"the black angels"'
+ * })
+ *
+ * @example
+ * // Fuzzy search with partial matches
+ * searchRecordingsCombined({
+ *   recording: 'young men',
+ *   artist: 'black angels'
+ * })
+ */
+export async function searchRecordingsCombined(
+  params: {
+    recording?: string;
+    artist?: string;
+    release?: string;
+    isrc?: string;
+    country?: string;
+    date?: string;
+    duration?: number;
+  },
+  limit = 10
+): Promise<MusicBrainzRecording[]> {
+  const url = new URL(`${MUSICBRAINZ_API}/recording`);
+
+  // Build Lucene query combining all provided fields
+  const queryParts: string[] = [];
+
+  if (params.recording) {
+    // Use exact phrase if quoted, otherwise fuzzy search with ~2
+    const recordingQuery = params.recording.includes('"')
+      ? `recording:${params.recording}`
+      : `recording:"${params.recording}"~2`;
+    queryParts.push(recordingQuery);
+  }
+
+  if (params.artist) {
+    // Use exact phrase if quoted, otherwise fuzzy search with ~2
+    const artistQuery = params.artist.includes('"')
+      ? `artist:${params.artist}`
+      : `artist:"${params.artist}"~2`;
+    queryParts.push(artistQuery);
+  }
+
+  if (params.release) {
+    const releaseQuery = params.release.includes('"')
+      ? `release:${params.release}`
+      : `release:"${params.release}"~2`;
+    queryParts.push(releaseQuery);
+  }
+
+  if (params.isrc) {
+    queryParts.push(`isrc:${params.isrc}`);
+  }
+
+  if (params.country) {
+    queryParts.push(`country:${params.country}`);
+  }
+
+  if (params.date) {
+    queryParts.push(`date:${params.date}`);
+  }
+
+  if (params.duration) {
+    // Duration search with some tolerance (±5 seconds)
+    const durationSec = Math.floor(params.duration / 1000);
+    queryParts.push(`dur:[${durationSec - 5} TO ${durationSec + 5}]`);
+  }
+
+  if (queryParts.length === 0) {
+    throw new Error("At least one search parameter must be provided");
+  }
+
+  // Combine all parts with AND
+  const searchQuery = queryParts.join(" AND ");
+
+  url.searchParams.set("query", searchQuery);
+  url.searchParams.set("fmt", "json");
+  url.searchParams.set("limit", limit.toString());
+
+  console.log(`🔍 Combined recording search: ${url.toString()}`);
+
+  const response = await fetch(url.toString(), {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`MusicBrainz API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const recordings = data.recordings || [];
+
+  return recordings.map((rec: any) => ({
+    id: rec.id,
+    type: "recording" as const,
+    title: rec.title,
+    artist: rec["artist-credit"]?.[0]?.name || "Unknown",
+    artistId: rec["artist-credit"]?.[0]?.artist?.id,
+    release: rec.releases?.[0]?.title,
+    releaseDate: rec.releases?.[0]?.date,
+    duration: rec.length,
+    score: rec.score || 0,
+    tags: rec.tags?.map((t: any) => t.name),
+  }));
+}
+
+/**
  * Get detailed recording information by MusicBrainz ID
  */
 export async function getRecordingDetails(mbid: string): Promise<any> {

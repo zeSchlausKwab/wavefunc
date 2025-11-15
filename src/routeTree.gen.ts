@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as MusicbrainzRouteImport } from './routes/musicbrainz'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,11 @@ import { Route as BrowseGenresRouteImport } from './routes/browse.genres'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MusicbrainzRoute = MusicbrainzRouteImport.update({
+  id: '/musicbrainz',
+  path: '/musicbrainz',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FavoritesRoute = FavoritesRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
+  '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/community'
     | '/favorites'
+    | '/musicbrainz'
     | '/settings'
     | '/browse/genres'
     | '/profile/$pubkey'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/community'
     | '/favorites'
+    | '/musicbrainz'
     | '/settings'
     | '/browse/genres'
     | '/profile/$pubkey'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/community'
     | '/favorites'
+    | '/musicbrainz'
     | '/settings'
     | '/browse/genres'
     | '/profile/$pubkey'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CommunityRoute: typeof CommunityRoute
   FavoritesRoute: typeof FavoritesRoute
+  MusicbrainzRoute: typeof MusicbrainzRoute
   SettingsRoute: typeof SettingsRoute
   BrowseGenresRoute: typeof BrowseGenresRoute
   ProfilePubkeyRoute: typeof ProfilePubkeyRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/musicbrainz': {
+      id: '/musicbrainz'
+      path: '/musicbrainz'
+      fullPath: '/musicbrainz'
+      preLoaderRoute: typeof MusicbrainzRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/favorites': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CommunityRoute: CommunityRoute,
   FavoritesRoute: FavoritesRoute,
+  MusicbrainzRoute: MusicbrainzRoute,
   SettingsRoute: SettingsRoute,
   BrowseGenresRoute: BrowseGenresRoute,
   ProfilePubkeyRoute: ProfilePubkeyRoute,

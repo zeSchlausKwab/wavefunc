@@ -9,6 +9,7 @@ import {
   searchReleases,
   searchRecordings,
   searchLabels,
+  searchRecordingsCombined,
 } from "./tools/musicbrainz.ts";
 import {
   extractStreamMetadataInputSchema,
@@ -21,6 +22,8 @@ import {
   searchRecordingsOutputSchema,
   searchLabelsInputSchema,
   searchLabelsOutputSchema,
+  searchRecordingsCombinedInputSchema,
+  searchRecordingsCombinedOutputSchema,
 } from "./schemas.ts";
 
 // Configuration
@@ -259,7 +262,72 @@ async function main() {
     }
   );
 
-  // 8. Configure the Nostr Server Transport
+  // 8. Register Tool: Search MusicBrainz Recordings (Combined/Advanced)
+  mcpServer.registerTool(
+    "search_recordings_combined",
+    {
+      title: "Search MusicBrainz Recordings (Advanced)",
+      description:
+        "Advanced combined search for recordings using multiple fields. Supports exact phrase matching (use quotes) and fuzzy search. Useful when you need precise results combining artist, recording title, release, ISRC, country, date, or duration. Example: recording='\"young men dead\"' artist='\"the black angels\"'",
+      inputSchema: searchRecordingsCombinedInputSchema,
+      outputSchema: searchRecordingsCombinedOutputSchema,
+    },
+    async ({
+      recording,
+      artist,
+      release,
+      isrc,
+      country,
+      date,
+      duration,
+      limit,
+    }) => {
+      try {
+        const queryDesc = Object.entries({
+          recording,
+          artist,
+          release,
+          isrc,
+          country,
+          date,
+          duration,
+        })
+          .filter(([_, v]) => v !== undefined)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ");
+
+        console.log(`🔍 Combined MusicBrainz recording search: ${queryDesc}`);
+        const results = await searchRecordingsCombined(
+          { recording, artist, release, isrc, country, date, duration },
+          limit
+        );
+
+        const output = { result: results };
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(output, null, 2),
+            },
+          ],
+          structuredContent: output,
+        };
+      } catch (error: any) {
+        console.error(`❌ Combined recording search failed: ${error.message}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ error: error.message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 9. Configure the Nostr Server Transport
   const serverTransport = new NostrServerTransport({
     signer,
     relayHandler: relayPool,
@@ -283,6 +351,7 @@ async function main() {
   console.log("   - search_artists");
   console.log("   - search_releases");
   console.log("   - search_recordings");
+  console.log("   - search_recordings_combined (advanced multi-field search)");
   console.log("   - search_labels");
   console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
   console.log("💡 Press Ctrl+C to exit.\n");

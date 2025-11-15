@@ -255,3 +255,59 @@ export type SearchLabelsInput = {
 export type SearchLabelsOutput = {
   result: MusicBrainzLabel[];
 };
+
+// ============================================================================
+// Search Recordings Combined Tool
+// ============================================================================
+
+export const searchRecordingsCombinedInputSchema = {
+  recording: z
+    .string()
+    .optional()
+    .describe(
+      'Recording/track title (use quotes for exact match, e.g., "young men dead")'
+    ),
+  artist: z
+    .string()
+    .optional()
+    .describe(
+      'Artist name (use quotes for exact match, e.g., "the black angels")'
+    ),
+  release: z.string().optional().describe("Release/album name (optional)"),
+  isrc: z
+    .string()
+    .optional()
+    .describe("International Standard Recording Code (optional)"),
+  country: z.string().optional().describe("Country code, e.g., US, GB (optional)"),
+  date: z
+    .string()
+    .optional()
+    .describe("Release date in YYYY or YYYY-MM-DD format (optional)"),
+  duration: z
+    .number()
+    .optional()
+    .describe("Duration in milliseconds (optional, searches with ±5 second tolerance)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of results (default: 10)"),
+};
+
+export const searchRecordingsCombinedOutputSchema = {
+  result: z.array(musicBrainzRecordingSchema),
+};
+
+export type SearchRecordingsCombinedInput = {
+  recording?: string;
+  artist?: string;
+  release?: string;
+  isrc?: string;
+  country?: string;
+  date?: string;
+  duration?: number;
+  limit?: number;
+};
+
+export type SearchRecordingsCombinedOutput = {
+  result: MusicBrainzRecording[];
+};

@@ -4,20 +4,20 @@ import {
   searchReleases,
   searchRecordings,
   searchLabels,
+  searchRecordingsCombined,
 } from "../lib/metadataClient";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { ReleaseResultWithImage } from "./ReleaseResultWithImage";
 
-type EntityType = "artists" | "releases" | "recordings" | "labels";
+type EntityType =
+  | "artists"
+  | "releases"
+  | "recordings"
+  | "recordings_advanced"
+  | "labels";
 
 interface BaseResult {
   id: string;
@@ -78,21 +78,41 @@ export function MusicBrainzSearch() {
   const [searchQuery, setSearchQuery] = useState("");
   const [entityType, setEntityType] = useState<EntityType>("recordings");
   const [artistFilter, setArtistFilter] = useState("");
+  const [releaseFilter, setReleaseFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Clear artist filter when switching to artist search
+  // Clear filters when switching search types
   useEffect(() => {
-    if (entityType === "artists") {
+    if (entityType === "artists" || entityType === "labels") {
       setArtistFilter("");
+      setReleaseFilter("");
+      setCountryFilter("");
+      setDateFilter("");
+    } else if (entityType === "recordings") {
+      setReleaseFilter("");
+      setCountryFilter("");
+      setDateFilter("");
     }
   }, [entityType]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!searchQuery.trim()) {
+    // For advanced search, at least one field must be filled
+    if (entityType === "recordings_advanced") {
+      if (
+        !searchQuery.trim() &&
+        !artistFilter.trim() &&
+        !releaseFilter.trim()
+      ) {
+        setError("Please enter at least one search field");
+        return;
+      }
+    } else if (!searchQuery.trim()) {
       return;
     }
 
@@ -111,6 +131,15 @@ export function MusicBrainzSearch() {
           break;
         case "recordings":
           data = await searchRecordings(searchQuery, artistFilter || undefined);
+          break;
+        case "recordings_advanced":
+          data = await searchRecordingsCombined({
+            recording: searchQuery || undefined,
+            artist: artistFilter || undefined,
+            release: releaseFilter || undefined,
+            country: countryFilter || undefined,
+            date: dateFilter || undefined,
+          });
           break;
         case "labels":
           data = await searchLabels(searchQuery);
@@ -303,8 +332,12 @@ export function MusicBrainzSearch() {
         return { icon: "💿", label: "Albums" };
       case "recordings":
         return { icon: "🎵", label: "Songs" };
+      case "recordings_advanced":
+        return { icon: "🔍", label: "Songs (Advanced)" };
       case "labels":
         return { icon: "🏷️", label: "Labels" };
+      default:
+        return { icon: "🔍", label: "Results" };
     }
   };
 
@@ -313,76 +346,239 @@ export function MusicBrainzSearch() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-2xl font-bold">🎵 MusicBrainz Search</h2>
-          <span className="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full font-medium">
-            {entityTypeInfo.icon} Searching {entityTypeInfo.label}
-          </span>
-        </div>
-        <form onSubmit={handleSearch} className="space-y-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Entity Type
-            </label>
-            <Select
-              value={entityType}
-              onValueChange={(value) => setEntityType(value as EntityType)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Search for..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="artists">🎤 Artists</SelectItem>
-                <SelectItem value="releases">💿 Albums</SelectItem>
-                <SelectItem value="recordings">🎵 Songs</SelectItem>
-                <SelectItem value="labels">🏷️ Labels</SelectItem>
-              </SelectContent>
-            </Select>
+        <h2 className="text-2xl font-bold mb-6">🎵 MusicBrainz Search</h2>
+
+        <Tabs
+          value={entityType}
+          onValueChange={(value) => setEntityType(value as EntityType)}
+        >
+          <div className="w-full overflow-x-auto mb-6">
+            <TabsList className="w-full justify-start min-w-max">
+              <TabsTrigger value="recordings" className="gap-2">
+                🎵 <span className="hidden sm:inline">Songs</span>
+              </TabsTrigger>
+              <TabsTrigger value="recordings_advanced" className="gap-2">
+                🔍 <span className="hidden sm:inline">Songs (Advanced)</span>
+              </TabsTrigger>
+              <TabsTrigger value="artists" className="gap-2">
+                🎤 <span className="hidden sm:inline">Artists</span>
+              </TabsTrigger>
+              <TabsTrigger value="releases" className="gap-2">
+                💿 <span className="hidden sm:inline">Albums</span>
+              </TabsTrigger>
+              <TabsTrigger value="labels" className="gap-2">
+                🏷️ <span className="hidden sm:inline">Labels</span>
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Search Query
-            </label>
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={
-                entityType === "artists"
-                  ? "Enter artist name..."
-                  : entityType === "releases"
-                  ? "Enter album name..."
-                  : entityType === "labels"
-                  ? "Enter label name..."
-                  : "Enter song name..."
-              }
-              className="w-full"
-            />
-          </div>
+          {/* Songs Tab */}
+          <TabsContent value="recordings" className="mt-0">
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Song Title
+                </label>
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter song name..."
+                  className="w-full"
+                />
+              </div>
 
-          {(entityType === "releases" || entityType === "recordings") && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Filter by Artist{" "}
-                <span className="text-gray-500 font-normal">(optional)</span>
-              </label>
-              <Input
-                type="text"
-                value={artistFilter}
-                onChange={(e) => setArtistFilter(e.target.value)}
-                placeholder="e.g., Led Zeppelin"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Narrow down results to a specific artist
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Artist Name{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <Input
+                  type="text"
+                  value={artistFilter}
+                  onChange={(e) => setArtistFilter(e.target.value)}
+                  placeholder="e.g., Led Zeppelin"
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Searching..." : "Search Songs"}
+              </Button>
+            </form>
+          </TabsContent>
+
+          {/* Advanced Songs Tab */}
+          <TabsContent value="recordings_advanced" className="mt-0">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
+              <p className="text-sm text-blue-900 dark:text-blue-200">
+                💡 <strong>Advanced Search:</strong> Fill in any combination of
+                fields to find specific recordings. Use quotes for exact matches
+                (e.g., "young men dead" by "the black angels").
               </p>
             </div>
-          )}
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Searching..." : `Search ${entityTypeInfo.label}`}
-          </Button>
-        </form>
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Song Title{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder='e.g., young men dead or "young men dead"'
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Artist Name{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <Input
+                  type="text"
+                  value={artistFilter}
+                  onChange={(e) => setArtistFilter(e.target.value)}
+                  placeholder='e.g., the black angels or "the black angels"'
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Use quotes for exact artist name match
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Album/Release{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <Input
+                  type="text"
+                  value={releaseFilter}
+                  onChange={(e) => setReleaseFilter(e.target.value)}
+                  placeholder="e.g., Passover"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Country{" "}
+                    <span className="text-gray-500 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <Input
+                    type="text"
+                    value={countryFilter}
+                    onChange={(e) => setCountryFilter(e.target.value)}
+                    placeholder="e.g., US, GB"
+                    maxLength={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Release Date{" "}
+                    <span className="text-gray-500 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <Input
+                    type="text"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    placeholder="YYYY or YYYY-MM-DD"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Searching..." : "Search Songs (Advanced)"}
+              </Button>
+            </form>
+          </TabsContent>
+
+          {/* Artists Tab */}
+          <TabsContent value="artists" className="mt-0">
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Artist Name
+                </label>
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter artist name..."
+                  className="w-full"
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Searching..." : "Search Artists"}
+              </Button>
+            </form>
+          </TabsContent>
+
+          {/* Albums Tab */}
+          <TabsContent value="releases" className="mt-0">
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Album Title
+                </label>
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter album name..."
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Artist Name{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <Input
+                  type="text"
+                  value={artistFilter}
+                  onChange={(e) => setArtistFilter(e.target.value)}
+                  placeholder="e.g., Led Zeppelin"
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Searching..." : "Search Albums"}
+              </Button>
+            </form>
+          </TabsContent>
+
+          {/* Labels Tab */}
+          <TabsContent value="labels" className="mt-0">
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Label Name
+                </label>
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter label name..."
+                  className="w-full"
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Searching..." : "Search Labels"}
+              </Button>
+            </form>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {error && (

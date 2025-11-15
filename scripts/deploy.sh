@@ -38,6 +38,7 @@ tar -czf deploy.tar.gz \
     --exclude='contextvm/node_modules' \
     --exclude='relay/relay' \
     --exclude='relay/data' \
+    --exclude='src-tauri' \
     dist/ src/ relay/ contextvm/ scripts/ \
     $INCLUDE_LEGACY_DB \
     ecosystem.config.cjs \
