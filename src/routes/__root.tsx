@@ -1,12 +1,15 @@
 import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { FloatingHeader } from "../components/FloatingHeader";
 import { FloatingPlayer } from "../components/FloatingPlayer";
+import { FloatingSearchButton } from "../components/FloatingSearchButton";
 import { useState } from "react";
+import { useMedia } from "react-use";
 
 export const Route = createRootRoute({
   component: () => {
     const [searchInput, setSearchInput] = useState("");
     const navigate = useNavigate();
+    const isMobile = useMedia("(max-width: 768px)");
 
     const handleSearch = (query: string) => {
       navigate({
@@ -22,8 +25,14 @@ export const Route = createRootRoute({
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
         />
-        {/* TODO: probably too hacky */}
-        <div className="m-2 pt-24 pb-24 md:m-4 min-w-[90vw]">
+        {isMobile && (
+          <FloatingSearchButton
+            searchInput={searchInput}
+            setSearchInput={setSearchInput}
+            onSearch={handleSearch}
+          />
+        )}
+        <div className="m-2 pb-24 md:m-4 md:pt-24 min-w-[90vw]">
           <Outlet />
         </div>
         <FloatingPlayer />
