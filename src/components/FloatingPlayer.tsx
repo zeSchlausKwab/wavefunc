@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spectrogram } from "./Spectrogram";
+import { HistorySheet } from "./HistorySheet";
 
 export function FloatingPlayer() {
   const isMobile = useMedia("(max-width: 768px)");
@@ -148,10 +149,13 @@ export function FloatingPlayer() {
 
       <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-brutal overflow-hidden">
         {!currentStation ? (
-          <div className="flex h-16 items-center justify-center px-4">
+          <div className="flex h-16 items-center justify-between px-4">
             <p className="text-sm text-muted-foreground">
               Select a radio station to start playing
             </p>
+            <div className="relative z-10">
+              <HistorySheet />
+            </div>
           </div>
         ) : (
           <div className="relative flex h-16 items-center gap-4 px-4">
@@ -270,6 +274,7 @@ export function FloatingPlayer() {
               >
                 <X className="size-4" />
               </Button>
+              <HistorySheet />
             </div>
 
             {/* Volume Control - Desktop only */}

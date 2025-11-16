@@ -10,6 +10,9 @@ import {
   playWithAdapter,
   sortStreamsByPreference,
 } from "../lib/player/adapters";
+import { useHistoryStore } from "./historyStore";
+
+const LAST_STATION_KEY = "wavefunc_last_station";
 
 // Track which audio elements have been connected to Web Audio API
 // This persists across HMR reloads
@@ -17,6 +20,25 @@ const connectedAudioElements = new WeakMap<
   HTMLAudioElement,
   { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode }
 >();
+
+// Save last played station to localStorage
+const saveLastStation = (stationId: string) => {
+  try {
+    localStorage.setItem(LAST_STATION_KEY, stationId);
+  } catch (err) {
+    console.error("Failed to save last station to localStorage:", err);
+  }
+};
+
+// Load last played station from localStorage
+const loadLastStation = (): string | null => {
+  try {
+    return localStorage.getItem(LAST_STATION_KEY);
+  } catch (err) {
+    console.error("Failed to load last station from localStorage:", err);
+    return null;
+  }
+};
 
 interface CurrentMetadata {
   title?: string;
@@ -73,6 +95,8 @@ interface PlayerState {
   setError: (error: string | null) => void;
   setAudioElement: (element: HTMLAudioElement | null) => void;
   setHlsInstance: (hls: Hls | null) => void;
+  restoreLastStation: (ndk: any) => Promise<void>;
+  getLastStationId: () => string | null;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -172,6 +196,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           }
           set({ isPlaying: true, isLoading: false, error: null });
           played = true;
+
+          // Add to play history and save as last station
+          const stationId = station.encode();
+          if (stationId) {
+            useHistoryStore.getState().addToHistory(stationId);
+            saveLastStation(stationId);
+          }
 
           // Start metadata polling for the successful candidate
           const { metadataInterval } = get();
@@ -355,4 +386,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ audioElement: element });
   },
   setHlsInstance: (hls: Hls | null) => set({ hlsInstance: hls }),
+
+  // Restore last played station from localStorage
+  restoreLastStation: async (ndk: any) => {
+    const lastStationId = loadLastStation();
+    if (!lastStationId || !ndk) return;
+
+    try {
+      const event = await ndk.fetchEvent(lastStationId);
+      if (event) {
+        const station = NDKStation.from(event);
+        // Set the station but don't auto-play (leave in pause mode)
+        set({
+          currentStation: station,
+          currentStream: station.streams[0] || null,
+          isPlaying: false,
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to restore last station:", err);
+    }
+  },
+
+  // Get the last station ID from localStorage
+  getLastStationId: () => loadLastStation(),
 }));

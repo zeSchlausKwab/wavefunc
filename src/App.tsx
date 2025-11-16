@@ -1,10 +1,11 @@
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { registerEventClass } from "@nostr-dev-kit/react";
+import { registerEventClass, useNDK } from "@nostr-dev-kit/react";
 import { useEffect } from "react";
 import NDKStation from "./lib/NDKStation";
 import { NDKWFFavorites } from "./lib/NDKWFFavorites";
 import { routeTree } from "./routeTree.gen";
 import { useWalletInit } from "./lib/hooks/useWalletInit";
+import { usePlayerStore } from "./stores/playerStore";
 import "./index.css";
 
 // Create a new router instance
@@ -18,6 +19,9 @@ declare module "@tanstack/react-router" {
 }
 
 export function App() {
+  const { ndk } = useNDK();
+  const restoreLastStation = usePlayerStore((state) => state.restoreLastStation);
+
   // Initialize wallets from localStorage
   useWalletInit();
 
@@ -25,6 +29,13 @@ export function App() {
     registerEventClass(NDKStation);
     registerEventClass(NDKWFFavorites);
   }, []);
+
+  // Restore last played station on app load
+  useEffect(() => {
+    if (ndk) {
+      restoreLastStation(ndk);
+    }
+  }, [ndk, restoreLastStation]);
 
   return <RouterProvider router={router} />;
 }
