@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import type { NDKStation, Stream } from "../lib/NDKStation";
 import Hls from "hls.js";
-import {
-  extractStreamMetadata,
-  searchMusicBrainz,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../lib/metadataClient";
 import {
   normalizeUrl,
   playWithAdapter,
@@ -210,7 +207,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
           const pollMetadata = async () => {
             try {
-              const metadata = await extractStreamMetadata(candidate.url);
+              const client = getMetadataClient();
+              const result = await client.ExtractStreamMetadata(candidate.url);
+              const metadata = result.result;
 
               // Normalize metadata: ensure 'song' field is set from 'title' if needed
               const normalizedMetadata = {
@@ -218,18 +217,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 song: metadata.song || metadata.title,
               };
 
-              if (normalizedMetadata.artist && normalizedMetadata.song && !metadata.error) {
-                const mbResults = await searchMusicBrainz({
-                  artist: normalizedMetadata.artist,
-                  track: normalizedMetadata.song,
-                });
+              if (normalizedMetadata.artist && normalizedMetadata.song) {
+                // Search for recordings using the new client
+                const mbResult = await client.SearchRecordings(
+                  normalizedMetadata.song,
+                  normalizedMetadata.artist,
+                  1 // limit to 1 result
+                );
+                const mbResults = mbResult.result;
+
                 set({
                   currentMetadata: {
                     ...normalizedMetadata,
                     musicBrainz: mbResults[0],
                   },
                 });
-              } else if (!metadata.error) {
+              } else {
                 set({ currentMetadata: normalizedMetadata });
               }
             } catch (err) {
