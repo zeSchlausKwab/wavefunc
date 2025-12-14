@@ -1,0 +1,39 @@
+# WaveFunc Production Configuration
+# Caddy automatically provisions and renews SSL certificates
+
+# Main web application
+wavefunc.live {
+    reverse_proxy 127.0.0.1:3000
+    encode gzip
+
+    log {
+        output file /var/log/caddy/wavefunc-access.log
+        format json
+    }
+}
+
+# Nostr relay on subdomain
+relay.wavefunc.live {
+    reverse_proxy 127.0.0.1:3334
+    encode gzip
+
+    log {
+        output file /var/log/caddy/relay-access.log
+        format json
+    }
+}
+
+# Fallback for IP-based access (during transition or development)
+:80 {
+    # Relay WebSocket endpoint
+    handle /relay/* {
+        reverse_proxy 127.0.0.1:3334
+    }
+
+    # Main web application
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    encode gzip
+}

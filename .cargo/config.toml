@@ -1,0 +1,18 @@
+# Cargo configuration for Android builds
+# This tells Rust where to find the Android NDK toolchain
+
+[target.aarch64-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+
+[target.armv7-linux-androideabi]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi24-clang"
+
+[target.i686-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/i686-linux-android24-clang"
+
+[target.x86_64-linux-android]
+ar = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/schlaus/Library/Android/sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang"

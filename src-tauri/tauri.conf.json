@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "WaveFunc",
+  "version": "0.1.0",
+  "identifier": "live.wavefunc.app",
+  "build": {
+    "beforeDevCommand": "bun run build",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "WaveFunc",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "WaveFunc",
+    "copyright": "",
+    "category": "Music",
+    "shortDescription": "Decentralized Radio Platform",
+    "longDescription": "WaveFunc is a decentralized radio platform built on Nostr",
+    "iOS": {
+      "minimumSystemVersion": "13.0"
+    },
+    "android": {
+      "minSdkVersion": 24
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

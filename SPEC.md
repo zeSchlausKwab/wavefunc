@@ -1,12 +1,12 @@
 # NostrRadio - Application Specification
 
-This document defines the event kinds, content formats, and tag structures used in the NostrRadio application.
+This document defines the event kinds, content formats, and tag structures used in the NostrRadio application. This specification complies with the NIP-XX Internet Radio standard for radio station events while extending it with additional social features and application-specific functionality.
 
 ## Event Kinds
 
 | Kind  | Description                 | Replaceable? | NIP Reference |
 | ----- | --------------------------- | ------------ | ------------- |
-| 31237 | Radio Station Event         | Yes, d-tag   | -             |
+| 31237 | Radio Station Event         | Yes, d-tag   | NIP-XX        |
 | 30078 | Favorites List              | Yes, d-tag   | NIP-78        |
 | 31990 | NIP-89 Handler Event        | Yes, d-tag   | NIP-89        |
 | 31989 | NIP-89 Recommendation Event | Yes, d-tag   | NIP-89        |
@@ -15,7 +15,7 @@ This document defines the event kinds, content formats, and tag structures used 
 
 ## Radio Station Events (kind 31237)
 
-Radio Station events are used to define a radio station and its streams. These events are replaceable using the `d` tag.
+Radio Station events are used to define a radio station and its streams. These events are replaceable using the `d` tag and comply with the NIP-XX Internet Radio standard.
 
 ### Content Format
 
@@ -23,20 +23,20 @@ The content field must be a JSON string with the following structure:
 
 ```json
 {
-    "description": "Detailed station description with **markdown** support.",
-    "streams": [
-        {
-            "url": "https://stream-url.com/stream",
-            "format": "audio/mpeg",
-            "quality": {
-                "bitrate": 128000,
-                "codec": "mp3",
-                "sampleRate": 44100
-            },
-            "primary": true
-        }
-    ],
-    "streamingServerUrl": "https://streaming-server.com"
+  "description": "Detailed station description with **markdown** support.",
+  "streams": [
+    {
+      "url": "https://stream-url.com/stream",
+      "format": "audio/mpeg",
+      "quality": {
+        "bitrate": 128000,
+        "codec": "mp3",
+        "sampleRate": 44100
+      },
+      "primary": true
+    }
+  ],
+  "streamingServerUrl": "https://streaming-server.com"
 }
 ```
 
@@ -72,44 +72,46 @@ The content field must be a JSON string with the following structure:
 
 ### Recommended Tags
 
-| Tag Name    | Description                      | Format                                |
-| ----------- | -------------------------------- | ------------------------------------- |
-| t           | Station genre/category           | String (can have multiple)            |
-| thumbnail   | Station logo/image URL           | URL                                   |
-| language    | Station language                 | ISO language code (can have multiple) |
-| countryCode | Station country                  | ISO 3166-2 country code               |
-| location    | Physical location of the station | String (e.g., "Paris, FR")            |
-| website     | Station's website                | URL                                   |
-| client      | Client that published the event  | [Format specification](#client-tag)   |
+| Tag Name    | Description                      | Format                                            |
+| ----------- | -------------------------------- | ------------------------------------------------- |
+| c           | Station genre/category           | ["c", "genre_value", "genre"] (can have multiple) |
+| thumbnail   | Station logo/image URL           | URL                                               |
+| l           | Station language                 | ISO 639-1 language code (can have multiple)       |
+| countryCode | Station country                  | ISO 3166-2 country code                           |
+| location    | Physical location of the station | String (e.g., "Paris, France")                    |
+| g           | Geohash for precise coordinates  | Geohash string                                    |
+| website     | Station's website                | URL                                               |
+| client      | Client that published the event  | [Format specification](#client-tag)               |
 
 ### Example Event
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000000,
-    "kind": 31237,
-    "content": "{\"description\":\"Curious and sophisticated: Since 1971 FIP offers a versatile program of **jazz**, *chansons*, world music and electronic tunes.\",\"streams\":[{\"url\":\"https://icecast.radiofrance.fr/fiprock-hifi.aac\",\"format\":\"audio/aac\",\"quality\":{\"bitrate\":128000,\"codec\":\"aac\",\"sampleRate\":44100},\"primary\":true}]}",
-    "tags": [
-        ["d", "<random-uuid>"],
-        ["name", "FIP Radio"],
-        ["website", "https://www.radio.net/s/fip"],
-        ["t", "jazz"],
-        ["t", "world"],
-        ["t", "electronic"],
-        ["language", "fr"],
-        ["countryCode", "FR"],
-        ["location", "Paris, FR"],
-        ["thumbnail", "https://picsum.photos/seed/fip/400/400"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
-    ],
-    "sig": "..."
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000000,
+  "kind": 31237,
+  "content": "{\"description\":\"Curious and sophisticated: Since 1971 FIP offers a versatile program of **jazz**, *chansons*, world music and electronic tunes.\",\"streams\":[{\"url\":\"https://icecast.radiofrance.fr/fiprock-hifi.aac\",\"format\":\"audio/aac\",\"quality\":{\"bitrate\":128000,\"codec\":\"aac\",\"sampleRate\":44100},\"primary\":true}]}",
+  "tags": [
+    ["d", "<random-uuid>"],
+    ["name", "FIP Radio"],
+    ["website", "https://www.radio.net/s/fip"],
+    ["c", "jazz", "genre"],
+    ["c", "world", "genre"],
+    ["c", "electronic", "genre"],
+    ["l", "fr"],
+    ["countryCode", "FR"],
+    ["location", "Paris, France"],
+    ["g", "u09tvw0"],
+    ["thumbnail", "https://picsum.photos/seed/fip/400/400"],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -123,10 +125,10 @@ The content field must be a JSON string with the following structure:
 
 ```json
 {
-    "name": "My Favorite Stations",
-    "description": "A collection of my favorite radio stations",
-    "image": "https://example.com/favorites-image.jpg",
-    "banner": "https://example.com/favorites-banner.jpg"
+  "name": "My Favorite Stations",
+  "description": "A collection of my favorite radio stations",
+  "image": "https://example.com/favorites-image.jpg",
+  "banner": "https://example.com/favorites-banner.jpg"
 }
 ```
 
@@ -169,27 +171,39 @@ Favorite stations are stored using 'a' tags with the following format:
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000000,
-    "kind": 30078,
-    "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
-    "tags": [
-        ["d", "<random-uuid>"],
-        ["l", "user_favourite_list"],
-        ["name", "My Favorite Stations"],
-        ["description", "Stations I listen to every day"],
-        ["p", "<app's pubkey>"],
-        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "FIP Radio", "1690000000"],
-        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Soma FM Drone Zone", "1690000001"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000000,
+  "kind": 30078,
+  "content": "{\"name\":\"My Favorite Stations\",\"description\":\"Stations I listen to every day\",\"image\":\"https://example.com/favorites-image.jpg\",\"banner\":\"https://example.com/favorites-banner.jpg\"}",
+  "tags": [
+    ["d", "<random-uuid>"],
+    ["l", "wavefunc_user_favourite_list"],
+    ["name", "My Favorite Stations"],
+    ["description", "Stations I listen to every day"],
+    ["p", "<app's pubkey>"],
+    [
+      "a",
+      "31237:<pubkey>:<d-tag>",
+      "wss://relay.wavefunc.live",
+      "FIP Radio",
+      "1690000000"
     ],
-    "sig": "..."
+    [
+      "a",
+      "31237:<pubkey>:<d-tag>",
+      "wss://relay.wavefunc.live",
+      "Soma FM Drone Zone",
+      "1690000001"
+    ],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -203,11 +217,11 @@ The content field must be a JSON string with the following structure:
 
 ```json
 {
-    "name": "Jazz & Blues Stations",
-    "description": "The best jazz and blues radio stations from around the world",
-    "image": "https://example.com/jazz-image.jpg",
-    "banner": "https://example.com/jazz-banner.jpg",
-    "topic": "jazz-blues"
+  "name": "Jazz & Blues Stations",
+  "description": "The best jazz and blues radio stations from around the world",
+  "image": "https://example.com/jazz-image.jpg",
+  "banner": "https://example.com/jazz-banner.jpg",
+  "topic": "jazz-blues"
 }
 ```
 
@@ -246,7 +260,7 @@ Featured stations are stored using 'a' tags with the following format:
 | name        | Name of the featured list              | String                              |
 | description | Description of the featured list       | String                              |
 | topic       | Topic/theme tag for the collection     | String                              |
-| t           | Category/genre tag (can have multiple) | String                              |
+| c           | Category/genre tag (can have multiple) | ["c", "genre_value", "genre"]       |
 | client      | Client that published the event        | [Format specification](#client-tag) |
 | p           | Pubkey of the curator (app or user)    | String                              |
 | created_by  | Attribution for the curator (optional) | String                              |
@@ -255,30 +269,48 @@ Featured stations are stored using 'a' tags with the following format:
 
 ```json
 {
-    "id": "...",
-    "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
-    "created_at": 1690000000,
-    "kind": 30078,
-    "content": "{\"name\":\"Jazz & Blues Stations\",\"description\":\"The best jazz and blues radio stations from around the world\",\"image\":\"https://example.com/jazz-image.jpg\",\"banner\":\"https://example.com/jazz-banner.jpg\",\"topic\":\"jazz-blues\"}",
-    "tags": [
-        ["d", "jazz-blues-collection"],
-        ["l", "featured_station_list"],
-        ["topic", "jazz-blues"],
-        ["t", "jazz"],
-        ["t", "blues"],
-        ["t", "featured"],
-        ["p", "<app's pubkey>"],
-        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "WBGO Jazz 88.3", "1"],
-        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Jazz FM", "2"],
-        ["a", "31237:<pubkey>:<d-tag>", "wss://relay.wavefunc.live", "Blues Radio", "3"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
+  "id": "...",
+  "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
+  "created_at": 1690000000,
+  "kind": 30078,
+  "content": "{\"name\":\"Jazz & Blues Stations\",\"description\":\"The best jazz and blues radio stations from around the world\",\"image\":\"https://example.com/jazz-image.jpg\",\"banner\":\"https://example.com/jazz-banner.jpg\",\"topic\":\"jazz-blues\"}",
+  "tags": [
+    ["d", "<random-uuid>"],
+    ["l", "featured_station_list"],
+    ["topic", "jazz-blues"],
+    ["c", "jazz", "genre"],
+    ["c", "blues", "genre"],
+    ["c", "featured", "category"],
+    ["p", "<app's pubkey>"],
+    [
+      "a",
+      "31237:<pubkey>:<d-tag>",
+      "wss://relay.wavefunc.live",
+      "WBGO Jazz 88.3",
+      "1"
     ],
-    "sig": "..."
+    [
+      "a",
+      "31237:<pubkey>:<d-tag>",
+      "wss://relay.wavefunc.live",
+      "Jazz FM",
+      "2"
+    ],
+    [
+      "a",
+      "31237:<pubkey>:<d-tag>",
+      "wss://relay.wavefunc.live",
+      "Blues Radio",
+      "3"
+    ],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -312,26 +344,26 @@ The content field contains the chat message text. Markdown formatting is support
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000000,
-    "kind": 1311,
-    "content": "This is such a great jazz station! Anyone know what song this is? 🎵",
-    "tags": [
-        [
-            "a",
-            "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
-            "wss://relay.wavefunc.live",
-            "root"
-        ],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000000,
+  "kind": 1311,
+  "content": "This is such a great jazz station! Anyone know what song this is? 🎵",
+  "tags": [
+    [
+      "a",
+      "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
+      "wss://relay.wavefunc.live",
+      "root"
     ],
-    "sig": "..."
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -339,27 +371,27 @@ The content field contains the chat message text. Markdown formatting is support
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000001,
-    "kind": 1311,
-    "content": "I think it's Miles Davis - Kind of Blue! Classic album 🎺",
-    "tags": [
-        [
-            "a",
-            "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
-            "wss://relay.wavefunc.live",
-            "root"
-        ],
-        ["e", "previous-chat-message-id"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000001,
+  "kind": 1311,
+  "content": "I think it's Miles Davis - Kind of Blue! Classic album 🎺",
+  "tags": [
+    [
+      "a",
+      "31237:000000000000000000000000000000000000000000000000000000000000radio:fip-radio",
+      "wss://relay.wavefunc.live",
+      "root"
     ],
-    "sig": "..."
+    ["e", "previous-chat-message-id"],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -416,26 +448,26 @@ The content field contains the comment text as plaintext. Per NIP-22, no HTML, M
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000000,
-    "kind": 1111,
-    "content": "This station has an amazing selection of underground jazz. Been listening for months and they always surprise me with new artists!",
-    "tags": [
-        ["E", "station-event-id"],
-        ["K", "31237"],
-        ["P", "station-owner-pubkey"],
-        ["e", "station-event-id"],
-        ["k", "31237"],
-        ["p", "station-owner-pubkey"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
-    ],
-    "sig": "..."
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000000,
+  "kind": 1111,
+  "content": "This station has an amazing selection of underground jazz. Been listening for months and they always surprise me with new artists!",
+  "tags": [
+    ["E", "station-event-id"],
+    ["K", "31237"],
+    ["P", "station-owner-pubkey"],
+    ["e", "station-event-id"],
+    ["k", "31237"],
+    ["p", "station-owner-pubkey"],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -443,29 +475,29 @@ The content field contains the comment text as plaintext. Per NIP-22, no HTML, M
 
 ```json
 {
-    "id": "...",
-    "pubkey": "...",
-    "created_at": 1690000001,
-    "kind": 1111,
-    "content": "Totally agree! Their late night sets are particularly incredible. Have you heard their Sunday evening jazz fusion block?",
-    "tags": [
-        ["E", "station-event-id"],
-        ["K", "31237"],
-        ["P", "station-owner-pubkey"],
-        ["e", "station-event-id"],
-        ["k", "31237"],
-        ["p", "station-owner-pubkey"],
-        ["e", "parent-comment-id"],
-        ["k", "1111"],
-        ["p", "parent-comment-author-pubkey"],
-        [
-            "client",
-            "NostrRadio",
-            "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
-            "wss://relay.wavefunc.live"
-        ]
-    ],
-    "sig": "..."
+  "id": "...",
+  "pubkey": "...",
+  "created_at": 1690000001,
+  "kind": 1111,
+  "content": "Totally agree! Their late night sets are particularly incredible. Have you heard their Sunday evening jazz fusion block?",
+  "tags": [
+    ["E", "station-event-id"],
+    ["K", "31237"],
+    ["P", "station-owner-pubkey"],
+    ["e", "station-event-id"],
+    ["k", "31237"],
+    ["p", "station-owner-pubkey"],
+    ["e", "parent-comment-id"],
+    ["k", "1111"],
+    ["p", "parent-comment-author-pubkey"],
+    [
+      "client",
+      "NostrRadio",
+      "31990:000000000000000000000000000000000000000000000000000000000000radio:handler123",
+      "wss://relay.wavefunc.live"
+    ]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -474,22 +506,26 @@ The content field contains the comment text as plaintext. Per NIP-22, no HTML, M
 1. **NIP-22 Compliance**: This implementation follows [NIP-22](https://github.com/nostr-protocol/nips/blob/master/22.md) for comment threading. Comments MUST use uppercase tags for root scope and lowercase tags for parent items.
 
 2. **Tag Structure (Per NIP-22)**:
-    - **Root Scope**: Uppercase tags (E, K, P) always point to the radio station event
-    - **Parent Item**: Lowercase tags (e, k, p) point to the immediate parent (station for root comments, comment for replies)
-    - Both `K` and `k` tags MUST be present to define event kinds
+
+   - **Root Scope**: Uppercase tags (E, K, P) always point to the radio station event
+   - **Parent Item**: Lowercase tags (e, k, p) point to the immediate parent (station for root comments, comment for replies)
+   - Both `K` and `k` tags MUST be present to define event kinds
 
 3. **Comment Hierarchy**:
-    - **Root Comments**: Parent tags reference the station event (e=station-id, k="31237")
-    - **Reply Comments**: Parent tags reference the parent comment (e=comment-id, k="1111")
+
+   - **Root Comments**: Parent tags reference the station event (e=station-id, k="31237")
+   - **Reply Comments**: Parent tags reference the parent comment (e=comment-id, k="1111")
 
 4. **Query Patterns**:
-    - Fetch all comments for a station: Filter by `kind: 1111` and `#E: [station-event-id]`
-    - Fetch replies to a comment: Filter by `kind: 1111` and `#e: [comment-id]` with `#k: ["1111"]`
+
+   - Fetch all comments for a station: Filter by `kind: 1111` and `#E: [station-event-id]`
+   - Fetch replies to a comment: Filter by `kind: 1111` and `#e: [comment-id]` with `#k: ["1111"]`
 
 5. **Threading Logic**:
-    - Root comments: `k` tag contains "31237" (station kind)
-    - Reply comments: `k` tag contains "1111" (comment kind)
-    - All comments maintain root scope reference to the original station
+
+   - Root comments: `k` tag contains "31237" (station kind)
+   - Reply comments: `k` tag contains "1111" (comment kind)
+   - All comments maintain root scope reference to the original station
 
 6. **Content Restrictions**: Per NIP-22, content MUST be plaintext only - no HTML, Markdown, or other formatting allowed.
 
@@ -505,13 +541,13 @@ The content field must be a JSON string with the following structure:
 
 ```json
 {
-    "name": "NostrRadio",
-    "display_name": "Nostr Radio",
-    "picture": "https://wavefunc.live/icons/logo.png",
-    "about": "A radio station directory and player built on Nostr",
-    "nip90": {
-        "content": ["text/plain"]
-    }
+  "name": "NostrRadio",
+  "display_name": "Nostr Radio",
+  "picture": "https://wavefunc.live/icons/logo.png",
+  "about": "A radio station directory and player built on Nostr",
+  "nip90": {
+    "content": ["text/plain"]
+  }
 }
 ```
 
@@ -540,19 +576,19 @@ The content field must be a JSON string with the following structure:
 
 ```json
 {
-    "id": "...",
-    "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
-    "created_at": 1690000000,
-    "kind": 31990,
-    "content": "{\"name\":\"NostrRadio\",\"display_name\":\"Nostr Radio\",\"picture\":\"https://wavefunc.live/icons/logo.png\",\"about\":\"A radio station directory and player built on Nostr\",\"nip90\":{\"content\":[\"text/plain\"]}}",
-    "tags": [
-        ["d", "handler123"],
-        ["k", "31237"],
-        ["web", "https://wavefunc.live/station/<bech32>", "naddr"],
-        ["web", "https://wavefunc.live/profile/<bech32>", "npub"],
-        ["web", "https://wavefunc.live/stations", "naddr"]
-    ],
-    "sig": "..."
+  "id": "...",
+  "pubkey": "000000000000000000000000000000000000000000000000000000000000radio",
+  "created_at": 1690000000,
+  "kind": 31990,
+  "content": "{\"name\":\"NostrRadio\",\"display_name\":\"Nostr Radio\",\"picture\":\"https://wavefunc.live/icons/logo.png\",\"about\":\"A radio station directory and player built on Nostr\",\"nip90\":{\"content\":[\"text/plain\"]}}",
+  "tags": [
+    ["d", "handler123"],
+    ["k", "31237"],
+    ["web", "https://wavefunc.live/station/<bech32>", "naddr"],
+    ["web", "https://wavefunc.live/profile/<bech32>", "npub"],
+    ["web", "https://wavefunc.live/stations", "naddr"]
+  ],
+  "sig": "..."
 }
 ```
 
@@ -579,18 +615,22 @@ Client tags identify the client application that published a note. This is imple
 
 ## Implementation Notes
 
-1. **Station Name as d-tag**: It is recommended to use the station name as the d-tag value for radio station events to make them more predictable and ensure uniqueness.
+1. **NIP-XX Compliance**: Radio station events (kind 31237) comply with the NIP-XX Internet Radio standard, using the updated tag format including `l` for language codes and `g` for geohash coordinates.
 
-2. **Client Tags**: Due to privacy implications, clients SHOULD allow users to opt-out of including client tags in their published events.
+2. **Station Name as d-tag**: It is recommended to use the station name as the d-tag value for radio station events to make them more predictable and ensure uniqueness.
 
-3. **Tag Indexing**: The `i` tag is used for improved searchability of stations by name. It stores the trimmed station name and should be used as the primary index for name-based searches.
+3. **Client Tags**: Due to privacy implications, clients SHOULD allow users to opt-out of including client tags in their published events.
 
-4. **Thumbnail/Favicon**: For consistency, use the `thumbnail` tag for images rather than `favicon` or other variations.
+4. **Tag Indexing**: The `i` tag is used for improved searchability of stations by name. It stores the trimmed station name and should be used as the primary index for name-based searches.
 
-5. **Language Codes**: Language codes should be stored in individual `l` tags rather than as an array in the content to improve filterability.
+5. **Thumbnail/Favicon**: For consistency, use the `thumbnail` tag for images rather than `favicon` or other variations.
 
-6. **Genre/Category Tags**: Genres and categories are stored as `t` tags for consistency with Nostr conventions around topic/categorical tags.
+6. **Language Codes**: Language codes should be stored in individual `l` tags rather than as an array in the content to improve filterability.
 
-7. **Station Streams**: A station may have multiple streams with different quality levels. The `primary` field should be set to `true` for the default stream that should be played.
+7. **Genre/Category Tags**: Genres and categories are stored as `c` tags using the format `["c", "genre_value", "genre"]` for consistency with category-based tagging conventions. Use `"genre"` for musical genres and `"category"` for other classifications.
 
-8. **Deleted Stations**: To delete a station, publish a kind 5 event referencing the station's event ID.
+8. **Station Streams**: A station may have multiple streams with different quality levels. The `primary` field should be set to `true` for the default stream that should be played.
+
+9. **Deleted Stations**: To delete a station, publish a kind 5 event referencing the station's event ID.
+
+10. **Geohash Support**: The `g` tag contains geohash coordinates for precise geographical discovery, enabling location-based station filtering and discovery.

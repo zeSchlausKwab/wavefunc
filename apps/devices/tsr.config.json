@@ -1,8 +1,0 @@
-{
-    "$schema": "https://tanstack.com/router.json",
-    "watch": true,
-    "compile": false,
-    "rootDir": "src",
-    "routesDir": "src/routes",
-    "routesTreeFile": "src/routeTree.gen.ts"
-}

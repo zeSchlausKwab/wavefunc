@@ -1,0 +1,107 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build frontend
+        run: bun run build.ts
+
+      - name: Create deployment archive
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude='contextvm/node_modules' \
+            --exclude='relay/relay' \
+            --exclude='relay/data' \
+            dist/ \
+            src/ \
+            relay/ \
+            contextvm/ \
+            ecosystem.config.cjs \
+            Caddyfile \
+            package.json \
+            bun.lock
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
+          scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+
+      - name: Create .env file from secrets
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+          TLS_EMAIL: ${{ secrets.TLS_EMAIL }}
+          METADATA_SERVER_KEY: ${{ secrets.METADATA_SERVER_KEY }}
+          METADATA_SERVER_PUBKEY: ${{ secrets.METADATA_SERVER_PUBKEY }}
+          METADATA_CLIENT_KEY: ${{ secrets.METADATA_CLIENT_KEY }}
+        run: |
+          cat > .env.production << EOF
+          NODE_ENV=production
+          PORT=3000
+          DOMAIN=${DOMAIN}
+          TLS_EMAIL=${TLS_EMAIL}
+          RELAY_URL=wss://${DOMAIN}/relay
+          RELAY_PORT=3334
+          METADATA_SERVER_KEY=${METADATA_SERVER_KEY}
+          METADATA_SERVER_PUBKEY=${METADATA_SERVER_PUBKEY}
+          METADATA_CLIENT_KEY=${METADATA_CLIENT_KEY}
+          EOF
+
+      - name: Upload deployment files
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
+          scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+          scp .env.production $VPS_USER@$VPS_HOST:$VPS_PATH/.env
+          scp scripts/deploy-remote.sh $VPS_USER@$VPS_HOST:$VPS_PATH/
+
+      - name: Execute deployment on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          ssh $VPS_USER@$VPS_HOST "cd $VPS_PATH && bash deploy-remote.sh"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
+          rm -f deploy.tar.gz

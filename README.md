@@ -1,154 +1,216 @@
-# WaveFunc
+# WaveFunc Radio
 
-A decentralized internet radio registry built on Nostr, offering music recognition capabilities and favorites management. This application is also referred to as NostrRadio in the specification documents.
-
-<div align="center">
-  <img src="apps/web/public/images/logo.png" alt="WaveFunc Logo" width="200" />
-</div>
+A Nostr-based internet radio directory and player with full-text search capabilities.
 
 ## Features
 
-- 🎵 **Radio Station Streaming**: Listen to radio stations from around the world.
-- 📻 **Radio Station Registry**: Define and discover radio stations using Nostr events (Kind 31237).
-- 🔍 **Dedicated and Indexed Relay**: Ligthning fast radio station search.
-- ⭐ **Favorites Management**: Create and manage lists of your favorite stations using Nostr events (Kind 30078).
-- 큐 **Featured Station Lists**: Discover curated collections of radio stations.
-- 🔑 **Nostr Authentication**: Seamless login with your Nostr key (including NIP-46 for remote signing).
-- 🌐 **Decentralized**: Built on the Nostr protocol for censorship resistance and data portability.
-- 📱 **Responsive Design**: Works on desktop and mobile devices.
-- 🔗 **NIP-89 Handler Support**: Declares itself as a handler for radio station events (Kind 31990).
+- 🎵 **Radio Station Directory**: Browse and discover internet radio stations on Nostr
+- 🔍 **Full-Text Search**: Search stations by name and description (NIP-50)
+- 💾 **SQLite Storage**: Persistent event storage (just files!)
+- ⚡ **Fast Search**: Powered by Bluge full-text search engine
+- 🌐 **Nostr Protocol**: Built on the decentralized Nostr protocol
+- ⚛️ **Modern Frontend**: React + TypeScript + Tailwind CSS
+- 🚀 **No Dependencies**: No Docker or external databases needed
 
-## Tech Stack
+## Project Structure
 
-- **Frontend**: React, TailwindCSS, Vite, Tanstack Router
-- **Backend**: Bun
-- **Nostr**: NDK (Nostr Development Kit), NIP-07, NIP-46
-- **Database**: PostgreSQL (for caching/indexing Nostr events - optional, primarily relies on Nostr relays)
-- **Deployment**: Nginx, Railway
-- **Music Recognition**: AudD API via DVM (Nostr Data Verification Method)
-- **Specification**: Follows NostrRadio event kinds and formats (see `SPEC.md`)
-
-## Development Setup
-
-### Prerequisites
-
-- [Bun](https://bun.sh/) v1.x or higher
-- [Node.js](https://nodejs.org/) v18.x or higher
-- [Git](https://git-scm.com/)
-
-### Getting Started
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/zeSchlausKwab/wavefunc.git
-cd wavefunc
+```
+wavefunc-rewrite/
+├── relay/              # Khatru-based Nostr relay with search
+│   ├── main.go        # Relay implementation
+│   ├── setup.sh       # Automated setup script
+│   └── README.md      # Relay documentation
+├── src/               # Frontend application
+│   ├── components/    # React components
+│   └── lib/          # Utilities and hooks
+└── scripts/          # Seed and generation scripts
 ```
 
-2. Install dependencies:
+## Quick Start
+
+### 1. Set up the Relay
+
+The relay provides the backend Nostr relay with SQLite storage and full-text search:
+
+```bash
+cd relay
+./setup.sh
+make dev
+```
+
+This will:
+
+- Install Go dependencies
+- Create data directories
+- Start the relay on port 3334
+
+For more details, see [relay/README.md](relay/README.md)
+
+### 2. Install Frontend Dependencies
 
 ```bash
 bun install
 ```
 
-3. Set up environment variables:
+### 3. Start Development
 
 ```bash
-cp .env.sample .env
+# In one terminal: Start the relay
+bun run relay
+
+# In another terminal: Start the frontend
+bun --hot src/index.tsx
 ```
 
-Edit the `.env` file and fill in the required values (see Environment Variables section).
-
-4. Start the development server:
+Or use the combined dev command:
 
 ```bash
-bun run dev
+bun dev
 ```
 
-This will start all services:
+## Available Scripts
 
-- Web app: http://localhost:8080
-- Backend API: http://localhost:3001
-- Relay: ws://localhost:3002
+### Frontend
 
-### Environment Variables
+- `bun dev` - Start relay, migrate 500 real stations, and run development server
+- `bun dev:fake` - Start relay with fake/test data instead of real stations
+- `bun seed` - Seed the relay with fake test data
+- `bun start` - Run in production mode
+- `bun build` - Build for production
 
-The following environment variables are required:
+### Relay
 
+- `bun run relay` - Start the relay
+- `bun run relay:reset` - Reset database and search index
+- `cd relay && make dev` - Run relay in development mode
+- `cd relay && make reset-all` - Reset all data
+
+### Tauri (Desktop & Mobile)
+
+- `bun run tauri:dev` - Start Tauri desktop development
+- `bun run tauri:build` - Build Tauri desktop application
+- `bun run tauri:android` - Initialize and run Android emulator
+- `bun run tauri:android:build` - Build Android APK
+
+### Migration
+
+- `bun run migrate` - Migrate 500 random stations from legacy database (default)
+- `bun run migrate 50` - Migrate 50 random stations
+- `bun run migrate 1000` - Migrate 1000 random stations
+
+**Note:** Duplicate stations (same name + country) are automatically merged into single events with multiple streams.
+
+See [legacy-db/README.md](legacy-db/README.md) for details on the legacy database structure and migration process.
+
+## Technology Stack
+
+### Backend (Relay)
+
+- **[Khatru](https://khatru.nostr.technology/)** - Nostr relay framework
+- **[Bluge](https://github.com/blugelabs/bluge)** - Full-text search engine
+- **SQLite** - Primary event storage (via eventstore/sqlite3)
+- **Go 1.23+** - Programming language
+
+### Frontend
+
+- **[Bun](https://bun.com)** - Fast JavaScript runtime & bundler
+- **React 19** - UI framework
+- **TypeScript** - Type-safe JavaScript
+- **Tailwind CSS** - Utility-first CSS framework
+- **NDK** - Nostr Development Kit
+- **shadcn/ui** - UI component library
+
+## Configuration
+
+### Relay Configuration
+
+The relay can be configured via command-line flags:
+
+```bash
+cd relay
+go run . \
+  --port 3334 \
+  --db-path ./data/events.db \
+  --search-path ./data/search
 ```
-VITE_PUBLIC_APP_ENV=development
-PUBLIC_HOST=localhost
-PUBLIC_RELAY_PORT=3002
-PUBLIC_WEB_PORT=8080
-PUBLIC_API_PORT=3001
-PUBLIC_BLOSSOM_URL=<url>
-# Add your Nostr pubkey if you are running a DVM or want to publish curated lists
-# NOSTR_PUBLIC_KEY=<your_nostr_pubkey_hex>
-# NOSTR_PRIVATE_KEY=<your_nostr_private_key_hex> # Keep this safe!
-```
 
-> **Important:** When testing features like NIP-46 login or using the app from other devices on your network, set `PUBLIC_HOST` to your machine's local IP address (e.g., `192.168.1.x`) instead of `localhost`. This ensures proper communication between devices on your network. The `NOSTR_PUBLIC_KEY` and `NOSTR_PRIVATE_KEY` are primarily for application-level event publishing (e.g. featured lists, NIP-89 handler events if the app itself publishes these). User-specific actions are signed by the user's client.
-
-For production, you'll also need:
-
-```
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=<your-password>
-POSTGRES_DB=nostr
-POSTGRES_PORT=5432
-POSTGRES_HOST=localhost
-```
-
-## Project Structure
-
-```
-/apps
-  /web          # React frontend
-  /devices      # app (coming soon)
-/infra
-  /blossom      # blossom
-  /dvm          # Data Verification Method service (for music recognition)
-/packages       # Shared code (e.g., Nostr types, utilities)
-/docs           # Documentation, including SPEC.md
-```
+All data is stored in local files - no external configuration needed!
 
 ## Development
 
-### Available Commands
+### Reset Everything
 
-- `bun run dev`: Start all services in development mode
-- `bun run dev:web`: Start only the web frontend
-- `bun run dev:backend`: Start only the backend API
-- `bun run dev:relay`: Start only the Nostr relay
-- `bun run dev:dvm`: Start only the DVM service
-- `bun run build`: Build the application for production
-- `bun run test`: Run tests
-- `bun run format`: Format code using Prettier
+To start fresh:
 
-## Specification Adherence
+```bash
+bun run relay:reset
+bun run seed
+```
 
-WaveFunc / NostrRadio follows the event kinds, content formats, and tag structures defined in `SPEC.md`. Key kinds include:
+### View Data
 
-- `31237`: Radio Station Event
-- `30078`: Favorites List & Featured Station Lists
-- `31990`: NIP-89 Handler Event
+```bash
+cd relay
 
-Refer to `SPEC.md` for detailed information on event structures, tags, and content formats.
+# View SQLite database
+sqlite3 data/events.db
+
+# Check data directory
+ls -la data/
+```
+
+### Android Development
+
+The app automatically detects when running on Android and uses the correct relay URL:
+
+- **Desktop/Web**: `ws://localhost:3334`
+- **Android Emulator**: `ws://10.0.2.2:3334` (Android's special IP to reach host machine)
+
+To develop for Android:
+
+1. Ensure the relay is running on your host machine:
+   ```bash
+   bun run relay
+   ```
+
+2. Start the Android emulator:
+   ```bash
+   bun run tauri:android
+   ```
+
+The app will automatically connect to the relay using the platform-appropriate URL. No additional configuration needed!
+
+## Event Kinds Supported
+
+See [SPEC.md](SPEC.md) for detailed specification.
+
+- **31237** - Radio Station Events
+- **30078** - Favorites Lists & Featured Station Lists
+- **31990** - NIP-89 Handler Events
+- **31989** - NIP-89 Recommendation Events
+- **1311** - Live Chat Messages
+- **1111** - Station Comments
+
+## NIP Support
+
+The relay implements the following NIPs:
+
+- NIP-01: Basic protocol flow
+- NIP-09: Event deletion
+- NIP-11: Relay information document
+- NIP-12: Generic tag queries
+- NIP-15: End of stored events notice
+- NIP-16: Event treatment
+- NIP-20: Command results
+- NIP-22: Comment events
+- NIP-33: Parameterized replaceable events
+- NIP-40: Expiration timestamp
+- NIP-50: Search capability
 
 ## License
 
-[MIT License](LICENSE)
+See LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-```
-
-```
+Contributions are welcome! Please read the [SPEC.md](SPEC.md) for the event structure specification.

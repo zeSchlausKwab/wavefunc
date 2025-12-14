@@ -1,17 +1,10 @@
 # dependencies (bun install)
 node_modules
 
-# notes
-notes
-
-# blossom data
-data
-
 # output
 out
 dist
 *.tgz
-**/public/build
 
 # code coverage
 coverage
@@ -24,10 +17,14 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # dotenv environment variable files
 .env
+.env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
-.env.local
+
+# deployment artifacts
+deploy.tar.gz
 
 # caches
 .eslintcache
@@ -39,3 +36,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# database
+legacy-db/*
