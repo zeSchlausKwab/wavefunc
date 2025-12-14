@@ -66,13 +66,22 @@ export async function searchReleases(
 ): Promise<MusicBrainzRelease[]> {
   const url = new URL(`${MUSICBRAINZ_API}/release`);
 
-  let searchQuery: string;
-  if (artist) {
-    searchQuery = `release:${query}~2 AND artist:${artist}~2`;
-  } else {
-    // Boost releases where query appears in title OR artist name
-    searchQuery = `(release:${query}~2^2 OR artist:${query}~2)`;
+  // Build search query based on what's provided
+  const queryParts: string[] = [];
+
+  if (query && query.trim() !== "") {
+    queryParts.push(`release:${query}~2`);
   }
+
+  if (artist && artist.trim() !== "") {
+    queryParts.push(`artist:${artist}~2`);
+  }
+
+  if (queryParts.length === 0) {
+    throw new Error("At least one search parameter (query or artist) must be provided");
+  }
+
+  const searchQuery = queryParts.join(" AND ");
 
   url.searchParams.set("query", searchQuery);
   url.searchParams.set("fmt", "json");
@@ -120,14 +129,22 @@ export async function searchRecordings(
 ): Promise<MusicBrainzRecording[]> {
   const url = new URL(`${MUSICBRAINZ_API}/recording`);
 
-  let searchQuery: string;
-  if (artist) {
-    // Specific artist + track search
-    searchQuery = `recording:${query}~2 AND artist:${artist}~2`;
-  } else {
-    // Track search - boost exact matches in recording title, also check artist
-    searchQuery = `(recording:${query}~2^2 OR artist:${query}~2)`;
+  // Build search query based on what's provided
+  const queryParts: string[] = [];
+
+  if (query && query.trim() !== "") {
+    queryParts.push(`recording:${query}~2`);
   }
+
+  if (artist && artist.trim() !== "") {
+    queryParts.push(`artist:${artist}~2`);
+  }
+
+  if (queryParts.length === 0) {
+    throw new Error("At least one search parameter (query or artist) must be provided");
+  }
+
+  const searchQuery = queryParts.join(" AND ");
 
   url.searchParams.set("query", searchQuery);
   url.searchParams.set("fmt", "json");
@@ -195,47 +212,6 @@ export async function searchLabels(
     country: label.country,
     type_: label.type?.toLowerCase(),
     labelCode: label["label-code"] ? String(label["label-code"]) : undefined,
-    disambiguation: label.disambiguation,
-    score: label.score || 0,
-    tags: label.tags?.map((t: any) => t.name),
-  }));
-}
-
-/**
- * Search for labels on MusicBrainz
- * @param query - Label name to search for
- * @param limit - Maximum number of results to return
- */
-export async function searchLabels(
-  query: string,
-  limit = 10
-): Promise<MusicBrainzLabel[]> {
-  const url = new URL(`${MUSICBRAINZ_API}/label`);
-  url.searchParams.set("query", `label:${query}~2`);
-  url.searchParams.set("fmt", "json");
-  url.searchParams.set("limit", limit.toString());
-
-  console.log(`🔍 Label search: ${url.toString()}`);
-
-  const response = await fetch(url.toString(), {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    throw new Error(`MusicBrainz API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const labels = data.labels || [];
-
-  return labels.map((label: any) => ({
-    id: label.id,
-    type: "label" as const,
-    name: label.name,
-    sortName: label["sort-name"],
-    country: label.country,
-    type_: label.type?.toLowerCase(),
-    labelCode: label["label-code"]?.toString(),
     disambiguation: label.disambiguation,
     score: label.score || 0,
     tags: label.tags?.map((t: any) => t.name),

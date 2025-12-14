@@ -182,7 +182,7 @@ export type SearchArtistsOutput = {
 // ============================================================================
 
 export const searchReleasesInputSchema = {
-  query: z.string().describe("Release/album title to search for"),
+  query: z.string().default("").describe("Release/album title to search for"),
   artist: z.string().default("").describe("Filter by artist name"),
   limit: z
     .number()
@@ -195,7 +195,7 @@ export const searchReleasesOutputSchema = {
 };
 
 export type SearchReleasesInput = {
-  query: string;
+  query?: string;
   artist?: string;
   limit?: number;
 };
@@ -209,7 +209,7 @@ export type SearchReleasesOutput = {
 // ============================================================================
 
 export const searchRecordingsInputSchema = {
-  query: z.string().describe("Recording/track title to search for"),
+  query: z.string().default("").describe("Recording/track title to search for"),
   artist: z.string().default("").describe("Filter by artist name"),
   limit: z
     .number()
@@ -222,7 +222,7 @@ export const searchRecordingsOutputSchema = {
 };
 
 export type SearchRecordingsInput = {
-  query: string;
+  query?: string;
   artist?: string;
   limit?: number;
 };

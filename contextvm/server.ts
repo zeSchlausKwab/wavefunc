@@ -128,13 +128,14 @@ async function main() {
     },
     async ({ query, artist, limit }) => {
       try {
+        const queryFilter = query && query.trim() !== "" ? query : undefined;
         const artistFilter = artist && artist.trim() !== "" ? artist : undefined;
         console.log(
-          `🔍 Searching MusicBrainz releases: ${query}${
+          `🔍 Searching MusicBrainz releases:${queryFilter ? ` ${queryFilter}` : ""}${
             artistFilter ? ` by ${artistFilter}` : ""
           }`
         );
-        const results = await searchReleases(query, limit, artistFilter);
+        const results = await searchReleases(queryFilter || "", limit, artistFilter);
 
         const output = { result: results };
         return {
@@ -164,13 +165,14 @@ async function main() {
     },
     async ({ query, artist, limit }) => {
       try {
+        const queryFilter = query && query.trim() !== "" ? query : undefined;
         const artistFilter = artist && artist.trim() !== "" ? artist : undefined;
         console.log(
-          `🔍 Searching MusicBrainz recordings: ${query}${
+          `🔍 Searching MusicBrainz recordings:${queryFilter ? ` ${queryFilter}` : ""}${
             artistFilter ? ` by ${artistFilter}` : ""
           }`
         );
-        const results = await searchRecordings(query, artistFilter, limit);
+        const results = await searchRecordings(queryFilter || "", artistFilter, limit);
 
         const output = { result: results };
         return {
