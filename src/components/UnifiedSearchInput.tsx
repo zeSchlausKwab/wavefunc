@@ -7,12 +7,7 @@ import {
   MusicBrainzResults,
   type MusicBrainzResult,
 } from "./MusicBrainzResults";
-import {
-  searchArtists,
-  searchRecordings,
-  searchReleases,
-  searchLabels,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../lib/metadataClient";
 import { SearchIcon } from "./ui/icons/lucide-search";
 import { XIcon } from "./ui/icons/lucide-x";
 import { useSearchStore } from "../stores/searchStore";
@@ -83,21 +78,29 @@ export function UnifiedSearchInput({
         setShowResults(true);
 
         try {
-          // Use entity-specific search
+          const client = getMetadataClient();
           let data: any[] = [];
           switch (entityType) {
-            case "artists":
-              data = await searchArtists(storeSearchQuery);
+            case "artists": {
+              const result = await client.SearchArtists(storeSearchQuery);
+              data = result.result;
               break;
-            case "releases":
-              data = await searchReleases(storeSearchQuery);
+            }
+            case "releases": {
+              const result = await client.SearchReleases(storeSearchQuery);
+              data = result.result;
               break;
-            case "recordings":
-              data = await searchRecordings(storeSearchQuery);
+            }
+            case "recordings": {
+              const result = await client.SearchRecordings(storeSearchQuery);
+              data = result.result;
               break;
-            case "labels":
-              data = await searchLabels(storeSearchQuery);
+            }
+            case "labels": {
+              const result = await client.SearchLabels(storeSearchQuery);
+              data = result.result;
               break;
+            }
           }
           setMusicBrainzResults(data);
         } catch (err: any) {
@@ -131,21 +134,29 @@ export function UnifiedSearchInput({
     setShowResults(true);
 
     try {
-      // Use entity-specific search based on selected type
+      const client = getMetadataClient();
       let data: any[] = [];
       switch (entityType) {
-        case "artists":
-          data = await searchArtists(query);
+        case "artists": {
+          const result = await client.SearchArtists(query);
+          data = result.result;
           break;
-        case "releases":
-          data = await searchReleases(query);
+        }
+        case "releases": {
+          const result = await client.SearchReleases(query);
+          data = result.result;
           break;
-        case "recordings":
-          data = await searchRecordings(query);
+        }
+        case "recordings": {
+          const result = await client.SearchRecordings(query);
+          data = result.result;
           break;
-        case "labels":
-          data = await searchLabels(query);
+        }
+        case "labels": {
+          const result = await client.SearchLabels(query);
+          data = result.result;
           break;
+        }
       }
       setMusicBrainzResults(data);
     } catch (err: any) {

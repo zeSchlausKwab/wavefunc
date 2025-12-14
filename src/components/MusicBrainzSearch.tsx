@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  searchArtists,
-  searchReleases,
-  searchRecordings,
-  searchLabels,
-  searchRecordingsCombined,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../lib/metadataClient";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -120,30 +114,43 @@ export function MusicBrainzSearch() {
     setError(null);
 
     try {
+      const client = getMetadataClient();
       let data: any[] = [];
 
       switch (entityType) {
-        case "artists":
-          data = await searchArtists(searchQuery);
+        case "artists": {
+          const result = await client.SearchArtists(searchQuery);
+          data = result.result;
           break;
-        case "releases":
-          data = await searchReleases(searchQuery, artistFilter || undefined);
+        }
+        case "releases": {
+          const result = await client.SearchReleases(searchQuery, artistFilter || undefined);
+          data = result.result;
           break;
-        case "recordings":
-          data = await searchRecordings(searchQuery, artistFilter || undefined);
+        }
+        case "recordings": {
+          const result = await client.SearchRecordings(searchQuery, artistFilter || undefined);
+          data = result.result;
           break;
-        case "recordings_advanced":
-          data = await searchRecordingsCombined({
-            recording: searchQuery || undefined,
-            artist: artistFilter || undefined,
-            release: releaseFilter || undefined,
-            country: countryFilter || undefined,
-            date: dateFilter || undefined,
-          });
+        }
+        case "recordings_advanced": {
+          const result = await client.SearchRecordingsCombined(
+            searchQuery || undefined,
+            artistFilter || undefined,
+            releaseFilter || undefined,
+            undefined, // isrc
+            countryFilter || undefined,
+            dateFilter || undefined,
+            undefined, // duration
+          );
+          data = result.result;
           break;
-        case "labels":
-          data = await searchLabels(searchQuery);
+        }
+        case "labels": {
+          const result = await client.SearchLabels(searchQuery);
+          data = result.result;
           break;
+        }
       }
 
       setResults(data);

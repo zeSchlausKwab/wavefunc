@@ -94,10 +94,11 @@ async function getRelayUrl(): Promise<string> {
  * Initialize this at app startup
  */
 export const config = {
-  relayUrl: getEnv("RELAY_URL") || "ws://localhost:3334", // Default value
+  relayUrl: getEnv("RELAY_URL") || "ws://localhost:3334", // Default value for local Nostr relay
+  metadataRelayUrl: getEnv("METADATA_RELAY_URL") || "wss://relay.contextvm.org", // ContextVM relay for metadata server
   metadataServerPubkey:
     getEnv("METADATA_SERVER_PUBKEY") ||
-    "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0", // devUser1.pk from fixtures
+    "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2", // WavefuncMetadataServer pubkey
   metadataClientKey:
     getEnv("METADATA_CLIENT_KEY") ||
     "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0", // devUser1.sk from fixtures
