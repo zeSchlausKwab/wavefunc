@@ -52,7 +52,7 @@ export interface SearchArtistsInput {
   /**
    * Maximum number of results (default: 10)
    */
-  limit?: number;
+  limit: number;
 }
 
 export interface SearchArtistsOutput {
@@ -79,11 +79,11 @@ export interface SearchReleasesInput {
   /**
    * Filter by artist name
    */
-  artist?: string;
+  artist: string;
   /**
    * Maximum number of results (default: 10)
    */
-  limit?: number;
+  limit: number;
 }
 
 export interface SearchReleasesOutput {
@@ -111,11 +111,11 @@ export interface SearchRecordingsInput {
   /**
    * Filter by artist name
    */
-  artist?: string;
+  artist: string;
   /**
    * Maximum number of results (default: 10)
    */
-  limit?: number;
+  limit: number;
 }
 
 export interface SearchRecordingsOutput {
@@ -141,7 +141,7 @@ export interface SearchLabelsInput {
   /**
    * Maximum number of results (default: 10)
    */
-  limit?: number;
+  limit: number;
 }
 
 export interface SearchLabelsOutput {
@@ -163,35 +163,35 @@ export interface SearchRecordingsCombinedInput {
   /**
    * Recording/track title (use quotes for exact match, e.g., "young men dead")
    */
-  recording?: string;
+  recording: string;
   /**
    * Artist name (use quotes for exact match, e.g., "the black angels")
    */
-  artist?: string;
+  artist: string;
   /**
    * Release/album name (optional)
    */
-  release?: string;
+  release: string;
   /**
    * International Standard Recording Code (optional)
    */
-  isrc?: string;
+  isrc: string;
   /**
    * Country code, e.g., US, GB (optional)
    */
-  country?: string;
+  country: string;
   /**
    * Release date in YYYY or YYYY-MM-DD format (optional)
    */
-  date?: string;
+  date: string;
   /**
    * Duration in milliseconds (optional, searches with ±5 second tolerance)
    */
-  duration?: number;
+  duration: number;
   /**
    * Maximum number of results (default: 10)
    */
-  limit?: number;
+  limit: number;
 }
 
 export interface SearchRecordingsCombinedOutput {
@@ -211,11 +211,11 @@ export interface SearchRecordingsCombinedOutput {
 
 export type WavefuncMetadataServer = {
   ExtractStreamMetadata: (url: string) => Promise<ExtractStreamMetadataOutput>;
-  SearchArtists: (query: string, limit?: number) => Promise<SearchArtistsOutput>;
-  SearchReleases: (query: string, artist?: string, limit?: number) => Promise<SearchReleasesOutput>;
-  SearchRecordings: (query: string, artist?: string, limit?: number) => Promise<SearchRecordingsOutput>;
-  SearchLabels: (query: string, limit?: number) => Promise<SearchLabelsOutput>;
-  SearchRecordingsCombined: (recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number) => Promise<SearchRecordingsCombinedOutput>;
+  SearchArtists: (query: string, limit: number) => Promise<SearchArtistsOutput>;
+  SearchReleases: (query: string, artist: string, limit: number) => Promise<SearchReleasesOutput>;
+  SearchRecordings: (query: string, artist: string, limit: number) => Promise<SearchRecordingsOutput>;
+  SearchLabels: (query: string, limit: number) => Promise<SearchLabelsOutput>;
+  SearchRecordingsCombined: (recording: string, artist: string, release: string, isrc: string, country: string, date: string, duration: number, limit: number) => Promise<SearchRecordingsCombinedOutput>;
 };
 
 export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
@@ -288,11 +288,11 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     /**
    * Search for artists on MusicBrainz by name. Returns artist details including country, dates, disambiguation, and tags.
    * @param {string} query Artist name to search for
-   * @param {number} limit [optional] Maximum number of results (default: 10)
+   * @param {number} limit Maximum number of results (default: 10)
    * @returns {Promise<SearchArtistsOutput>} The result of the search_artists operation
    */
   async SearchArtists(
-    query: string, limit?: number
+    query: string, limit: number
   ): Promise<SearchArtistsOutput> {
     return this.call("search_artists", { query, limit });
   }
@@ -300,12 +300,12 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     /**
    * Search for releases (albums) on MusicBrainz. Returns release details including artist, date, country, track count, and tags.
    * @param {string} query Release/album title to search for
-   * @param {string} artist [optional] Filter by artist name
-   * @param {number} limit [optional] Maximum number of results (default: 10)
+   * @param {string} artist Filter by artist name
+   * @param {number} limit Maximum number of results (default: 10)
    * @returns {Promise<SearchReleasesOutput>} The result of the search_releases operation
    */
   async SearchReleases(
-    query: string, artist?: string, limit?: number
+    query: string, artist: string, limit: number
   ): Promise<SearchReleasesOutput> {
     return this.call("search_releases", { query, artist, limit });
   }
@@ -313,12 +313,12 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     /**
    * Search for recordings (songs/tracks) on MusicBrainz. Returns recording details including artist, release, duration, and tags.
    * @param {string} query Recording/track title to search for
-   * @param {string} artist [optional] Filter by artist name
-   * @param {number} limit [optional] Maximum number of results (default: 10)
+   * @param {string} artist Filter by artist name
+   * @param {number} limit Maximum number of results (default: 10)
    * @returns {Promise<SearchRecordingsOutput>} The result of the search_recordings operation
    */
   async SearchRecordings(
-    query: string, artist?: string, limit?: number
+    query: string, artist: string, limit: number
   ): Promise<SearchRecordingsOutput> {
     return this.call("search_recordings", { query, artist, limit });
   }
@@ -326,29 +326,29 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     /**
    * Search for record labels on MusicBrainz. Returns label details including country, label code, type, and tags.
    * @param {string} query Label name to search for
-   * @param {number} limit [optional] Maximum number of results (default: 10)
+   * @param {number} limit Maximum number of results (default: 10)
    * @returns {Promise<SearchLabelsOutput>} The result of the search_labels operation
    */
   async SearchLabels(
-    query: string, limit?: number
+    query: string, limit: number
   ): Promise<SearchLabelsOutput> {
     return this.call("search_labels", { query, limit });
   }
 
     /**
    * Advanced combined search for recordings using multiple fields. Supports exact phrase matching (use quotes) and fuzzy search. Useful when you need precise results combining artist, recording title, release, ISRC, country, date, or duration. Example: recording='"young men dead"' artist='"the black angels"'
-   * @param {string} recording [optional] Recording/track title (use quotes for exact match, e.g., "young men dead")
-   * @param {string} artist [optional] Artist name (use quotes for exact match, e.g., "the black angels")
-   * @param {string} release [optional] Release/album name (optional)
-   * @param {string} isrc [optional] International Standard Recording Code (optional)
-   * @param {string} country [optional] Country code, e.g., US, GB (optional)
-   * @param {string} date [optional] Release date in YYYY or YYYY-MM-DD format (optional)
-   * @param {number} duration [optional] Duration in milliseconds (optional, searches with ±5 second tolerance)
-   * @param {number} limit [optional] Maximum number of results (default: 10)
+   * @param {string} recording Recording/track title (use quotes for exact match, e.g., "young men dead")
+   * @param {string} artist Artist name (use quotes for exact match, e.g., "the black angels")
+   * @param {string} release Release/album name (optional)
+   * @param {string} isrc International Standard Recording Code (optional)
+   * @param {string} country Country code, e.g., US, GB (optional)
+   * @param {string} date Release date in YYYY or YYYY-MM-DD format (optional)
+   * @param {number} duration Duration in milliseconds (optional, searches with ±5 second tolerance)
+   * @param {number} limit Maximum number of results (default: 10)
    * @returns {Promise<SearchRecordingsCombinedOutput>} The result of the search_recordings_combined operation
    */
   async SearchRecordingsCombined(
-    recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number
+    recording: string, artist: string, release: string, isrc: string, country: string, date: string, duration: number, limit: number
   ): Promise<SearchRecordingsCombinedOutput> {
     return this.call("search_recordings_combined", { recording, artist, release, isrc, country, date, duration, limit });
   }
