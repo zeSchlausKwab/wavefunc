@@ -71,23 +71,14 @@ async function main() {
 
         const output = { result: metadata };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Failed to extract metadata: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
@@ -111,23 +102,14 @@ async function main() {
 
         const output = { result: results };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Artist search failed: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
@@ -155,23 +137,14 @@ async function main() {
 
         const output = { result: results };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Release search failed: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
@@ -199,23 +172,14 @@ async function main() {
 
         const output = { result: results };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Recording search failed: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
@@ -239,23 +203,14 @@ async function main() {
 
         const output = { result: results };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Label search failed: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
@@ -304,23 +259,14 @@ async function main() {
 
         const output = { result: results };
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(output, null, 2),
-            },
-          ],
+          content: [],
           structuredContent: output,
         };
       } catch (error: any) {
         console.error(`❌ Combined recording search failed: ${error.message}`);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ error: error.message }),
-            },
-          ],
+          content: [],
+          structuredContent: { error: error.message },
           isError: true,
         };
       }
