@@ -97,10 +97,10 @@ export const config = {
   relayUrl: getEnv("RELAY_URL") || "ws://localhost:3334", // Default value
   metadataServerPubkey:
     getEnv("METADATA_SERVER_PUBKEY") ||
-    "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2",
+    "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0", // devUser1.pk from fixtures
   metadataClientKey:
     getEnv("METADATA_CLIENT_KEY") ||
-    "4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c",
+    "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0", // devUser1.sk from fixtures
 };
 
 /**

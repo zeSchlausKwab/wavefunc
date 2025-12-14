@@ -133,9 +133,9 @@ const result = await Bun.build({
     "process.env.NODE_ENV": JSON.stringify("production"),
     // Inject RELAY_URL from environment (defaults to localhost for local builds)
     "process.env.RELAY_URL": JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334"),
-    // Inject metadata server configuration
-    "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(process.env.METADATA_SERVER_PUBKEY || "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2"),
-    "process.env.METADATA_CLIENT_KEY": JSON.stringify(process.env.METADATA_CLIENT_KEY || "4e842ce1a820603c44f6ce3c4acd6527fdeb4898a9023d84bed51c1b4417eb5c"),
+    // Inject metadata server configuration (defaults to devUser1 from fixtures for local builds)
+    "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(process.env.METADATA_SERVER_PUBKEY || "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0"),
+    "process.env.METADATA_CLIENT_KEY": JSON.stringify(process.env.METADATA_CLIENT_KEY || "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0"),
   },
   ...cliConfig,
 });
