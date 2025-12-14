@@ -128,12 +128,13 @@ async function main() {
     },
     async ({ query, artist, limit }) => {
       try {
+        const artistFilter = artist && artist.trim() !== "" ? artist : undefined;
         console.log(
           `🔍 Searching MusicBrainz releases: ${query}${
-            artist ? ` by ${artist}` : ""
+            artistFilter ? ` by ${artistFilter}` : ""
           }`
         );
-        const results = await searchReleases(query, limit, artist);
+        const results = await searchReleases(query, limit, artistFilter);
 
         const output = { result: results };
         return {
@@ -163,12 +164,13 @@ async function main() {
     },
     async ({ query, artist, limit }) => {
       try {
+        const artistFilter = artist && artist.trim() !== "" ? artist : undefined;
         console.log(
           `🔍 Searching MusicBrainz recordings: ${query}${
-            artist ? ` by ${artist}` : ""
+            artistFilter ? ` by ${artistFilter}` : ""
           }`
         );
-        const results = await searchRecordings(query, artist, limit);
+        const results = await searchRecordings(query, artistFilter, limit);
 
         const output = { result: results };
         return {
@@ -238,24 +240,24 @@ async function main() {
       limit,
     }) => {
       try {
-        const queryDesc = Object.entries({
-          recording,
-          artist,
-          release,
-          isrc,
-          country,
-          date,
-          duration,
-        })
+        // Convert empty strings to undefined
+        const params = {
+          recording: recording && recording.trim() !== "" ? recording : undefined,
+          artist: artist && artist.trim() !== "" ? artist : undefined,
+          release: release && release.trim() !== "" ? release : undefined,
+          isrc: isrc && isrc.trim() !== "" ? isrc : undefined,
+          country: country && country.trim() !== "" ? country : undefined,
+          date: date && date.trim() !== "" ? date : undefined,
+          duration: duration && duration > 0 ? duration : undefined,
+        };
+
+        const queryDesc = Object.entries(params)
           .filter(([_, v]) => v !== undefined)
           .map(([k, v]) => `${k}=${v}`)
           .join(", ");
 
         console.log(`🔍 Combined MusicBrainz recording search: ${queryDesc}`);
-        const results = await searchRecordingsCombined(
-          { recording, artist, release, isrc, country, date, duration },
-          limit
-        );
+        const results = await searchRecordingsCombined(params, limit);
 
         const output = { result: results };
         return {

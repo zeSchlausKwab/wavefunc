@@ -160,7 +160,7 @@ export const searchArtistsInputSchema = {
   query: z.string().describe("Artist name to search for"),
   limit: z
     .number()
-    .optional()
+    .default(10)
     .describe("Maximum number of results (default: 10)"),
 };
 
@@ -183,10 +183,10 @@ export type SearchArtistsOutput = {
 
 export const searchReleasesInputSchema = {
   query: z.string().describe("Release/album title to search for"),
-  artist: z.string().optional().describe("Filter by artist name"),
+  artist: z.string().default("").describe("Filter by artist name"),
   limit: z
     .number()
-    .optional()
+    .default(10)
     .describe("Maximum number of results (default: 10)"),
 };
 
@@ -210,10 +210,10 @@ export type SearchReleasesOutput = {
 
 export const searchRecordingsInputSchema = {
   query: z.string().describe("Recording/track title to search for"),
-  artist: z.string().optional().describe("Filter by artist name"),
+  artist: z.string().default("").describe("Filter by artist name"),
   limit: z
     .number()
-    .optional()
+    .default(10)
     .describe("Maximum number of results (default: 10)"),
 };
 
@@ -239,7 +239,7 @@ export const searchLabelsInputSchema = {
   query: z.string().describe("Label name to search for"),
   limit: z
     .number()
-    .optional()
+    .default(10)
     .describe("Maximum number of results (default: 10)"),
 };
 
@@ -263,33 +263,33 @@ export type SearchLabelsOutput = {
 export const searchRecordingsCombinedInputSchema = {
   recording: z
     .string()
-    .optional()
+    .default("")
     .describe(
       'Recording/track title (use quotes for exact match, e.g., "young men dead")'
     ),
   artist: z
     .string()
-    .optional()
+    .default("")
     .describe(
       'Artist name (use quotes for exact match, e.g., "the black angels")'
     ),
-  release: z.string().optional().describe("Release/album name (optional)"),
+  release: z.string().default("").describe("Release/album name (optional)"),
   isrc: z
     .string()
-    .optional()
+    .default("")
     .describe("International Standard Recording Code (optional)"),
-  country: z.string().optional().describe("Country code, e.g., US, GB (optional)"),
+  country: z.string().default("").describe("Country code, e.g., US, GB (optional)"),
   date: z
     .string()
-    .optional()
+    .default("")
     .describe("Release date in YYYY or YYYY-MM-DD format (optional)"),
   duration: z
     .number()
-    .optional()
+    .default(0)
     .describe("Duration in milliseconds (optional, searches with ±5 second tolerance)"),
   limit: z
     .number()
-    .optional()
+    .default(10)
     .describe("Maximum number of results (default: 10)"),
 };
 
