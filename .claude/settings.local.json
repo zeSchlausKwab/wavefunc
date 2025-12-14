@@ -41,7 +41,9 @@
       "Bash(tauri android init:*)",
       "Bash(tauri android dev:*)",
       "Bash(bunx tauri android init:*)",
-      "Bash(bunx tauri:*)"
+      "Bash(bunx tauri:*)",
+      "Bash(go doc:*)",
+      "Bash(go mod:*)"
     ],
     "deny": [],
     "ask": []

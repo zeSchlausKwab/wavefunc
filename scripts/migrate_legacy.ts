@@ -45,7 +45,10 @@ function getRelayUrl(): string {
 }
 
 const RELAY_URL = getRelayUrl();
-const ndk = new NDK({ explicitRelayUrls: [RELAY_URL] });
+const ndk = new NDK({
+  explicitRelayUrls: [RELAY_URL],
+  enableOutboxModel: false,
+});
 
 // Legacy DB Station structure
 interface LegacyStation {
@@ -737,7 +740,7 @@ async function migrateStations() {
   const countArg = process.argv.find(
     (arg, i) => i > 1 && !arg.startsWith("--")
   );
-  const count = countArg ? parseInt(countArg) : 50;
+  const count = countArg ? parseInt(countArg) : 10;
   const selectedStations = selectRandomStations(allStations, count);
   console.log(`📊 Selected ${selectedStations.length} unique stations\n`);
 
