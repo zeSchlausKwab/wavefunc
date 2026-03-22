@@ -20,8 +20,8 @@ pkill -f "go run.*relay" && echo "✅ Killed go run relay processes" || echo "�
 
 # Wipe database and search index
 echo "🗑️  Wiping database and search index..."
-rm -rf relay/data/events.db
-rm -rf relay/data/search/*
+rm -rf relay/data/events
+rm -rf relay/data/search
 echo "✅ Database wiped"
 
 echo "✅ Cleanup complete!"
