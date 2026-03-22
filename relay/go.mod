@@ -2,7 +2,10 @@ module github.com/schlaus/wavefunc-relay
 
 go 1.25
 
-require fiatjaf.com/nostr v0.0.0-20260320232724-e675f04bd29a
+require (
+	fiatjaf.com/nostr v0.0.0-20260320232724-e675f04bd29a
+	github.com/blevesearch/bleve/v2 v2.4.4
+)
 
 require (
 	github.com/ImVexed/fasturl v0.0.0-20230304231329-4e41488060f3 // indirect
@@ -11,7 +14,6 @@ require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/bits-and-blooms/bitset v1.17.0 // indirect
-	github.com/blevesearch/bleve/v2 v2.4.4 // indirect
 	github.com/blevesearch/bleve_index_api v1.1.12 // indirect
 	github.com/blevesearch/geo v0.1.20 // indirect
 	github.com/blevesearch/go-faiss v1.0.24 // indirect

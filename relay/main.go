@@ -8,10 +8,15 @@ import (
 	"iter"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
+	bleve "github.com/blevesearch/bleve/v2"
+	bleveMapping "github.com/blevesearch/bleve/v2/mapping"
+	bleveQuery "github.com/blevesearch/bleve/v2/search/query"
+
 	"fiatjaf.com/nostr"
-	nostrbleve "fiatjaf.com/nostr/eventstore/bleve"
+	"fiatjaf.com/nostr/eventstore"
 	"fiatjaf.com/nostr/eventstore/lmdb"
 	"fiatjaf.com/nostr/khatru"
 	"fiatjaf.com/nostr/nip11"
@@ -26,32 +31,119 @@ var (
 	resetAll   = flag.Bool("reset-all", false, "Reset both database and index")
 )
 
-// stationSearchIndex wraps BleveBackend to index station name alongside content
-type stationSearchIndex struct {
-	*nostrbleve.BleveBackend
+// stationSearch is a custom bleve search index with:
+//   - Station-aware indexing: indexes "name description" as searchable content
+//   - Prefix+match querying: "enall" matches "Enallax Radio"
+type stationSearch struct {
+	path     string
+	rawStore eventstore.Store
+	index    bleve.Index
 }
 
-func (s *stationSearchIndex) SaveEvent(evt nostr.Event) error {
+func newStationSearch(path string, rawStore eventstore.Store) *stationSearch {
+	return &stationSearch{path: path, rawStore: rawStore}
+}
+
+func (s *stationSearch) Init() error {
+	idx, err := bleve.Open(s.path)
+	if err == bleve.ErrorIndexPathDoesNotExist {
+		mapping := bleveMapping.NewIndexMapping()
+		idx, err = bleve.New(s.path, mapping)
+		if err != nil {
+			return fmt.Errorf("error creating bleve index: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("error opening bleve index: %w", err)
+	}
+	s.index = idx
+	return nil
+}
+
+func (s *stationSearch) Close() {
+	if s.index != nil {
+		s.index.Close()
+	}
+}
+
+func (s *stationSearch) SaveEvent(evt nostr.Event) error {
+	content := evt.Content
 	if evt.Kind == 31237 {
 		name := ""
 		if tag := evt.Tags.Find("name"); tag != nil {
 			name = tag[1]
 		}
-
-		var content struct {
+		var parsed struct {
 			Description string `json:"description"`
 		}
 		description := ""
-		if err := json.Unmarshal([]byte(evt.Content), &content); err == nil {
-			description = content.Description
+		if err := json.Unmarshal([]byte(evt.Content), &parsed); err == nil {
+			description = parsed.Description
+		}
+		// Index "name description" so both are searchable
+		content = strings.TrimSpace(name + " " + description)
+	}
+
+	doc := map[string]any{
+		"c": content,
+		"k": strconv.Itoa(int(evt.Kind)),
+	}
+	return s.index.Index(evt.ID.Hex(), doc)
+}
+
+func (s *stationSearch) DeleteEvent(id nostr.ID) error {
+	return s.index.Delete(id.Hex())
+}
+
+// QueryEvents searches the index. For each whitespace-separated term it builds
+// a (MatchQuery OR PrefixQuery) so that partial words like "enall" match "enallax".
+// All terms must match (AND between terms).
+func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[nostr.Event] {
+	return func(yield func(nostr.Event) bool) {
+		terms := strings.Fields(strings.ToLower(strings.TrimSpace(filter.Search)))
+		if len(terms) == 0 {
+			return
 		}
 
-		// Synthetic event: content = "name description" so bleve indexes both
-		searchEvt := evt
-		searchEvt.Content = strings.TrimSpace(name + " " + description)
-		return s.BleveBackend.SaveEvent(searchEvt)
+		var conjuncts []bleveQuery.Query
+		for _, term := range terms {
+			matchQ := bleve.NewMatchQuery(term)
+			matchQ.SetField("c")
+
+			prefixQ := bleve.NewPrefixQuery(term)
+			prefixQ.SetField("c")
+
+			// term matches if either the word is present OR the term is a prefix of a word
+			conjuncts = append(conjuncts, bleve.NewDisjunctionQuery(matchQ, prefixQ))
+		}
+
+		var q bleveQuery.Query
+		if len(conjuncts) == 1 {
+			q = conjuncts[0]
+		} else {
+			q = bleve.NewConjunctionQuery(conjuncts...)
+		}
+
+		req := bleve.NewSearchRequest(q)
+		req.Size = maxLimit
+
+		result, err := s.index.Search(req)
+		if err != nil {
+			log.Printf("❌ [SEARCH] bleve query error: %v", err)
+			return
+		}
+
+		for _, hit := range result.Hits {
+			id, err := nostr.IDFromHex(hit.ID)
+			if err != nil {
+				continue
+			}
+			for evt := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{id}}, 1) {
+				if !yield(evt) {
+					return
+				}
+			}
+		}
 	}
-	return s.BleveBackend.SaveEvent(evt)
 }
 
 func main() {
@@ -88,17 +180,12 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize bleve search backend (wraps LMDB for raw event lookup)
+	// Initialize custom station search index
 	// Note: do NOT pre-create the search directory — bleve creates it on first run
-	// and errors if it finds an empty directory without its metadata files.
-	search := &stationSearchIndex{
-		BleveBackend: &nostrbleve.BleveBackend{
-			Path:          *searchPath,
-			RawEventStore: db,
-		},
-	}
+	// and errors if it finds an existing empty directory without its metadata files.
+	search := newStationSearch(*searchPath, db)
 	if err := search.Init(); err != nil {
-		log.Fatalf("Failed to initialize bleve: %v", err)
+		log.Fatalf("Failed to initialize search index: %v", err)
 	}
 	defer search.Close()
 
