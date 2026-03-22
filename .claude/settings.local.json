@@ -43,7 +43,12 @@
       "Bash(bunx tauri android init:*)",
       "Bash(bunx tauri:*)",
       "Bash(go doc:*)",
-      "Bash(go mod:*)"
+      "Bash(go mod:*)",
+      "Bash(ls /Users/schlaus/workspace/wavefunc-rewrite/node_modules/@noble/hashes/utils*)",
+      "Bash(ls /Users/schlaus/workspace/wavefunc-rewrite/node_modules/@noble/hashes/*.d.ts)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(ls /Users/schlaus/workspace/wavefunc-rewrite/node_modules/@noble/curves/abstract/*.d.ts)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''exports'''', {}\\), indent=2\\)\\)\")"
     ],
     "deny": [],
     "ask": []

@@ -1,21 +1,10 @@
 // migrate_legacy.ts - Convert legacy MariaDB station data to Nostr events
-import { hexToBytes } from "@noble/hashes/utils";
-import NDK, { NDKEvent, NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
-import { getPublicKey } from "nostr-tools/pure";
-import { readFileSync } from "fs";
-import path from "path";
-import {
-  createGroupingKey,
-  getCleanStationName,
-  normalizeStationNameForGrouping,
-  areRelatedUrls,
-} from "./lib/station-normalizer";
-import {
-  mergeStations,
-  getMergeStats,
-  groupStationsByNameAndUrl,
-} from "./lib/station-merger";
 import { faker } from "@faker-js/faker";
+import { hexToBytes } from "@noble/hashes/utils.js";
+import NDK, { NDKEvent, NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
+import { readFileSync } from "fs";
+import { getPublicKey } from "nostr-tools/pure";
+import path from "path";
 import { NDKWFFavorites } from "../src/lib/NDKWFFavorites";
 import {
   devUser1,
@@ -24,6 +13,16 @@ import {
   devUser4,
   devUser5,
 } from "../src/lib/fixtures";
+import {
+  getMergeStats,
+  groupStationsByNameAndUrl,
+  mergeStations,
+} from "./lib/station-merger";
+import {
+  areRelatedUrls,
+  getCleanStationName,
+  normalizeStationNameForGrouping
+} from "./lib/station-normalizer";
 
 // App key for publishing stations - must be set in environment
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;

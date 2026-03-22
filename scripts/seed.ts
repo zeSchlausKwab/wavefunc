@@ -7,7 +7,7 @@ import {
   devUser5,
 } from "@/lib/fixtures";
 import { NDKWFFavorites } from "@/lib/NDKWFFavorites";
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes } from "@noble/hashes/utils.js";
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import { getPublicKey } from "nostr-tools/pure";
 import {
@@ -24,7 +24,7 @@ const APP_PRIVATE_KEY =
   "0000000000000000000000000000000000000000000000000000000000000001";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
-const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"] });
+const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"], enableOutboxModel: false });
 
 const devUsers = [devUser1, devUser2, devUser3, devUser4, devUser5];
 

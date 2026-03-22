@@ -2,7 +2,7 @@ import { serve, file } from "bun";
 import { join } from "path";
 import { verifyNIP98Auth } from "./lib/nip98";
 import { getPublicKey } from "nostr-tools/pure";
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes } from "@noble/hashes/utils.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 

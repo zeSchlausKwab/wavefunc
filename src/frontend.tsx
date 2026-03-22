@@ -47,6 +47,7 @@ async function startApp() {
             "wss://nwc.primal.net",
           ],
           cacheAdapter: dexieAdapter,
+          enableOutboxModel: false,
         }}
         session={{
           storage: new NDKSessionLocalStorage(),
