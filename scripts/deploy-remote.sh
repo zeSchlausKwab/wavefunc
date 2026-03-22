@@ -22,16 +22,14 @@ echo "📦 Extracting files..."
 tar -xzf deploy.tar.gz
 rm deploy.tar.gz
 
-# Install dependencies (only if node_modules missing)
-if [ ! -d "node_modules" ]; then
-    echo "📦 Installing dependencies..."
-    bun install --production
-fi
+# Sync dependencies on every deploy so bun.lock/package changes take effect.
+echo "📦 Syncing dependencies..."
+bun install --production --frozen-lockfile
 
 # Build Go relay (must be built on VPS for correct architecture)
 echo "🔧 Building Go relay..."
 cd relay
-CGO_ENABLED=1 go build -o relay -ldflags="-s -w" .
+CGO_ENABLED=1 GOTOOLCHAIN=local go build -o relay -ldflags="-s -w" .
 cd ..
 
 # Create logs directory
@@ -43,6 +41,19 @@ if sudo -n cp Caddyfile /etc/caddy/Caddyfile 2>/dev/null && \
     echo "✅ Caddy configuration reloaded"
 else
     echo "⚠️  Caddy reload skipped (run manually if needed)"
+fi
+
+# Detect storage format change: SQLite (events.db) → LMDB (events/)
+# This happens on the first deploy after the khatru upgrade.
+# The relay data directory is preserved between deploys, so we must clean up
+# the incompatible old files and flag that migration needs to run.
+NEEDS_MIGRATION=false
+if [ -f "relay/data/events.db" ] && [ ! -d "relay/data/events" ]; then
+    echo "⚠️  Detected old SQLite storage — migrating to LMDB..."
+    rm -f relay/data/events.db
+    rm -rf relay/data/search  # also remove old bluge index (incompatible with bleve)
+    echo "✅ Old data cleared — relay will start with a fresh database"
+    NEEDS_MIGRATION=true
 fi
 
 # Restart PM2 processes
@@ -80,6 +91,30 @@ NODE_ENV=production pm2 start contextvm/server.ts \
     --merge-logs
 
 pm2 save
+
+# Run migration if this is a fresh database (format change or first deploy)
+if [ "$NEEDS_MIGRATION" = "true" ]; then
+    echo ""
+    echo "🔄 Running station migration (500 stations)..."
+    echo "   Waiting for relay to be ready..."
+    sleep 3
+
+    # Load env to get APP_PRIVATE_KEY
+    if [ -f ".env" ]; then
+        export $(grep -v '^#' .env | xargs)
+    fi
+
+    if [ -z "$APP_PRIVATE_KEY" ]; then
+        echo "⚠️  APP_PRIVATE_KEY not set in .env — skipping migration"
+        echo "   Run 'bun run migrate:vps' from your local machine to populate stations"
+    else
+        echo "🚀 Starting full migration in background (~52k stations)..."
+        nohup bun run scripts/migrate_legacy.ts 100000 --relay=ws://localhost:3334 \
+            > logs/migration.log 2>&1 &
+        echo "✅ Migration running in background (PID: $!)"
+        echo "   Monitor: tail -f logs/migration.log"
+    fi
+fi
 
 echo ""
 echo "✅ Deployment complete!"

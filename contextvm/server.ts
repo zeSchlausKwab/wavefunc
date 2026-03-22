@@ -1,7 +1,7 @@
 // ContextVM Metadata Server - Communicates via Nostr
 import { NostrServerTransport } from "@contextvm/sdk";
 import { PrivateKeySigner } from "@contextvm/sdk";
-import { SimpleRelayPool } from "@contextvm/sdk";
+import { ApplesauceRelayPool } from "@contextvm/sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { extractIcecastMetadata } from "./tools/stream-metadata.ts";
 import {
@@ -40,7 +40,7 @@ async function main() {
 
   // 1. Setup Signer and Relay Pool
   const signer = new PrivateKeySigner(SERVER_PRIVATE_KEY);
-  const relayPool = new SimpleRelayPool(RELAYS);
+  const relayPool = new ApplesauceRelayPool(RELAYS);
   const serverPubkey = await signer.getPublicKey();
 
   console.log(`📡 Server Public Key: ${serverPubkey}`);

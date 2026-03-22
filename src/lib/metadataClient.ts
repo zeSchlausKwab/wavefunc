@@ -2,7 +2,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { NostrClientTransport } from "@contextvm/sdk";
 import { PrivateKeySigner } from "@contextvm/sdk";
-import { SimpleRelayPool } from "@contextvm/sdk";
+import { ApplesauceRelayPool } from "@contextvm/sdk";
 import { config } from "../config/env";
 
 let clientInstance: Client | null = null;
@@ -29,7 +29,7 @@ export async function initMetadataClient(): Promise<Client> {
   connectionPromise = (async () => {
     try {
       const signer = new PrivateKeySigner(config.metadataClientKey);
-      const relayPool = new SimpleRelayPool([config.relayUrl]);
+      const relayPool = new ApplesauceRelayPool([config.relayUrl]);
 
       clientTransport = new NostrClientTransport({
         signer,

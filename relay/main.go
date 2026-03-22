@@ -47,13 +47,26 @@ func newStationSearch(path string, rawStore eventstore.Store) *stationSearch {
 func (s *stationSearch) Init() error {
 	idx, err := bleve.Open(s.path)
 	if err == bleve.ErrorIndexPathDoesNotExist {
+		// Fresh start: directory doesn't exist yet
 		mapping := bleveMapping.NewIndexMapping()
 		idx, err = bleve.New(s.path, mapping)
 		if err != nil {
 			return fmt.Errorf("error creating bleve index: %w", err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("error opening bleve index: %w", err)
+		// Index is corrupted or in an incompatible format (e.g. old bluge data).
+		// Wipe and recreate rather than crashing — stations will be re-indexed
+		// on the next migration run.
+		log.Printf("⚠️  Search index unreadable (%v), recreating from scratch...", err)
+		if removeErr := os.RemoveAll(s.path); removeErr != nil {
+			return fmt.Errorf("could not remove bad search index: %w", removeErr)
+		}
+		mapping := bleveMapping.NewIndexMapping()
+		idx, err = bleve.New(s.path, mapping)
+		if err != nil {
+			return fmt.Errorf("error creating bleve index after reset: %w", err)
+		}
+		log.Println("✅ Fresh search index created — run migration to re-populate")
 	}
 	s.index = idx
 	return nil

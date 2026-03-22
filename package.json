@@ -37,7 +37,7 @@
     "@contextvm/sdk": "^0.7.4",
     "@faker-js/faker": "^10.3.0",
     "@formkit/auto-animate": "^0.9.0",
-    "@modelcontextprotocol/sdk": "^1.21.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@music-metadata/icy": "^0.2.1",
     "@nostr-dev-kit/blossom": "^8.0.0",
     "@nostr-dev-kit/messages": "^2.0.0",
@@ -87,8 +87,5 @@
     "@types/bun": "^1.3.11",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3"
-  },
-  "overrides": {
-    "@modelcontextprotocol/sdk": "npm:@socotra/modelcontextprotocol-sdk"
   }
 }
