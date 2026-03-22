@@ -34,11 +34,11 @@ export function normalizeStationName(name: string): string {
 }
 
 /**
- * Normalize station name for grouping (removes all spaces and special chars)
+ * Normalize station name for grouping (strips format suffixes first, then removes all spaces and special chars)
+ * This ensures "SomaFM Drone Zone (AAC-128)" and "SomaFM Drone Zone (MP3-128)" map to the same key.
  */
 export function normalizeStationNameForGrouping(name: string): string {
-  return name
-    .toLowerCase()
+  return normalizeStationName(name)
     .replace(/\s+/g, "") // Remove all spaces
     .replace(/[^a-z0-9]/gi, ""); // Remove non-alphanumeric chars
 }

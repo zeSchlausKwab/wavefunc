@@ -38,9 +38,10 @@ RELAY_PID=$!
 # Wait for relay to start
 sleep 2
 
-# Run migration
-echo "🔄 Running migration..."
-bun run scripts/migrate_legacy.ts 50
+# Run migration (pass count as first arg, default 100)
+MIGRATE_COUNT="${1:-100}"
+echo "🔄 Running migration ($MIGRATE_COUNT stations)..."
+bun run scripts/migrate_legacy.ts "$MIGRATE_COUNT"
 
 # Start ContextVM in background
 echo "🤖 Starting ContextVM..."

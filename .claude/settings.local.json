@@ -57,7 +57,9 @@
       "WebFetch(domain:proxy.golang.org)",
       "WebFetch(domain:fiatjaf.com)",
       "Bash(go get:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\(''/Users/schlaus/workspace/wavefunc-rewrite/legacy-db/radiobrowser_stations_latest.json''\\)\\); print\\(f''{len\\(d\\)} stations''\\); print\\(''Fields:'', list\\(d[0].keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \":*)"
     ],
     "deny": [],
     "ask": []
