@@ -29,6 +29,7 @@ var (
 	resetDB    = flag.Bool("reset-db", false, "Reset the database")
 	resetIndex = flag.Bool("reset-index", false, "Reset the search index")
 	resetAll   = flag.Bool("reset-all", false, "Reset both database and index")
+	reindex    = flag.Bool("reindex", false, "Rebuild search index from existing LMDB data then exit")
 )
 
 // stationSearch is a custom bleve search index with:
@@ -193,6 +194,14 @@ func main() {
 	}
 	defer db.Close()
 
+	// --reindex: clear bleve index so Init() starts fresh, then populate from LMDB
+	if *reindex {
+		log.Println("⚠️  Clearing search index for rebuild...")
+		if err := os.RemoveAll(*searchPath); err != nil && !os.IsNotExist(err) {
+			log.Fatalf("Failed to clear search index: %v", err)
+		}
+	}
+
 	// Initialize custom station search index
 	// Note: do NOT pre-create the search directory — bleve creates it on first run
 	// and errors if it finds an existing empty directory without its metadata files.
@@ -201,6 +210,22 @@ func main() {
 		log.Fatalf("Failed to initialize search index: %v", err)
 	}
 	defer search.Close()
+
+	if *reindex {
+		log.Println("🔄 Reindexing all events from LMDB...")
+		count := 0
+		for evt := range db.QueryEvents(nostr.Filter{}, 1000000) {
+			if err := search.SaveEvent(evt); err != nil {
+				log.Printf("⚠️  Failed to index %s: %v", evt.ID.Hex()[:8], err)
+			}
+			count++
+			if count%1000 == 0 {
+				log.Printf("   Indexed %d events...", count)
+			}
+		}
+		log.Printf("✅ Reindexed %d events", count)
+		os.Exit(0)
+	}
 
 	// Initialize relay
 	relay := khatru.NewRelay()

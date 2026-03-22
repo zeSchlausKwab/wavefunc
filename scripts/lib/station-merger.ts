@@ -310,105 +310,30 @@ export function getMergeStats(
 }
 
 /**
- * Advanced grouping: Group stations by normalized name first, then by URL patterns
- * This is the enhanced algorithm from the legacy implementation
+ * Group stations by normalized name + country code.
+ *
+ * Key = `normalizedName|countryCode` where normalizedName has format suffixes
+ * already stripped (via normalizeStationNameForGrouping). This ensures:
+ *   - "FluxFM - FluxLounge (128k MP3)" (DE) and "FluxFM - FluxLounge (64k AAC)" (DE)
+ *     → same key → merged into one station with two streams ✓
+ *   - "FluxFM - neoFM" (DE) and "FluxFM - Ohrspiel" (DE)
+ *     → different keys → kept separate ✓
+ *   - "Radio 1" (DE) and "Radio 1" (US)
+ *     → different keys → kept separate ✓
  */
-export function groupStationsByNameAndUrl(
+export function groupStationsByKey(
   stations: LegacyStation[],
-  normalizeNameFn: (name: string) => string,
-  areRelatedUrlsFn: (url1: string, url2: string) => boolean
+  normalizeNameFn: (name: string) => string
 ): Map<string, LegacyStation[]> {
   const groups = new Map<string, LegacyStation[]>();
-  const processedStationIds = new Set<string>();
 
-  // Step 1: Group by normalized name
-  const nameGroups: Record<string, LegacyStation[]> = {};
   for (const station of stations) {
-    const normalizedName = normalizeNameFn(station.Name || "");
-    if (!nameGroups[normalizedName]) {
-      nameGroups[normalizedName] = [];
-    }
-    nameGroups[normalizedName].push(station);
-  }
+    const name = normalizeNameFn(station.Name || "");
+    const country = (station.CountryCode || "").toLowerCase();
+    const key = `${name}|${country}`;
 
-  // Step 2: Within each name group, further group by URL patterns
-  for (const [normalizedName, stationsWithSameName] of Object.entries(
-    nameGroups
-  )) {
-    // Skip if only one station
-    if (stationsWithSameName.length <= 1) {
-      if (stationsWithSameName.length === 1) {
-        const station = stationsWithSameName[0];
-        if (station) {
-          const key = `${normalizedName}|${station.StationUuid}`;
-          groups.set(key, [station]);
-          processedStationIds.add(station.StationUuid);
-        }
-      }
-      continue;
-    }
-
-    // Get unprocessed stations in this name group
-    const unprocessed = stationsWithSameName.filter(
-      (s) => !processedStationIds.has(s.StationUuid)
-    );
-
-    // For each unprocessed station, try to form a group based on URL pattern
-    for (let i = 0; i < unprocessed.length; i++) {
-      const mainStation = unprocessed[i];
-
-      if (!mainStation) continue;
-
-      // Skip if already processed
-      if (processedStationIds.has(mainStation.StationUuid)) continue;
-
-      const groupKey = `${normalizedName}|${mainStation.StationUuid}`;
-      const stationGroup: LegacyStation[] = [mainStation];
-      processedStationIds.add(mainStation.StationUuid);
-
-      const seenUrls = new Set<string>([mainStation.Url || ""]);
-
-      // Find other stations with related URLs
-      for (let j = i + 1; j < unprocessed.length; j++) {
-        const candidateStation = unprocessed[j];
-
-        if (!candidateStation) continue;
-
-        // Skip if already processed or URL already seen
-        if (
-          processedStationIds.has(candidateStation.StationUuid) ||
-          seenUrls.has(candidateStation.Url || "")
-        ) {
-          continue;
-        }
-
-        // Check if URLs are related
-        const url1 = mainStation.Url || "";
-        const url2 = candidateStation.Url || "";
-
-        if (!url1 || !url2) continue;
-
-        const urlsAreRelated = areRelatedUrlsFn(url1, url2);
-
-        if (urlsAreRelated) {
-          // Additional validation: country codes should match if both present
-          if (
-            mainStation.CountryCode &&
-            candidateStation.CountryCode &&
-            mainStation.CountryCode !== candidateStation.CountryCode
-          ) {
-            continue; // Different countries = different stations
-          }
-
-          // Add to group
-          stationGroup.push(candidateStation);
-          processedStationIds.add(candidateStation.StationUuid);
-          seenUrls.add(url2);
-        }
-      }
-
-      groups.set(groupKey, stationGroup);
-    }
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(station);
   }
 
   return groups;

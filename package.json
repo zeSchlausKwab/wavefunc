@@ -6,6 +6,7 @@
   "scripts": {
     "relay": "cd relay && go run . --port 3334",
     "relay:reset": "./scripts/kill-relay.sh && cd relay && go run . --reset-all",
+    "relay:reindex": "cd relay && go run . --reindex",
     "relay:kill": "./scripts/kill-relay.sh",
     "contextvm": "bun run contextvm/server.ts",
     "dev": "./scripts/dev-clean.sh 100",

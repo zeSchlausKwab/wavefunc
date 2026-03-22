@@ -15,11 +15,10 @@ import {
 } from "../src/lib/fixtures";
 import {
   getMergeStats,
-  groupStationsByNameAndUrl,
+  groupStationsByKey,
   mergeStations,
 } from "./lib/station-merger";
 import {
-  areRelatedUrls,
   getCleanStationName,
   normalizeStationNameForGrouping,
 } from "./lib/station-normalizer";
@@ -92,6 +91,43 @@ interface LegacyStation {
 interface StationCheckHistory {
   StationUuid: string;
   Description: string | null;
+}
+
+// Cache for resolved playlist URLs to avoid redundant fetches
+const resolvedUrlCache = new Map<string, string>();
+
+// Resolve .pls and .m3u playlist files to direct stream URLs.
+// Runs server-side during migration so no CORS issues.
+async function resolvePlaylistUrl(url: string): Promise<string> {
+  const lower = url.toLowerCase();
+  if (!lower.endsWith(".pls") && !lower.endsWith(".m3u")) return url;
+
+  if (resolvedUrlCache.has(url)) return resolvedUrlCache.get(url)!;
+
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: { "User-Agent": "RadioBrowser/1.0" },
+    });
+    if (!response.ok) return url;
+    const text = await response.text();
+
+    let resolved = url;
+    if (lower.endsWith(".pls")) {
+      const match = text.match(/^File\d+=(.+)$/m);
+      if (match?.[1]) resolved = match[1].trim();
+    } else {
+      // .m3u: first non-comment line that looks like a URL
+      const line = text.split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("#") && l.startsWith("http"));
+      if (line) resolved = line;
+    }
+
+    resolvedUrlCache.set(url, resolved);
+    return resolved;
+  } catch {
+    resolvedUrlCache.set(url, url);
+    return url;
+  }
 }
 
 // Parse codec and bitrate from station name suffixes like "(128k MP3)", "(64k AAC+)"
@@ -212,9 +248,13 @@ async function stationToNostrEvent(
   const seenUrls = new Set<string>();
 
   for (const dup of duplicates) {
-    const url = dup.UrlCache || dup.Url;
-    if (!url || seenUrls.has(url)) continue;
+    const rawUrl = dup.UrlCache || dup.Url;
+    if (!rawUrl || seenUrls.has(rawUrl)) continue;
 
+    const url = await resolvePlaylistUrl(rawUrl);
+    if (seenUrls.has(url)) continue;
+
+    seenUrls.add(rawUrl);
     seenUrls.add(url);
     streams.push({
       url,
@@ -344,11 +384,7 @@ function selectRandomStations(
 ): LegacyStation[] {
   console.log("🔍 Deduplicating stations...");
 
-  const groups = groupStationsByNameAndUrl(
-    stations,
-    normalizeStationNameForGrouping,
-    areRelatedUrls
-  );
+  const groups = groupStationsByKey(stations, normalizeStationNameForGrouping);
 
   console.log(
     `   Found ${groups.size} unique stations (from ${stations.length} total)`
