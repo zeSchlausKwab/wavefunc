@@ -1,5 +1,5 @@
 // trigger_remote_migration.ts - Trigger migration on remote VPS
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes } from "@noble/hashes/utils.js";
 import { getPublicKey } from "nostr-tools/pure";
 import { getToken } from "nostr-tools/nip98";
 import { finalizeEvent } from "nostr-tools/pure";

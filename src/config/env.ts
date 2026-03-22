@@ -14,17 +14,9 @@ export function isTauri(): boolean {
   // v1/v2: __TAURI_INTERNAL__ ist ein guter Indikator, __TAURI__ optional je nach Config
   return !!w.__TAURI__ || !!w.__TAURI_INTERNAL__;
 }
-/**
- * Get environment variable value (works in both Node and browser contexts)
- */
-function getEnv(key: string): string | undefined {
-  // In Node.js/Bun server context
-  if (typeof process !== "undefined" && process.env) {
-    return process.env[key];
-  }
-  // In browser, these are replaced at build time
-  return undefined;
-}
+// Bun's bundler inlines process.env.VAR at build time, but only with dot notation
+// and a literal string key — never with bracket notation or a variable key.
+// These constants are replaced with their values (or undefined) when bundled.
 
 /**
  * Detect platform when running in Tauri
@@ -50,8 +42,8 @@ async function getPlatform(): Promise<string | null> {
  * - iOS/Desktop: Uses localhost
  */
 async function getRelayUrl(): Promise<string> {
-  // Check for environment variable first (set at build time)
-  const envRelayUrl = getEnv("RELAY_URL");
+  // Check for environment variable first (inlined at build time by Bun's bundler)
+  const envRelayUrl = process.env.RELAY_URL;
   if (envRelayUrl) {
     return envRelayUrl;
   }
@@ -94,13 +86,13 @@ async function getRelayUrl(): Promise<string> {
  * Initialize this at app startup
  */
 export const config = {
-  relayUrl: getEnv("RELAY_URL") || "ws://localhost:3334", // Default value
+  relayUrl: process.env.RELAY_URL || "ws://localhost:3334",
   metadataServerPubkey:
-    getEnv("METADATA_SERVER_PUBKEY") ||
-    "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0", // devUser1.pk from fixtures
+    process.env.METADATA_SERVER_PUBKEY ||
+    "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0",
   metadataClientKey:
-    getEnv("METADATA_CLIENT_KEY") ||
-    "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0", // devUser1.sk from fixtures
+    process.env.METADATA_CLIENT_KEY ||
+    "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0",
 };
 
 /**

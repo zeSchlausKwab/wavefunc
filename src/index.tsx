@@ -163,20 +163,20 @@ const apiRoutes: Record<string, any> = {
           const fs = await import("fs/promises");
           const path = await import("path");
 
-          const dbPath = path.join(process.cwd(), "relay/data/events.db");
+          const dbPath = path.join(process.cwd(), "relay/data/events");
           const searchPath = path.join(process.cwd(), "relay/data/search");
 
-          await fs.rm(dbPath, { force: true });
+          await fs.rm(dbPath, { recursive: true, force: true });
           await fs.rm(searchPath, { recursive: true, force: true });
-          await fs.mkdir(searchPath, { recursive: true });
+          // Note: do NOT recreate searchPath — bleve requires the directory to not exist on first run
 
           console.log("✅ Database and search index deleted");
         } catch (error) {
           console.log("⚠️  Could not delete database files:", error);
         }
 
-        // Small delay to ensure cleanup is complete
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Wait for pm2 to auto-restart the relay after the kill
+        await new Promise((resolve) => setTimeout(resolve, 3000));
       }
 
       // Run migration in background
