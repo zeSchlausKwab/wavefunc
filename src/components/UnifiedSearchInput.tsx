@@ -7,12 +7,7 @@ import {
   MusicBrainzResults,
   type MusicBrainzResult,
 } from "./MusicBrainzResults";
-import {
-  searchArtists,
-  searchRecordings,
-  searchReleases,
-  searchLabels,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
 import { SearchIcon } from "./ui/icons/lucide-search";
 import { XIcon } from "./ui/icons/lucide-x";
 import { useSearchStore } from "../stores/searchStore";
@@ -87,16 +82,16 @@ export function UnifiedSearchInput({
           let data: any[] = [];
           switch (entityType) {
             case "artists":
-              data = await searchArtists(storeSearchQuery);
+              data = (await getMetadataClient().SearchArtists(storeSearchQuery)).result;
               break;
             case "releases":
-              data = await searchReleases(storeSearchQuery);
+              data = (await getMetadataClient().SearchReleases(storeSearchQuery)).result;
               break;
             case "recordings":
-              data = await searchRecordings(storeSearchQuery);
+              data = (await getMetadataClient().SearchRecordings(storeSearchQuery)).result;
               break;
             case "labels":
-              data = await searchLabels(storeSearchQuery);
+              data = (await getMetadataClient().SearchLabels(storeSearchQuery)).result;
               break;
           }
           setMusicBrainzResults(data);
@@ -135,16 +130,16 @@ export function UnifiedSearchInput({
       let data: any[] = [];
       switch (entityType) {
         case "artists":
-          data = await searchArtists(query);
+          data = (await getMetadataClient().SearchArtists(query)).result;
           break;
         case "releases":
-          data = await searchReleases(query);
+          data = (await getMetadataClient().SearchReleases(query)).result;
           break;
         case "recordings":
-          data = await searchRecordings(query);
+          data = (await getMetadataClient().SearchRecordings(query)).result;
           break;
         case "labels":
-          data = await searchLabels(query);
+          data = (await getMetadataClient().SearchLabels(query)).result;
           break;
       }
       setMusicBrainzResults(data);

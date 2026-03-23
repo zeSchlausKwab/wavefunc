@@ -1,13 +1,12 @@
 // Test script for ContextVM client
 // Run with: bun run contextvm/test-client.ts
 
-import {
-  extractStreamMetadata,
-  searchMusicBrainz,
-} from "../src/lib/metadataClient";
+import { WavefuncMetadataServerClient } from "../src/ctxcn/WavefuncMetadataServerClient";
 
 async function testMetadataClient() {
   console.log("🧪 Testing ContextVM Metadata Client\n");
+
+  const client = new WavefuncMetadataServerClient();
 
   // Test 1: Extract stream metadata
   console.log("Test 1: Extract Stream Metadata");
@@ -17,7 +16,7 @@ async function testMetadataClient() {
   console.log(`Stream URL: ${testUrl}`);
 
   try {
-    const metadata = await extractStreamMetadata(testUrl);
+    const { result: metadata } = await client.ExtractStreamMetadata(testUrl);
     console.log("✅ Metadata extracted:");
     console.log(JSON.stringify(metadata, null, 2));
   } catch (error: any) {
@@ -33,10 +32,7 @@ async function testMetadataClient() {
   console.log("Query: artist='Radiohead', track='Creep'");
 
   try {
-    const results = await searchMusicBrainz({
-      artist: "Radiohead",
-      track: "Creep",
-    });
+    const { result: results } = await client.SearchRecordings("Creep", "Radiohead");
 
     console.log(`✅ Found ${results.length} results:`);
     results.slice(0, 2).forEach((result, i) => {
@@ -50,6 +46,7 @@ async function testMetadataClient() {
   }
 
   console.log("\n✨ Tests complete!");
+  await client.disconnect();
   process.exit(0);
 }
 

@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import type { NDKStation, Stream } from "../lib/NDKStation";
 import Hls from "hls.js";
-import {
-  extractStreamMetadata,
-  searchMusicBrainz,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
 import {
   normalizeUrl,
   playWithAdapter,
@@ -210,7 +207,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
           const pollMetadata = async () => {
             try {
-              const metadata = await extractStreamMetadata(candidate.url);
+              const { result: metadata } = await getMetadataClient().ExtractStreamMetadata(candidate.url);
 
               // Normalize metadata: ensure 'song' field is set from 'title' if needed
               const normalizedMetadata = {
@@ -218,18 +215,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 song: metadata.song || metadata.title,
               };
 
-              if (normalizedMetadata.artist && normalizedMetadata.song && !metadata.error) {
-                const mbResults = await searchMusicBrainz({
-                  artist: normalizedMetadata.artist,
-                  track: normalizedMetadata.song,
-                });
+              if (normalizedMetadata.artist && normalizedMetadata.song) {
+                const { result: mbResults } = await getMetadataClient().SearchRecordings(
+                  normalizedMetadata.song,
+                  normalizedMetadata.artist
+                );
                 set({
                   currentMetadata: {
                     ...normalizedMetadata,
                     musicBrainz: mbResults[0],
                   },
                 });
-              } else if (!metadata.error) {
+              } else {
                 set({ currentMetadata: normalizedMetadata });
               }
             } catch (err) {

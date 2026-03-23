@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  searchArtists,
-  searchReleases,
-  searchRecordings,
-  searchLabels,
-  searchRecordingsCombined,
-} from "../lib/metadataClient";
+import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -124,25 +118,26 @@ export function MusicBrainzSearch() {
 
       switch (entityType) {
         case "artists":
-          data = await searchArtists(searchQuery);
+          data = (await getMetadataClient().SearchArtists(searchQuery)).result;
           break;
         case "releases":
-          data = await searchReleases(searchQuery, artistFilter || undefined);
+          data = (await getMetadataClient().SearchReleases(searchQuery, artistFilter || undefined)).result;
           break;
         case "recordings":
-          data = await searchRecordings(searchQuery, artistFilter || undefined);
+          data = (await getMetadataClient().SearchRecordings(searchQuery, artistFilter || undefined)).result;
           break;
         case "recordings_advanced":
-          data = await searchRecordingsCombined({
-            recording: searchQuery || undefined,
-            artist: artistFilter || undefined,
-            release: releaseFilter || undefined,
-            country: countryFilter || undefined,
-            date: dateFilter || undefined,
-          });
+          data = (await getMetadataClient().SearchRecordingsCombined(
+            searchQuery || undefined,
+            artistFilter || undefined,
+            releaseFilter || undefined,
+            undefined,
+            countryFilter || undefined,
+            dateFilter || undefined,
+          )).result;
           break;
         case "labels":
-          data = await searchLabels(searchQuery);
+          data = (await getMetadataClient().SearchLabels(searchQuery)).result;
           break;
       }
 
