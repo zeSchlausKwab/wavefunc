@@ -27,20 +27,23 @@ echo "📦 Syncing dependencies..."
 bun install --production --frozen-lockfile
 
 # Build Go relay (must be built on VPS for correct architecture)
-echo "🔧 Building Go relay..."
+echo "🔧 Building Go relay (this may take a few minutes on first run)..."
 cd relay
-CGO_ENABLED=1 GOTOOLCHAIN=local go build -o relay -ldflags="-s -w" .
+CGO_ENABLED=1 GOTOOLCHAIN=local go build -v -o relay -ldflags="-s -w" . 2>&1
+echo "✅ Relay binary built"
 cd ..
 
 # Create logs directory
+echo "📁 Creating log directory..."
 mkdir -p logs
 
 # Reload Caddy (optional, requires passwordless sudo)
-if sudo -n cp Caddyfile /etc/caddy/Caddyfile 2>/dev/null && \
-   sudo -n systemctl reload caddy 2>/dev/null; then
-    echo "✅ Caddy configuration reloaded"
+echo "🔄 Reloading Caddy..."
+if timeout 10 sudo -n cp Caddyfile /etc/caddy/Caddyfile 2>/dev/null && \
+   timeout 15 sudo -n systemctl restart caddy 2>/dev/null; then
+    echo "✅ Caddy restarted"
 else
-    echo "⚠️  Caddy reload skipped (run manually if needed)"
+    echo "⚠️  Caddy restart skipped (run manually if needed)"
 fi
 
 # Detect storage format change: SQLite (events.db) → LMDB (events/)
