@@ -1,4 +1,5 @@
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
+import { NDKSubscriptionCacheUsage } from "@nostr-dev-kit/ndk";
 import { useSubscribe, wrapEvent, useNDK } from "@nostr-dev-kit/react";
 import { useEffect, useState, useMemo } from "react";
 import { NDKStation } from "../NDKStation";
@@ -109,7 +110,14 @@ export function useStationsObserver(
     setAllEvents([]);
     setEose(false);
 
-    const sub = ndk.subscribe(filter, { closeOnEose: false });
+    // Skip Dexie cache for NIP-50 search queries — the cache has no full-text
+    // search capability, so NDK would do a full scan of all cached events (10k+)
+    // which causes 10-20s delays. Go straight to the relay instead.
+    const cacheUsage = filter.search
+      ? NDKSubscriptionCacheUsage.ONLY_RELAY
+      : undefined;
+
+    const sub = ndk.subscribe(filter, { closeOnEose: false, cacheUsage });
     const eventMap = new Map<string, NDKStation>();
 
     sub.on("event", (event: any) => {

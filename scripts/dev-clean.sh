@@ -35,8 +35,12 @@ echo "📡 Starting relay..."
 cd relay && go run . --port 3334 &
 RELAY_PID=$!
 
-# Wait for relay to start
-sleep 2
+# Wait for relay to be ready (go run needs to compile first)
+echo "⏳ Waiting for relay on port 3334..."
+until lsof -ti:3334 > /dev/null 2>&1; do
+  sleep 1
+done
+echo "✅ Relay is up"
 
 # Run migration (pass count as first arg, default 100)
 MIGRATE_COUNT="${1:-100}"

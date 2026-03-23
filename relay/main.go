@@ -45,12 +45,31 @@ func newStationSearch(path string, rawStore eventstore.Store) *stationSearch {
 	return &stationSearch{path: path, rawStore: rawStore}
 }
 
+// stationIndexMapping returns a bleve mapping with a custom "noStem" analyzer:
+// unicode tokenize + lowercase, no stemming. This makes TermQuery correct:
+// stored tokens are lowercase unstemmed words. No stemming means "electronics"
+// stays "electronics" rather than being reduced to "electron".
+func stationIndexMapping() *bleveMapping.IndexMappingImpl {
+	mapping := bleveMapping.NewIndexMapping()
+	// "custom" type is always available; "unicode" tokenizer and "to_lower"
+	// filter are part of bleve's built-in set and don't need extra imports.
+	if err := mapping.AddCustomAnalyzer("noStem", map[string]interface{}{
+		"type":          "custom",
+		"tokenizer":     "unicode",
+		"token_filters": []string{"to_lower"},
+	}); err != nil {
+		log.Printf("⚠️  Failed to register noStem analyzer: %v — falling back to standard", err)
+		return mapping
+	}
+	mapping.DefaultAnalyzer = "noStem"
+	return mapping
+}
+
 func (s *stationSearch) Init() error {
 	idx, err := bleve.Open(s.path)
 	if err == bleve.ErrorIndexPathDoesNotExist {
 		// Fresh start: directory doesn't exist yet
-		mapping := bleveMapping.NewIndexMapping()
-		idx, err = bleve.New(s.path, mapping)
+		idx, err = bleve.New(s.path, stationIndexMapping())
 		if err != nil {
 			return fmt.Errorf("error creating bleve index: %w", err)
 		}
@@ -62,8 +81,7 @@ func (s *stationSearch) Init() error {
 		if removeErr := os.RemoveAll(s.path); removeErr != nil {
 			return fmt.Errorf("could not remove bad search index: %w", removeErr)
 		}
-		mapping := bleveMapping.NewIndexMapping()
-		idx, err = bleve.New(s.path, mapping)
+		idx, err = bleve.New(s.path, stationIndexMapping())
 		if err != nil {
 			return fmt.Errorf("error creating bleve index after reset: %w", err)
 		}
@@ -109,7 +127,10 @@ func (s *stationSearch) DeleteEvent(id nostr.ID) error {
 }
 
 // QueryEvents searches the index. For each whitespace-separated term it builds
-// a (MatchQuery OR PrefixQuery) so that partial words like "enall" match "enallax".
+// a (TermQuery OR PrefixQuery) so that partial words like "enall" match "enallax".
+// TermQuery is used instead of MatchQuery to avoid the analyzer overhead and
+// full-corpus scoring — it does a direct lookup of the exact lowercased term,
+// which is fast. PrefixQuery handles the prefix/substring case.
 // All terms must match (AND between terms).
 func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[nostr.Event] {
 	return func(yield func(nostr.Event) bool) {
@@ -120,14 +141,15 @@ func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[
 
 		var conjuncts []bleveQuery.Query
 		for _, term := range terms {
-			matchQ := bleve.NewMatchQuery(term)
-			matchQ.SetField("c")
+			// TermQuery: exact match on the raw indexed token (fast, no analysis)
+			termQ := bleve.NewTermQuery(term)
+			termQ.SetField("c")
 
+			// PrefixQuery: matches any indexed token that starts with term
 			prefixQ := bleve.NewPrefixQuery(term)
 			prefixQ.SetField("c")
 
-			// term matches if either the word is present OR the term is a prefix of a word
-			conjuncts = append(conjuncts, bleve.NewDisjunctionQuery(matchQ, prefixQ))
+			conjuncts = append(conjuncts, bleve.NewDisjunctionQuery(termQ, prefixQ))
 		}
 
 		var q bleveQuery.Query
@@ -146,15 +168,19 @@ func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[
 			return
 		}
 
+		// Collect all IDs then do one batch LMDB lookup instead of N individual queries
+		ids := make([]nostr.ID, 0, len(result.Hits))
 		for _, hit := range result.Hits {
 			id, err := nostr.IDFromHex(hit.ID)
 			if err != nil {
 				continue
 			}
-			for evt := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{id}}, 1) {
-				if !yield(evt) {
-					return
-				}
+			ids = append(ids, id)
+		}
+
+		for evt := range s.rawStore.QueryEvents(nostr.Filter{IDs: ids}, len(ids)) {
+			if !yield(evt) {
+				return
 			}
 		}
 	}
