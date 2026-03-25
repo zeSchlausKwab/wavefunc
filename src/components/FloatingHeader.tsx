@@ -1,8 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AnimatedLogo } from "./AnimatedLogo";
 import { LoginSessionButtons } from "./LoginSessionButtom";
-import { NavigationItems } from "./NavigationItems";
-import { UnifiedSearchInput } from "./UnifiedSearchInput";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -10,43 +7,56 @@ interface FloatingHeaderProps {
   onSearch: (query: string) => void;
 }
 
-export function FloatingHeader({
-  searchInput,
-  setSearchInput,
-  onSearch,
-}: FloatingHeaderProps) {
+const navLinkBase =
+  "font-bold tracking-tighter uppercase text-on-background px-4 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim";
+const navLinkActive =
+  "font-bold tracking-tighter uppercase text-surface bg-primary px-4 py-1 -skew-x-12 transition-all";
+
+export function FloatingHeader(_props: FloatingHeaderProps) {
   return (
-    <header className="fixed flex items-center top-1 left-1 right-1 md:top-2 md:left-2 md:right-2 z-50 border-brutal h-[7vh] bg-white/30 dark:bg-gray-900/30 backdrop-blur-xl shadow-brutal hidden md:flex">
-      <div className="p-2 md:p-6 w-full">
-        <div className="flex items-center justify-between gap-4">
+    <header className="fixed top-0 left-0 right-0 z-[60] flex items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+      <div className="flex-1 overflow-x-auto flex items-center gap-4 px-4 min-w-0 whitespace-nowrap scrollbar-none">
+        <Link to="/" search={{}}>
+          <div className="text-xl font-black text-on-background border-4 border-on-background px-2 py-1 rotate-[-2deg] font-headline uppercase tracking-tighter select-none shrink-0">
+            WAVEFUNC
+          </div>
+        </Link>
+
+        <nav className="flex gap-1 shrink-0">
           <Link
             to="/"
             search={{}}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors w-24 h-8"
-            activeProps={{
-              className: "text-foreground font-medium",
-            }}
+            className={navLinkBase}
+            activeProps={{ className: navLinkActive }}
           >
-            <AnimatedLogo />
+            TRANSMIT
           </Link>
+          <Link
+            to="/browse/genres"
+            className={navLinkBase}
+            activeProps={{ className: navLinkActive }}
+          >
+            RECEPTION
+          </Link>
+          <Link
+            to="/favorites"
+            className={navLinkBase}
+            activeProps={{ className: navLinkActive }}
+          >
+            ARCHIVE
+          </Link>
+          <Link
+            to="/community"
+            className={navLinkBase}
+            activeProps={{ className: navLinkActive }}
+          >
+            ASSEMBLY
+          </Link>
+        </nav>
+      </div>
 
-          {/* Desktop Layout */}
-          {/* Unified Search */}
-          <div className="flex-1 max-w-2xl">
-            <UnifiedSearchInput
-              searchInput={searchInput}
-              setSearchInput={setSearchInput}
-              onStationSearch={onSearch}
-            />
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex items-center gap-6">
-            <NavigationItems variant="desktop" />
-          </nav>
-
-          <LoginSessionButtons />
-        </div>
+      <div className="shrink-0 px-4 border-l-4 border-on-background h-full flex items-center">
+        <LoginSessionButtons />
       </div>
     </header>
   );

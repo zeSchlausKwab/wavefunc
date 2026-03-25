@@ -59,7 +59,10 @@
       "Bash(go get:*)",
       "Bash(go build:*)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\(''/Users/schlaus/workspace/wavefunc-rewrite/legacy-db/radiobrowser_stations_latest.json''\\)\\); print\\(f''{len\\(d\\)} stations''\\); print\\(''Fields:'', list\\(d[0].keys\\(\\)\\)\\)\")",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(time nak:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

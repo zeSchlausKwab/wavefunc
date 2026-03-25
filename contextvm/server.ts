@@ -32,7 +32,7 @@ const SERVER_PRIVATE_KEY =
   "0000000000000000000000000000000000000000000000000000000000000001"; // Dev key
 const RELAYS = [
   process.env.RELAY_URL || "ws://localhost:3334",
-  "wss://relay.contextvm.org/",
+  "wss://relay2.contextvm.org/",
 ];
 
 async function main() {

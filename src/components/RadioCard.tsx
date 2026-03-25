@@ -1,533 +1,528 @@
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
-import {
-  Edit3,
-  MoreVertical,
-  Pause,
-  Play,
-  Radio,
-  ExternalLink,
-  Trash2,
-} from "lucide-react";
+import { Edit3, MoreVertical, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
+import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
-import { SocialActions } from "./SocialActions";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { StationDetailSheet } from "./StationDetailSheet";
-import { Badge } from "./ui/badge";
+import { ZapDialog } from "./ZapDialog";
 import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { cn, getDeterministicColor } from "@/lib/utils";
-import { UserAvatar } from "./UserAvatar";
+import { cn } from "@/lib/utils";
+
+export type RadioCardVariant = "tile" | "list" | "list-compact";
 
 interface RadioCardProps {
   station: NDKStation;
   className?: string;
+  variant?: RadioCardVariant;
+  index?: number;
 }
 
-export const RadioCard: React.FC<RadioCardProps & { className?: string }> = ({
+export const RadioCard: React.FC<RadioCardProps> = ({
   station,
   className,
+  variant = "tile",
+  index,
 }) => {
-  const { currentStation, currentStream, isPlaying, playStation, pause } =
-    usePlayerStore();
+  const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const { toggleGenre } = useFilterStore();
   const currentUser = useNDKCurrentUser();
+  const { zaps, comments, userHasZapped, userHasCommented } =
+    useSocialInteractions(station);
+
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
   const [focusCommentForm, setFocusCommentForm] = useState(false);
-  const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
+  const [showZapDialog, setShowZapDialog] = useState(false);
+  const [selectedStream] = useState<Stream | undefined>(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
-
-  const handleGenreClick = (genre: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering card click
-    toggleGenre(genre);
-  };
-
-  const handleCommentClick = () => {
-    setShowDetailSheet(true);
-    setFocusCommentForm(true);
-  };
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
   const isOwner = currentUser?.pubkey === station.pubkey;
 
-  // Generate unique, deterministic color based on station ID (d tag)
-  const backgroundColor = station.stationId
-    ? getDeterministicColor(station.stationId, 85)
-    : "hsl(0, 0%, 85%)"; // Fallback to gray if no stationId
-
-  // Darker version for border underscore
-  const underscoreColor = station.stationId
-    ? getDeterministicColor(station.stationId, 50)
-    : "hsl(0, 0%, 50%)";
-
-  const handlePlayClick = () => {
-    if (isCurrentlyPlaying) {
-      pause();
-    } else {
-      playStation(station, selectedStream);
-    }
+  const handlePlayClick = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (isCurrentlyPlaying) pause();
+    else playStation(station, selectedStream);
   };
 
-  const handleStreamSelect = (stream: Stream) => {
-    setSelectedStream(stream);
-    // If this station is currently playing, switch to the new stream
-    if (isCurrentStation) {
-      playStation(station, stream);
-    }
+  const handleCommentClick = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setShowDetailSheet(true);
+    setFocusCommentForm(true);
   };
 
   const handleAddToList = async (listId: string) => {
-    if (station.pubkey && station.stationId) {
-      await addFavorite(station, listId);
-    }
+    if (station.pubkey && station.stationId) await addFavorite(station, listId);
   };
 
   const handleRemoveFromList = async (_listId: string) => {
-    if (station.pubkey && station.stationId) {
-      // removeFavorite removes from all lists for now
-      await removeFavorite(station);
-    }
+    if (station.pubkey && station.stationId) await removeFavorite(station);
   };
 
   const handleDeleteStation = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${station.name}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
+    if (!confirm(`Are you sure you want to delete "${station.name}"? This action cannot be undone.`)) return;
     try {
       await station.deleteStation();
       setShowActionMenu(false);
-      console.log("Station deleted successfully");
     } catch (error) {
       console.error("Failed to delete station:", error);
       alert("Failed to delete the station. Please try again.");
     }
   };
 
-  return (
-    <Card className={`relative group ${cn(className)}`}>
-      {/* Desktop Layout - Card with image on top */}
-      <div className="hidden md:flex md:flex-col h-[300px]">
-        {/* Top Actions */}
-        <div className="absolute top-2 right-2 z-10 flex gap-2">
-          {/* Favorites Dropdown */}
-          {isLoggedIn && station.pubkey && station.stationId && (
-            <FavoritesDropdown
+  const handleShare = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`);
+  };
+
+  const statusLabel = isCurrentlyPlaying
+    ? "SIGNAL_ACTIVE"
+    : isCurrentStation
+      ? "LOW_VOLTAGE"
+      : "STDBY";
+
+  const nameDisplay = (station.name || "UNKNOWN_STATION")
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+
+  const displayIndex =
+    index !== undefined ? String(index + 1).padStart(2, "0") : null;
+
+  const ownerMenu = isOwner && (
+    <div className="absolute top-2 right-2 z-10">
+      <Button
+        size="icon"
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => { e.stopPropagation(); setShowActionMenu(!showActionMenu); }}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </Button>
+      {showActionMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
+          <div className="absolute right-0 top-full mt-1 w-40 bg-background border-4 border-on-background z-50">
+            <StationManagementSheet
               station={station}
-              onAddToList={handleAddToList}
-              onRemoveFromList={handleRemoveFromList}
+              mode="edit"
+              trigger={
+                <Button variant="ghost" className="w-full justify-start text-sm">
+                  <Edit3 className="w-4 h-4 mr-2" /> Edit
+                </Button>
+              }
             />
-          )}
-
-          {/* Owner Actions Menu */}
-          {isOwner && (
-            <div className="relative">
-              <Button
-                onClick={() => setShowActionMenu(!showActionMenu)}
-                title="Station actions"
-              >
-                <MoreVertical className="w-4 h-4 text-gray-500" />
-              </Button>
-
-              {showActionMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
-                  <div className="py-1">
-                    <StationManagementSheet
-                      station={station}
-                      mode="edit"
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start px-4 py-2 text-sm"
-                        >
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          Edit Station
-                        </Button>
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start px-4 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={handleDeleteStation}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Station
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Backdrop to close action menu */}
-        {showActionMenu && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowActionMenu(false)}
-          />
-        )}
-
-        {/* Station Thumbnail with Play Overlay */}
-        {station.thumbnail ? (
-          <div className="aspect-[9/16] w-full overflow-hidden relative">
-            <img
-              src={station.thumbnail}
-              alt={station.name || "Radio Station"}
-              className="w-full h-full object-cover"
-            />
-            {/* Play Button Overlay */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Button
-                onClick={handlePlayClick}
-                className={`rounded-full transition-all transform hover:scale-110 ${
-                  isCurrentlyPlaying
-                    ? "bg-blue-600 hover:bg-blue-700"
-                    : "bg-white/90 hover:bg-white"
-                }`}
-                title={isCurrentlyPlaying ? "Pause" : "Play"}
-              >
-                {isCurrentlyPlaying ? (
-                  <Pause className="w-8 h-8 text-black" />
-                ) : (
-                  <Play className="w-8 h-8 text-gray-900" />
-                )}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div
-            className="aspect-[9/16] w-full overflow-hidden relative flex items-center justify-center cursor-pointer"
-            style={{ backgroundColor }}
-            onClick={handlePlayClick}
-          >
-            {/* Radio Icon Background */}
-            <Radio className="w-48 h-48 text-muted-foreground/20 absolute" />
-
-            {/* Play Button Overlay - hidden by default, shown on hover or when playing */}
-            <div
-              className={`absolute inset-0 transition-all flex items-center justify-center ${
-                isCurrentlyPlaying
-                  ? "bg-black/40"
-                  : "bg-black/0 group-hover:bg-black/40"
-              }`}
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-sm text-destructive"
+              onClick={handleDeleteStation}
             >
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayClick();
-                }}
-                className={`rounded-full transition-all transform hover:scale-110 ${
-                  isCurrentlyPlaying
-                    ? "bg-primary hover:bg-primary/90"
-                    : "bg-background/90 hover:bg-background shadow-brutal opacity-0 group-hover:opacity-100"
-                }`}
-                title={isCurrentlyPlaying ? "Pause" : "Play"}
-              >
-                {isCurrentlyPlaying ? (
-                  <Pause className="w-8 h-8 text-black" />
-                ) : (
-                  <Play className="w-8 h-8 text-gray-900" />
-                )}
-              </Button>
-            </div>
+              <Trash2 className="w-4 h-4 mr-2" /> Delete
+            </Button>
           </div>
-        )}
+        </>
+      )}
+    </div>
+  );
 
-        <div className="flex flex-col min-w-0 p-2 flex-1">
-          {/* Station Name with External Link */}
-          <div
-            className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4"
-            style={{ borderColor: underscoreColor }}
-          >
-            <h3
-              className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
-              onClick={() => setShowDetailSheet(true)}
-            >
-              {station.name || "Unnamed Station"}
-            </h3>
-            <Link
-              to="/station/$naddr"
-              params={{ naddr: station.naddr }}
-              className="flex-shrink-0"
-              title="Open full page"
-            >
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="h-5 w-5 p-0 hover:bg-gray-100"
-              >
-                <ExternalLink className="h-3 w-3 text-gray-500 hover:text-blue-600" />
-              </Button>
-            </Link>
-          </div>
-          <UserAvatar pubkey={station.pubkey} mode="avatar-name" />
-          {/* Station Description */}
-          <p className="text-gray-600 text-xs mb-2 line-clamp-2">
-            {station.description || "No description available"}
-          </p>
-          {/* Station Genres - flexible spacer */}
-          <div className="flex gap-1 overflow-hidden min-w-0 mb-2 min-h-[20px]">
-            {station.genres && station.genres.length > 0 ? (
-              <>
-                {station.genres.slice(0, 2).map((genre, index) => (
-                  <Badge
-                    key={index}
-                    className="cursor-pointer hover:bg-primary/80 transition-colors"
-                    onClick={(e) => handleGenreClick(genre, e)}
-                    title={`Filter by ${genre}`}
-                  >
-                    {genre}
-                  </Badge>
-                ))}
-                {station.genres.length > 2 && (
-                  <Badge
-                    className="cursor-default"
-                    title={station.genres.slice(2).join(", ")}
-                  >
-                    +{station.genres.length - 2}
-                  </Badge>
-                )}
-              </>
-            ) : null}
-          </div>
-          {/* Language and Social Actions - always at bottom */}
-          <div className="flex flex-row justify-between items-center mt-auto">
-            <div className="text-xs text-gray-500 flex-shrink-0">
-              {station.languages?.[0] &&
-              station.languages[0] &&
-              station.languages[0].length > 6
-                ? station.languages[0].substring(0, 6)
-                : station.languages[0]}
-            </div>
+  const favButton = isLoggedIn && station.pubkey && station.stationId ? (
+    <FavoritesDropdown
+      station={station}
+      onAddToList={handleAddToList}
+      onRemoveFromList={handleRemoveFromList}
+    />
+  ) : (
+    <span className="material-symbols-outlined text-xl opacity-30">favorite</span>
+  );
 
-            <SocialActions
-              station={station}
-              onCommentClick={handleCommentClick}
-            />
-          </div>
-        </div>
-      </div>
+  const detailSheet = (
+    <StationDetailSheet
+      station={station}
+      open={showDetailSheet}
+      onOpenChange={(open) => {
+        setShowDetailSheet(open);
+        if (!open) setFocusCommentForm(false);
+      }}
+      focusCommentForm={focusCommentForm}
+      onCommentFormFocused={() => setFocusCommentForm(false)}
+    />
+  );
 
-      {/* Mobile Layout - List with image on the side */}
-      <div className="flex md:hidden gap-0">
-        {/* Left: Thumbnail with Play Button - Square, no padding */}
-        <div className="flex-shrink-0 relative w-24 h-24 overflow-hidden">
-          {station.thumbnail ? (
-            <div className="w-full h-full relative">
+  const zapDialog = (
+    <ZapDialog
+      station={station}
+      open={showZapDialog}
+      onOpenChange={setShowZapDialog}
+      onZap={async (amount) => { console.log(`Zapping ${amount} sats to station:`, station.name); }}
+    />
+  );
+
+  // ─── TILE ────────────────────────────────────────────────────────────────────
+  if (variant === "tile") {
+    return (
+      <>
+        <div className={cn(
+          "group relative bg-surface border-4 border-on-surface shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0px_0px_rgba(182,0,19,1)] transition-all",
+          className
+        )}>
+          {ownerMenu}
+
+          {/* Thumbnail + play */}
+          <div className="h-40 relative overflow-hidden border-b-4 border-on-surface">
+            {station.thumbnail ? (
               <img
                 src={station.thumbnail}
-                alt={station.name || "Radio Station"}
-                className="w-full h-full object-cover block"
-              />
-              {/* Play Button Overlay */}
-              <div
-                className={`absolute inset-0 flex items-center justify-center transition-opacity ${
-                  isCurrentlyPlaying ? "bg-black/40" : "bg-black/20"
-                }`}
-              >
-                <Button
-                  onClick={handlePlayClick}
-                  className={`rounded-full p-2 ${
-                    isCurrentlyPlaying
-                      ? "bg-blue-600 hover:bg-blue-700"
-                      : "bg-white/90 hover:bg-white"
-                  }`}
-                  title={isCurrentlyPlaying ? "Pause" : "Play"}
-                >
-                  {isCurrentlyPlaying ? (
-                    <Pause className="w-4 h-4 text-white" />
-                  ) : (
-                    <Play className="w-4 h-4 text-gray-900" />
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="w-full h-full flex items-center justify-center relative cursor-pointer"
-              style={{ backgroundColor }}
-              onClick={handlePlayClick}
-            >
-              <Radio className="w-8 h-8 text-muted-foreground/30 absolute" />
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayClick();
-                }}
-                className={`rounded-full p-2 z-10 ${
-                  isCurrentlyPlaying
-                    ? "bg-primary hover:bg-primary/90"
-                    : "bg-background/90 hover:bg-background"
-                }`}
-                title={isCurrentlyPlaying ? "Pause" : "Play"}
-              >
-                {isCurrentlyPlaying ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4" />
+                alt={station.name || "Station"}
+                className={cn(
+                  "w-full h-full object-cover transition-all",
+                  isCurrentlyPlaying ? "" : "grayscale contrast-150"
                 )}
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Center: Station Info */}
-        <div className="flex flex-col justify-between min-w-0 p-1 w-full">
-          {/* Station Name with External Link */}
-          <div
-            className="flex items-center gap-1 mb-1 min-w-0 pb-1 border-b-4"
-            style={{ borderColor: underscoreColor }}
-          >
-            <h3
-              className="font-semibold text-sm text-gray-900 line-clamp-1 cursor-pointer hover:text-blue-600 transition-colors flex-1 min-w-0"
-              onClick={() => setShowDetailSheet(true)}
+              />
+            ) : (
+              <div className="w-full h-full bg-on-background flex items-center justify-center">
+                <span className="material-symbols-outlined text-8xl text-surface/10">radio</span>
+              </div>
+            )}
+            <button
+              className="absolute bottom-2 right-2 w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shadow-[3px_3px_0px_0px_rgba(29,28,19,1)]"
+              onClick={handlePlayClick}
+              title={isCurrentlyPlaying ? "Pause" : "Play"}
             >
-              {station.name || "Unnamed Station"}{" "}
-              {station.description ? ` - ${station.description}` : ""}
-            </h3>
-            <Link
-              to="/station/$naddr"
-              params={{ naddr: station.naddr }}
-              className="flex-shrink-0"
-              title="Open full page"
-            >
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="h-5 w-5 p-0 hover:bg-gray-100"
-              >
-                <ExternalLink className="h-3 w-3 text-gray-500 hover:text-blue-600" />
-              </Button>
-            </Link>
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                {isCurrentlyPlaying ? "pause" : "play_arrow"}
+              </span>
+            </button>
           </div>
 
-          {/* Station Genres */}
-          {station.genres && station.genres.length > 0 && (
-            <div className="flex gap-1 overflow-hidden min-w-0">
-              {station.genres.slice(0, 2).map((genre, index) => (
-                <Badge
-                  key={index}
-                  className="cursor-pointer hover:bg-primary/80 transition-colors"
-                  onClick={(e) => handleGenreClick(genre, e)}
-                  title={`Filter by ${genre}`}
+          {/* Info */}
+          <div className="p-3 flex-1">
+            <div className="flex justify-between items-start mb-2 gap-2">
+              <h3
+                className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline truncate"
+                onClick={() => setShowDetailSheet(true)}
+              >
+                {nameDisplay}
+              </h3>
+              <span className={cn(
+                "text-[10px] font-bold px-1 border shrink-0",
+                isCurrentlyPlaying ? "text-primary border-primary" : "text-outline border-outline"
+              )}>
+                {statusLabel}
+              </span>
+            </div>
+            <p className="text-xs font-bold text-tertiary uppercase tracking-widest mb-4">
+              MAINTAINER: {(station.pubkey || "UNKNOWN").slice(0, 8).toUpperCase()}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {station.genres?.slice(0, 3).map((genre, i) => (
+                <span
+                  key={i}
+                  className="text-[10px] font-black bg-surface-container-highest px-2 py-0.5 border border-on-surface cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                  onClick={() => toggleGenre(genre)}
                 >
-                  {genre}
-                </Badge>
+                  {genre.toUpperCase()}
+                </span>
               ))}
-              {station.genres.length > 2 && (
-                <Badge
-                  className="cursor-default"
-                  title={station.genres.slice(2).join(", ")}
-                >
-                  +{station.genres.length - 2}
-                </Badge>
-              )}
             </div>
-          )}
+          </div>
 
-          <div className="flex flex-row justify-between items-center">
-            <div className="text-xs text-gray-500 flex-shrink-0">
-              {station.languages?.[0] &&
-              station.languages[0] &&
-              station.languages[0].length > 6
-                ? station.languages[0].substring(0, 6)
-                : station.languages[0]}
+          {/* Action bar */}
+          <div className="grid grid-cols-5 border-t-4 border-on-surface bg-surface-container-low">
+            <button
+              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              onClick={handleCommentClick}
+              title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
+            >
+              <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}>
+                message
+              </span>
+            </button>
+            <button
+              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              onClick={() => setShowZapDialog(true)}
+              title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
+            >
+              <span className={cn("material-symbols-outlined text-[18px]", userHasZapped && "text-yellow-500")}>
+                bolt
+              </span>
+            </button>
+            <button
+              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              onClick={handleShare}
+              title="Share"
+            >
+              <span className="material-symbols-outlined text-[18px]">share</span>
+            </button>
+            <button
+              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              onClick={() => setShowDetailSheet(true)}
+              title="Info"
+            >
+              <span className="material-symbols-outlined text-[18px]">info</span>
+            </button>
+            <div className="py-2.5 flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
+              {favButton}
             </div>
-
-            <SocialActions
-              station={station}
-              onCommentClick={handleCommentClick}
-            />
           </div>
         </div>
+        {detailSheet}
+        {zapDialog}
+      </>
+    );
+  }
 
-        {/* Right: Action Buttons */}
-        <div className="flex-shrink-0 flex flex-col gap-1 pr-2 pt-2">
-          {/* Favorites Dropdown */}
-          {isLoggedIn && station.pubkey && station.stationId && (
-            <FavoritesDropdown
-              station={station}
-              onAddToList={handleAddToList}
-              onRemoveFromList={handleRemoveFromList}
-            />
-          )}
+  // ─── LIST ─────────────────────────────────────────────────────────────────────
+  if (variant === "list") {
+    return (
+      <>
+        <section className={cn(
+          "group relative bg-surface border-4 border-on-background flex flex-col md:flex-row hover:shadow-[8px_8px_0px_0px_#00dbe9] transition-all duration-150",
+          className
+        )}>
+          {ownerMenu}
 
-          {/* Owner Actions Menu */}
-          {isOwner && (
-            <div className="relative">
-              <Button
-                onClick={() => setShowActionMenu(!showActionMenu)}
-                title="Station actions"
-                size="icon-sm"
-              >
-                <MoreVertical className="w-4 h-4 text-gray-500" />
-              </Button>
-
-              {showActionMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
-                  <div className="py-1">
-                    <StationManagementSheet
-                      station={station}
-                      mode="edit"
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start px-4 py-2 text-sm"
-                        >
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          Edit Station
-                        </Button>
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start px-4 py-2 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={handleDeleteStation}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Station
-                    </Button>
-                  </div>
+          {/* Artwork + index */}
+          <div className="flex-shrink-0 relative">
+            <div className="w-full md:w-48 aspect-square bg-on-background overflow-hidden border-b-4 md:border-b-0 md:border-r-4 border-on-background">
+              {station.thumbnail ? (
+                <img
+                  src={station.thumbnail}
+                  alt={station.name || "Station"}
+                  className={cn(
+                    "w-full h-full object-cover transition-all duration-300",
+                    isCurrentlyPlaying ? "" : "grayscale hover:grayscale-0"
+                  )}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-8xl text-surface/10">radio</span>
+                </div>
+              )}
+              {displayIndex && (
+                <div className="absolute top-0 left-0 bg-primary text-white font-black text-2xl px-3 py-1 border-r-4 border-b-4 border-on-background">
+                  {displayIndex}
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Metadata */}
+          <div className="flex-grow flex flex-col p-6 border-b-4 md:border-b-0 md:border-r-4 border-on-background">
+            <div className="mb-4">
+              <h2
+                className="text-3xl font-black uppercase tracking-tight leading-none group-hover:text-primary transition-colors cursor-pointer font-headline"
+                onClick={() => setShowDetailSheet(true)}
+              >
+                {nameDisplay}
+              </h2>
+              <Link
+                to="/station/$naddr"
+                params={{ naddr: station.naddr }}
+                className="text-sm font-bold text-outline uppercase tracking-widest hover:text-secondary-fixed-dim transition-colors"
+              >
+                /STATION/{station.stationId?.toUpperCase() || "UNKNOWN"}
+              </Link>
+            </div>
+            <div className="mt-auto">
+              <span className="text-[10px] uppercase font-black tracking-widest text-on-surface/50 block mb-1">
+                MAINTAINER
+              </span>
+              <span className="text-sm font-bold uppercase">
+                {(station.pubkey || "UNKNOWN").slice(0, 16).toUpperCase()}
+              </span>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="md:w-64 p-6 flex flex-col border-b-4 md:border-b-0 md:border-r-4 border-on-background bg-surface-container-low">
+            <span className="text-[10px] uppercase font-black tracking-widest mb-4">FREQUENCY_GENRE</span>
+            <div className="flex flex-wrap gap-2">
+              {station.genres?.slice(0, 5).map((genre, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "px-2 py-1 text-[10px] font-bold uppercase cursor-pointer transition-colors hover:bg-primary hover:text-white",
+                    i === 0
+                      ? "bg-on-background text-surface"
+                      : "border-2 border-on-background"
+                  )}
+                  onClick={() => toggleGenre(genre)}
+                >
+                  {genre.toUpperCase()}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="md:w-80 flex flex-col bg-surface-container-highest">
+            {/* Social row */}
+            <div className="flex border-b-4 border-on-background h-12">
+              <button
+                className="flex-1 flex items-center justify-center border-r-2 border-on-background hover:bg-secondary-fixed-dim transition-colors"
+                onClick={handleCommentClick}
+                title="Comment"
+              >
+                <span className={cn("material-symbols-outlined scale-75", userHasCommented && "text-primary")}>
+                  chat_bubble
+                </span>
+              </button>
+              <button
+                className="flex-1 flex items-center justify-center border-r-2 border-on-background hover:bg-primary hover:text-white transition-colors"
+                onClick={() => setShowZapDialog(true)}
+                title="Zap"
+              >
+                <span className={cn("material-symbols-outlined scale-75", userHasZapped && "text-yellow-500")}>
+                  bolt
+                </span>
+              </button>
+              <button
+                className="flex-1 flex items-center justify-center border-r-2 border-on-background hover:bg-secondary-fixed-dim transition-colors"
+                onClick={handleShare}
+                title="Share"
+              >
+                <span className="material-symbols-outlined scale-75">share</span>
+              </button>
+              <div className="flex-1 flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
+                {favButton}
+              </div>
+            </div>
+            {/* Play + visualizer */}
+            <div className="flex-grow flex items-center p-4 gap-4">
+              <button
+                className="w-16 h-16 bg-primary text-white flex items-center justify-center border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
+                onClick={handlePlayClick}
+                title={isCurrentlyPlaying ? "Pause" : "Play"}
+              >
+                <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                </span>
+              </button>
+              <div className="flex-grow flex items-end justify-between h-12 gap-1 px-2">
+                {([20, 60, 40, 80, 30, 50] as const).map((h, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "w-full transition-all",
+                      i === 1 ? "bg-primary" : i === 4 ? "bg-secondary-fixed-dim" : "bg-on-background",
+                      isCurrentlyPlaying && "animate-pulse"
+                    )}
+                    style={{ height: `${h}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+        {detailSheet}
+        {zapDialog}
+      </>
+    );
+  }
+
+  // ─── LIST-COMPACT ─────────────────────────────────────────────────────────────
+  return (
+    <>
+      <div className={cn(
+        "group relative flex flex-col md:flex-row items-stretch bg-surface-container-low border-4 border-on-background hover:bg-secondary-fixed-dim transition-colors cursor-pointer overflow-hidden",
+        className
+      )}>
+        {/* Index + thumbnail */}
+        <div className="min-h-[6rem] bg-on-background text-surface flex items-center justify-center font-black text-4xl border-b-4 md:border-b-0 md:border-r-4 border-on-background px-4">
+          {station.thumbnail && (
+            <img
+              src={station.thumbnail}
+              alt={station.name || "Station"}
+              className="w-12 h-12 object-cover grayscale mix-blend-screen opacity-60 mr-4 border border-surface/20 shrink-0"
+            />
           )}
+          <span>{displayIndex ?? "—"}</span>
         </div>
 
-        {/* Backdrop to close action menu */}
-        {showActionMenu && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowActionMenu(false)}
-          />
-        )}
-      </div>
+        {/* Station info */}
+        <div className="px-8 py-4 flex-grow flex flex-col justify-center" onClick={() => setShowDetailSheet(true)}>
+          <h3 className="text-2xl font-black uppercase font-headline">{nameDisplay}</h3>
+          <p className="text-xs font-bold text-tertiary uppercase tracking-widest">
+            {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
+          </p>
+        </div>
 
-      {/* Station Detail Sheet */}
-      <StationDetailSheet
-        station={station}
-        open={showDetailSheet}
-        onOpenChange={(open) => {
-          setShowDetailSheet(open);
-          if (!open) setFocusCommentForm(false);
-        }}
-        focusCommentForm={focusCommentForm}
-        onCommentFormFocused={() => setFocusCommentForm(false)}
-      />
-    </Card>
+        {/* Signal bar */}
+        <div className="px-8 py-4 hidden md:flex items-center gap-4 border-l-2 border-on-background/20">
+          <div className="w-32 h-6 bg-on-background/10 border-2 border-on-background relative overflow-hidden">
+            <div className={cn(
+              "absolute inset-0 transition-all",
+              isCurrentlyPlaying ? "bg-primary w-full animate-pulse" : "bg-primary w-1/3"
+            )} />
+          </div>
+          <span
+            className="material-symbols-outlined text-primary"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            graphic_eq
+          </span>
+        </div>
+
+        {/* Play */}
+        <button
+          className="px-6 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-l-4 border-on-background"
+          onClick={handlePlayClick}
+          title={isCurrentlyPlaying ? "Pause" : "Play"}
+        >
+          <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {isCurrentlyPlaying ? "pause" : "play_arrow"}
+          </span>
+        </button>
+
+        {/* Social */}
+        <div className="flex items-stretch border-l-2 border-on-background/20">
+          <button
+            className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+            onClick={handleCommentClick}
+            title="Comment"
+          >
+            <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>
+              comment
+            </span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
+            onClick={() => setShowZapDialog(true)}
+            title="Zap"
+          >
+            <span className={cn("material-symbols-outlined text-xl", userHasZapped && "text-yellow-500")}>
+              bolt
+            </span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+            onClick={handleShare}
+            title="Share"
+          >
+            <span className="material-symbols-outlined text-xl">share</span>
+          </button>
+          <div className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
+            {favButton}
+          </div>
+        </div>
+
+        {/* Status badge */}
+        <div className={cn(
+          "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap",
+          isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
+        )}>
+          {statusLabel}
+        </div>
+      </div>
+      {detailSheet}
+      {zapDialog}
+    </>
   );
 };

@@ -32,8 +32,10 @@ export const Route = createRootRoute({
             onSearch={handleSearch}
           />
         )}
-        <div className="m-2 pb-24 md:m-4 md:pt-24 min-w-[90vw]">
-          <Outlet />
+        <div className="pt-14 pb-32">
+          <div className="max-w-screen-2xl mx-auto px-4 md:px-8 py-6">
+            <Outlet />
+          </div>
         </div>
         <FloatingPlayer />
       </>

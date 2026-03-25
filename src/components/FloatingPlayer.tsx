@@ -1,28 +1,20 @@
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSearchStore } from "../stores/searchStore";
-import { Play, Pause, X, Volume2, VolumeX, Radio } from "lucide-react";
 import Hls from "hls.js";
-import { useMedia } from "react-use";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spectrogram } from "./Spectrogram";
 import { HistorySheet } from "./HistorySheet";
 
 export function FloatingPlayer() {
-  const isMobile = useMedia("(max-width: 768px)");
 
   const {
     currentStation,
-    currentStream,
     currentMetadata,
     isPlaying,
     isLoading,
     error,
     volume,
     isMuted,
-    analyser,
     pause,
     resume,
     stop,
@@ -38,13 +30,6 @@ export function FloatingPlayer() {
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-
-  // Derived: simple human-friendly stream label
-  const formatLabel = currentStream
-    ? currentStream.url?.includes(".m3u8")
-      ? "HLS"
-      : (currentStream.format || "stream").replace("audio/", "").toUpperCase()
-    : "";
 
   // Handler to search MusicBrainz with current metadata
   const handleSearchMetadata = () => {
@@ -147,174 +132,127 @@ export function FloatingPlayer() {
       {/* Hidden audio element - ALWAYS rendered */}
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      <footer className="fixed bottom-1 left-1 right-1 md:bottom-2 md:left-2 md:right-2 z-50 border-2 border-black bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-brutal overflow-hidden">
-        {!currentStation ? (
-          <div className="flex h-16 items-center justify-between px-4">
-            <p className="text-sm text-muted-foreground">
-              Select a radio station to start playing
-            </p>
-            <div className="relative z-10">
-              <HistorySheet />
-            </div>
-          </div>
-        ) : (
-          <div className="relative flex h-16 items-center gap-4 px-4">
-            {/* Spectrogram Background */}
-            <Spectrogram
-              analyser={analyser}
-              isPlaying={isPlaying}
-              color="rgb(0, 0, 0)"
-              className="opacity-10"
-            />
-            {/* Station Thumbnail & Info */}
-            <div className="relative z-10 flex min-w-0 flex-1 items-center gap-3">
-              {currentStation.thumbnail ? (
+      <footer className="fixed bottom-0 left-0 w-full z-[70] flex justify-center items-center bg-background h-32 border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+        <div className="flex h-full w-full items-stretch justify-between">
+
+          {/* Current Track */}
+          <div className="flex items-center gap-6 px-6 flex-grow max-w-md border-r-4 border-on-background overflow-hidden">
+            <div className="w-16 h-16 bg-on-background border-2 border-primary-fixed-dim flex items-center justify-center text-secondary-fixed-dim shrink-0">
+              {currentStation?.thumbnail ? (
                 <img
                   src={currentStation.thumbnail}
                   alt={currentStation.name || "Station"}
-                  className="size-12 shrink-0 rounded-md object-cover shadow-sm"
+                  className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="size-12 shrink-0 rounded-md bg-secondary flex items-center justify-center">
-                  <Radio className="size-6 text-muted-foreground" />
-                </div>
+                <span className="material-symbols-outlined text-4xl" style={{ animation: isPlaying ? "spin 3s linear infinite" : "none" }}>
+                  album
+                </span>
               )}
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-semibold">
-                  {currentStation.name || "Unnamed Station"}
-                </h3>
-                <p className="truncate text-xs text-muted-foreground">
-                  {formatLabel}
-                  {currentStream?.quality?.bitrate &&
-                    currentStream.quality.bitrate > 0 && (
-                      <>
-                        {" "}
-                        • {Math.round(currentStream.quality.bitrate / 1000)}
-                        kbps
-                      </>
-                    )}
+            </div>
+            <div className="overflow-hidden">
+              <p className="font-bold uppercase text-[10px] text-primary tracking-widest">
+                {currentStation ? "NOW_TRANSMITTING" : "AWAITING_SIGNAL"}
+              </p>
+              <h4 className="font-black text-2xl uppercase tracking-tighter truncate font-headline">
+                {currentStation
+                  ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
+                  : "SELECT_A_STATION"}
+              </h4>
+              {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
+                <p
+                  className="truncate text-xs text-on-background/70 mt-0.5 cursor-pointer hover:text-primary transition-colors"
+                  onClick={handleSearchMetadata}
+                  title="Search on MusicBrainz"
+                >
+                  {currentMetadata.song}
+                  {currentMetadata.artist && (
+                    <span className="opacity-60"> • {currentMetadata.artist}</span>
+                  )}
                 </p>
-                {isPlaying && (
-                  <>
-                    {currentMetadata?.song ? (
-                      currentMetadata.song === "No metadata available" ||
-                      currentMetadata.title === "No metadata available" ? (
-                        <p className="truncate text-xs text-muted-foreground mt-0.5 italic">
-                          No metadata available
-                        </p>
-                      ) : (
-                        <p
-                          className="truncate text-xs text-foreground mt-0.5 cursor-pointer hover:text-primary transition-colors underline decoration-dotted underline-offset-2"
-                          onClick={handleSearchMetadata}
-                          title="Click to search on MusicBrainz"
-                        >
-                          {currentMetadata.song}
-                          {currentMetadata.artist && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • {currentMetadata.artist}
-                            </span>
-                          )}
-                          {currentMetadata.musicBrainz?.release && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • {currentMetadata.musicBrainz.release}
-                              {currentMetadata.musicBrainz.releaseDate && (
-                                <span>
-                                  {" "}
-                                  (
-                                  {
-                                    currentMetadata.musicBrainz.releaseDate.split(
-                                      "-"
-                                    )[0]
-                                  }
-                                  )
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </p>
-                      )
-                    ) : (
-                      <div className="mt-1 space-y-1">
-                        <Skeleton className="h-3 w-32" />
-                      </div>
-                    )}
-                  </>
-                )}
-                {error && (
-                  <p className="truncate text-xs text-destructive">{error}</p>
-                )}
+              )}
+              {isPlaying && !currentMetadata?.song && (
+                <Skeleton className="h-3 w-32 mt-1" />
+              )}
+              {error && (
+                <p className="truncate text-[10px] text-destructive uppercase tracking-wider mt-0.5">{error}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-stretch flex-grow justify-center">
+            <button
+              onClick={stop}
+              disabled={!currentStation}
+              className="text-on-background px-8 lg:px-12 flex flex-col justify-center items-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40"
+              title="Stop"
+            >
+              <span className="material-symbols-outlined scale-125 mb-1">stop_circle</span>
+              <span className="font-bold uppercase text-[10px]">STOP</span>
+            </button>
+            <button
+              onClick={resume}
+              disabled={!currentStation || isLoading || isPlaying}
+              className="bg-secondary-fixed-dim text-on-background px-12 lg:px-20 flex flex-col justify-center items-center hover:translate-y-2 transition-all active:translate-y-4 border-x-4 border-on-background disabled:opacity-40"
+              title="Play"
+            >
+              {isLoading ? (
+                <span className="material-symbols-outlined text-5xl" style={{ animation: "spin 0.8s linear infinite" }}>
+                  sync
+                </span>
+              ) : (
+                <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  play_arrow
+                </span>
+              )}
+              <span className="font-bold uppercase text-[10px]">{isLoading ? "TUNING" : "PLAY"}</span>
+            </button>
+            <button
+              onClick={pause}
+              disabled={!currentStation || isLoading || !isPlaying}
+              className="text-on-background px-8 lg:px-12 flex flex-col justify-center items-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40"
+              title="Pause"
+            >
+              <span className="material-symbols-outlined scale-125 mb-1">pause</span>
+              <span className="font-bold uppercase text-[10px]">PAUSE</span>
+            </button>
+            <div className="text-on-background px-8 lg:px-12 flex flex-col justify-center items-center hover:bg-surface-variant transition-all">
+              <HistorySheet />
+            </div>
+          </div>
+
+          {/* Volume — xl+ only */}
+          <div className="hidden xl:flex items-center gap-6 px-12 border-l-4 border-on-background bg-surface-container-low">
+              <button
+                onClick={toggleMute}
+                className="text-on-background hover:text-primary transition-colors"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                <span className="material-symbols-outlined">
+                  {isMuted ? "volume_off" : "volume_up"}
+                </span>
+              </button>
+              <div
+                className="w-40 h-8 bg-on-background/10 border-2 border-on-background relative cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setVolume((e.clientX - rect.left) / rect.width);
+                }}
+                title={`Volume: ${Math.round(volume * 100)}`}
+              >
+                <div
+                  className="absolute inset-0 bg-primary transition-all"
+                  style={{ width: `${isMuted ? 0 : volume * 100}%` }}
+                />
+                <div
+                  className="absolute top-0 bottom-0 w-1 bg-on-background"
+                  style={{ left: `${isMuted ? 0 : volume * 100}%` }}
+                />
               </div>
             </div>
 
-            {/* Playback Controls */}
-            <div className="relative z-10 flex items-center gap-2">
-              <Button
-                size="icon"
-                onClick={isPlaying ? pause : resume}
-                disabled={isLoading}
-                className="size-10 shrink-0"
-                title={isPlaying ? "Pause" : "Play"}
-              >
-                {isLoading ? (
-                  <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : isPlaying ? (
-                  <Pause className="size-4" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={stop}
-                className="size-8 shrink-0"
-                title="Stop"
-              >
-                <X className="size-4" />
-              </Button>
-              <HistorySheet />
-            </div>
-
-            {/* Volume Control - Desktop only */}
-            {!isMobile && (
-              <>
-                <Separator
-                  orientation="vertical"
-                  className="h-8 relative z-10"
-                />
-                <div className="relative z-10 flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={toggleMute}
-                    className="size-8 shrink-0"
-                    title={isMuted ? "Unmute" : "Mute"}
-                  >
-                    {isMuted ? (
-                      <VolumeX className="size-4" />
-                    ) : (
-                      <Volume2 className="size-4" />
-                    )}
-                  </Button>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={isMuted ? 0 : volume * 100}
-                    onChange={(e) => setVolume(Number(e.target.value) / 100)}
-                    className="h-1 w-24 cursor-pointer appearance-none rounded-lg bg-secondary accent-primary"
-                    title="Volume"
-                  />
-                  <span className="min-w-[2.5ch] text-xs text-muted-foreground">
-                    {Math.round(volume * 100)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        </div>
       </footer>
     </>
   );
