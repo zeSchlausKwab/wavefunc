@@ -33,7 +33,7 @@ function streamFormatLabel(format: string, bitrate?: number): string {
   return bitrate && bitrate > 0 ? `${name} ${bitrate}K` : name;
 }
 
-export type RadioCardVariant = "tile" | "list" | "list-compact" | "search-result";
+export type RadioCardVariant = "tile" | "list" | "list-compact" | "search-result" | "featured-item";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -494,6 +494,51 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </section>
         {detailSheet}
         {zapDialog}
+      </>
+    );
+  }
+
+  // ─── FEATURED-ITEM ────────────────────────────────────────────────────────────
+  if (variant === "featured-item") {
+    const bitrate = selectedStream?.quality?.bitrate;
+    const barWidth = bitrate
+      ? Math.min(95, Math.max(15, (bitrate / 256) * 100))
+      : [65, 30, 85, 50, 70][(index ?? 0) % 5];
+
+    return (
+      <>
+        <div
+          className={cn(
+            "group border-b-2 border-outline/30 pb-3 flex items-center justify-between hover:bg-secondary-fixed-dim/10 transition-colors cursor-pointer gap-4",
+            className
+          )}
+          onClick={handlePlayClick}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-xs font-black text-outline shrink-0">{displayIndex ?? "—"}</span>
+            <div className="min-w-0">
+              <div className="text-sm font-bold tracking-tight uppercase group-hover:text-primary transition-colors truncate font-headline">
+                {nameDisplay}
+              </div>
+              <div className="flex gap-2 text-[9px] uppercase font-bold text-outline">
+                <span>{station.genres?.[0]?.toUpperCase() || "UNKNOWN"}</span>
+                {bitrate && (
+                  <>
+                    <span className="text-primary">•</span>
+                    <span>{bitrate}K</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="w-20 h-4 bg-surface-container-highest relative overflow-hidden shrink-0">
+            <div
+              className={cn("absolute inset-y-0 left-0 bg-secondary-fixed-dim", isCurrentlyPlaying && "animate-pulse")}
+              style={{ width: `${isCurrentlyPlaying ? 100 : barWidth}%` }}
+            />
+          </div>
+        </div>
+        {detailSheet}
       </>
     );
   }

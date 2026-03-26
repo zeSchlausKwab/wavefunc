@@ -32,7 +32,7 @@ export const Route = createRootRoute({
             onSearch={handleSearch}
           />
         )}
-        <div className="pt-14 pb-32">
+        <div className="pt-14 pb-[100px]">
           <div className="max-w-screen-2xl mx-auto px-4 md:px-8 py-6">
             <Outlet />
           </div>
