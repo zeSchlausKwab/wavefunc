@@ -1,24 +1,33 @@
 import { Check, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
-import { SquareChevronDownIcon } from "./ui/icons/lucide-square-chevron-down";
-import { StarIcon } from "./ui/icons/lucide-star";
 import { Input } from "./ui/input";
 
 interface FavoritesDropdownProps {
   station: NDKStation;
   onAddToList: (listId: string) => Promise<void>;
   onRemoveFromList: (listId: string) => Promise<void>;
+  trigger?: React.ReactNode;
+  triggerClassName?: string;
 }
 
 export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
   station,
   onAddToList,
   onRemoveFromList,
+  trigger,
+  triggerClassName,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Auto-dismiss after 8s of inactivity
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => setIsOpen(false), 8000);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [newListDescription, setNewListDescription] = useState("");
@@ -58,6 +67,15 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
   
   return (
     <div className="relative">
+      {trigger ? (
+        <div
+          className={triggerClassName ?? "w-full py-2.5 flex items-center justify-center cursor-pointer"}
+          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          title="Add to favorites"
+        >
+          {trigger}
+        </div>
+      ) : (
         <Button
           variant="secondary"
           onClick={() => setIsOpen(!isOpen)}
@@ -68,9 +86,10 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
           }`} />
           <SquareChevronDownIcon className="w-3 h-3 text-gray-500" />
         </Button>
+      )}
 
         {isOpen && (
-          <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+          <div className="absolute right-0 bottom-full mb-2 w-72 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
             <div className="p-3">
               <div className="text-sm font-semibold text-gray-900 mb-3">
                 Add to Favorites List

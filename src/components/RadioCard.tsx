@@ -1,6 +1,6 @@
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { Edit3, MoreVertical, Trash2 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
@@ -14,7 +14,26 @@ import { ZapDialog } from "./ZapDialog";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 
-export type RadioCardVariant = "tile" | "list" | "list-compact";
+const MIME_TO_FORMAT: Record<string, string> = {
+  "audio/mpeg": "MP3",
+  "audio/mp3": "MP3",
+  "audio/aac": "AAC",
+  "audio/mp4": "AAC",
+  "audio/ogg": "OGG",
+  "audio/flac": "FLAC",
+  "audio/wav": "WAV",
+  "audio/x-wav": "WAV",
+  "application/x-mpegurl": "HLS",
+  "application/vnd.apple.mpegurl": "HLS",
+  "audio/x-hls": "HLS",
+};
+
+function streamFormatLabel(format: string, bitrate?: number): string {
+  const name = MIME_TO_FORMAT[format.toLowerCase()] ?? format.split("/").pop()?.toUpperCase() ?? format.toUpperCase();
+  return bitrate && bitrate > 0 ? `${name} ${bitrate}K` : name;
+}
+
+export type RadioCardVariant = "tile" | "list" | "list-compact" | "search-result";
 
 interface RadioCardProps {
   station: NDKStation;
@@ -29,11 +48,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   variant = "tile",
   index,
 }) => {
+  const { ndk } = useNDK();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const { toggleGenre } = useFilterStore();
   const currentUser = useNDKCurrentUser();
-  const { zaps, comments, userHasZapped, userHasCommented } =
+  const { zaps, comments, reactions, userHasZapped, userHasCommented, userHasReacted } =
     useSocialInteractions(station);
 
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -84,15 +104,28 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`);
   };
 
+  const handleLike = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!currentUser || !ndk) return;
+    await station.react("❤️");
+  };
+
   const statusLabel = isCurrentlyPlaying
     ? "SIGNAL_ACTIVE"
     : isCurrentStation
       ? "LOW_VOLTAGE"
-      : "STDBY";
+      : (selectedStream ? streamFormatLabel(selectedStream.format, selectedStream.quality?.bitrate) : "STDBY");
 
   const nameDisplay = (station.name || "UNKNOWN_STATION")
     .toUpperCase()
     .replace(/\s+/g, "_");
+
+  const titleRef = useRef<HTMLDivElement>(null);
+  const [isMarquee, setIsMarquee] = useState(false);
+  useEffect(() => {
+    const el = titleRef.current;
+    if (el) setIsMarquee(el.scrollWidth > el.clientWidth);
+  }, [nameDisplay]);
 
   const displayIndex =
     index !== undefined ? String(index + 1).padStart(2, "0") : null;
@@ -137,9 +170,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
       station={station}
       onAddToList={handleAddToList}
       onRemoveFromList={handleRemoveFromList}
+      trigger={<span className="material-symbols-outlined text-xl">star</span>}
+      triggerClassName="px-4 h-full flex items-center justify-center cursor-pointer"
     />
   ) : (
-    <span className="material-symbols-outlined text-xl opacity-30">favorite</span>
+    <div className="px-4 h-full flex items-center justify-center opacity-30">
+      <span className="material-symbols-outlined text-xl">star</span>
+    </div>
   );
 
   const detailSheet = (
@@ -204,12 +241,31 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           {/* Info */}
           <div className="p-3 flex-1">
             <div className="flex justify-between items-start mb-2 gap-2">
-              <h3
-                className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline truncate"
-                onClick={() => setShowDetailSheet(true)}
-              >
-                {nameDisplay}
-              </h3>
+              <div ref={titleRef} className="overflow-hidden">
+              {isMarquee ? (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  <h3
+                    className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline pr-12"
+                    onClick={() => setShowDetailSheet(true)}
+                  >
+                    {nameDisplay}
+                  </h3>
+                  <h3
+                    className="text-base font-black uppercase tracking-tighter leading-tight font-headline pr-12"
+                    aria-hidden
+                  >
+                    {nameDisplay}
+                  </h3>
+                </div>
+              ) : (
+                <h3
+                  className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline whitespace-nowrap"
+                  onClick={() => setShowDetailSheet(true)}
+                >
+                  {nameDisplay}
+                </h3>
+              )}
+            </div>
               <span className={cn(
                 "text-[10px] font-bold px-1 border shrink-0",
                 isCurrentlyPlaying ? "text-primary border-primary" : "text-outline border-outline"
@@ -246,6 +302,15 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </button>
             <button
               className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              onClick={handleLike}
+              title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
+            >
+              <span className={cn("material-symbols-outlined text-[18px]", userHasReacted && "text-primary")} style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                favorite
+              </span>
+            </button>
+            <button
+              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={() => setShowZapDialog(true)}
               title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
             >
@@ -260,15 +325,21 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             >
               <span className="material-symbols-outlined text-[18px]">share</span>
             </button>
-            <button
-              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
-              onClick={() => setShowDetailSheet(true)}
-              title="Info"
-            >
-              <span className="material-symbols-outlined text-[18px]">info</span>
-            </button>
-            <div className="py-2.5 flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
-              {favButton}
+            <div className="hover:bg-primary hover:text-white transition-colors">
+              {isLoggedIn && station.pubkey && station.stationId ? (
+                <FavoritesDropdown
+                  station={station}
+                  onAddToList={handleAddToList}
+                  onRemoveFromList={handleRemoveFromList}
+                  trigger={
+                    <span className="material-symbols-outlined text-[18px]">star</span>
+                  }
+                />
+              ) : (
+                <div className="py-2.5 flex items-center justify-center opacity-30">
+                  <span className="material-symbols-outlined text-[18px]">star</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -421,6 +492,141 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
           </div>
         </section>
+        {detailSheet}
+        {zapDialog}
+      </>
+    );
+  }
+
+  // ─── SEARCH-RESULT ────────────────────────────────────────────────────────────
+  if (variant === "search-result") {
+    const cycle = (index ?? 0) % 3;
+    const offsets    = ["md:translate-x-0",  "md:translate-x-12", "md:-translate-x-4"];
+    const bgs        = ["bg-surface-container-low", "bg-surface-container-high", "bg-surface-container-low"];
+    const hovers     = ["hover:bg-secondary-fixed-dim", "hover:bg-primary hover:text-white", "hover:bg-secondary-fixed-dim"];
+    const isFirst    = (index ?? 0) === 0;
+    const borderCls  = isFirst ? "border-4 border-on-background" : "border-x-4 border-b-4 border-on-background";
+
+    return (
+      <>
+        <div
+          className={cn(
+            "group relative flex flex-col md:flex-row items-stretch cursor-pointer overflow-hidden transition-colors",
+            borderCls, bgs[cycle], hovers[cycle], offsets[cycle],
+            className
+          )}
+          style={{ zIndex: Math.max(1, 30 - (index ?? 0)) }}
+        >
+          {ownerMenu}
+
+          {/* Index + thumbnail */}
+          <div className="min-h-[6rem] bg-on-background text-surface flex items-center justify-center font-black text-4xl border-b-4 md:border-b-0 md:border-r-4 border-on-background px-4 shrink-0">
+            {station.thumbnail && (
+              <img
+                src={station.thumbnail}
+                alt={station.name || "Station"}
+                className="w-12 h-12 object-cover grayscale mix-blend-screen opacity-60 mr-4 border border-surface/20 shrink-0"
+              />
+            )}
+            <span>{displayIndex ?? "—"}</span>
+          </div>
+
+          {/* Station info */}
+          <div className="px-8 py-4 flex-grow flex flex-col justify-center min-w-0 overflow-hidden" onClick={() => setShowDetailSheet(true)}>
+            <div ref={titleRef} className="overflow-hidden">
+              {isMarquee ? (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  <h3 className="text-2xl font-black uppercase font-headline pr-12">{nameDisplay}</h3>
+                  <h3 className="text-2xl font-black uppercase font-headline pr-12" aria-hidden>{nameDisplay}</h3>
+                </div>
+              ) : (
+                <h3 className="text-2xl font-black uppercase font-headline whitespace-nowrap">{nameDisplay}</h3>
+              )}
+            </div>
+            <p className="text-xs font-bold text-tertiary uppercase tracking-widest opacity-70 whitespace-nowrap">
+              {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
+              {selectedStream?.quality?.bitrate ? ` / ${selectedStream.quality.bitrate}K` : ""}
+            </p>
+          </div>
+
+          {/* Signal bar */}
+          <div className="px-8 py-4 hidden md:flex items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 shrink-0">
+            <div className="w-32 h-6 bg-on-background/10 border-2 border-on-background relative overflow-hidden">
+              <div className={cn(
+                "absolute inset-0 transition-all",
+                isCurrentlyPlaying ? "bg-primary w-full animate-pulse" : "bg-primary w-1/3"
+              )} />
+            </div>
+            <span
+              className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              graphic_eq
+            </span>
+          </div>
+
+          {/* Play + Social */}
+          <div className="flex items-stretch border-l-2 border-on-background/20">
+            <button
+              className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
+              onClick={handlePlayClick}
+              title={isCurrentlyPlaying ? "Pause" : "Play"}
+            >
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                {isCurrentlyPlaying ? "pause" : "play_arrow"}
+              </span>
+            </button>
+            <button
+              className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+              onClick={handleCommentClick} title="Comment"
+            >
+              <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>comment</span>
+            </button>
+            <button
+              className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
+              onClick={handleLike} title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
+            >
+              <span className={cn("material-symbols-outlined text-xl", userHasReacted && "text-primary")} style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                favorite
+              </span>
+            </button>
+            <button
+              className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
+              onClick={() => setShowZapDialog(true)} title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
+            >
+              <span className={cn("material-symbols-outlined text-xl", userHasZapped && "text-yellow-500")}>bolt</span>
+            </button>
+            <button
+              className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+              onClick={handleShare} title="Share"
+            >
+              <span className="material-symbols-outlined text-xl">share</span>
+            </button>
+            <div className="flex items-stretch hover:bg-primary hover:text-white transition-colors">
+              {isLoggedIn && station.pubkey && station.stationId ? (
+                <FavoritesDropdown
+                  station={station}
+                  onAddToList={handleAddToList}
+                  onRemoveFromList={handleRemoveFromList}
+                  trigger={<span className="material-symbols-outlined text-xl">star</span>}
+                  triggerClassName="px-4 h-full flex items-center justify-center cursor-pointer"
+                />
+              ) : (
+                <div className="px-4 flex items-center justify-center opacity-30">
+                  <span className="material-symbols-outlined text-xl">star</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Status badge */}
+          <div className={cn(
+            "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap shrink-0",
+            isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
+          )}>
+            {statusLabel}
+          </div>
+        </div>
         {detailSheet}
         {zapDialog}
       </>

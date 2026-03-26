@@ -162,7 +162,19 @@
 }
 
 /* Constructivist / Material Design utilities */
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 @layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .animate-marquee {
+    animation: marquee-scroll 10s linear infinite;
+  }
   .hard-shadow-red {
     box-shadow: 8px 8px 0px 0px #b60013;
   }
