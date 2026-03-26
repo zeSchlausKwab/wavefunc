@@ -48,7 +48,7 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
   const watermark = `CONSTRUCT_${String(index + 1).padStart(2, "0")}`;
 
   return (
-    <div className="bg-surface-container-high border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col md:flex-row min-h-[560px] relative overflow-hidden">
+    <div className="bg-surface-container-high border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col md:flex-row min-h-[650px] relative overflow-hidden">
 
       {/* Watermark */}
       <div className="absolute -right-4 top-1/2 -translate-y-1/2 rotate-90 origin-center whitespace-nowrap text-[80px] font-black text-on-background/5 pointer-events-none uppercase select-none">
