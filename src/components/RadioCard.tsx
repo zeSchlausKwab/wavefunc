@@ -509,29 +509,50 @@ export const RadioCard: React.FC<RadioCardProps> = ({
       <>
         <div
           className={cn(
-            "group border-b-2 border-outline/30 pb-3 flex items-center justify-between hover:bg-secondary-fixed-dim/10 transition-colors cursor-pointer gap-4",
+            "group border-b-2 border-outline/30 py-2 flex items-center gap-3 hover:bg-secondary-fixed-dim/10 transition-colors cursor-pointer",
             className
           )}
           onClick={handlePlayClick}
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-xs font-black text-outline shrink-0">{displayIndex ?? "—"}</span>
-            <div className="min-w-0">
-              <div className="text-sm font-bold tracking-tight uppercase group-hover:text-primary transition-colors truncate font-headline">
-                {nameDisplay}
+          {/* Index */}
+          <span className="text-xs font-black text-outline shrink-0 w-5 text-right">{displayIndex ?? "—"}</span>
+
+          {/* Thumbnail */}
+          <div className="w-9 h-9 shrink-0 bg-on-background overflow-hidden border border-on-background/20">
+            {station.thumbnail ? (
+              <img src={station.thumbnail} alt={station.name || "Station"} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-base text-surface/20">radio</span>
               </div>
-              <div className="flex gap-2 text-[9px] uppercase font-bold text-outline">
-                <span>{station.genres?.[0]?.toUpperCase() || "UNKNOWN"}</span>
-                {bitrate && (
-                  <>
-                    <span className="text-primary">•</span>
-                    <span>{bitrate}K</span>
-                  </>
-                )}
-              </div>
+            )}
+          </div>
+
+          {/* Name + meta */}
+          <div className="min-w-0 flex-1">
+            <div ref={titleRef} className="overflow-hidden">
+              {isMarquee ? (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  <span className="text-sm font-bold tracking-tight uppercase group-hover:text-primary transition-colors font-headline pr-10">{nameDisplay}</span>
+                  <span className="text-sm font-bold tracking-tight uppercase font-headline pr-10" aria-hidden>{nameDisplay}</span>
+                </div>
+              ) : (
+                <span className="text-sm font-bold tracking-tight uppercase group-hover:text-primary transition-colors font-headline whitespace-nowrap">{nameDisplay}</span>
+              )}
+            </div>
+            <div className="flex gap-2 text-[9px] uppercase font-bold text-outline leading-none mt-0.5">
+              <span>{station.genres?.[0]?.toUpperCase() || "UNKNOWN"}</span>
+              {bitrate && (
+                <>
+                  <span className="text-primary">•</span>
+                  <span>{bitrate}K</span>
+                </>
+              )}
             </div>
           </div>
-          <div className="w-20 h-4 bg-surface-container-highest relative overflow-hidden shrink-0">
+
+          {/* Signal bar */}
+          <div className="w-16 h-3 bg-surface-container-highest relative overflow-hidden shrink-0">
             <div
               className={cn("absolute inset-y-0 left-0 bg-secondary-fixed-dim", isCurrentlyPlaying && "animate-pulse")}
               style={{ width: `${isCurrentlyPlaying ? 100 : barWidth}%` }}

@@ -42,7 +42,7 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
   const watermark = `CONSTRUCT_${String(index + 1).padStart(2, "0")}`;
 
   return (
-    <div className="bg-surface-container-high border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col md:flex-row min-h-[650px] relative overflow-hidden">
+    <div className="bg-surface-container-high border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col md:flex-row h-[650px] relative overflow-hidden">
 
       {/* Watermark */}
       <div className="absolute -right-4 top-1/2 -translate-y-1/2 rotate-90 origin-center whitespace-nowrap text-[80px] font-black text-on-background/5 pointer-events-none uppercase select-none">
@@ -87,13 +87,13 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
         </div>
 
         {/* Station rows */}
-        <div className="flex-grow space-y-3 mb-6">
+        <div className="flex-grow overflow-y-auto mb-6 scrollbar-none min-h-0">
           {stations.length === 0 && (
             <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/40 py-4">
               NO_STATIONS_LOADED
             </div>
           )}
-          {stations.slice(0, 5).map((station, i) => (
+          {stations.map((station, i) => (
             <RadioCard
               key={station.id}
               station={station}
@@ -101,11 +101,6 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
               index={i}
             />
           ))}
-          {stations.length > 5 && (
-            <p className="text-[10px] font-bold uppercase tracking-widest text-outline/60 pt-1">
-              +{stations.length - 5} MORE_STATIONS
-            </p>
-          )}
         </div>
 
         {/* Social toolbar */}
