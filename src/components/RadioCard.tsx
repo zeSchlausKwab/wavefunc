@@ -11,6 +11,7 @@ import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { StationDetailSheet } from "./StationDetailSheet";
 import { ZapDialog } from "./ZapDialog";
+import { StreamQualityBar } from "./StreamQualityBar";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 
@@ -501,9 +502,6 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   // ─── FEATURED-ITEM ────────────────────────────────────────────────────────────
   if (variant === "featured-item") {
     const bitrate = selectedStream?.quality?.bitrate;
-    const barWidth = bitrate
-      ? Math.min(95, Math.max(15, (bitrate / 256) * 100))
-      : [65, 30, 85, 50, 70][(index ?? 0) % 5];
 
     return (
       <>
@@ -551,13 +549,8 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
           </div>
 
-          {/* Signal bar */}
-          <div className="w-16 h-3 bg-surface-container-highest relative overflow-hidden shrink-0">
-            <div
-              className={cn("absolute inset-y-0 left-0 bg-secondary-fixed-dim", isCurrentlyPlaying && "animate-pulse")}
-              style={{ width: `${isCurrentlyPlaying ? 100 : barWidth}%` }}
-            />
-          </div>
+          {/* Quality bar */}
+          <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-20" />
         </div>
         {detailSheet}
       </>
@@ -615,14 +608,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </p>
           </div>
 
-          {/* Signal bar */}
+          {/* Quality bar */}
           <div className="px-8 py-4 hidden md:flex items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 shrink-0">
-            <div className="w-32 h-6 bg-on-background/10 border-2 border-on-background relative overflow-hidden">
-              <div className={cn(
-                "absolute inset-0 transition-all",
-                isCurrentlyPlaying ? "bg-primary w-full animate-pulse" : "bg-primary w-1/3"
-              )} />
-            </div>
+            <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-32" />
             <span
               className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -726,16 +714,11 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </p>
         </div>
 
-        {/* Signal bar */}
+        {/* Quality bar */}
         <div className="px-8 py-4 hidden md:flex items-center gap-4 border-l-2 border-on-background/20">
-          <div className="w-32 h-6 bg-on-background/10 border-2 border-on-background relative overflow-hidden">
-            <div className={cn(
-              "absolute inset-0 transition-all",
-              isCurrentlyPlaying ? "bg-primary w-full animate-pulse" : "bg-primary w-1/3"
-            )} />
-          </div>
+          <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-32" />
           <span
-            className="material-symbols-outlined text-primary"
+            className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
             graphic_eq
