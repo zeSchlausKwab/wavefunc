@@ -5,6 +5,7 @@ import { useFavoriteStations } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { RadioCard } from "./RadioCard";
+import { SectionTitle } from "./SectionTitle";
 import {
   Carousel,
   CarouselContent,
@@ -19,12 +20,6 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function splitTitle(name: string): { body: string; last: string } {
-  const parts = name.toUpperCase().replace(/\s+/g, "_").split("_").filter(Boolean);
-  const last = parts.pop() ?? "LIST";
-  const body = parts.join("_");
-  return { body, last };
-}
 
 // ─── Module ───────────────────────────────────────────────────────────────────
 
@@ -43,7 +38,6 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
     navigator.clipboard?.writeText(`${window.location.origin}/favorites`);
   };
 
-  const { body, last } = splitTitle(list.name || "UNKNOWN_LIST");
   const packId = (list.favoritesId ?? "XX-00").slice(0, 8).toUpperCase();
   const watermark = `CONSTRUCT_${String(index + 1).padStart(2, "0")}`;
 
@@ -79,10 +73,9 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
         {/* Header */}
         <div className="relative mb-8">
           <div className="absolute -top-6 -left-6 w-32 h-32 rounded-full border-2 border-primary/30 pointer-events-none" />
-          <h2 className="text-5xl font-black tracking-tighter uppercase leading-none font-headline mb-2 relative z-10">
-            {body && <>{body}_<br /></>}
-            <span className="text-primary">{last}</span>
-          </h2>
+          <SectionTitle className="text-5xl md:text-5xl mb-2 relative z-10">
+            {list.name || "UNKNOWN LIST"}
+          </SectionTitle>
           <div className="flex items-center gap-3">
             <span className="bg-on-background text-surface text-[10px] px-2 py-0.5 font-bold uppercase tracking-tighter">
               PACK_ID: {packId}

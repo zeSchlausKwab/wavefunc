@@ -175,6 +175,10 @@
   .animate-marquee {
     animation: marquee-scroll 10s linear infinite;
   }
+  .outlined-text {
+    -webkit-text-stroke: 2px var(--color-on-background);
+    color: transparent;
+  }
   .hard-shadow-red {
     box-shadow: 8px 8px 0px 0px #b60013;
   }
