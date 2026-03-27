@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useFavorites, useFavoriteStations } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { RadioCard } from "./RadioCard";
 import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { EditFavoritesListForm } from "./EditFavoritesListForm";
 import { SectionTitle } from "./SectionTitle";
+import { ZapDialog } from "./ZapDialog";
+import type { NDKStation } from "../lib/NDKStation";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { cn } from "../lib/utils";
 
@@ -23,8 +26,15 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
   const [animationParent] = useAutoAnimate();
   const { stations: listStations } = useFavoriteStations(list);
   const { removeFavorite } = useFavorites();
-  const { zaps, comments, reactions, userHasReacted } = useSocialInteractions(list);
+  const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
+  const currentUser = useNDKCurrentUser();
   const [isEditing, setIsEditing] = useState(false);
+  const [showZapDialog, setShowZapDialog] = useState(false);
+
+  const handleResonate = async () => {
+    if (!currentUser) return;
+    await list.react("❤️");
+  };
 
   const packId = (list.favoritesId ?? "XX-00").slice(0, 8).toUpperCase();
 
@@ -158,19 +168,12 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
         {/* Social toolbar */}
         <div className="flex items-center justify-between pt-3 border-t-4 border-on-background mt-auto">
           <div className="flex gap-4">
-            <button className="flex items-center gap-1 hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-[15px]">chat_bubble</span>
-              {comments > 0 && (
-                <span className="text-[10px] font-bold">{formatCount(comments)}</span>
-              )}
-            </button>
-            <button className="flex items-center gap-1 hover:text-yellow-500 transition-colors">
-              <span
-                className="material-symbols-outlined text-[15px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                bolt
-              </span>
+            <button
+              className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors"
+              onClick={() => setShowZapDialog(true)}
+              title="Zap"
+            >
+              <span className="material-symbols-outlined text-[15px]">bolt</span>
               {zaps > 0 && (
                 <span className="text-[10px] font-bold">{formatCount(zaps)}</span>
               )}
@@ -188,6 +191,8 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
               "px-3 py-1.5 flex items-center gap-1.5 text-white shadow-[3px_3px_0px_0px_rgba(29,28,19,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all",
               userHasReacted ? "bg-on-background" : "bg-primary"
             )}
+            onClick={handleResonate}
+            title="Resonate"
           >
             <span
               className="material-symbols-outlined text-[14px]"

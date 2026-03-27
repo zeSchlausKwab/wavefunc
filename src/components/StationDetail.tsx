@@ -1,25 +1,14 @@
-import {
-  ExternalLink,
-  Globe,
-  Languages,
-  MapPin,
-  Radio,
-  Play,
-  Pause,
-} from "lucide-react";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { useNDKCurrentUser, useProfileValue } from "@nostr-dev-kit/react";
 import type { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { StreamSelector } from "./StreamSelector";
-import { SocialActions } from "./SocialActions";
+import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { useComments } from "../lib/hooks/useComments";
 import { Comment } from "./Comment";
 import { CommentForm } from "./CommentForm";
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
-import { MessageCircleIcon } from "./ui/icons/lucide-message-circle";
-import { UserAvatar } from "./UserAvatar";
+import { SectionHeader } from "./SectionHeader";
+import { ZapDialog } from "./ZapDialog";
+import { cn } from "../lib/utils";
 
 interface StationDetailProps {
   station: NDKStation;
@@ -27,6 +16,37 @@ interface StationDetailProps {
   onCommentFormFocused?: () => void;
   /** Whether to add padding around the content. Default: true. Set to false for full-page layouts. */
   withPadding?: boolean;
+}
+
+function formatCount(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
+function PublisherBadge({ pubkey }: { pubkey: string }) {
+  const profile = useProfileValue(pubkey);
+  const displayName = profile?.name || profile?.displayName || pubkey.slice(0, 8).toUpperCase();
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-7 h-7 shrink-0 border-2 border-on-background overflow-hidden bg-surface-container-high">
+        {profile?.picture ? (
+          <img
+            src={profile.picture}
+            alt={displayName}
+            className="w-full h-full object-cover grayscale contrast-125"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="material-symbols-outlined text-[14px] text-on-background/40">person</span>
+          </div>
+        )}
+      </div>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 truncate">
+        {displayName}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -41,21 +61,29 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 }) => {
   const currentUser = useNDKCurrentUser();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  const {
+    reactions,
+    zaps,
+    comments: socialComments,
+    userHasReacted,
+    userHasZapped,
+    userHasCommented,
+  } = useSocialInteractions(station);
+
   const [selectedStream, setSelectedStream] = React.useState(
     station.streams.find((s) => s.primary) || station.streams[0]
   );
+  const [showZapDialog, setShowZapDialog] = useState(false);
+  const [showStreams, setShowStreams] = useState(false);
   const commentFormRef = React.useRef<HTMLTextAreaElement>(null);
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
 
-  // Fetch comments using the useComments hook
   const { comments, totalCount } = useComments(station);
 
-  // Handle focus when focusCommentForm prop changes
   useEffect(() => {
     if (focusCommentForm && commentFormRef.current) {
-      // Small delay to ensure rendering completes
       const timer = setTimeout(() => {
         commentFormRef.current?.focus();
         onCommentFormFocused?.();
@@ -65,11 +93,13 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   }, [focusCommentForm, onCommentFormFocused]);
 
   const handlePlayClick = () => {
-    if (isCurrentlyPlaying) {
-      pause();
-    } else {
-      playStation(station, selectedStream);
-    }
+    if (isCurrentlyPlaying) pause();
+    else playStation(station, selectedStream);
+  };
+
+  const handleLike = async () => {
+    if (!currentUser) return;
+    await station.react("❤️", true);
   };
 
   const handleRootComment = async (content: string) => {
@@ -77,66 +107,82 @@ export const StationDetail: React.FC<StationDetailProps> = ({
       alert("Please log in to comment on stations");
       return;
     }
-
     try {
-      const reply = station.reply(true); // forceNip22 = true
+      const reply = station.reply(true);
       reply.content = content;
       await reply.publish();
-      console.log("Posted root comment on station:", station.name);
     } catch (error) {
       console.error("Error posting comment:", error);
       throw error;
     }
   };
 
+  const sortedStreams = [...station.streams].sort(
+    (a, b) => (b.quality?.bitrate || 0) - (a.quality?.bitrate || 0)
+  );
+
+  const websiteHostname = (() => {
+    try {
+      return station.website ? new URL(station.website).hostname : null;
+    } catch {
+      return station.website || null;
+    }
+  })();
+
   return (
-    <div className={"w-full"}>
-      {/* Header with Thumbnail */}
-      <div className="relative">
+    <div className="w-full">
+
+      {/* ── Banner ── */}
+      <div className="relative w-full aspect-video overflow-hidden bg-on-background group">
         {station.thumbnail ? (
-          <div className="w-full aspect-video overflow-hidden bg-gray-100">
-            <img
-              src={station.thumbnail}
-              alt={station.name || "Station"}
-              className="w-full h-full object-cover"
-            />
-          </div>
+          <img
+            src={station.thumbnail}
+            alt={station.name || "Station"}
+            className="w-full h-full object-cover grayscale contrast-125 group-hover:grayscale-0 transition-all duration-500"
+          />
         ) : (
-          <div className="w-full aspect-video bg-secondary flex items-center justify-center">
-            <Radio className="w-32 h-32 text-muted-foreground/20" />
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="material-symbols-outlined text-[96px] text-surface/10">radio</span>
           </div>
         )}
 
-        {/* Play Button Overlay */}
-        <div className="absolute bottom-4 right-4">
-          <Button
-            onClick={handlePlayClick}
-            className={`rounded-full w-16 h-16 shadow-lg ${
-              isCurrentlyPlaying
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-white hover:bg-gray-100"
-            }`}
-            title={isCurrentlyPlaying ? "Pause" : "Play"}
+        {/* On-air badge */}
+        {isCurrentlyPlaying && (
+          <div className="absolute top-4 left-4 bg-primary text-white text-[10px] font-black uppercase tracking-widest px-2 py-0.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+            ON_AIR
+          </div>
+        )}
+
+        {/* Play/pause overlay button */}
+        <button
+          onClick={handlePlayClick}
+          className={cn(
+            "absolute bottom-4 right-4 w-16 h-16 border-4 border-on-background flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none",
+            isCurrentlyPlaying ? "bg-primary text-white" : "bg-surface text-on-background"
+          )}
+          title={isCurrentlyPlaying ? "Pause" : "Play"}
+        >
+          <span
+            className="material-symbols-outlined text-3xl"
+            style={isCurrentlyPlaying ? { fontVariationSettings: "'FILL' 1" } : {}}
           >
-            {isCurrentlyPlaying ? (
-              <Pause className="w-8 h-8 text-white" />
-            ) : (
-              <Play className="w-8 h-8 text-gray-900" />
-            )}
-          </Button>
-        </div>
+            {isCurrentlyPlaying ? "pause" : "play_arrow"}
+          </span>
+        </button>
       </div>
 
-      {/* Content */}
-      <div className={`space-y-6 ${withPadding ? "p-6" : ""}`}>
-        {/* Title and Description */}
+      {/* ── Content ── */}
+      <div className={cn("space-y-6", withPadding ? "p-6" : "pt-6")}>
+
+        {/* Station name + publisher + description */}
         <div>
-          <h1 className="text-2xl font-bold">
-            {station.name || "Unnamed Station"}
+          <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tighter leading-none mb-3 font-headline">
+            {station.name || "UNNAMED_STATION"}
           </h1>
-          <UserAvatar pubkey={station.pubkey} mode="full-profile" />
+          <PublisherBadge pubkey={station.pubkey} />
           {station.description && (
-            <p className="text-base text-muted-foreground mt-2">
+            <p className="mt-3 text-sm font-bold uppercase tracking-wider text-on-background/60 leading-relaxed">
               {station.description}
             </p>
           )}
@@ -144,176 +190,240 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
         {/* Genres */}
         {station.genres && station.genres.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Genres</h3>
-            <div className="flex flex-wrap gap-2">
-              {station.genres.map((genre, index) => (
-                <Badge key={index} variant="secondary">
-                  {genre}
-                </Badge>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {station.genres.map((genre) => (
+              <span
+                key={genre}
+                className="text-[10px] font-black uppercase tracking-widest px-2 py-1 border-2 border-on-background bg-surface-container-low"
+              >
+                {genre}
+              </span>
+            ))}
           </div>
         )}
 
-        {/* Stream Quality Selector */}
-        {station.streams && station.streams.length > 1 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              Stream Quality
-            </h3>
-            <StreamSelector
-              streams={station.streams}
-              selectedStreamUrl={selectedStream?.url}
-              onStreamSelect={setSelectedStream}
-              className="w-full justify-start px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200"
-            />
-          </div>
-        )}
-
-        {/* Station Information */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">
-            Information
-          </h3>
-
-          {/* Location */}
-          {station.location && (
-            <div className="flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Location</p>
-                <p className="text-sm text-gray-600">{station.location}</p>
+        {/* Info panel */}
+        {(station.location || (station.languages && station.languages.length > 0) || websiteHostname) && (
+          <div className="border-4 border-on-background bg-surface-container-low divide-y-4 divide-on-background">
+            {station.location && (
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <span className="material-symbols-outlined text-[18px] shrink-0 text-on-background/50">location_on</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider truncate">{station.location}</span>
               </div>
-            </div>
-          )}
-
-          {/* Languages */}
-          {station.languages && station.languages.length > 0 && (
-            <div className="flex items-start gap-3">
-              <Languages className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Languages</p>
-                <p className="text-sm text-gray-600">
-                  {station.languages.join(", ")}
-                </p>
+            )}
+            {station.languages && station.languages.length > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <span className="material-symbols-outlined text-[18px] shrink-0 text-on-background/50">translate</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider truncate">
+                  {station.languages.join(" / ")}
+                </span>
               </div>
-            </div>
-          )}
-
-          {/* Homepage */}
-          {station.website && (
-            <div className="flex items-start gap-3">
-              <Globe className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Website</p>
+            )}
+            {websiteHostname && station.website && (
+              <div className="flex items-center gap-3 px-4 py-2.5">
+                <span className="material-symbols-outlined text-[18px] shrink-0 text-on-background/50">language</span>
                 <a
                   href={station.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  className="text-[11px] font-bold uppercase tracking-wider truncate text-primary hover:text-on-background transition-colors flex items-center gap-1"
                 >
-                  {new URL(station.website).hostname}
-                  <ExternalLink className="w-3 h-3" />
+                  {websiteHostname}
+                  <span className="material-symbols-outlined text-[12px]">open_in_new</span>
                 </a>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Stream quality selector */}
+        {sortedStreams.length > 1 && (
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-on-background/40 mb-2">
+              SIGNAL_QUALITY
             </div>
-          )}
+            <div className="flex flex-wrap gap-2">
+              {sortedStreams.map((stream) => {
+                const codec = stream.quality?.codec?.toUpperCase() || "STREAM";
+                const bitrate = stream.quality?.bitrate
+                  ? `${Math.round(stream.quality.bitrate / 1000)}K`
+                  : null;
+                const isSelected = selectedStream?.url === stream.url;
+                return (
+                  <button
+                    key={stream.url}
+                    onClick={() => setSelectedStream(stream)}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border-2 border-on-background transition-colors",
+                      isSelected
+                        ? "bg-on-background text-surface"
+                        : "bg-surface-container-low hover:bg-surface-container-high"
+                    )}
+                  >
+                    {codec}{bitrate ? ` ${bitrate}` : ""}
+                    {stream.primary && (
+                      <span className={cn("ml-1", isSelected ? "text-surface/60" : "text-primary")}>★</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Social actions bar */}
+        <div className="border-t-4 border-on-background pt-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleLike}
+              className="flex items-center gap-1 hover:text-primary transition-colors"
+              title="Resonate"
+            >
+              <span
+                className={cn("material-symbols-outlined text-[18px]", userHasReacted && "text-primary")}
+                style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}
+              >
+                favorite
+              </span>
+              {reactions > 0 && (
+                <span className="text-[11px] font-bold">{formatCount(reactions)}</span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setShowZapDialog(true)}
+              className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors"
+              title="Zap"
+            >
+              <span
+                className={cn("material-symbols-outlined text-[18px]", userHasZapped && "text-secondary-fixed-dim")}
+                style={userHasZapped ? { fontVariationSettings: "'FILL' 1" } : {}}
+              >
+                bolt
+              </span>
+              {zaps > 0 && (
+                <span className="text-[11px] font-bold">{formatCount(zaps)}</span>
+              )}
+            </button>
+
+            <button
+              className="flex items-center gap-1 hover:text-primary transition-colors"
+              title="Comment"
+              onClick={() => commentFormRef.current?.focus()}
+            >
+              <span
+                className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}
+                style={userHasCommented ? { fontVariationSettings: "'FILL' 1" } : {}}
+              >
+                comment
+              </span>
+              {socialComments > 0 && (
+                <span className="text-[11px] font-bold">{formatCount(socialComments)}</span>
+              )}
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(
+                `${window.location.origin}/station/${station.naddr}`
+              );
+            }}
+            className="text-on-background/40 hover:text-on-background transition-colors"
+            title="Share"
+          >
+            <span className="material-symbols-outlined text-[18px]">share</span>
+          </button>
         </div>
 
-        {/* Social Actions */}
-        <div className="pt-4 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">Interact</h3>
-            <SocialActions station={station} />
-          </div>
-        </div>
+        {/* Comments section */}
+        <div className="space-y-4">
+          <SectionHeader label={totalCount > 0 ? `${totalCount}_SIGNALS` : undefined}>
+            COMMENTS
+          </SectionHeader>
 
-        {/* Comments Section (NIP-22 Threaded Comments) */}
-        <div className="pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageCircleIcon className="w-5 h-5 text-green-500" />
-            <h3 className="text-sm font-semibold text-gray-700">
-              Comments {totalCount > 0 && `(${totalCount})`}
-            </h3>
-          </div>
-
-          {/* Comments Thread */}
-          <div className="space-y-4 mb-4">
-            {comments.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                <MessageCircleIcon className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                <p className="text-sm font-medium">No comments yet</p>
-                <p className="text-xs mt-1">
-                  Be the first to share your thoughts
-                </p>
-              </div>
-            ) : (
-              comments.map((commentNode) => (
+          {comments.length === 0 ? (
+            <div className="border-4 border-on-background p-8 bg-surface-container-low flex flex-col items-center gap-3">
+              <span className="material-symbols-outlined text-4xl text-on-background/20">chat_bubble</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-on-background/40 text-center">
+                NO_SIGNALS_YET — BE_THE_FIRST
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {comments.map((commentNode) => (
                 <Comment
                   key={commentNode.event.id}
                   commentNode={commentNode}
                   stationAddress={station.address}
                   stationId={station.id}
                 />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {/* Root Comment Form (always visible) */}
           <CommentForm
             ref={commentFormRef}
             onSubmit={handleRootComment}
-            placeholder="Share your thoughts about this station..."
+            placeholder="Transmit your signal..."
           />
         </div>
 
-        {/* Stream URLs (for debugging/advanced users) */}
-        {station.streams && station.streams.length > 0 && (
-          <div className="pt-4 border-t border-gray-200">
-            <details className="group">
-              <summary className="text-sm font-semibold text-gray-700 cursor-pointer list-none flex items-center justify-between">
-                <span>Stream URLs ({station.streams.length})</span>
-                <span className="text-gray-400 group-open:rotate-180 transition-transform">
-                  ▼
-                </span>
-              </summary>
+        {/* Stream endpoints (debug) */}
+        {sortedStreams.length > 0 && (
+          <div className="border-t-4 border-on-background/20 pt-4">
+            <button
+              onClick={() => setShowStreams(!showStreams)}
+              className="flex items-center justify-between w-full text-[10px] font-black uppercase tracking-widest text-on-background/40 hover:text-on-background transition-colors"
+            >
+              <span>STREAM_ENDPOINTS ({sortedStreams.length})</span>
+              <span className="material-symbols-outlined text-[16px]">
+                {showStreams ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+
+            {showStreams && (
               <div className="mt-3 space-y-2">
-                {station.streams.map((stream, index) => (
-                  <div
-                    key={index}
-                    className="p-3 bg-gray-50 rounded-md text-xs font-mono break-all"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-xs">
-                        {stream.quality?.codec?.toUpperCase() || "Unknown"}
-                      </Badge>
+                {sortedStreams.map((stream, i) => (
+                  <div key={i} className="border-2 border-on-background/20 bg-surface-container-low p-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 border border-on-background/30 bg-surface">
+                        {stream.quality?.codec?.toUpperCase() || "?"}
+                      </span>
                       {stream.quality?.bitrate && (
-                        <span className="text-gray-600">
-                          {Math.round(stream.quality.bitrate / 1000)}kbps
+                        <span className="text-[10px] font-bold text-on-background/50">
+                          {Math.round(stream.quality.bitrate / 1000)}KBPS
                         </span>
                       )}
                       {stream.primary && (
-                        <Badge variant="default" className="text-xs">
-                          Primary
-                        </Badge>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                          PRIMARY
+                        </span>
                       )}
                     </div>
                     <a
                       href={stream.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700"
+                      className="text-[10px] font-mono text-primary hover:text-on-background transition-colors break-all"
                     >
                       {stream.url}
                     </a>
                   </div>
                 ))}
               </div>
-            </details>
+            )}
           </div>
         )}
+
       </div>
+
+      <ZapDialog
+        station={station}
+        open={showZapDialog}
+        onOpenChange={setShowZapDialog}
+        onZap={async (_amount: number) => {}}
+      />
     </div>
   );
 };

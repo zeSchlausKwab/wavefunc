@@ -270,13 +270,43 @@ func main() {
 		return search.DeleteEvent(id)
 	}
 
-	// Override QueryStored: use bleve for search queries, LMDB for regular queries
+	// Override QueryStored: use bleve for search queries, LMDB for regular queries.
+	// Internal calls (e.g. from handleDeleteRequest) have no subscription ID in context
+	// and are identified by safeGetSubscriptionID returning "internal". For those calls
+	// we skip logging and apply phantom-event logic so that kind-5 deletion events are
+	// always accepted even when the referenced event is not in this relay's database.
 	relay.QueryStored = func(ctx context.Context, filter nostr.Filter) iter.Seq[nostr.Event] {
-		logQuery(ctx, filter)
+		isInternal := safeGetSubscriptionID(ctx) == "internal"
+		if !isInternal {
+			logQuery(ctx, filter)
+		}
 		if len(filter.Search) > 0 {
 			return search.QueryEvents(filter, 100)
 		}
-		return db.QueryEvents(filter, 1000)
+		if !isInternal {
+			return db.QueryEvents(filter, 1000)
+		}
+		// Internal delete-check query: run normally, but if nothing is found AND the
+		// filter targets a specific author (from an "a"-tag coordinate), yield a phantom
+		// event. The phantom passes the author-equality check in handleDeleteRequest so
+		// haveDeletedSomething is set and the relay returns OK. DeleteEvent is then
+		// called with the phantom's zero ID which is a no-op in LMDB.
+		return func(yield func(nostr.Event) bool) {
+			found := false
+			for evt := range db.QueryEvents(filter, 1000) {
+				found = true
+				if !yield(evt) {
+					return
+				}
+			}
+			if !found && len(filter.Authors) == 1 {
+				phantom := nostr.Event{PubKey: filter.Authors[0]}
+				if len(filter.Kinds) > 0 {
+					phantom.Kind = filter.Kinds[0]
+				}
+				yield(phantom)
+			}
+		}
 	}
 
 	port := *port
@@ -312,12 +342,24 @@ func logIncomingEvent(evt nostr.Event) {
 		evt.Kind, kindName, identifier, evt.ID.Hex(), evt.PubKey.Hex())
 }
 
-// logQuery logs incoming subscription queries
-func logQuery(ctx context.Context, filter nostr.Filter) {
-	subID := khatru.GetSubscriptionID(ctx)
+// safeGetSubscriptionID retrieves the subscription ID without panicking when
+// the context doesn't carry one (e.g. internal queries triggered by delete requests).
+func safeGetSubscriptionID(ctx context.Context) (subID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			subID = "internal"
+		}
+	}()
+	subID = khatru.GetSubscriptionID(ctx)
 	if subID == "" {
 		subID = "internal"
 	}
+	return
+}
+
+// logQuery logs incoming subscription queries
+func logQuery(ctx context.Context, filter nostr.Filter) {
+	subID := safeGetSubscriptionID(ctx)
 
 	var parts []string
 

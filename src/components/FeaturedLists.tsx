@@ -7,6 +7,8 @@ import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { RadioCard } from "./RadioCard";
 import { SectionTitle } from "./SectionTitle";
 import { SectionHeader } from "./SectionHeader";
+import { ZapDialog } from "./ZapDialog";
+import type { NDKStation } from "../lib/NDKStation";
 import {
   Carousel,
   CarouselContent,
@@ -28,7 +30,8 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
   const { stations } = useFavoriteStations(list);
-  const { zaps, comments, reactions, userHasReacted } = useSocialInteractions(list);
+  const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
+  const [showZapDialog, setShowZapDialog] = useState(false);
 
   const handleResonate = async () => {
     if (!currentUser || !ndk) return;
@@ -107,17 +110,12 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
         {/* Social toolbar */}
         <div className="mt-auto flex items-center justify-between pt-4 border-t-4 border-on-background">
           <div className="flex gap-4">
-            <button className="flex items-center gap-1 hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-sm">chat_bubble</span>
-              {comments > 0 && <span className="text-[10px] font-bold">{formatCount(comments)}</span>}
-            </button>
-            <button className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors">
-              <span
-                className="material-symbols-outlined text-sm"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                bolt
-              </span>
+            <button
+              className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors"
+              onClick={() => setShowZapDialog(true)}
+              title="Zap"
+            >
+              <span className="material-symbols-outlined text-sm">bolt</span>
               {zaps > 0 && <span className="text-[10px] font-bold">{formatCount(zaps)}</span>}
             </button>
             <button
@@ -146,6 +144,13 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
         </div>
 
       </div>
+
+      <ZapDialog
+        station={list as unknown as NDKStation}
+        open={showZapDialog}
+        onOpenChange={setShowZapDialog}
+        onZap={async (_amount: number) => {}}
+      />
     </div>
   );
 }
