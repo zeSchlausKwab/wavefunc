@@ -307,7 +307,11 @@ if (!isProduction) {
           const publicFile = file(publicPath);
 
           if (await publicFile.exists()) {
-            return new Response(publicFile);
+            const headers: Record<string, string> = {};
+            if (pathname.startsWith("/.well-known/")) {
+              headers["Access-Control-Allow-Origin"] = "*";
+            }
+            return new Response(publicFile, { headers });
           }
 
           // Try to serve from dist/ (built assets)
@@ -340,6 +344,20 @@ if (!isProduction) {
 
           if (await staticFile.exists()) {
             return new Response(staticFile);
+          }
+
+          return new Response("Not found", { status: 404 });
+        },
+        // NIP-05 and other well-known files — must be served before the SPA catch-all
+        "/.well-known/*": async (req) => {
+          const url = new URL(req.url);
+          const filePath = join(process.cwd(), "public", url.pathname);
+          const staticFile = file(filePath);
+
+          if (await staticFile.exists()) {
+            return new Response(staticFile, {
+              headers: { "Access-Control-Allow-Origin": "*" },
+            });
           }
 
           return new Response("Not found", { status: 404 });
