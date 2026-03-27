@@ -9,6 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
 import { ZapDialog } from "./ZapDialog";
 import { cn } from "@/lib/utils";
+import { SmallLogo } from "./SmallLogo";
+import { Sheet, SheetContent } from "./ui/sheet";
+import { NavigationItems } from "./NavigationItems";
+import { UnifiedSearchInput } from "./UnifiedSearchInput";
+import { LoginSessionButtons } from "./LoginSessionButtom";
 
 // ─── Social bar (only mounts when a station is loaded) ────────────────────────
 
@@ -87,7 +92,14 @@ function PlayerSocialBar({ station }: { station: NDKStation }) {
 
 // ─── FloatingPlayer ───────────────────────────────────────────────────────────
 
-export function FloatingPlayer() {
+interface FloatingPlayerProps {
+  searchInput: string;
+  setSearchInput: (query: string) => void;
+  onSearch: (query: string) => void;
+}
+
+export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
+  const [showNavSheet, setShowNavSheet] = useState(false);
   const {
     currentStation,
     currentMetadata,
@@ -173,7 +185,75 @@ export function FloatingPlayer() {
     <>
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      <footer className="fixed bottom-0 left-0 w-full z-[70] flex bg-background h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+      {/* ── Mobile nav sheet ── */}
+      <Sheet open={showNavSheet} onOpenChange={setShowNavSheet}>
+        <SheetContent side="bottom" className="h-auto max-h-[75vh] overflow-y-auto p-4">
+          <div className="space-y-4 mt-2">
+            <UnifiedSearchInput
+              searchInput={searchInput}
+              setSearchInput={setSearchInput}
+              onStationSearch={(q) => { onSearch(q); setShowNavSheet(false); }}
+            />
+            <nav className="flex flex-col gap-1">
+              <NavigationItems variant="mobile" onNavigate={() => setShowNavSheet(false)} />
+            </nav>
+            <LoginSessionButtons />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <footer className="fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-16 md:h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+
+          {/* ── Mobile compact strip (< md) ── */}
+          <div className="flex md:hidden h-full items-center overflow-hidden">
+
+            {/* Nav button */}
+            <button
+              onClick={() => setShowNavSheet(true)}
+              className="h-full px-3 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-colors shrink-0"
+              title="Menu"
+            >
+              <SmallLogo size="sm" />
+            </button>
+
+            {/* Station info */}
+            <div className="flex-1 min-w-0 px-3">
+              <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
+                {currentStation ? "NOW_TRANSMITTING" : "AWAITING_SIGNAL"}
+              </p>
+              <h4 className="font-black text-sm uppercase tracking-tighter truncate font-headline leading-tight">
+                {currentStation
+                  ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
+                  : "SELECT_A_STATION"}
+              </h4>
+            </div>
+
+            {/* Play/Pause */}
+            <button
+              onClick={isPlaying ? pause : resume}
+              disabled={!currentStation || isLoading}
+              className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isLoading
+                ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+                : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+              }
+            </button>
+
+            {/* Stop */}
+            <button
+              onClick={stop}
+              disabled={!currentStation}
+              className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+              title="Stop"
+            >
+              <span className="material-symbols-outlined">stop_circle</span>
+            </button>
+          </div>
+
+          {/* ── Desktop full layout (md+) ── */}
+          <div className="hidden md:flex h-full w-full items-stretch">
 
           {/* Station info */}
           <div className="flex items-center gap-4 px-4 flex-grow max-w-xs border-r-4 border-on-background overflow-hidden">
@@ -272,6 +352,8 @@ export function FloatingPlayer() {
               <div className="absolute top-0 bottom-0 w-1 bg-on-background" style={{ left: `${isMuted ? 0 : volume * 100}%` }} />
             </div>
           </div>
+
+          </div>{/* end desktop wrapper */}
 
       </footer>
     </>

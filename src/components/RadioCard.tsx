@@ -207,13 +207,49 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     return (
       <>
         <div className={cn(
-          "group relative bg-surface border-4 border-on-surface shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0px_0px_rgba(182,0,19,1)] transition-all",
+          "group relative bg-surface border-4 border-on-surface overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0px_0px_rgba(182,0,19,1)] transition-all",
           className
         )}>
           {ownerMenu}
 
+          {/* ── Mobile: horizontal layout (< md) ── */}
+          <div className="flex md:hidden">
+            <div className="w-20 h-20 shrink-0 relative overflow-hidden border-r-4 border-on-surface">
+              {station.thumbnail ? (
+                <img src={station.thumbnail} alt={station.name || "Station"}
+                  className={cn("w-full h-full object-cover", isCurrentlyPlaying ? "" : "grayscale contrast-150")} />
+              ) : (
+                <div className="w-full h-full bg-on-background flex items-center justify-center">
+                  <span className="material-symbols-outlined text-4xl text-surface/10">radio</span>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-1 items-center min-w-0 px-3 gap-2">
+              <div className="flex flex-col justify-center min-w-0 flex-1">
+                <h3 className="text-sm font-black uppercase tracking-tighter truncate font-headline cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => setShowDetailSheet(true)}>{nameDisplay}</h3>
+                {station.genres?.[0] && (
+                  <span className="text-[10px] font-black text-tertiary uppercase tracking-widest truncate cursor-pointer"
+                    onClick={() => toggleGenre(station.genres![0] ?? "")}>
+                    {station.genres[0].toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <button
+                className="w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shrink-0"
+                onClick={handlePlayClick} title={isCurrentlyPlaying ? "Pause" : "Play"}
+              >
+                <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* ── Desktop: vertical layout (md+) ── */}
+
           {/* Thumbnail + play */}
-          <div className="h-40 relative overflow-hidden border-b-4 border-on-surface">
+          <div className="hidden md:block h-40 relative overflow-hidden border-b-4 border-on-surface">
             {station.thumbnail ? (
               <img
                 src={station.thumbnail}
@@ -239,8 +275,8 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </button>
           </div>
 
-          {/* Info */}
-          <div className="p-3 flex-1">
+          {/* Info (desktop only) */}
+          <div className="hidden md:block p-3 flex-1">
             <div className="flex justify-between items-start mb-2 gap-2">
               <div ref={titleRef} className="overflow-hidden">
               {isMarquee ? (
@@ -291,40 +327,40 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </div>
 
           {/* Action bar */}
-          <div className="grid grid-cols-5 border-t-4 border-on-surface bg-surface-container-low">
+          <div className="grid grid-cols-5 border-t-2 md:border-t-4 border-on-surface bg-surface-container-low">
             <button
-              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={handleCommentClick}
               title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
             >
-              <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}>
+              <span className={cn("material-symbols-outlined text-[16px] md:text-[18px]", userHasCommented && "text-primary")}>
                 message
               </span>
             </button>
             <button
-              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={handleLike}
               title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
             >
-              <span className={cn("material-symbols-outlined text-[18px]", userHasReacted && "text-primary")} style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}>
+              <span className={cn("material-symbols-outlined text-[16px] md:text-[18px]", userHasReacted && "text-primary")} style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}>
                 favorite
               </span>
             </button>
             <button
-              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={() => setShowZapDialog(true)}
               title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
             >
-              <span className={cn("material-symbols-outlined text-[18px]", userHasZapped && "text-yellow-500")}>
+              <span className={cn("material-symbols-outlined text-[16px] md:text-[18px]", userHasZapped && "text-yellow-500")}>
                 bolt
               </span>
             </button>
             <button
-              className="py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
+              className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={handleShare}
               title="Share"
             >
-              <span className="material-symbols-outlined text-[18px]">share</span>
+              <span className="material-symbols-outlined text-[16px] md:text-[18px]">share</span>
             </button>
             <div className="hover:bg-primary hover:text-white transition-colors">
               {isLoggedIn && station.pubkey && station.stationId ? (
@@ -333,12 +369,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                   onAddToList={handleAddToList}
                   onRemoveFromList={handleRemoveFromList}
                   trigger={
-                    <span className="material-symbols-outlined text-[18px]">star</span>
+                    <span className="material-symbols-outlined text-[16px] md:text-[18px]">star</span>
                   }
                 />
               ) : (
-                <div className="py-2.5 flex items-center justify-center opacity-30">
-                  <span className="material-symbols-outlined text-[18px]">star</span>
+                <div className="py-1.5 md:py-2.5 flex items-center justify-center opacity-30">
+                  <span className="material-symbols-outlined text-[16px] md:text-[18px]">star</span>
                 </div>
               )}
             </div>
@@ -620,7 +656,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </div>
 
           {/* Play + Social */}
-          <div className="flex items-stretch border-l-2 border-on-background/20">
+          <div className="flex items-stretch border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 overflow-x-auto scrollbar-none">
             <button
               className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
               onClick={handlePlayClick}

@@ -6,6 +6,7 @@ import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { RadioCard } from "./RadioCard";
 import { SectionTitle } from "./SectionTitle";
+import { SectionHeader } from "./SectionHeader";
 import {
   Carousel,
   CarouselContent,
@@ -181,15 +182,9 @@ export function FeaturedLists() {
     <div className="mb-16 space-y-6">
 
       {/* Section header */}
-      <div className="flex items-baseline gap-4">
-        <h2 className="text-5xl md:text-6xl font-black uppercase tracking-tighter font-headline">
-          FEATURED_COLLECTIONS
-        </h2>
-        <div className="h-2 flex-grow bg-on-background" />
-        <span className="font-bold text-primary text-sm hidden md:block tracking-widest uppercase">
-          CURATED_SIGNAL
-        </span>
-      </div>
+      <SectionHeader label="CURATED_SIGNAL">
+        FEATURED_COLLECTIONS
+      </SectionHeader>
 
       {/* Carousel */}
       <Carousel

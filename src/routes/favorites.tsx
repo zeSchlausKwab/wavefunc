@@ -1,11 +1,7 @@
-import { StarIcon } from "@/components/ui/icons/lucide-star";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useMedia } from "react-use";
 import { CreateFavoritesListForm } from "../components/CreateFavoritesListForm";
 import { FavoriteListCard } from "../components/FavoriteListCard";
-import { Button } from "../components/ui/button";
 import { useFavorites } from "../lib/hooks/useFavorites";
 
 export const Route = createFileRoute("/favorites")({
@@ -24,10 +20,8 @@ function Favorites() {
   } = useFavorites();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const isMobile = useMedia("(max-width: 768px)");
 
   const favoriteCount = getFavoriteCount();
-  const isLoading = favoritesLoading;
 
   const handleCreateList = async (
     name: string,
@@ -36,7 +30,6 @@ function Favorites() {
   ) => {
     const newList = await createFavoritesList(name, description);
     if (newList && banner) {
-      // Set the banner after creation
       newList.banner = banner;
       await newList.sign();
       await newList.publish();
@@ -52,120 +45,108 @@ function Favorites() {
     ) {
       return;
     }
-
     const list = favoritesLists.find((l) => l.favoritesId === listId);
     if (!list) return;
-
     try {
-      // Delete the list (publishes kind 5 deletion event per NIP-09)
       await list.deleteList();
-      console.log("List deleted successfully");
     } catch (error) {
       console.error("Failed to delete list:", error);
       alert("Failed to delete the list. Please try again.");
     }
   };
 
-  if (isLoading) {
+  // ── Loading ─────────────────────────────────────────────────────────────────
+
+  if (favoritesLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-muted-foreground">Loading favorites...</div>
+      <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
+        <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
+        <span className="font-black uppercase tracking-tight">LOADING_FAVORITES...</span>
       </div>
     );
   }
 
+  // ── Not logged in ────────────────────────────────────────────────────────────
+
   if (!isLoggedIn) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <StarIcon className="w-16 h-16 text-muted-foreground/30" />
-        <h1 className="text-3xl font-bold">Favorites</h1>
-        <p className="text-muted-foreground text-center max-w-md">
-          Please log in to view and manage your favorite stations.
-        </p>
+      <div className="space-y-6">
+        <PageHeader favoriteCount={0} />
+        <div className="border-4 border-on-background bg-surface-container-high shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] p-12 text-center">
+          <span className="material-symbols-outlined text-6xl text-on-background/20 block mb-4">lock</span>
+          <div className="text-xl font-black uppercase tracking-tight mb-2 font-headline">
+            AUTHENTICATION_REQUIRED
+          </div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/50">
+            CONNECT_TO_ACCESS_YOUR_FAVORITES
+          </div>
+        </div>
       </div>
     );
   }
+
+  // ── Empty ────────────────────────────────────────────────────────────────────
 
   if (favoritesLists.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col items-center justify-center py-16 space-y-6">
-          <StarIcon className="w-16 h-16 text-muted-foreground/30" />
-          <h1 className="text-3xl font-bold">No favorites yet</h1>
-          <p className="text-muted-foreground text-center max-w-md">
-            Start adding stations to your favorites by clicking the heart icon
-            on any station card.
-          </p>
-
-          {!showCreateForm && (
-            <Button
-              variant="outline"
-              size="default"
-              onClick={() => setShowCreateForm(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create New List
-            </Button>
-          )}
-        </div>
-
-        {/* Create List Form */}
-        {showCreateForm && (
-          <div className="max-w-2xl mx-auto">
+        <PageHeader
+          favoriteCount={0}
+          showCreateForm={showCreateForm}
+          onNewList={() => setShowCreateForm(true)}
+        />
+        {showCreateForm ? (
+          <div className="border-4 border-on-background bg-surface-container-high p-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
             <CreateFavoritesListForm
               onSubmit={handleCreateList}
               onCancel={() => setShowCreateForm(false)}
             />
           </div>
+        ) : (
+          <div className="border-4 border-on-background bg-surface-container-high shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] p-12 text-center">
+            <span className="material-symbols-outlined text-6xl text-on-background/20 block mb-4">queue_music</span>
+            <div className="text-xl font-black uppercase tracking-tight mb-2 font-headline">
+              NO_FAVORITES_YET
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 mb-8">
+              ADD_STATIONS_TO_BEGIN_BROADCASTING
+            </div>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="bg-primary text-white px-6 py-3 font-black uppercase tracking-tight text-sm shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all flex items-center gap-2 mx-auto"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              CREATE_FIRST_LIST
+            </button>
+          </div>
         )}
       </div>
     );
   }
 
+  // ── Main view ────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <StarIcon className="w-6 h-6 text-yellow-500" fill="currentColor" />
-            <h1 className="text-2xl font-bold">My Favorites</h1>
-            <span className="bg-muted text-muted-foreground px-2 py-1 rounded-full text-sm">
-              {favoriteCount}
-            </span>
-          </div>
+      <PageHeader
+        favoriteCount={favoriteCount}
+        showCreateForm={showCreateForm}
+        onNewList={() => setShowCreateForm(!showCreateForm)}
+        onClearAll={favoriteCount > 0 ? clearFavorites : undefined}
+      />
 
-          <div className="flex items-center gap-2">
-            {!showCreateForm && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateForm(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {!isMobile && "Create New List"}
-              </Button>
-            )}
-            {favoriteCount > 0 && (
-              <Button variant="outline" size="sm" onClick={clearFavorites}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                {!isMobile && "Clear All"}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Create List Form */}
-        {showCreateForm && (
+      {/* Create form */}
+      {showCreateForm && (
+        <div className="border-4 border-on-background bg-surface-container-high p-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
           <CreateFavoritesListForm
             onSubmit={handleCreateList}
             onCancel={() => setShowCreateForm(false)}
           />
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* All Lists as Cards */}
-      <div className="space-y-6">
+      {/* List grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {favoritesLists.map((list) => (
           <FavoriteListCard
             key={list.favoritesId}
@@ -175,6 +156,62 @@ function Favorites() {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Page header ───────────────────────────────────────────────────────────────
+
+interface PageHeaderProps {
+  favoriteCount: number;
+  showCreateForm?: boolean;
+  onNewList?: () => void;
+  onClearAll?: () => void;
+}
+
+function PageHeader({ favoriteCount, showCreateForm, onNewList, onClearAll }: PageHeaderProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-baseline gap-4">
+        <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tighter font-headline">
+          MY_FAVORITES
+        </h1>
+        <div className="h-2 flex-grow bg-on-background" />
+        {favoriteCount > 0 && (
+          <span className="font-bold text-primary text-sm hidden md:block tracking-widest uppercase">
+            {favoriteCount}_STATIONS
+          </span>
+        )}
+      </div>
+
+      {(onNewList || onClearAll) && (
+        <div className="flex items-center gap-2">
+          {onNewList && (
+            <button
+              onClick={onNewList}
+              className={`border-2 border-on-background px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                showCreateForm
+                  ? "bg-on-background text-surface"
+                  : "bg-surface hover:bg-on-background hover:text-surface"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[14px]">
+                {showCreateForm ? "close" : "add"}
+              </span>
+              {showCreateForm ? "CANCEL" : "NEW_LIST"}
+            </button>
+          )}
+          {onClearAll && (
+            <button
+              onClick={onClearAll}
+              className="border-2 border-on-background/30 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-background/50 hover:border-red-500 hover:text-red-500 transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+              CLEAR_ALL
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useStationsObserver } from "../lib/hooks/useStations";
 import { RadioCard } from "./RadioCard";
+import { SectionHeader } from "./SectionHeader";
 import { useMemo } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { useFilterStore } from "../stores/filterStore";
@@ -95,7 +96,7 @@ export function StationView({ searchQuery }: StationViewProps) {
       {isSearching && (
         <section>
           <div className="mb-8 flex items-baseline gap-4">
-            <h2 className="text-5xl md:text-6xl font-black uppercase tracking-tighter font-headline">
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tighter font-headline">
               SEARCH_RESULTS
             </h2>
             <div className="h-2 flex-grow bg-on-background" />
@@ -137,17 +138,12 @@ export function StationView({ searchQuery }: StationViewProps) {
       {/* ── TILE GRID ── */}
       {!isSearching && (
         <section>
-          <div className="mb-8 flex items-baseline gap-4">
-            <h2 className="text-5xl md:text-6xl font-black uppercase tracking-tighter font-headline">
-              LIVE_STATIONS
-            </h2>
-            <div className="h-2 flex-grow bg-on-background" />
-            {eose && events.length > 0 && (
-              <span className="font-bold text-primary text-sm hidden md:block tracking-widest uppercase">
-                {events.length}_BROADCASTING
-              </span>
-            )}
-          </div>
+          <SectionHeader
+            className="mb-8"
+            label={eose && events.length > 0 ? `${events.length}_BROADCASTING` : undefined}
+          >
+            LIVE_STATIONS
+          </SectionHeader>
 
           {!eose && events.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4">
@@ -164,7 +160,7 @@ export function StationView({ searchQuery }: StationViewProps) {
 
           <div
             ref={tileParent}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+            className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
           >
             {events.map((station) => (
               <RadioCard key={station.id} station={station} />
