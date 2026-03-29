@@ -1,27 +1,40 @@
-import { SettingsIcon } from "@/components/ui/icons/lucide-settings";
 import { createFileRoute } from "@tanstack/react-router";
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { WalletsSettings } from "@/components/settings/WalletsSettings";
 import { MyStationsSettings } from "@/components/settings/MyStationsSettings";
 import { MyFavouritesSettings } from "@/components/settings/MyFavouritesSettings";
 import { RelaysSettings } from "@/components/settings/RelaysSettings";
-import { User, Wallet, Radio, Star, Wifi } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
+type SettingsTab = "profile" | "wallets" | "stations" | "favourites" | "relays";
+
+const TABS: { id: SettingsTab; label: string; icon: string }[] = [
+  { id: "profile", label: "Profile", icon: "person" },
+  { id: "wallets", label: "Wallets", icon: "currency_bitcoin" },
+  { id: "stations", label: "Stations", icon: "radio" },
+  { id: "favourites", label: "Favourites", icon: "star" },
+  { id: "relays", label: "Relays", icon: "wifi" },
+];
+
 function Settings() {
   const currentUser = useNDKCurrentUser();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
 
   if (!currentUser) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <SettingsIcon className="w-16 h-16 text-muted-foreground/30" />
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground text-center max-w-md">
+      <div className="flex flex-col items-center justify-center py-24 space-y-4">
+        <span className="material-symbols-outlined text-[64px] text-on-background/20">
+          settings
+        </span>
+        <h1 className="text-2xl font-black uppercase tracking-tighter">
+          Settings
+        </h1>
+        <p className="text-sm text-on-background/60 text-center max-w-md">
           Please log in to access settings.
         </p>
       </div>
@@ -32,57 +45,44 @@ function Settings() {
     <div className="space-y-6 mb-22">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <SettingsIcon className="w-6 h-6" />
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <span className="material-symbols-outlined text-[24px]">settings</span>
+        <h1 className="text-2xl font-black uppercase tracking-tighter">
+          Settings
+        </h1>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="profile" className="w-full">
-        <div className="w-full overflow-x-auto">
-          <TabsList className="w-full justify-start min-w-max">
-            <TabsTrigger value="profile" className="gap-2">
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">Profile</span>
-            </TabsTrigger>
-            <TabsTrigger value="wallets" className="gap-2">
-              <Wallet className="w-4 h-4" />
-              <span className="hidden sm:inline">Wallets</span>
-            </TabsTrigger>
-            <TabsTrigger value="stations" className="gap-2">
-              <Radio className="w-4 h-4" />
-              <span className="hidden sm:inline">My Stations</span>
-            </TabsTrigger>
-            <TabsTrigger value="favourites" className="gap-2">
-              <Star className="w-4 h-4" />
-              <span className="hidden sm:inline">My Favourites</span>
-            </TabsTrigger>
-            <TabsTrigger value="relays" className="gap-2">
-              <Wifi className="w-4 h-4" />
-              <span className="hidden sm:inline">Relays</span>
-            </TabsTrigger>
-          </TabsList>
+      {/* Tab bar */}
+      <div className="w-full overflow-x-auto">
+        <div className="flex border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+          {TABS.map((tab, i) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 px-4 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors whitespace-nowrap ${
+                i < TABS.length - 1 ? "border-r-4 border-on-background" : ""
+              } ${
+                activeTab === tab.id
+                  ? "bg-on-background text-surface"
+                  : "bg-surface text-on-background hover:bg-surface-container-high"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {tab.icon}
+              </span>
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
         </div>
+      </div>
 
-        <TabsContent value="profile" className="mt-6">
-          <ProfileSettings />
-        </TabsContent>
-
-        <TabsContent value="wallets" className="mt-6">
-          <WalletsSettings />
-        </TabsContent>
-
-        <TabsContent value="stations" className="mt-6">
-          <MyStationsSettings />
-        </TabsContent>
-
-        <TabsContent value="favourites" className="mt-6">
-          <MyFavouritesSettings />
-        </TabsContent>
-
-        <TabsContent value="relays" className="mt-6">
-          <RelaysSettings />
-        </TabsContent>
-      </Tabs>
+      {/* Tab content */}
+      <div>
+        {activeTab === "profile" && <ProfileSettings />}
+        {activeTab === "wallets" && <WalletsSettings />}
+        {activeTab === "stations" && <MyStationsSettings />}
+        {activeTab === "favourites" && <MyFavouritesSettings />}
+        {activeTab === "relays" && <RelaysSettings />}
+      </div>
     </div>
   );
 }

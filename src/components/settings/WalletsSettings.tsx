@@ -1,18 +1,8 @@
 import { useState } from "react";
 import { WalletButton } from "../WalletButton";
-import { Button } from "../ui/button";
-import { Label } from "../ui/label";
-import { Wallet, Zap, Coins, Activity } from "lucide-react";
 import { NWCConnectionDialog } from "../wallet/NWCConnectionDialog";
 import { CashuWalletSetup } from "../wallet/CashuWalletSetup";
 import { useWalletStore } from "../../stores/walletStore";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 
 export function WalletsSettings() {
   const [nwcDialogOpen, setNwcDialogOpen] = useState(false);
@@ -26,123 +16,111 @@ export function WalletsSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Wallet className="w-5 h-5" />
-          <h3 className="text-lg font-semibold">Connected Wallets</h3>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Manage your Nostr wallets and NWC connections for zapping stations and
-          supporting creators.
-        </p>
+      {/* Section header */}
+      <div className="flex items-center gap-2 pb-3 border-b-4 border-on-background">
+        <span className="material-symbols-outlined text-[20px]">currency_bitcoin</span>
+        <h3 className="text-base font-black uppercase tracking-tighter">Wallets</h3>
       </div>
 
-      <div className="space-y-4">
-        {/* Current Balance Display */}
-        {(nwcConnection || cashuConnection) && (
-          <div className="rounded-lg border border-border bg-muted/50 p-2 md:p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
-              <Label className="text-base font-semibold">Current Balance</Label>
-            </div>
-            <div className="flex items-center gap-4">
-              <WalletButton />
-            </div>
-            {nwcConnection && cashuConnection && (
-              <div className="space-y-2">
-                <Label className="text-sm">Active Wallet</Label>
-                <Select
-                  value={activeWalletType || ""}
-                  onValueChange={(value) =>
-                    setActiveWalletType(value as "nwc" | "cashu")
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select active wallet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nwc">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        <span>Nostr Wallet Connect</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="cashu">
-                      <div className="flex items-center gap-2">
-                        <Coins className="w-4 h-4" />
-                        <span>Cashu Wallet</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Choose which wallet to use for zaps and payments
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+      <p className="text-sm text-on-background/60">
+        Manage your Nostr wallets and NWC connections for zapping stations and
+        supporting creators.
+      </p>
 
-        {/* NWC Section */}
-        <div className="rounded-lg border border-border p-2 md:p-4 space-y-4">
+      {/* Current balance */}
+      {(nwcConnection || cashuConnection) && (
+        <div className="border-4 border-on-background p-4 space-y-4">
           <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5" />
-            <h4 className="font-semibold">Nostr Wallet Connect (NWC)</h4>
+            <span className="material-symbols-outlined text-[18px]">monitoring</span>
+            <span className="text-[11px] font-black uppercase tracking-widest">Current Balance</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Connect your Lightning wallet using Nostr Wallet Connect to enable
-            seamless zapping.
-          </p>
+          <WalletButton />
 
-          {nwcConnection ? (
-            <div className="space-y-3">
-              <div className="p-3 bg-muted rounded-md">
-                <p className="text-sm font-medium">Connected</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Connected on{" "}
-                  {new Date(nwcConnection.connectedAt).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setNwcDialogOpen(true)}
-                  className="flex-1"
+          {nwcConnection && cashuConnection && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-on-background/60">
+                Active Wallet
+              </label>
+              <div className="border-2 border-on-background">
+                <select
+                  value={activeWalletType || ""}
+                  onChange={(e) => setActiveWalletType(e.target.value as "nwc" | "cashu")}
+                  className="w-full bg-surface text-on-background text-sm px-3 py-2 appearance-none cursor-pointer focus:outline-none"
                 >
-                  Reconnect
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={disconnectNWC}
-                  className="flex-1"
-                >
-                  Disconnect
-                </Button>
+                  <option value="nwc">Nostr Wallet Connect (NWC)</option>
+                  <option value="cashu">Cashu Wallet</option>
+                </select>
               </div>
+              <p className="text-[10px] text-on-background/40">
+                Choose which wallet to use for zaps and payments
+              </p>
             </div>
-          ) : (
-            <Button variant="outline" onClick={() => setNwcDialogOpen(true)}>
-              <Zap className="w-4 h-4 mr-2" />
-              Configure NWC
-            </Button>
           )}
         </div>
+      )}
 
-        {/* Cashu Wallet Section */}
-        <div className="rounded-lg border border-border p-2 md:p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Coins className="w-5 h-5" />
-            <h4 className="font-semibold">Cashu Wallet (NIP-60)</h4>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Create or manage your Cashu eCash wallet. This wallet is completely
-            independent of NWC.
-          </p>
-          <CashuWalletSetup />
+      {/* NWC Section */}
+      <div className="border-4 border-on-background p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">bolt</span>
+          <h4 className="text-[13px] font-black uppercase tracking-tighter">
+            Nostr Wallet Connect (NWC)
+          </h4>
         </div>
+        <p className="text-sm text-on-background/60">
+          Connect your Lightning wallet using Nostr Wallet Connect to enable
+          seamless zapping.
+        </p>
+
+        {nwcConnection ? (
+          <div className="space-y-3">
+            <div className="border-2 border-on-background/30 bg-surface-container-low px-3 py-2">
+              <p className="text-xs font-black uppercase tracking-wider">Connected</p>
+              <p className="text-[11px] text-on-background/50 mt-0.5">
+                Since {new Date(nwcConnection.connectedAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setNwcDialogOpen(true)}
+                className="flex-1 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              >
+                Reconnect
+              </button>
+              <button
+                onClick={disconnectNWC}
+                className="flex-1 border-4 border-red-700 shadow-[4px_4px_0px_0px_rgba(185,28,28,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest bg-red-600 text-white hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setNwcDialogOpen(true)}
+            className="flex items-center gap-2 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+          >
+            <span className="material-symbols-outlined text-[16px]">bolt</span>
+            Configure NWC
+          </button>
+        )}
       </div>
 
-      {/* NWC Connection Dialog */}
+      {/* Cashu Wallet Section */}
+      <div className="border-4 border-on-background p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">savings</span>
+          <h4 className="text-[13px] font-black uppercase tracking-tighter">
+            Cashu Wallet (NIP-60)
+          </h4>
+        </div>
+        <p className="text-sm text-on-background/60">
+          Create or manage your Cashu eCash wallet. This wallet is completely
+          independent of NWC.
+        </p>
+        <CashuWalletSetup />
+      </div>
+
       <NWCConnectionDialog
         open={nwcDialogOpen}
         onOpenChange={setNwcDialogOpen}

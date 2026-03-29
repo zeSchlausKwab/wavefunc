@@ -1,8 +1,6 @@
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useStations } from "@/lib/hooks/useStations";
 import { RadioCard } from "../RadioCard";
-import { Button } from "../ui/button";
-import { Plus, Radio } from "lucide-react";
 import { StationManagementSheet } from "../StationManagementSheet";
 
 export function MyStationsSettings() {
@@ -14,57 +12,58 @@ export function MyStationsSettings() {
 
   if (!currentUser) {
     return (
-      <div className="text-muted-foreground">
-        Please log in to manage your stations.
-      </div>
+      <p className="text-sm text-on-background/60">Please log in to manage your stations.</p>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="text-muted-foreground">Loading your stations...</div>
+      <div className="flex items-center gap-2 py-8 text-on-background/60">
+        <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+        <span className="text-sm">Loading your stations...</span>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Radio className="w-5 h-5" />
-            <h3 className="text-lg font-semibold">My Stations</h3>
-          </div>
-          <StationManagementSheet
-            mode="create"
-            trigger={
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Station
-              </Button>
-            }
-          />
+      {/* Section header */}
+      <div className="flex items-center justify-between pb-3 border-b-4 border-on-background">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[20px]">radio</span>
+          <h3 className="text-base font-black uppercase tracking-tighter">My Stations</h3>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Manage radio stations you've added to the network.
-        </p>
+        <StationManagementSheet
+          mode="create"
+          trigger={
+            <button className="flex items-center gap-1.5 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest bg-primary text-white hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all">
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Add Station
+            </button>
+          }
+        />
       </div>
 
+      <p className="text-sm text-on-background/60">
+        Manage radio stations you've added to the network.
+      </p>
+
       {stations.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-12 text-center space-y-4">
-          <Radio className="w-12 h-12 mx-auto text-muted-foreground/50" />
-          <div className="space-y-2">
-            <h4 className="font-semibold">No stations yet</h4>
-            <p className="text-sm text-muted-foreground">
+        <div className="border-4 border-dashed border-on-background/30 p-12 text-center space-y-4">
+          <span className="material-symbols-outlined text-[48px] text-on-background/20">radio</span>
+          <div className="space-y-1">
+            <h4 className="text-sm font-black uppercase tracking-tighter">No stations yet</h4>
+            <p className="text-sm text-on-background/60">
               Add your first radio station to share it with the community.
             </p>
           </div>
           <StationManagementSheet
             mode="create"
             trigger={
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
+              <button className="flex items-center gap-1.5 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest bg-primary text-white hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all">
+                <span className="material-symbols-outlined text-[16px]">add</span>
                 Add Your First Station
-              </Button>
+              </button>
             }
           />
         </div>
