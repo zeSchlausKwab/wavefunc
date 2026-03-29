@@ -257,10 +257,10 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     <>
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      {/* ── Unified mobile panel (slides up from player bar) ── */}
+      {/* ── Unified mobile panel ── */}
       <div
         className={cn(
-          "md:hidden fixed left-0 right-0 bottom-0 z-[70] bg-background border-t-4 border-on-background overflow-hidden",
+          "md:hidden fixed left-0 right-0 bottom-0 z-[70] bg-background border-t-4 border-on-background overflow-hidden flex flex-col",
           !sheetOpen && "shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]"
         )}
         style={{
@@ -268,14 +268,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           transition: dragHeightVh !== null ? "none" : "height 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
         }}
       >
-        {/* Content area — fills space above player bar, hidden when closed */}
-        <div className="absolute top-0 left-0 right-0 bottom-16 flex flex-col border-b-4 border-on-background">
-          {/* Drag handle */}
+        {/* Drag handle — only rendered when open; its presence pushes player bar down */}
+        {sheetOpen && (
           <button
             type="button"
             onPointerDown={handleDragStart}
             onClick={handleGrabberClick}
-            className="w-full shrink-0 flex items-center justify-center py-2.5 touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors border-b-2 border-on-background/10"
+            className="w-full shrink-0 flex items-center justify-center py-2.5 touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
             aria-label="Resize panel"
           >
             <div className="flex items-center justify-between w-full px-4">
@@ -291,9 +290,75 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               </button>
             </div>
           </button>
+        )}
 
-          {sheetMode === "station" && sheetStation ? (
-            /* ── Station detail ── */
+        {/* Player bar — always in DOM; sits at BOTTOM when closed, slides to TOP when open */}
+        <div className={cn(
+          "h-16 shrink-0 flex items-center overflow-hidden bg-background",
+          sheetOpen && "border-b-4 border-on-background"
+        )}>
+          <button
+            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors"
+            onClick={() => {
+              if (sheetOpen) {
+                closeSheet();
+              } else if (currentStation) {
+                openStationSheet(currentStation);
+              } else {
+                openNavSheet();
+              }
+            }}
+          >
+            <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
+              {currentStation ? (isPlaying ? "NOW_TRANSMITTING" : "PAUSED") : "AWAITING_SIGNAL"}
+            </p>
+            <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
+              {currentStation
+                ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
+                : "SELECT_A_STATION"}
+            </h4>
+            {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
+              <p className="text-[10px] text-on-background/55 truncate leading-none">
+                {currentMetadata.song}
+                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
+              </p>
+            )}
+          </button>
+
+          <button
+            onClick={isPlaying ? pause : resume}
+            disabled={!currentStation || isLoading}
+            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+          >
+            {isLoading
+              ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+              : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+            }
+          </button>
+
+          <button
+            onClick={stop}
+            disabled={!currentStation}
+            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+          >
+            <span className="material-symbols-outlined">stop_circle</span>
+          </button>
+
+          {/* SmallLogo — only in closed state */}
+          {!sheetOpen && (
+            <button
+              onClick={openNavSheet}
+              className="h-full px-3 flex items-center justify-center border-l-4 border-on-background hover:bg-surface-variant transition-colors shrink-0"
+              title="Menu"
+            >
+              <SmallLogo size="sm" />
+            </button>
+          )}
+        </div>
+
+        {/* Sheet content — only rendered when open */}
+        {sheetOpen && (
+          sheetMode === "station" && sheetStation ? (
             <div className="flex-1 overflow-y-auto">
               <StationDetail
                 station={sheetStation}
@@ -302,72 +367,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               />
             </div>
           ) : (
-            /* ── Nav ── */
             <div className="flex-1 overflow-y-auto">
-              {/* Branding bar */}
-              <div className="flex items-center justify-between px-5 py-3 border-b-4 border-on-background bg-on-background">
-                <span className="text-xl font-black text-surface border-4 border-surface px-2 py-0.5 rotate-[-2deg] font-headline uppercase tracking-tighter select-none">
+              {/* Branding + session */}
+              <div className="flex items-center justify-between px-4 py-3 border-b-4 border-on-background">
+                <span className="text-xl font-black text-on-background border-4 border-on-background px-2 py-0.5 rotate-[-2deg] font-headline uppercase tracking-tighter select-none">
                   WAVEFUNC
                 </span>
                 <LoginSessionButtons />
-              </div>
-
-              {/* Current station / player */}
-              <div className="px-4 py-3 border-b-4 border-on-background">
-                {currentStation ? (
-                  <div className="flex items-start gap-3">
-                    <div className="w-16 h-16 border-4 border-on-background bg-on-background shrink-0 overflow-hidden flex items-center justify-center">
-                      {currentStation.thumbnail ? (
-                        <img src={currentStation.thumbnail} alt="" className="w-full h-full object-cover grayscale contrast-125" />
-                      ) : (
-                        <span className="material-symbols-outlined text-[28px] text-surface/50" style={{ animation: isPlaying ? "spin 3s linear infinite" : "none" }}>album</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-bold text-primary uppercase tracking-widest leading-none">
-                        {isPlaying ? "NOW_TRANSMITTING" : "PAUSED"}
-                      </p>
-                      <h4 className="font-black text-base uppercase tracking-tighter truncate font-headline leading-tight">
-                        {(currentStation.name || "UNKNOWN").toUpperCase().replace(/\s+/g, "_")}
-                      </h4>
-                      {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" ? (
-                        <button onClick={handleSearchMetadata} className="text-[11px] text-on-background/60 truncate w-full text-left hover:text-primary transition-colors leading-tight">
-                          {currentMetadata.song}
-                          {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
-                        </button>
-                      ) : isPlaying ? (
-                        <div className="h-3 w-28 bg-on-background/10 animate-pulse mt-0.5" />
-                      ) : null}
-                      {error && <p className="text-[9px] text-destructive uppercase tracking-wider leading-tight truncate">{error}</p>}
-                      <div className="mt-2"><PlayerSocialBar station={currentStation} /></div>
-                    </div>
-                    <div className="flex flex-col gap-1 shrink-0">
-                      <button
-                        onClick={isPlaying ? pause : resume}
-                        disabled={!currentStation || isLoading}
-                        className="w-10 h-10 border-4 border-on-background flex items-center justify-center bg-secondary-fixed-dim hover:translate-y-0.5 transition-all disabled:opacity-40"
-                      >
-                        {isLoading
-                          ? <span className="material-symbols-outlined text-[20px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-                          : <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
-                        }
-                      </button>
-                      <button onClick={stop} disabled={!currentStation} className="w-10 h-10 border-4 border-on-background flex items-center justify-center hover:bg-surface-container-high transition-all disabled:opacity-40">
-                        <span className="material-symbols-outlined text-[20px]">stop_circle</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 border-4 border-on-background/30 bg-on-background/5 flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[28px] text-on-background/30">radio</span>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-on-background/40 uppercase tracking-widest">AWAITING_SIGNAL</p>
-                      <p className="font-black text-base uppercase tracking-tighter font-headline text-on-background/30">SELECT_A_STATION</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Search */}
@@ -384,73 +390,45 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 <NavigationItems variant="mobile" onNavigate={closeSheet} />
               </nav>
             </div>
-          )}
-        </div>
+          )
+        )}
+      </div>
 
-        {/* Player bar — always pinned to bottom of panel */}
-        <div className="absolute bottom-0 left-0 right-0 h-16 flex items-center overflow-hidden bg-background">
-          {/* Station info — tappable to open station detail */}
-          <button
-            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors"
-            onClick={() => {
-              if (sheetOpen) {
-                closeSheet();
-              } else if (currentStation) {
-                openStationSheet(currentStation);
-              } else {
-                openNavSheet();
-              }
-            }}
-          >
-            <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
-              {currentStation
-                ? isPlaying ? "NOW_TRANSMITTING" : "PAUSED"
-                : "AWAITING_SIGNAL"}
-            </p>
-            <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
-              {currentStation
-                ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
-                : "SELECT_A_STATION"}
-            </h4>
-            {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-              <p className="text-[10px] text-on-background/55 truncate leading-none">
-                {currentMetadata.song}
-                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
-              </p>
+      {/* ── Desktop station detail panel ── */}
+      <div
+        className="hidden md:block fixed left-0 right-0 bottom-0 z-[65] overflow-hidden"
+        style={{
+          height: "60vh",
+          transform: sheetOpen && sheetMode === "station" && sheetStation
+            ? "translateY(0)"
+            : "translateY(100%)",
+          transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+        }}
+      >
+        <div className="h-full flex flex-col bg-background border-t-4 border-on-background">
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-6 py-2 border-b-4 border-on-background shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-widest text-on-background/40">
+              STATION_INSPECTOR
+            </span>
+            <button
+              onClick={closeSheet}
+              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">close</span>
+              CLOSE
+            </button>
+          </div>
+          {/* Station detail content */}
+          <div className="flex-1 overflow-y-auto pb-[100px]">
+            {sheetStation && (
+              <StationDetail
+                station={sheetStation}
+                focusCommentForm={sheetFocusComment}
+                onCommentFormFocused={clearCommentFocus}
+              />
             )}
-          </button>
-
-          {/* Play/Pause */}
-          <button
-            onClick={isPlaying ? pause : resume}
-            disabled={!currentStation || isLoading}
-            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-            title={isPlaying ? "Pause" : "Play"}
-          >
-            {isLoading
-              ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-              : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
-            }
-          </button>
-
-          {/* Stop */}
-          <button
-            onClick={stop}
-            disabled={!currentStation}
-            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-            title="Stop"
-          >
-            <span className="material-symbols-outlined">stop_circle</span>
-          </button>
-
-          {/* SmallLogo / Menu */}
-          <button
-            onClick={sheetOpen ? closeSheet : openNavSheet}
-            className="h-full px-3 flex items-center justify-center border-l-4 border-on-background hover:bg-surface-variant transition-colors shrink-0"
-            title={sheetOpen ? "Close" : "Menu"}
-          >
-            <SmallLogo size="sm" />
-          </button>
+          </div>
         </div>
       </div>
 
