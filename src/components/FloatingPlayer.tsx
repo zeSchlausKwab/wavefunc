@@ -1,21 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSearchStore } from "../stores/searchStore";
+import { useUIStore } from "../stores/uiStore";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation } from "../lib/NDKStation";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
 import { ZapDialog } from "./ZapDialog";
+import { StationDetail } from "./StationDetail";
 import { cn } from "@/lib/utils";
 import { SmallLogo } from "./SmallLogo";
-import { Sheet, SheetContent } from "./ui/sheet";
 import { NavigationItems } from "./NavigationItems";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 
-// ─── Social bar (only mounts when a station is loaded) ────────────────────────
+// ─── Snap levels ──────────────────────────────────────────────────────────────
+
+const PEEK_VH = 45;
+const EXPANDED_VH = 82;
+const SNAP_THRESHOLD_VH = (PEEK_VH + EXPANDED_VH) / 2;
+
+function clampPanelVh(vh: number) {
+  return Math.min(EXPANDED_VH, Math.max(PEEK_VH, vh));
+}
+
+// ─── Social bar ───────────────────────────────────────────────────────────────
 
 function PlayerSocialBar({ station }: { station: NDKStation }) {
   const { ndk } = useNDK();
@@ -48,16 +59,6 @@ function PlayerSocialBar({ station }: { station: NDKStation }) {
             favorite
           </span>
           {reactions > 0 && <span className="text-[9px] font-bold">{reactions}</span>}
-        </button>
-
-        <button
-          className="flex items-center gap-0.5 hover:text-primary transition-colors"
-          title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
-        >
-          <span className={cn("material-symbols-outlined text-[14px]", userHasCommented && "text-primary")}>
-            comment
-          </span>
-          {comments > 0 && <span className="text-[9px] font-bold">{comments}</span>}
         </button>
 
         <button
@@ -99,7 +100,7 @@ interface FloatingPlayerProps {
 }
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
-  const [showNavSheet, setShowNavSheet] = useState(false);
+  // ── Player store ──
   const {
     currentStation,
     currentMetadata,
@@ -120,10 +121,79 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
   } = usePlayerStore();
 
   const { triggerMusicBrainzSearch } = useSearchStore();
-
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  // ── Sheet state (global) ──
+  const {
+    sheetOpen,
+    sheetMode,
+    sheetStation,
+    sheetSnap,
+    sheetFocusComment,
+    openNavSheet,
+    openStationSheet,
+    closeSheet,
+    setSheetSnap,
+    clearCommentFocus,
+  } = useUIStore();
+
+  // ── Drag state (local, transient) ──
+  const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);
+  const dragHeightRef = useRef<number | null>(null);
+  const dragStartYRef = useRef<number | null>(null);
+  const dragStartHeightRef = useRef<number>(PEEK_VH);
+  const draggedRef = useRef(false);
+
+  const baseHeightVh = sheetSnap === "expanded" ? EXPANDED_VH : PEEK_VH;
+  const panelHeightVh = dragHeightVh ?? baseHeightVh;
+
+  const handleDragStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    dragStartYRef.current = event.clientY;
+    dragStartHeightRef.current = panelHeightVh;
+    draggedRef.current = false;
+    setDragHeightVh(panelHeightVh);
+    dragHeightRef.current = panelHeightVh;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (dragStartYRef.current == null) return;
+      const deltaY = dragStartYRef.current - moveEvent.clientY;
+      if (Math.abs(deltaY) > 4) draggedRef.current = true;
+      const deltaVh = (deltaY / window.innerHeight) * 100;
+      const nextHeight = clampPanelVh(dragStartHeightRef.current + deltaVh);
+      dragHeightRef.current = nextHeight;
+      setDragHeightVh(nextHeight);
+    };
+
+    const handlePointerUp = () => {
+      const finalHeight = dragHeightRef.current ?? baseHeightVh;
+      setSheetSnap(finalHeight >= SNAP_THRESHOLD_VH ? "expanded" : "peek");
+      setDragHeightVh(null);
+      dragHeightRef.current = null;
+      dragStartYRef.current = null;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  };
+
+  const handleGrabberClick = () => {
+    if (draggedRef.current) { draggedRef.current = false; return; }
+    if (sheetSnap === "expanded") {
+      setSheetSnap("peek");
+    } else {
+      closeSheet();
+      setDragHeightVh(null);
+      dragHeightRef.current = null;
+    }
+  };
+
+  // ── Audio setup ──
   const handleSearchMetadata = () => {
     if (!currentMetadata?.song) return;
     const query = currentMetadata.artist
@@ -181,79 +251,212 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     };
   }, [setIsPlaying, setIsLoading, setError]);
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <>
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      {/* ── Mobile nav sheet ── */}
-      <Sheet open={showNavSheet} onOpenChange={setShowNavSheet}>
-        <SheetContent side="bottom" className="h-auto max-h-[75vh] overflow-y-auto p-4">
-          <div className="space-y-4 mt-2">
-            <UnifiedSearchInput
-              searchInput={searchInput}
-              setSearchInput={setSearchInput}
-              onStationSearch={(q) => { onSearch(q); setShowNavSheet(false); }}
-            />
-            <nav className="flex flex-col gap-1">
-              <NavigationItems variant="mobile" onNavigate={() => setShowNavSheet(false)} />
-            </nav>
-            <LoginSessionButtons />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <footer className="fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-16 md:h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
-
-          {/* ── Mobile compact strip (< md) ── */}
-          <div className="flex md:hidden h-full items-center overflow-hidden">
-
-            {/* Nav button */}
-            <button
-              onClick={() => setShowNavSheet(true)}
-              className="h-full px-3 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-colors shrink-0"
-              title="Menu"
-            >
-              <SmallLogo size="sm" />
-            </button>
-
-            {/* Station info */}
-            <div className="flex-1 min-w-0 px-3">
-              <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
-                {currentStation ? "NOW_TRANSMITTING" : "AWAITING_SIGNAL"}
-              </p>
-              <h4 className="font-black text-sm uppercase tracking-tighter truncate font-headline leading-tight">
-                {currentStation
-                  ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
-                  : "SELECT_A_STATION"}
-              </h4>
+      {/* ── Unified mobile panel (slides up from player bar) ── */}
+      <div
+        className={cn(
+          "md:hidden fixed left-0 right-0 bottom-0 z-[70] bg-background border-t-4 border-on-background overflow-hidden",
+          !sheetOpen && "shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]"
+        )}
+        style={{
+          height: sheetOpen ? `${panelHeightVh}vh` : "4rem",
+          transition: dragHeightVh !== null ? "none" : "height 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+        }}
+      >
+        {/* Content area — fills space above player bar, hidden when closed */}
+        <div className="absolute top-0 left-0 right-0 bottom-16 flex flex-col border-b-4 border-on-background">
+          {/* Drag handle */}
+          <button
+            type="button"
+            onPointerDown={handleDragStart}
+            onClick={handleGrabberClick}
+            className="w-full shrink-0 flex items-center justify-center py-2.5 touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors border-b-2 border-on-background/10"
+            aria-label="Resize panel"
+          >
+            <div className="flex items-center justify-between w-full px-4">
+              <div className="w-6" />
+              <div className="h-1 w-12 bg-on-background/30 rounded-full" />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); closeSheet(); setDragHeightVh(null); dragHeightRef.current = null; }}
+                className="w-6 h-6 flex items-center justify-center text-on-background/40 hover:text-on-background transition-colors"
+                aria-label="Close"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
             </div>
+          </button>
 
-            {/* Play/Pause */}
-            <button
-              onClick={isPlaying ? pause : resume}
-              disabled={!currentStation || isLoading}
-              className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isLoading
-                ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-                : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+          {sheetMode === "station" && sheetStation ? (
+            /* ── Station detail ── */
+            <div className="flex-1 overflow-y-auto">
+              <StationDetail
+                station={sheetStation}
+                focusCommentForm={sheetFocusComment}
+                onCommentFormFocused={clearCommentFocus}
+              />
+            </div>
+          ) : (
+            /* ── Nav ── */
+            <div className="flex-1 overflow-y-auto">
+              {/* Branding bar */}
+              <div className="flex items-center justify-between px-5 py-3 border-b-4 border-on-background bg-on-background">
+                <span className="text-xl font-black text-surface border-4 border-surface px-2 py-0.5 rotate-[-2deg] font-headline uppercase tracking-tighter select-none">
+                  WAVEFUNC
+                </span>
+                <LoginSessionButtons />
+              </div>
+
+              {/* Current station / player */}
+              <div className="px-4 py-3 border-b-4 border-on-background">
+                {currentStation ? (
+                  <div className="flex items-start gap-3">
+                    <div className="w-16 h-16 border-4 border-on-background bg-on-background shrink-0 overflow-hidden flex items-center justify-center">
+                      {currentStation.thumbnail ? (
+                        <img src={currentStation.thumbnail} alt="" className="w-full h-full object-cover grayscale contrast-125" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[28px] text-surface/50" style={{ animation: isPlaying ? "spin 3s linear infinite" : "none" }}>album</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] font-bold text-primary uppercase tracking-widest leading-none">
+                        {isPlaying ? "NOW_TRANSMITTING" : "PAUSED"}
+                      </p>
+                      <h4 className="font-black text-base uppercase tracking-tighter truncate font-headline leading-tight">
+                        {(currentStation.name || "UNKNOWN").toUpperCase().replace(/\s+/g, "_")}
+                      </h4>
+                      {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" ? (
+                        <button onClick={handleSearchMetadata} className="text-[11px] text-on-background/60 truncate w-full text-left hover:text-primary transition-colors leading-tight">
+                          {currentMetadata.song}
+                          {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
+                        </button>
+                      ) : isPlaying ? (
+                        <div className="h-3 w-28 bg-on-background/10 animate-pulse mt-0.5" />
+                      ) : null}
+                      {error && <p className="text-[9px] text-destructive uppercase tracking-wider leading-tight truncate">{error}</p>}
+                      <div className="mt-2"><PlayerSocialBar station={currentStation} /></div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button
+                        onClick={isPlaying ? pause : resume}
+                        disabled={!currentStation || isLoading}
+                        className="w-10 h-10 border-4 border-on-background flex items-center justify-center bg-secondary-fixed-dim hover:translate-y-0.5 transition-all disabled:opacity-40"
+                      >
+                        {isLoading
+                          ? <span className="material-symbols-outlined text-[20px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+                          : <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+                        }
+                      </button>
+                      <button onClick={stop} disabled={!currentStation} className="w-10 h-10 border-4 border-on-background flex items-center justify-center hover:bg-surface-container-high transition-all disabled:opacity-40">
+                        <span className="material-symbols-outlined text-[20px]">stop_circle</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-16 border-4 border-on-background/30 bg-on-background/5 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-[28px] text-on-background/30">radio</span>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-on-background/40 uppercase tracking-widest">AWAITING_SIGNAL</p>
+                      <p className="font-black text-base uppercase tracking-tighter font-headline text-on-background/30">SELECT_A_STATION</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Search */}
+              <div className="px-4 pt-3 pb-2 border-b-2 border-on-background/10">
+                <UnifiedSearchInput
+                  searchInput={searchInput}
+                  setSearchInput={setSearchInput}
+                  onStationSearch={(q) => { onSearch(q); closeSheet(); }}
+                />
+              </div>
+
+              {/* Nav links */}
+              <nav className="flex flex-col">
+                <NavigationItems variant="mobile" onNavigate={closeSheet} />
+              </nav>
+            </div>
+          )}
+        </div>
+
+        {/* Player bar — always pinned to bottom of panel */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 flex items-center overflow-hidden bg-background">
+          {/* Station info — tappable to open station detail */}
+          <button
+            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors"
+            onClick={() => {
+              if (sheetOpen) {
+                closeSheet();
+              } else if (currentStation) {
+                openStationSheet(currentStation);
+              } else {
+                openNavSheet();
               }
-            </button>
+            }}
+          >
+            <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
+              {currentStation
+                ? isPlaying ? "NOW_TRANSMITTING" : "PAUSED"
+                : "AWAITING_SIGNAL"}
+            </p>
+            <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
+              {currentStation
+                ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
+                : "SELECT_A_STATION"}
+            </h4>
+            {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
+              <p className="text-[10px] text-on-background/55 truncate leading-none">
+                {currentMetadata.song}
+                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
+              </p>
+            )}
+          </button>
 
-            {/* Stop */}
-            <button
-              onClick={stop}
-              disabled={!currentStation}
-              className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-              title="Stop"
-            >
-              <span className="material-symbols-outlined">stop_circle</span>
-            </button>
-          </div>
+          {/* Play/Pause */}
+          <button
+            onClick={isPlaying ? pause : resume}
+            disabled={!currentStation || isLoading}
+            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+            title={isPlaying ? "Pause" : "Play"}
+          >
+            {isLoading
+              ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+              : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+            }
+          </button>
 
-          {/* ── Desktop full layout (md+) ── */}
-          <div className="hidden md:flex h-full w-full items-stretch">
+          {/* Stop */}
+          <button
+            onClick={stop}
+            disabled={!currentStation}
+            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+            title="Stop"
+          >
+            <span className="material-symbols-outlined">stop_circle</span>
+          </button>
+
+          {/* SmallLogo / Menu */}
+          <button
+            onClick={sheetOpen ? closeSheet : openNavSheet}
+            className="h-full px-3 flex items-center justify-center border-l-4 border-on-background hover:bg-surface-variant transition-colors shrink-0"
+            title={sheetOpen ? "Close" : "Menu"}
+          >
+            <SmallLogo size="sm" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Desktop footer (md+) ── */}
+      <footer className="hidden md:block fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+        <div className="flex h-full items-stretch">
 
           {/* Station info */}
           <div className="flex items-center gap-4 px-4 flex-grow max-w-xs border-r-4 border-on-background overflow-hidden">
@@ -353,8 +556,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
             </div>
           </div>
 
-          </div>{/* end desktop wrapper */}
-
+        </div>
       </footer>
     </>
   );

@@ -14,7 +14,6 @@ function Favorites() {
     getFavoriteCount,
     clearFavorites,
     createFavoritesList,
-    isLoading: favoritesLoading,
     isLoggedIn,
     currentUser,
   } = useFavorites();
@@ -54,17 +53,6 @@ function Favorites() {
       alert("Failed to delete the list. Please try again.");
     }
   };
-
-  // ── Loading ─────────────────────────────────────────────────────────────────
-
-  if (favoritesLoading) {
-    return (
-      <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
-        <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
-        <span className="font-black uppercase tracking-tight">LOADING_FAVORITES...</span>
-      </div>
-    );
-  }
 
   // ── Not logged in ────────────────────────────────────────────────────────────
 

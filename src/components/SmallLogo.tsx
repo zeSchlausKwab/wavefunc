@@ -6,9 +6,9 @@ interface SmallLogoProps {
 }
 
 const sizeMap = {
-  sm: { outer: "p-1.5", inner: "border-[3px]", text: "text-xl" },
-  md: { outer: "p-3",   inner: "border-[4px]", text: "text-4xl" },
-  lg: { outer: "p-6",   inner: "border-[6px]", text: "text-7xl" },
+  sm: { outer: "p-1.5", text: "text-xl" },
+  md: { outer: "p-3",   text: "text-4xl" },
+  lg: { outer: "p-6",   text: "text-7xl" },
 };
 
 export function SmallLogo({ className, size = "md" }: SmallLogoProps) {
@@ -21,11 +21,9 @@ export function SmallLogo({ className, size = "md" }: SmallLogoProps) {
         className
       )}
     >
-      <div className={cn("w-full aspect-square flex items-center justify-center border-on-background", s.inner)}>
-        <span className={cn("font-black -rotate-[4deg] font-headline", s.text)}>
-          WF
-        </span>
-      </div>
+      <span className={cn("font-black -rotate-[4deg] font-headline", s.text)}>
+        WF
+      </span>
     </div>
   );
 }

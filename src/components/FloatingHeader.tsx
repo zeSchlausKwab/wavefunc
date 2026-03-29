@@ -14,7 +14,7 @@ const navLinkActive =
 
 export function FloatingHeader({ searchInput, setSearchInput, onSearch }: FloatingHeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-[60] flex items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+    <header className="hidden md:flex fixed top-0 left-0 right-0 z-[60] items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
 
       {/* Logo + Nav */}
       <div className="flex items-center gap-4 px-4 shrink-0 whitespace-nowrap border-r-4 border-on-background h-full overflow-x-auto scrollbar-none">

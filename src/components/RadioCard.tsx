@@ -7,9 +7,9 @@ import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation, type Stream } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
+import { useUIStore } from "../stores/uiStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { StationDetailSheet } from "./StationDetailSheet";
 import { ZapDialog } from "./ZapDialog";
 import { StreamQualityBar } from "./StreamQualityBar";
 import { Button } from "./ui/button";
@@ -57,9 +57,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const { zaps, comments, reactions, userHasZapped, userHasCommented, userHasReacted } =
     useSocialInteractions(station);
 
+  const { openStationSheet } = useUIStore();
+
   const [showActionMenu, setShowActionMenu] = useState(false);
-  const [showDetailSheet, setShowDetailSheet] = useState(false);
-  const [focusCommentForm, setFocusCommentForm] = useState(false);
   const [showZapDialog, setShowZapDialog] = useState(false);
   const [selectedStream] = useState<Stream | undefined>(
     station.streams.find((s) => s.primary) || station.streams[0]
@@ -77,8 +77,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const handleCommentClick = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setShowDetailSheet(true);
-    setFocusCommentForm(true);
+    openStationSheet(station, true);
   };
 
   const handleAddToList = async (listId: string) => {
@@ -180,19 +179,6 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     </div>
   );
 
-  const detailSheet = (
-    <StationDetailSheet
-      station={station}
-      open={showDetailSheet}
-      onOpenChange={(open) => {
-        setShowDetailSheet(open);
-        if (!open) setFocusCommentForm(false);
-      }}
-      focusCommentForm={focusCommentForm}
-      onCommentFormFocused={() => setFocusCommentForm(false)}
-    />
-  );
-
   const zapDialog = (
     <ZapDialog
       station={station}
@@ -227,7 +213,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <div className="flex flex-1 items-center min-w-0 px-3 gap-2">
               <div className="flex flex-col justify-center min-w-0 flex-1">
                 <h3 className="text-sm font-black uppercase tracking-tighter truncate font-headline cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => setShowDetailSheet(true)}>{nameDisplay}</h3>
+                  onClick={() => openStationSheet(station)}>{nameDisplay}</h3>
                 {station.genres?.[0] && (
                   <span className="text-[10px] font-black text-tertiary uppercase tracking-widest truncate cursor-pointer"
                     onClick={() => toggleGenre(station.genres![0] ?? "")}>
@@ -283,7 +269,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                 <div className="flex whitespace-nowrap animate-marquee">
                   <h3
                     className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline pr-12"
-                    onClick={() => setShowDetailSheet(true)}
+                    onClick={() => openStationSheet(station)}
                   >
                     {nameDisplay}
                   </h3>
@@ -297,7 +283,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               ) : (
                 <h3
                   className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline whitespace-nowrap"
-                  onClick={() => setShowDetailSheet(true)}
+                  onClick={() => openStationSheet(station)}
                 >
                   {nameDisplay}
                 </h3>
@@ -380,7 +366,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
           </div>
         </div>
-        {detailSheet}
+
         {zapDialog}
       </>
     );
@@ -426,7 +412,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <div className="mb-4">
               <h2
                 className="text-3xl font-black uppercase tracking-tight leading-none group-hover:text-primary transition-colors cursor-pointer font-headline"
-                onClick={() => setShowDetailSheet(true)}
+                onClick={() => openStationSheet(station)}
               >
                 {nameDisplay}
               </h2>
@@ -529,7 +515,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
           </div>
         </section>
-        {detailSheet}
+
         {zapDialog}
       </>
     );
@@ -588,7 +574,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           {/* Quality bar */}
           <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-20" />
         </div>
-        {detailSheet}
+
       </>
     );
   }
@@ -627,7 +613,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </div>
 
           {/* Station info */}
-          <div className="px-8 py-4 flex-grow flex flex-col justify-center min-w-0 overflow-hidden" onClick={() => setShowDetailSheet(true)}>
+          <div className="px-8 py-4 flex-grow flex flex-col justify-center min-w-0 overflow-hidden" onClick={() => openStationSheet(station)}>
             <div ref={titleRef} className="overflow-hidden">
               {isMarquee ? (
                 <div className="flex whitespace-nowrap animate-marquee">
@@ -717,7 +703,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             {statusLabel}
           </div>
         </div>
-        {detailSheet}
+
         {zapDialog}
       </>
     );
@@ -743,7 +729,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </div>
 
         {/* Station info */}
-        <div className="px-8 py-4 flex-grow flex flex-col justify-center" onClick={() => setShowDetailSheet(true)}>
+        <div className="px-8 py-4 flex-grow flex flex-col justify-center" onClick={() => openStationSheet(station)}>
           <h3 className="text-2xl font-black uppercase font-headline">{nameDisplay}</h3>
           <p className="text-xs font-bold text-tertiary uppercase tracking-widest">
             {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
@@ -812,7 +798,6 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           {statusLabel}
         </div>
       </div>
-      {detailSheet}
       {zapDialog}
     </>
   );

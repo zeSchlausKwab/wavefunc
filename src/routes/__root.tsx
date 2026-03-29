@@ -22,7 +22,7 @@ export const Route = createRootRoute({
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
         />
-        <div className="pt-14 pb-16 md:pb-[100px]">
+        <div className="md:pt-14 pb-16 md:pb-[100px]">
           <div className="max-w-screen-2xl mx-auto px-4 md:px-8 py-6">
             <Outlet />
           </div>

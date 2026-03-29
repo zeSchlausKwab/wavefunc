@@ -62,7 +62,9 @@
       "Bash(python3 -c \":*)",
       "Bash(time nak:*)",
       "Bash(git checkout:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ls /Users/schlaus/workspace/wavefunc-rewrite/src/*.css)",
+      "Bash(bunx tsc:*)"
     ],
     "deny": [],
     "ask": []
