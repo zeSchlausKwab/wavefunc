@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- surface background -->
+  <rect width="64" height="64" fill="#fef9ea"/>
+  <!-- outer border (border-4 border-on-background) -->
+  <rect x="2" y="2" width="60" height="60" fill="none" stroke="#1d1c13" stroke-width="4"/>
+  <!-- inner border -->
+  <rect x="12" y="12" width="40" height="40" fill="none" stroke="#1d1c13" stroke-width="3"/>
+  <!-- WF text: font-black, -rotate-4deg around center -->
+  <text
+    x="32" y="40"
+    text-anchor="middle"
+    font-family="'Space Grotesk', 'Arial Black', sans-serif"
+    font-weight="900"
+    font-size="22"
+    fill="#1d1c13"
+    transform="rotate(-4, 32, 32)"
+  >WF</text>
+</svg>

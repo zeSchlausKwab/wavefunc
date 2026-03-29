@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#b60013",
+              "on-secondary": "#ffffff",
+              "surface-tint": "#c00015",
+              "on-primary": "#ffffff",
+              "outline": "#926e6b",
+              "error-container": "#ffdad6",
+              "secondary-fixed-dim": "#00dbe9",
+              "inverse-primary": "#ffb4ac",
+              "surface-container-low": "#f9f3e4",
+              "outline-variant": "#e7bdb8",
+              "on-tertiary": "#ffffff",
+              "tertiary-fixed-dim": "#c8c6c5",
+              "on-secondary-container": "#00686f",
+              "surface-container": "#f3eedf",
+              "primary-container": "#e01a22",
+              "on-surface-variant": "#5d3f3c",
+              "tertiary": "#5a5959",
+              "primary-fixed": "#ffdad6",
+              "on-tertiary-fixed-variant": "#474746",
+              "on-error-container": "#93000a",
+              "on-primary-fixed-variant": "#93000d",
+              "surface": "#fef9ea",
+              "on-secondary-fixed": "#002022",
+              "tertiary-fixed": "#e5e2e1",
+              "on-secondary-fixed-variant": "#004f54",
+              "inverse-surface": "#323127",
+              "surface-container-highest": "#e7e2d3",
+              "secondary": "#006970",
+              "on-error": "#ffffff",
+              "secondary-fixed": "#7df4ff",
+              "secondary-container": "#00eefc",
+              "on-tertiary-container": "#faf7f6",
+              "surface-container-high": "#ede8d9",
+              "inverse-on-surface": "#f6f1e1",
+              "surface-bright": "#fef9ea",
+              "error": "#ba1a1a",
+              "on-surface": "#1d1c13",
+              "on-primary-fixed": "#410002",
+              "background": "#fef9ea",
+              "surface-container-lowest": "#ffffff",
+              "on-primary-container": "#fff6f5",
+              "tertiary-container": "#727171",
+              "surface-variant": "#e7e2d3",
+              "surface-dim": "#dfdacb",
+              "primary-fixed-dim": "#ffb4ac",
+              "on-tertiary-fixed": "#1c1b1b",
+              "on-background": "#1d1c13"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Space Grotesk"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0px", "lg": "0px", "xl": "0px", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mechanical-grain {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            pointer-events: none;
+        }
+        .hard-shadow {
+            shadow-offset: 8px 8px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-secondary-fixed-dim selection:text-on-background min-h-screen relative">
+<div class="mechanical-grain fixed inset-0 z-[100]"></div>
+<!-- TopNavBar Shell -->
+<nav class="flex justify-between items-center w-full px-6 py-4 h-24 relative overflow-visible bg-[#fef9ea] dark:bg-[#1d1c13] border-b-4 border-[#1d1c13] dark:border-[#fef9ea] shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] z-50">
+<div class="flex items-center gap-4">
+<div class="text-4xl font-black text-[#1d1c13] dark:text-[#fef9ea] border-4 border-[#1d1c13] dark:border-[#fef9ea] p-2 rotate-[-2deg] font-['Space_Grotesk'] tracking-tighter uppercase">
+                WAVEFUNC
+            </div>
+</div>
+<div class="hidden md:flex items-center space-x-2 font-['Space_Grotesk'] font-bold tracking-tighter uppercase text-xs">
+<a class="text-[#1d1c13] dark:text-[#fef9ea] px-4 py-1 hover:skew-x-6 transition-transform hover:bg-[#00dbe9] hover:text-[#1d1c13]" href="#">TRANSMIT</a>
+<a class="text-[#1d1c13] dark:text-[#fef9ea] px-4 py-1 hover:skew-x-6 transition-transform hover:bg-[#00dbe9] hover:text-[#1d1c13]" href="#">RECEPTION</a>
+<a class="text-[#1d1c13] dark:text-[#fef9ea] px-4 py-1 hover:skew-x-6 transition-transform hover:bg-[#00dbe9] hover:text-[#1d1c13]" href="#">ARCHIVE</a>
+<a class="text-[#fef9ea] bg-[#b60013] px-4 py-1 -skew-x-12" href="#">ASSEMBLY</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-background p-2 border-2 border-on-background hover:bg-secondary-fixed-dim transition-colors">settings</button>
+<button class="material-symbols-outlined text-on-background p-2 border-2 border-on-background hover:bg-primary hover:text-white transition-colors">power_settings_new</button>
+</div>
+</nav>
+<!-- SideNavBar Shell (Desktop) -->
+<aside class="hidden md:flex flex-col items-center justify-start z-40 fixed left-0 top-24 h-[calc(100vh-6rem)] w-24 border-r-4 border-[#1d1c13] bg-[#e7e2d3] dark:bg-[#1d1c13] font-['Space_Grotesk'] font-bold text-xs tracking-[0.2em] uppercase">
+<div class="w-full text-center py-4 border-b-2 border-[#926e6b] text-[10px] leading-tight">
+            MASTER<br/>CONTROL
+        </div>
+<div class="flex flex-col w-full">
+<button class="bg-[#00dbe9] text-[#1d1c13] w-full aspect-square flex flex-col items-center justify-center border-b-4 border-[#1d1c13] active:scale-95 duration-75 group">
+<span class="material-symbols-outlined mb-1">sensors</span>
+<span>SIGNAL</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] w-full aspect-square flex flex-col items-center justify-center border-b-2 border-[#1d1c13] hover:bg-[#b60013] hover:text-white transition-colors group">
+<span class="material-symbols-outlined mb-1">equalizer</span>
+<span>FREQ</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] w-full aspect-square flex flex-col items-center justify-center border-b-2 border-[#1d1c13] hover:bg-[#b60013] hover:text-white transition-colors group">
+<span class="material-symbols-outlined mb-1">waves</span>
+<span>PHASE</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] w-full aspect-square flex flex-col items-center justify-center border-b-2 border-[#1d1c13] hover:bg-[#b60013] hover:text-white transition-colors group">
+<span class="material-symbols-outlined mb-1">tune</span>
+<span>MOD</span>
+</button>
+</div>
+<div class="mt-auto w-full p-2 border-t-2 border-[#926e6b]">
+<button class="bg-primary text-white w-full py-4 text-[10px] font-black border-2 border-on-background shadow-[2px_2px_0px_0px_rgba(29,28,19,1)]">STOP</button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-24 pt-8 pb-40 px-6 max-w-7xl mx-auto">
+<!-- Header Section -->
+<header class="mb-12 border-b-4 border-on-background pb-6">
+<h1 class="text-6xl md:text-8xl font-black tracking-tighter uppercase mb-2">Brand_Assets</h1>
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<p class="text-sm font-bold tracking-widest uppercase opacity-70">V.01_INDUSTRIAL_CORE // LOGO_SPECIFICATION_SHEET</p>
+<div class="flex items-center gap-2 text-xs font-mono bg-on-background text-background px-3 py-1">
+<span class="animate-pulse">●</span> SYSTEM_READY: 100%
+                </div>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- MASTER_LOGO Section -->
+<section class="md:col-span-8 border-4 border-on-background p-8 bg-surface relative overflow-hidden group shadow-[12px_12px_0px_0px_rgba(29,28,19,1)]">
+<div class="absolute top-0 left-0 bg-on-background text-background px-4 py-1 text-[10px] font-bold tracking-widest uppercase z-10">
+                    01 // MASTER_LOGO
+                </div>
+<div class="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-outline/30 relative">
+<!-- Technical Crosshairs -->
+<div class="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-on-background"></div>
+<div class="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-on-background"></div>
+<div class="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-on-background"></div>
+<div class="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-on-background"></div>
+<div class="text-7xl md:text-9xl font-black text-[#1d1c13] border-[6px] border-[#1d1c13] p-6 rotate-[-2deg] bg-surface z-20 transition-transform group-hover:rotate-0 duration-300">
+                        WAVEFUNC
+                    </div>
+<div class="mt-12 w-full grid grid-cols-2 gap-4 max-w-md">
+<div class="border-2 border-on-background p-3 flex flex-col items-center justify-center">
+<span class="text-[10px] uppercase font-bold text-outline">Rotation</span>
+<span class="text-xl font-black">-2.0°</span>
+</div>
+<div class="border-2 border-on-background p-3 flex flex-col items-center justify-center">
+<span class="text-[10px] uppercase font-bold text-outline">Stroke</span>
+<span class="text-xl font-black">4.0PX</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SQUARE_BRAND_MARK Section -->
+<section class="md:col-span-4 border-4 border-on-background p-8 bg-surface-container-highest flex flex-col items-center justify-center shadow-[12px_12px_0px_0px_rgba(182,0,19,1)]">
+<div class="w-full text-left mb-8">
+<span class="bg-primary text-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest">02 // SQUARE_MARK</span>
+</div>
+<div class="w-full aspect-square border-4 border-on-background flex items-center justify-center p-8 bg-surface">
+<div class="w-full aspect-square border-[6px] border-on-background flex items-center justify-center">
+<span class="text-8xl font-black rotate-[-4deg]">WF</span>
+</div>
+</div>
+<p class="mt-6 text-[10px] font-bold uppercase tracking-tight text-center leading-relaxed">
+                    Compressed identity for social avatars and physical component labeling.
+                </p>
+</section>
+<!-- COLOR_SPECIFICATIONS Section -->
+<section class="md:col-span-6 border-4 border-on-background p-8 bg-surface relative shadow-[12px_12px_0px_0px_rgba(0,219,233,1)]">
+<div class="absolute top-0 right-0 bg-on-background text-background px-4 py-1 text-[10px] font-bold tracking-widest uppercase z-10">
+                    03 // COLOR_CORE
+                </div>
+<h3 class="text-2xl font-black uppercase mb-8 border-b-2 border-on-background inline-block">Chromatics</h3>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-4 border-2 border-on-background bg-surface-container-low group hover:bg-primary transition-colors hover:text-white">
+<div class="w-16 h-16 bg-[#b60013] border-4 border-on-background shrink-0 shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]"></div>
+<div class="flex-grow">
+<div class="text-xs font-bold uppercase tracking-widest text-outline group-hover:text-white/70">SIGNAL_RED</div>
+<div class="text-xl font-black">#B60013</div>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity">content_copy</span>
+</div>
+<div class="flex items-center gap-4 p-4 border-2 border-on-background bg-surface-container-low group hover:bg-secondary-fixed-dim transition-colors">
+<div class="w-16 h-16 bg-[#00dbe9] border-4 border-on-background shrink-0 shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]"></div>
+<div class="flex-grow">
+<div class="text-xs font-bold uppercase tracking-widest text-outline group-hover:text-on-background/70">HIGH_VOLTAGE</div>
+<div class="text-xl font-black">#00DBE9</div>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity">content_copy</span>
+</div>
+<div class="flex items-center gap-4 p-4 border-2 border-on-background bg-surface group hover:bg-on-background transition-colors hover:text-background">
+<div class="w-16 h-16 bg-[#1d1c13] border-4 border-on-background shrink-0 shadow-[4px_4px_0px_0px_rgba(182,0,19,1)]"></div>
+<div class="flex-grow">
+<div class="text-xs font-bold uppercase tracking-widest text-outline group-hover:text-background/70">DEEP_CHARCOAL</div>
+<div class="text-xl font-black">#1D1C13</div>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity">content_copy</span>
+</div>
+</div>
+</section>
+<!-- FAVICON_SET Section -->
+<section class="md:col-span-6 border-4 border-on-background p-8 bg-surface-container flex flex-col shadow-[12px_12px_0px_0px_rgba(29,28,19,1)]">
+<div class="mb-8">
+<span class="bg-on-background text-background px-3 py-1 text-[10px] font-bold uppercase tracking-widest">04 // INTERFACE_ICONS</span>
+</div>
+<div class="flex-grow grid grid-cols-3 gap-8 items-end justify-items-center">
+<div class="flex flex-col items-center">
+<div class="w-24 h-24 border-2 border-outline/30 flex items-center justify-center p-4 mb-4">
+<div class="w-12 h-12 border-2 border-on-background bg-surface flex items-center justify-center">
+<span class="font-black text-xs">WF</span>
+</div>
+</div>
+<span class="text-[10px] font-black uppercase">48x48_PX</span>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-20 h-20 border-2 border-outline/30 flex items-center justify-center p-4 mb-4">
+<div class="w-8 h-8 border-2 border-on-background bg-surface flex items-center justify-center">
+<span class="font-black text-[8px]">WF</span>
+</div>
+</div>
+<span class="text-[10px] font-black uppercase">32x32_PX</span>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-16 h-16 border-2 border-outline/30 flex items-center justify-center p-4 mb-4">
+<div class="w-4 h-4 border border-on-background bg-on-background"></div>
+</div>
+<span class="text-[10px] font-black uppercase">16x16_PX</span>
+</div>
+</div>
+</section>
+<!-- MUTED_BACKGROUND_PATTERN Section -->
+<section class="md:col-span-12 border-4 border-on-background h-80 relative overflow-hidden bg-surface group shadow-[12px_12px_0px_0px_rgba(182,0,19,1)]">
+<div class="absolute top-0 left-0 bg-on-background text-background px-4 py-1 text-[10px] font-bold tracking-widest uppercase z-10">
+                    05 // SURFACE_TEXTURE_WATERMARK
+                </div>
+<div class="absolute inset-0 flex flex-wrap gap-12 p-8 opacity-5 select-none pointer-events-none rotate-[-12deg] scale-125"><div class="absolute inset-0 flex flex-col items-center justify-center gap-8 opacity-10 select-none pointer-events-none">
+<svg class="w-full h-auto stroke-on-background fill-none stroke-[2]" viewbox="0 0 800 200">
+<path class="opacity-50" d="M0 100 Q 50 20, 100 100 T 200 100 T 300 100 T 400 100 T 500 100 T 600 100 T 700 100 T 800 100"></path>
+<path d="M0 100 C 100 0, 150 200, 200 100 S 300 0, 400 100 S 550 200, 600 100 S 750 0, 800 100"></path>
+</svg>
+<div class="flex gap-12 rotate-[-4deg] scale-110">
+<span class="text-8xl font-black uppercase tracking-[-0.1em]">WAVE_FUNCTION</span>
+<span class="text-8xl font-black uppercase tracking-[-0.1em]">WAVE_FUNCTION</span>
+</div>
+<svg class="w-full h-auto stroke-on-background fill-none stroke-[1] opacity-30" viewbox="0 0 800 100">
+<path d="M0 50 L 800 50 M 100 0 L 100 100 M 200 0 L 200 100 M 300 0 L 300 100 M 400 0 L 400 100 M 500 0 L 500 100 M 600 0 L 600 100 M 700 0 L 700 100"></path>
+</svg>
+</div></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="bg-surface/80 backdrop-blur-md p-6 border-2 border-on-background max-w-lg text-center">
+<p class="text-sm font-bold uppercase tracking-widest mb-4">Technical Specification</p>
+<p class="text-xs text-outline font-medium leading-relaxed">
+                            Pattern utilized for secure document headers and industrial interface backgrounds. Transparency must be maintained between 5-10% to ensure foreground legibility.
+                        </p>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer / Meta Section -->
+<footer class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 border-t-4 border-on-background pt-8">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Authored_By</span>
+<span class="font-black text-sm uppercase">W_CORE_LABS</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Revision_Date</span>
+<span class="font-black text-sm uppercase">OCT_2023_V1</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Protocol</span>
+<span class="font-black text-sm uppercase">B_CONSTRUCT_V4</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Checksum</span>
+<span class="font-black text-sm uppercase">0x882_WAVE</span>
+</div>
+</footer>
+</main>
+<!-- BottomNavBar Shell (Mobile Only) -->
+<footer class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-center items-center bg-[#fef9ea] dark:bg-[#1d1c13] h-32 border-t-4 border-[#1d1c13] shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+<div class="flex items-center h-full w-full justify-around font-['Space_Grotesk'] font-bold uppercase text-[10px]">
+<button class="bg-[#00dbe9] text-[#1d1c13] h-full px-6 flex flex-col justify-center items-center flex-1 border-x-4 border-[#1d1c13]">
+<span class="material-symbols-outlined text-xl mb-1">play_arrow</span>
+<span>PLAY</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] h-full px-6 flex flex-col justify-center items-center flex-1 border-r-2 border-[#926e6b] hover:bg-[#e7e2d3]">
+<span class="material-symbols-outlined text-xl mb-1">pause</span>
+<span>PAUSE</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] h-full px-6 flex flex-col justify-center items-center flex-1 border-r-2 border-[#926e6b] hover:bg-[#e7e2d3]">
+<span class="material-symbols-outlined text-xl mb-1">skip_previous</span>
+<span>PREV</span>
+</button>
+<button class="text-[#1d1c13] dark:text-[#fef9ea] h-full px-6 flex flex-col justify-center items-center flex-1 hover:bg-[#e7e2d3]">
+<span class="material-symbols-outlined text-xl mb-1">skip_next</span>
+<span>NEXT</span>
+</button>
+</div>
+</footer>
+</body></html>
