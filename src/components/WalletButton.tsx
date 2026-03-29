@@ -1,10 +1,7 @@
 import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useState } from "react";
-import { Button } from "./ui/button";
-import { BitcoinFillIcon } from "./ui/icons/akar-icons-bitcoin-fill";
 import { useWalletStore } from "../stores/walletStore";
 import { useNavigate } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
 
 export function WalletButton() {
   const currentUser = useNDKCurrentUser();
@@ -20,26 +17,13 @@ export function WalletButton() {
   const navigate = useNavigate();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  if (!currentUser) {
-    return (
-      <div className="flex items-center gap-4">
-        <p className="text-muted-foreground text-sm">
-          Please log in to view wallet
-        </p>
-      </div>
-    );
-  }
+  if (!currentUser) return null;
 
-  const handleClick = () => {
-    // Navigate to wallet settings
-    navigate({ to: "/settings" });
-  };
+  const handleClick = () => navigate({ to: "/settings" });
 
   const handleRefreshBalance = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation
-
+    e.stopPropagation();
     if (isRefreshing) return;
-
     setIsRefreshing(true);
     try {
       if (activeWalletType === "nwc" && nwcWallet && nwcWallet.updateBalance) {
@@ -49,7 +33,6 @@ export function WalletButton() {
           updateNWCBalance(balance.amount);
         }
       }
-      // TODO: Add cashu balance refresh when implemented
     } catch (err) {
       console.error("Failed to refresh balance:", err);
     } finally {
@@ -57,14 +40,9 @@ export function WalletButton() {
     }
   };
 
-  // Get the current balance based on active wallet type
   const getBalance = () => {
-    if (activeWalletType === "cashu" && cashuConnection) {
-      return cashuBalance;
-    }
-    if (activeWalletType === "nwc" && nwcConnection) {
-      return nwcBalance;
-    }
+    if (activeWalletType === "cashu" && cashuConnection) return cashuBalance;
+    if (activeWalletType === "nwc" && nwcConnection) return nwcBalance;
     return 0;
   };
 
@@ -73,34 +51,47 @@ export function WalletButton() {
 
   if (!hasWallet) {
     return (
-      <Button variant="outline" onClick={handleClick}>
-        <BitcoinFillIcon className="w-4 h-4 mr-2" />
-        <span className="text-sm">Connect Wallet</span>
-      </Button>
+      <button
+        onClick={handleClick}
+        className="h-full px-3 flex items-center gap-1.5 border-r-4 border-on-background hover:bg-surface-container-high transition-colors"
+        title="Connect wallet"
+      >
+        <span className="material-symbols-outlined text-[16px]">currency_bitcoin</span>
+        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+          WALLET
+        </span>
+      </button>
     );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" onClick={handleClick}>
-        <BitcoinFillIcon className="w-4 h-4 mr-2" />
-        <span className="font-semibold text-sm">
+    <div className="flex h-full border-r-4 border-on-background">
+      <button
+        onClick={handleClick}
+        className="h-full px-3 flex items-center gap-1.5 hover:bg-surface-container-high transition-colors"
+        title="Wallet settings"
+      >
+        <span className="material-symbols-outlined text-[14px] text-primary">currency_bitcoin</span>
+        <span className="text-[10px] font-black font-mono tracking-tight">
           {new Intl.NumberFormat().format(balance)}
         </span>
-        <span className="text-xs text-muted-foreground ml-1">sats</span>
-      </Button>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-on-background/50 hidden sm:inline">
+          SATS
+        </span>
+      </button>
       {activeWalletType === "nwc" && (
-        <Button
-          variant="ghost"
-          size="icon"
+        <button
           onClick={handleRefreshBalance}
           disabled={isRefreshing}
+          className="h-full px-2 hover:bg-surface-container-high transition-colors border-l-2 border-on-background/20"
           title="Refresh balance"
         >
-          <RefreshCw
-            className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-          />
-        </Button>
+          <span
+            className={`material-symbols-outlined text-[14px] text-on-background/50 ${isRefreshing ? "animate-spin" : ""}`}
+          >
+            sync
+          </span>
+        </button>
       )}
     </div>
   );

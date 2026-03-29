@@ -7,21 +7,14 @@ import {
   useNDKSessionLogout,
 } from "@nostr-dev-kit/react";
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { MiniProfile } from "./MiniProfile";
-import { Button } from "./ui/button";
-import { ButtonGroup } from "./ui/button-group";
-import { AppWindowIcon } from "./ui/icons/lucide-app-window";
-import { KeyRoundIcon } from "./ui/icons/lucide-key-round";
-import { QrCodeIcon } from "./ui/icons/lucide-qr-code";
 import { WalletButton } from "./WalletButton";
-import { LogOutIcon } from "./ui/icons/lucide-log-out";
-import { SettingsIcon } from "./ui/icons/lucide-settings";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Nip46LoginDialog } from "./Nip46LoginDialog";
 import { SignupDialog } from "./SignupDialog";
 import { useUIStore } from "../stores/uiStore";
 import { usePlatform } from "../lib/hooks/usePlatform";
-import { Link } from "@tanstack/react-router";
+import { cn } from "../lib/utils";
 
 export function LoginSessionButtons() {
   const login = useNDKSessionLogin();
@@ -60,91 +53,93 @@ export function LoginSessionButtons() {
       await login(signer);
     } catch (error) {
       console.error("NIP-46 login failed:", error);
-      throw error; // Re-throw so the dialog can handle it
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="flex items-center gap-4">
-      {currentUser ? (
-        <ButtonGroup>
-          <WalletButton />
-          <MiniProfile userOrPubkey={currentUser} />
-          <Link to="/settings">
-            <Button>
-              <SettingsIcon className="w-5 h-5" />
-            </Button>
-          </Link>
-          <Button onClick={() => logout()}>
-            <LogOutIcon className="w-5 h-5" />
-          </Button>
-        </ButtonGroup>
-      ) : (
-        <ButtonGroup
-          className={
-            shouldPulseLogin
-              ? "animate-pulse ring-4 ring-primary/50 transition-all duration-300"
-              : ""
-          }
+  if (currentUser) {
+    return (
+      <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+        <WalletButton />
+        <MiniProfile userOrPubkey={currentUser} />
+        <Link to="/settings">
+          <button
+            className="h-full px-3 border-r-4 border-on-background flex items-center hover:bg-surface-container-high transition-colors"
+            title="Settings"
+          >
+            <span className="material-symbols-outlined text-[18px]">settings</span>
+          </button>
+        </Link>
+        <button
+          onClick={() => logout()}
+          className="h-full px-3 flex items-center hover:bg-surface-container-high transition-colors"
+          title="Log out"
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={"secondary"}
-                onClick={() => setShowSignupDialog(true)}
-              >
-                <KeyRoundIcon className="w-5 h-5" />
-                signup
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Create a new nsec.</p>
-            </TooltipContent>
-          </Tooltip>
-          {!isTauri && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={"secondary"}
-                  onClick={handleNip07Login}
-                  disabled={loading}
-                >
-                  <AppWindowIcon className="w-5 h-5" />
-                  {loading ? "Logging in..." : "extension"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Use your nostr extension.</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <Nip46LoginDialog
-              onLogin={handleNip46Login}
-              trigger={
-                <TooltipTrigger asChild>
-                  <Button variant={"secondary"} disabled={loading}>
-                    <QrCodeIcon className="w-5 h-5" />
-                    {loading ? "Logging in..." : "signer"}
-                  </Button>
-                </TooltipTrigger>
-              }
-            />
-            <TooltipContent>
-              <p>Use an external signer.</p>
-            </TooltipContent>
-          </Tooltip>
-        </ButtonGroup>
-      )}
+          <span className="material-symbols-outlined text-[18px]">logout</span>
+        </button>
+      </div>
+    );
+  }
 
-      {/* Signup Dialog */}
+  return (
+    <>
+      <div
+        className={cn(
+          "flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all",
+          shouldPulseLogin && "animate-pulse ring-4 ring-primary/50"
+        )}
+      >
+        <button
+          onClick={() => setShowSignupDialog(true)}
+          className="h-full px-3 flex items-center gap-1.5 border-r-4 border-on-background hover:bg-surface-container-high transition-colors"
+          title="Create account / import key"
+        >
+          <span className="material-symbols-outlined text-[16px]">key</span>
+          <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+            NSEC
+          </span>
+        </button>
+
+        {!isTauri && (
+          <button
+            onClick={handleNip07Login}
+            disabled={loading}
+            className="h-full px-3 flex items-center gap-1.5 border-r-4 border-on-background hover:bg-surface-container-high transition-colors disabled:opacity-40"
+            title="Login with browser extension"
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {loading ? "sync" : "extension"}
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+              {loading ? "..." : "EXT"}
+            </span>
+          </button>
+        )}
+
+        <Nip46LoginDialog
+          onLogin={handleNip46Login}
+          trigger={
+            <button
+              disabled={loading}
+              className="h-full px-3 flex items-center gap-1.5 hover:bg-surface-container-high transition-colors disabled:opacity-40"
+              title="Login with remote signer"
+            >
+              <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+                SIGNER
+              </span>
+            </button>
+          }
+        />
+      </div>
+
       <SignupDialog
         open={showSignupDialog}
         onOpenChange={setShowSignupDialog}
         onConfirm={handleSignup}
       />
-    </div>
+    </>
   );
 }

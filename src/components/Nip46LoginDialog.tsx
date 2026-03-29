@@ -10,22 +10,8 @@ import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Loader2, QrCode } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 
 interface Nip46LoginDialogProps {
   trigger: React.ReactNode;
@@ -34,7 +20,6 @@ interface Nip46LoginDialogProps {
 
 type TabType = "scan" | "paste";
 
-// Common NIP-46 relays
 const DEFAULT_RELAYS = [
   { value: "wss://relay.nsec.app", label: "relay.nsec.app (recommended)" },
   { value: "wss://relay.damus.io", label: "relay.damus.io" },
@@ -54,47 +39,31 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
 
-  // Simplified state management
   const [state, setState] = useState<ConnectionState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [selectedRelay, setSelectedRelay] = useState(DEFAULT_RELAYS[0].value);
 
-  // Scan tab state
   const [connectionUri, setConnectionUri] = useState("");
-  const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(
-    null
-  );
+  const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null);
 
-  // Paste tab state
   const [bunkerUrl, setBunkerUrl] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  // Refs for cleanup
   const ndkRef = useRef<NDK | null>(null);
   const subscriptionRef = useRef<any>(null);
   const secretRef = useRef<string>("");
   const isProcessingRef = useRef(false);
 
-  // Cleanup function
   const cleanup = useCallback(() => {
     isProcessingRef.current = false;
-
     if (subscriptionRef.current) {
-      try {
-        subscriptionRef.current.stop();
-      } catch (e) {
-        console.error("Error stopping subscription:", e);
-      }
+      try { subscriptionRef.current.stop(); } catch (e) { console.error("Error stopping subscription:", e); }
       subscriptionRef.current = null;
     }
-
-    if (ndkRef.current) {
-      ndkRef.current = null;
-    }
+    if (ndkRef.current) { ndkRef.current = null; }
   }, []);
 
-  // Reset all state when dialog closes
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
@@ -110,11 +79,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     }
   };
 
-  // Reset connection when relay changes
   const handleRelayChange = (relay: string) => {
     setSelectedRelay(relay);
     if (activeTab === "scan" && connectionUri) {
-      // Reset connection to regenerate with new relay
       cleanup();
       setConnectionUri("");
       setState("idle");
@@ -122,21 +89,17 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     }
   };
 
-  // Initialize connection for scan tab
   useEffect(() => {
     if (!open || activeTab !== "scan" || connectionUri) return;
 
     const initConnection = async () => {
       setState("generating");
       setError(null);
-
       try {
-        // Generate local keypair
         const signer = NDKPrivateKeySigner.generate();
         const user = await signer.user();
         secretRef.current = Math.random().toString(36).substring(2, 15);
 
-        // Build nostrconnect URI
         const params = new URLSearchParams({
           relay: selectedRelay,
           metadata: JSON.stringify({
@@ -148,12 +111,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         });
 
         const uri = `nostrconnect://${user.pubkey}?${params.toString()}`;
-
         setLocalSigner(signer);
         setConnectionUri(uri);
         setState("waiting");
-
-        // Start listening for connection
         await startListening(signer, user.pubkey, selectedRelay);
       } catch (err) {
         console.error("Failed to initialize connection:", err);
@@ -165,14 +125,12 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     initConnection();
   }, [open, activeTab, connectionUri, selectedRelay]);
 
-  // Listen for NIP-46 connection requests
   const startListening = async (
     signer: NDKPrivateKeySigner,
     pubkey: string,
     relay: string
   ) => {
-    cleanup(); // Clean up any existing connection
-
+    cleanup();
     const ndk = new NDK({ explicitRelayUrls: [relay] });
     ndkRef.current = ndk;
 
@@ -186,7 +144,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     }
 
     const processedIds = new Set<string>();
-
     const sub = ndk.subscribe(
       { kinds: [NDKKind.NostrConnect], "#p": [pubkey] },
       { closeOnEose: false }
@@ -201,50 +158,33 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         await event.decrypt(undefined, signer);
         const request = JSON.parse(event.content);
 
-        // Handle connect request
-        if (
-          request.method === "connect" &&
-          request.params?.token === secretRef.current
-        ) {
+        if (request.method === "connect" && request.params?.token === secretRef.current) {
           if (request.id) processedIds.add(request.id);
 
-          // Send approval
           const response = new NDKEvent(ndk);
           response.kind = NDKKind.NostrConnect;
           response.tags = [["p", event.pubkey]];
-          response.content = JSON.stringify({
-            id: request.id,
-            result: secretRef.current,
-          });
+          response.content = JSON.stringify({ id: request.id, result: secretRef.current });
 
           await response.sign(signer);
           // @ts-ignore - NDK type mismatch
           await response.encrypt(undefined, signer, event.pubkey);
           await response.publish();
-        }
-        // Handle ack - connection successful
-        else if (request.result === "ack") {
+        } else if (request.result === "ack") {
           if (processedIds.has(event.id)) return;
           processedIds.add(event.id);
 
           isProcessingRef.current = true;
           setState("connected");
 
-          // Build bunker URL and create signer
           const bunkerUrl = `bunker://${event.pubkey}?relay=${relay}&secret=${secretRef.current}`;
-
           const loginNdk = new NDK({ explicitRelayUrls: [relay] });
           await loginNdk.connect();
 
-          const nip46Signer = NDKNip46Signer.bunker(
-            loginNdk,
-            bunkerUrl,
-            signer
-          );
+          const nip46Signer = NDKNip46Signer.bunker(loginNdk, bunkerUrl, signer);
           await nip46Signer.blockUntilReady();
 
           await onLogin(nip46Signer);
-
           cleanup();
           setOpen(false);
         }
@@ -256,7 +196,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       }
     });
 
-    // 5 minute timeout
     setTimeout(() => {
       if (state === "waiting") {
         cleanup();
@@ -266,7 +205,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     }, 300000);
   };
 
-  // Handle paste tab login
   const handlePasteLogin = async () => {
     if (!bunkerUrl.trim()) {
       setError("Please enter a bunker URL");
@@ -277,12 +215,10 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     setError(null);
 
     try {
-      // Extract relay from bunker URL or use selected relay
       const url = new URL(bunkerUrl);
       const relayParam = url.searchParams.get("relay");
       const relay = relayParam || selectedRelay;
 
-      // Create local signer if needed
       let signer = localSigner;
       if (!signer) {
         signer = NDKPrivateKeySigner.generate();
@@ -304,7 +240,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     }
   };
 
-  // QR Scanner handlers
   const handleScanQR = () => {
     setShowScanner(true);
     setScanError(null);
@@ -328,7 +263,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     setScanError("Error accessing camera: " + (err.message || "Unknown error"));
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => cleanup();
   }, [cleanup]);
@@ -336,57 +270,63 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Connect with Remote Signer</DialogTitle>
-          <DialogDescription>
-            Use a remote signer app like Amber or nsecBunker
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="rounded-none border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-0 max-w-md gap-0 overflow-hidden">
 
-        <div className="space-y-4">
+        {/* Header */}
+        <div className="bg-on-background text-surface px-5 py-4">
+          <h2 className="text-base font-black uppercase tracking-tighter">Remote Signer</h2>
+          <p className="text-xs font-medium text-surface/60 mt-0.5 uppercase tracking-wide">
+            Connect with Amber, nsecBunker, or similar
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
           {/* Relay Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="relay">NIP-46 Relay</Label>
-            <Select value={selectedRelay} onValueChange={handleRelayChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-on-background/60">
+              NIP-46 Relay
+            </label>
+            <div className="border-2 border-on-background">
+              <select
+                value={selectedRelay}
+                onChange={(e) => handleRelayChange(e.target.value)}
+                className="w-full bg-surface text-on-background text-xs font-mono px-3 py-2 appearance-none cursor-pointer focus:outline-none"
+              >
                 {DEFAULT_RELAYS.map((relay) => (
-                  <SelectItem key={relay.value} value={relay.value}>
+                  <option key={relay.value} value={relay.value}>
                     {relay.label}
-                  </SelectItem>
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Choose the relay for NIP-46 connection. Your remote signer should
-              use the same relay.
+              </select>
+            </div>
+            <p className="text-[10px] text-on-background/50 uppercase tracking-wide">
+              Your remote signer must use the same relay
             </p>
           </div>
 
           {/* Tab Buttons */}
-          <div className="flex gap-2 border-b border-brutal">
+          <div className="flex border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
             <button
               onClick={() => setActiveTab("scan")}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-black uppercase tracking-widest transition-colors border-r-4 border-on-background ${
                 activeTab === "scan"
-                  ? "border-b-2 border-blue-500 text-blue-600 dark:text-blue-400"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  ? "bg-on-background text-surface"
+                  : "bg-surface text-on-background hover:bg-surface-container-high"
               }`}
             >
-              Scan QR Code
+              <span className="material-symbols-outlined text-[14px]">qr_code</span>
+              Scan QR
             </button>
             <button
               onClick={() => setActiveTab("paste")}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-black uppercase tracking-widest transition-colors ${
                 activeTab === "paste"
-                  ? "border-b-2 border-blue-500 text-blue-600 dark:text-blue-400"
-                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  ? "bg-on-background text-surface"
+                  : "bg-surface text-on-background hover:bg-surface-container-high"
               }`}
             >
-              Paste Bunker URL
+              <span className="material-symbols-outlined text-[14px]">link</span>
+              Paste URL
             </button>
           </div>
 
@@ -394,46 +334,27 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
           {activeTab === "scan" ? (
             <div className="space-y-4">
               {state === "connected" ? (
-                <div className="flex flex-col items-center gap-2 py-8">
-                  <div className="text-green-500 mb-2">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="36"
-                      height="36"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-green-500 font-medium">
-                    Connected successfully!
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Logging you in...
+                <div className="flex flex-col items-center gap-3 py-8 border-4 border-on-background bg-surface-container-low">
+                  <span className="material-symbols-outlined text-[48px] text-primary">check_circle</span>
+                  <p className="text-sm font-black uppercase tracking-tighter">Connected!</p>
+                  <p className="text-[11px] text-on-background/60 uppercase tracking-wide">Logging you in...</p>
+                </div>
+              ) : state === "generating" || !connectionUri ? (
+                <div className="flex flex-col items-center gap-3 py-8 border-4 border-on-background bg-surface-container-low">
+                  <span className="material-symbols-outlined text-[36px] animate-spin">sync</span>
+                  <p className="text-[11px] text-on-background/60 uppercase tracking-wide">
+                    {state === "generating" ? "Generating connection..." : "Initializing..."}
                   </p>
                 </div>
-              ) : state === "generating" ? (
-                <div className="flex flex-col items-center gap-2 py-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm text-muted-foreground">
-                    Generating connection...
-                  </p>
-                </div>
-              ) : connectionUri ? (
+              ) : (
                 <>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Scan this QR code with your remote signer app (e.g., Amber)
-                  </div>
+                  <p className="text-[11px] text-on-background/60 uppercase tracking-wide">
+                    Scan with Amber or another remote signer
+                  </p>
 
                   <a
                     href={connectionUri}
-                    className="block hover:opacity-90 transition-opacity bg-white p-4 rounded-lg"
+                    className="block border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] p-3 bg-white"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -443,91 +364,82 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                       bgColor="#ffffff"
                       fgColor="#000000"
                       level="L"
+                      className="w-full h-auto"
                     />
                   </a>
 
                   {state === "waiting" && (
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Waiting for approval...</span>
+                    <div className="flex items-center gap-2 border-2 border-on-background/30 px-3 py-2 bg-surface-container-low">
+                      <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                      <span className="text-[11px] font-black uppercase tracking-widest">Waiting for approval...</span>
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Input
+                  <div className="border-2 border-on-background/30">
+                    <input
                       value={connectionUri}
                       readOnly
                       onClick={(e) => e.currentTarget.select()}
-                      className="font-mono text-xs"
+                      className="w-full bg-surface-container-low px-3 py-2 font-mono text-[10px] text-on-background/60 focus:outline-none"
                     />
                   </div>
                 </>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm text-muted-foreground">
-                    Initializing connection...
-                  </p>
-                </div>
               )}
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="bunker-url">Bunker URL</Label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Paste your bunker:// connection string from your remote signer
-                  (e.g., nsec.app, Amber).
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-on-background/60">
+                  Bunker URL
+                </label>
+                <p className="text-[10px] text-on-background/50 uppercase tracking-wide">
+                  Paste your bunker:// string from nsec.app, Amber, etc.
                 </p>
-                <div className="flex gap-2">
-                  <Input
-                    id="bunker-url"
+                <div className="flex border-2 border-on-background">
+                  <input
                     type="text"
                     placeholder="bunker://..."
                     value={bunkerUrl}
-                    onChange={(e) => {
-                      setBunkerUrl(e.target.value);
-                      setError(null);
-                    }}
+                    onChange={(e) => { setBunkerUrl(e.target.value); setError(null); }}
                     disabled={state === "generating"}
-                    className="flex-1 font-mono text-sm"
+                    className="flex-1 bg-surface text-on-background font-mono text-xs px-3 py-2 focus:outline-none disabled:opacity-40 placeholder:text-on-background/30"
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    size="icon"
                     onClick={handleScanQR}
                     disabled={state === "generating"}
                     title="Scan QR code"
+                    className="border-l-2 border-on-background px-3 flex items-center hover:bg-surface-container-high transition-colors disabled:opacity-40"
                   >
-                    <QrCode className="h-4 w-4" />
-                  </Button>
+                    <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                  </button>
                 </div>
               </div>
 
-              <Button
+              <button
                 onClick={handlePasteLogin}
                 disabled={state === "generating" || !bunkerUrl.trim()}
-                className="w-full"
+                className="w-full flex items-center justify-center gap-2 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest bg-primary text-on-primary hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(29,28,19,1)] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]"
               >
                 {state === "generating" ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
                     Connecting...
                   </>
                 ) : (
-                  "Connect"
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">login</span>
+                    Connect
+                  </>
                 )}
-              </Button>
+              </button>
 
-              <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <h4 className="text-sm font-medium mb-2">
-                  How to get a bunker URL:
-                </h4>
-                <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
-                  <li>Open your remote signer app (nsec.app, Amber, etc.)</li>
+              <div className="border-2 border-on-background/30 p-3 bg-surface-container-low">
+                <h4 className="text-[10px] font-black uppercase tracking-widest mb-2">How to get a bunker URL</h4>
+                <ol className="text-[11px] text-on-background/60 space-y-1 list-decimal list-inside">
+                  <li>Open your remote signer (nsec.app, Amber, etc.)</li>
                   <li>Generate or copy your bunker connection string</li>
-                  <li>Paste it into the field above or scan the QR code</li>
+                  <li>Paste it above or scan the QR code</li>
                 </ol>
               </div>
             </div>
@@ -535,8 +447,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
 
           {/* Error Message */}
           {error && (
-            <div className="text-sm text-red-600 dark:text-red-400 p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
-              {error}
+            <div className="flex items-start gap-2 border-2 border-red-600 bg-red-50 px-3 py-2">
+              <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
+              <p className="text-xs font-bold text-red-700">{error}</p>
             </div>
           )}
         </div>
@@ -544,44 +457,44 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
 
       {/* QR Scanner Dialog */}
       <Dialog open={showScanner} onOpenChange={setShowScanner}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Scan Bunker QR Code</DialogTitle>
-            <DialogDescription>
-              Scan a bunker:// connection QR code from your remote signer
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="rounded-none border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-0 max-w-sm gap-0 overflow-hidden">
+          <div className="bg-on-background text-surface px-5 py-4">
+            <h2 className="text-base font-black uppercase tracking-tighter">Scan Bunker QR</h2>
+            <p className="text-xs font-medium text-surface/60 mt-0.5 uppercase tracking-wide">
+              Point camera at bunker:// QR code
+            </p>
+          </div>
 
-          <div className="mt-4 mb-4">
+          <div className="p-5 space-y-4">
             {scanError ? (
-              <div className="p-4 mb-4 text-sm text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                {scanError}
-                <Button
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 border-2 border-red-600 bg-red-50 px-3 py-2">
+                  <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
+                  <p className="text-xs font-bold text-red-700">{scanError}</p>
+                </div>
+                <button
                   onClick={() => setScanError(null)}
-                  variant="outline"
-                  size="sm"
-                  className="ml-2 mt-2"
+                  className="w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(29,28,19,1)] transition-all"
                 >
                   Try Again
-                </Button>
+                </button>
               </div>
             ) : (
-              <div className="relative w-full aspect-square overflow-hidden rounded-lg">
+              <div className="border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] overflow-hidden aspect-square">
                 <Scanner
                   onScan={handleScan}
                   onError={handleScanError}
-                  constraints={{
-                    facingMode: "environment",
-                  }}
+                  constraints={{ facingMode: "environment" }}
                 />
               </div>
             )}
-          </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowScanner(false)}>
+            <button
+              onClick={() => setShowScanner(false)}
+              className="w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(29,28,19,1)] transition-all"
+            >
               Cancel
-            </Button>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
