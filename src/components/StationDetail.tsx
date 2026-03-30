@@ -4,6 +4,8 @@ import type { NDKStation } from "../lib/NDKStation";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { useComments } from "../lib/hooks/useComments";
+import { useFavorites } from "../lib/hooks/useFavorites";
+import { FavoritesDropdown } from "./FavoritesDropdown";
 import { Comment } from "./Comment";
 import { CommentForm } from "./CommentForm";
 import { SectionHeader } from "./SectionHeader";
@@ -61,6 +63,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 }) => {
   const currentUser = useNDKCurrentUser();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const {
     reactions,
     zaps,
@@ -211,6 +214,15 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                   <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")} style={userHasCommented ? { fontVariationSettings: "'FILL' 1" } : {}}>comment</span>
                   {socialComments > 0 && <span className="text-[11px] font-bold">{formatCount(socialComments)}</span>}
                 </button>
+                {isLoggedIn && station.pubkey && station.stationId && (
+                  <FavoritesDropdown
+                    station={station}
+                    onAddToList={async (listId) => { await addFavorite(station, listId); }}
+                    onRemoveFromList={async () => { await removeFavorite(station); }}
+                    triggerClassName="flex items-center justify-center hover:text-primary transition-colors"
+                    iconSize="text-[18px]"
+                  />
+                )}
               </div>
               <button
                 onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`)}

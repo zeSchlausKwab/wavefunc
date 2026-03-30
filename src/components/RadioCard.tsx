@@ -170,8 +170,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
       station={station}
       onAddToList={handleAddToList}
       onRemoveFromList={handleRemoveFromList}
-      trigger={<span className="material-symbols-outlined text-xl">star</span>}
-      triggerClassName="px-4 h-full flex items-center justify-center cursor-pointer"
+      triggerClassName="px-4 h-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
     />
   ) : (
     <div className="px-4 h-full flex items-center justify-center opacity-30">
@@ -348,15 +347,14 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             >
               <span className="material-symbols-outlined text-[16px] md:text-[18px]">share</span>
             </button>
-            <div className="hover:bg-primary hover:text-white transition-colors">
+            <div>
               {isLoggedIn && station.pubkey && station.stationId ? (
                 <FavoritesDropdown
                   station={station}
                   onAddToList={handleAddToList}
                   onRemoveFromList={handleRemoveFromList}
-                  trigger={
-                    <span className="material-symbols-outlined text-[16px] md:text-[18px]">star</span>
-                  }
+                  triggerClassName="py-1.5 md:py-2.5 w-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
+                  iconSize="text-[16px] md:text-[18px]"
                 />
               ) : (
                 <div className="py-1.5 md:py-2.5 flex items-center justify-center opacity-30">
@@ -484,7 +482,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               >
                 <span className="material-symbols-outlined scale-75">share</span>
               </button>
-              <div className="flex-1 flex items-center justify-center hover:bg-primary hover:text-white transition-colors">
+              <div className="flex-1 flex items-center justify-center">
                 {favButton}
               </div>
             </div>
@@ -678,14 +676,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             >
               <span className="material-symbols-outlined text-xl">share</span>
             </button>
-            <div className="flex items-stretch hover:bg-primary hover:text-white transition-colors">
+            <div className="flex items-stretch">
               {isLoggedIn && station.pubkey && station.stationId ? (
                 <FavoritesDropdown
                   station={station}
                   onAddToList={handleAddToList}
                   onRemoveFromList={handleRemoveFromList}
-                  trigger={<span className="material-symbols-outlined text-xl">star</span>}
-                  triggerClassName="px-4 h-full flex items-center justify-center cursor-pointer"
+                  triggerClassName="px-4 h-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
                 />
               ) : (
                 <div className="px-4 flex items-center justify-center opacity-30">
