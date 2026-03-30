@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { LoginSessionButtons } from "./LoginSessionButtom";
+import { isAdmin } from "../config/admins";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -13,6 +15,9 @@ const navLinkActive =
   "font-bold tracking-tighter uppercase text-surface bg-primary px-4 py-1 -skew-x-12 transition-all whitespace-nowrap";
 
 export function FloatingHeader({ searchInput, setSearchInput, onSearch }: FloatingHeaderProps) {
+  const currentUser = useNDKCurrentUser();
+  const adminUser = isAdmin(currentUser?.pubkey);
+
   return (
     <header className="hidden md:flex fixed top-0 left-0 right-0 z-[60] items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
 
@@ -37,6 +42,11 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
           <Link to="/community" className={navLinkBase} activeProps={{ className: navLinkActive }}>
             ASSEMBLY
           </Link>
+          {adminUser && (
+            <Link to="/admin" className={navLinkBase} activeProps={{ className: navLinkActive }}>
+              CONTROL
+            </Link>
+          )}
         </nav>
       </div>
 

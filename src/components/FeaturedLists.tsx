@@ -158,7 +158,7 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
 // ─── FeaturedLists ────────────────────────────────────────────────────────────
 
 export function FeaturedLists() {
-  const { featuredLists, isLoading, appPubkey } = useFeaturedLists();
+  const { featuredLists, isLoading } = useFeaturedLists();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [count, setCount] = useState(0);
@@ -169,8 +169,6 @@ export function FeaturedLists() {
     setCurrent(api.selectedScrollSnap());
     api.on("select", () => setCurrent(api.selectedScrollSnap()));
   }, [api]);
-
-  if (!appPubkey && !isLoading) return null;
 
   if (isLoading) {
     return (

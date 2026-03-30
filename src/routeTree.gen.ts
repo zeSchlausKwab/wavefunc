@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MusicbrainzRouteImport } from './routes/musicbrainz'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StationNaddrRouteImport } from './routes/station.$naddr'
 import { Route as ProfilePubkeyRouteImport } from './routes/profile.$pubkey'
@@ -38,6 +39,11 @@ const CommunityRoute = CommunityRouteImport.update({
   path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,6 +67,7 @@ const BrowseGenresRoute = BrowseGenresRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/community'
     | '/favorites'
     | '/musicbrainz'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/community'
     | '/favorites'
     | '/musicbrainz'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/community'
     | '/favorites'
     | '/musicbrainz'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   CommunityRoute: typeof CommunityRoute
   FavoritesRoute: typeof FavoritesRoute
   MusicbrainzRoute: typeof MusicbrainzRoute
@@ -164,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   CommunityRoute: CommunityRoute,
   FavoritesRoute: FavoritesRoute,
   MusicbrainzRoute: MusicbrainzRoute,

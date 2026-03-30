@@ -1,76 +1,74 @@
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
+import { useAdminFeatures } from "./useAdminFeatures";
 
 /**
- * Hook to fetch the app's public key from the API
- */
-export function useAppPubkey() {
-  const [appPubkey, setAppPubkey] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchAppPubkey() {
-      try {
-        const response = await fetch("/api/app-pubkey");
-        if (!response.ok) {
-          throw new Error("Failed to fetch app pubkey");
-        }
-        const data = await response.json();
-        setAppPubkey(data.pubkey);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-        console.error("Failed to fetch app pubkey:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchAppPubkey();
-  }, []);
-
-  return { appPubkey, isLoading, error };
-}
-
-/**
- * Hook for subscribing to featured favorites lists (lists created by the app)
- * These are favorites lists signed by the app pubkey
+ * Resolves the admin's featured-lists feature events into actual NDKWFFavorites objects.
+ *
+ * Flow:
+ *   1. Fetch kind-30078 events from ADMIN_PUBKEYS labeled wavefunc:featured:lists
+ *   2. Collect all `a`-tag references (30078:pubkey:favId)
+ *   3. Fetch those favorites lists from the relay
+ *   4. Return them ordered by their position in the feature events
  */
 export function useFeaturedLists() {
-  const {
-    appPubkey,
-    isLoading: pubkeyLoading,
-    error: pubkeyError,
-  } = useAppPubkey();
+  const { features, isLoading: featuresLoading } = useAdminFeatures("lists");
+
+  // All referenced favorites-list addresses, deduplicated, preserving order
+  const listAddresses = useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    features.forEach((f) =>
+      f.getRefs().forEach((ref) => {
+        if (!seen.has(ref)) {
+          seen.add(ref);
+          ordered.push(ref);
+        }
+      })
+    );
+    return ordered;
+  }, [features]);
 
   const filters: NDKFilter[] = useMemo(() => {
-    if (!appPubkey) {
+    if (listAddresses.length === 0) {
       return [{ kinds: [30078], authors: [], limit: 0 }];
     }
-
-    return [
-      {
-        kinds: [30078],
-        authors: [appPubkey],
-        "#l": ["wavefunc_user_favourite_list"],
-      },
+    const authors = [
+      ...new Set(
+        listAddresses.map((addr) => addr.split(":")[1]).filter(Boolean)
+      ),
     ];
-  }, [appPubkey]);
+    const dTags = [
+      ...new Set(
+        listAddresses.map((addr) => addr.split(":")[2]).filter(Boolean)
+      ),
+    ];
+    return [{ kinds: [30078], authors, "#d": dTags, "#l": ["wavefunc_user_favourite_list"] }];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(listAddresses)]);
 
-  const { events, eose } = useSubscribe(filters, undefined, [appPubkey]);
+  const { events, eose } = useSubscribe(filters, undefined, [
+    JSON.stringify(listAddresses),
+  ]);
 
+  // Index by address, then restore the order defined by the admin
   const featuredLists = useMemo(() => {
-    if (!appPubkey) return [];
-    return events.map((event) => wrapEvent(event) as NDKWFFavorites);
-  }, [events, appPubkey]);
+    const byAddress = new Map<string, NDKWFFavorites>();
+    events.forEach((e) => {
+      const fav = wrapEvent(e) as NDKWFFavorites;
+      if (fav.pubkey && fav.favoritesId) {
+        byAddress.set(`30078:${fav.pubkey}:${fav.favoritesId}`, fav);
+      }
+    });
+    return listAddresses
+      .map((addr) => byAddress.get(addr))
+      .filter((f): f is NDKWFFavorites => Boolean(f));
+  }, [events, listAddresses]);
 
   return {
     featuredLists,
-    isLoading: pubkeyLoading,
-    error: pubkeyError,
-    appPubkey,
-    eose,
+    isLoading: featuresLoading || (listAddresses.length > 0 && !eose),
   };
 }
