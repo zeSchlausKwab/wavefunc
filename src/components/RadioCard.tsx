@@ -1,6 +1,34 @@
 import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { Edit3, MoreVertical, Trash2 } from "lucide-react";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+
+// Handles broken URLs by falling back to the placeholder on load error.
+// Off-black bg (#252418) is visibly distinct from the border color (#1d1c13).
+function StationThumbnail({
+  src,
+  alt,
+  imgClassName,
+  iconSize = "text-8xl",
+}: {
+  src?: string | null;
+  alt: string;
+  imgClassName?: string;
+  iconSize?: string;
+}) {
+  const [error, setError] = useState(false);
+  const handleError = useCallback(() => setError(true), []);
+
+  if (src && !error) {
+    return (
+      <img src={src} alt={alt} className={imgClassName} onError={handleError} />
+    );
+  }
+  return (
+    <div className="w-full h-full bg-[#252418] flex items-center justify-center">
+      <span className={cn("material-symbols-outlined text-white/15", iconSize)}>radio</span>
+    </div>
+  );
+}
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
@@ -200,14 +228,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           {/* ── Mobile: horizontal layout (< md) ── */}
           <div className="flex md:hidden">
             <div className="w-20 h-20 shrink-0 relative overflow-hidden border-r-4 border-on-surface">
-              {station.thumbnail ? (
-                <img src={station.thumbnail} alt={station.name || "Station"}
-                  className={cn("w-full h-full object-cover", isCurrentlyPlaying ? "" : "grayscale contrast-150")} />
-              ) : (
-                <div className="w-full h-full bg-on-background flex items-center justify-center">
-                  <span className="material-symbols-outlined text-4xl text-surface/10">radio</span>
-                </div>
-              )}
+              <StationThumbnail
+                src={station.thumbnail}
+                alt={station.name || "Station"}
+                imgClassName="w-full h-full object-cover"
+                iconSize="text-4xl"
+              />
             </div>
             <div className="flex flex-1 items-center min-w-0 px-3 gap-2">
               <div className="flex flex-col justify-center min-w-0 flex-1">
@@ -235,20 +261,11 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
           {/* Thumbnail + play */}
           <div className="hidden md:block h-40 relative overflow-hidden border-b-4 border-on-surface">
-            {station.thumbnail ? (
-              <img
-                src={station.thumbnail}
-                alt={station.name || "Station"}
-                className={cn(
-                  "w-full h-full object-cover transition-all",
-                  isCurrentlyPlaying ? "" : "grayscale contrast-150"
-                )}
-              />
-            ) : (
-              <div className="w-full h-full bg-on-background flex items-center justify-center">
-                <span className="material-symbols-outlined text-8xl text-surface/10">radio</span>
-              </div>
-            )}
+            <StationThumbnail
+              src={station.thumbnail}
+              alt={station.name || "Station"}
+              imgClassName="w-full h-full object-cover transition-all"
+            />
             <button
               className="absolute bottom-2 right-2 w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shadow-[3px_3px_0px_0px_rgba(29,28,19,1)]"
               onClick={handlePlayClick}
@@ -382,21 +399,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
           {/* Artwork + index */}
           <div className="flex-shrink-0 relative">
-            <div className="w-full md:w-48 aspect-square bg-on-background overflow-hidden border-b-4 md:border-b-0 md:border-r-4 border-on-background">
-              {station.thumbnail ? (
-                <img
-                  src={station.thumbnail}
-                  alt={station.name || "Station"}
-                  className={cn(
-                    "w-full h-full object-cover transition-all duration-300",
-                    isCurrentlyPlaying ? "" : "grayscale hover:grayscale-0"
-                  )}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="material-symbols-outlined text-8xl text-surface/10">radio</span>
-                </div>
-              )}
+            <div className="w-full md:w-48 aspect-square overflow-hidden border-b-4 md:border-b-0 md:border-r-4 border-on-background">
+              <StationThumbnail
+                src={station.thumbnail}
+                alt={station.name || "Station"}
+                imgClassName="w-full h-full object-cover transition-all duration-300"
+              />
               {displayIndex && (
                 <div className="absolute top-0 left-0 bg-primary text-white font-black text-2xl px-3 py-1 border-r-4 border-b-4 border-on-background">
                   {displayIndex}
@@ -536,14 +544,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           <span className="text-xs font-black text-outline shrink-0 w-5 text-right">{displayIndex ?? "—"}</span>
 
           {/* Thumbnail */}
-          <div className="w-9 h-9 shrink-0 bg-on-background overflow-hidden border border-on-background/20">
-            {station.thumbnail ? (
-              <img src={station.thumbnail} alt={station.name || "Station"} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="material-symbols-outlined text-base text-surface/20">radio</span>
-              </div>
-            )}
+          <div className="w-9 h-9 shrink-0 overflow-hidden border border-on-background/20">
+            <StationThumbnail
+              src={station.thumbnail}
+              alt={station.name || "Station"}
+              imgClassName="w-full h-full object-cover"
+              iconSize="text-base"
+            />
           </div>
 
           {/* Name + meta */}
