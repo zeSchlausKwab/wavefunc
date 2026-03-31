@@ -17,6 +17,28 @@ command -v go >/dev/null 2>&1 || { echo "❌ Go not found"; exit 1; }
 echo "✓ Using Bun: $(which bun)"
 echo "✓ Using Go: $(which go)"
 
+# Install ffmpeg if missing (needed by yt-dlp for audio extraction and WebM encoding)
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "📦 Installing ffmpeg..."
+    if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get install -y ffmpeg
+    elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y ffmpeg
+    else
+        echo "⚠️  Cannot install ffmpeg automatically — install it manually"
+    fi
+else
+    echo "✓ ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
+fi
+
+# Install or update yt-dlp binary
+YTDLP_BIN="contextvm/bin/yt-dlp"
+echo "📦 Installing/updating yt-dlp..."
+mkdir -p contextvm/bin
+curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "$YTDLP_BIN"
+chmod +x "$YTDLP_BIN"
+echo "✓ yt-dlp: $("$YTDLP_BIN" --version)"
+
 # Extract deployment archive
 echo "📦 Extracting files..."
 tar -xzf deploy.tar.gz

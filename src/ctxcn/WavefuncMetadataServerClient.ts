@@ -232,10 +232,24 @@ export interface SearchYouTubeOutput {
   results: YouTubeResult[];
 }
 
-export interface DownloadAudioInput {
+export type DownloadFormat = "audio" | "360p" | "480p" | "720p";
+
+export interface PrepareDownloadInput {
   videoId: string;
-  blossomServer?: string;
-  format?: "audio" | "video";
+  format?: DownloadFormat;
+}
+
+export interface PrepareDownloadOutput {
+  tempId: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface UploadToBlossomInput {
+  tempId: string;
+  blossomUrl: string;
+  signedAuthEvent: string;
 }
 
 export interface DownloadAudioOutput {
@@ -253,7 +267,8 @@ export type WavefuncMetadataServer = {
   SearchLabels: (query: string, limit?: number) => Promise<SearchLabelsOutput>;
   SearchRecordingsCombined: (recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number) => Promise<SearchRecordingsCombinedOutput>;
   SearchYouTube: (query: string, limit?: number) => Promise<SearchYouTubeOutput>;
-  DownloadAudio: (videoId: string, blossomServer?: string) => Promise<DownloadAudioOutput>;
+  PrepareDownload: (videoId: string, format?: DownloadFormat, onprogress?: (p: { progress: number; message?: string }) => void) => Promise<PrepareDownloadOutput>;
+  UploadToBlossom: (tempId: string, blossomUrl: string, signedAuthEvent: string, onprogress?: (p: { progress: number; message?: string }) => void) => Promise<DownloadAudioOutput>;
 };
 
 export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
@@ -412,22 +427,36 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
   }
 
   /**
-   * Download audio from a YouTube video and upload it to a Blossom server.
-   * Returns the Blossom URL to attach to the song's NDK event.
-   * This operation may take 30–60 seconds.
-   * @param {string} videoId YouTube video ID
-   * @param {string} blossomServer [optional] Override the default Blossom server
+   * Download and prepare a media file server-side. Returns tempId + sha256
+   * so the client can sign a BUD-01 auth event before uploading.
+   * May take 30–120 seconds.
    */
-  async DownloadAudio(
+  async PrepareDownload(
     videoId: string,
-    blossomServer?: string,
-    onprogress?: (progress: { progress: number; message?: string }) => void,
-    format: "audio" | "video" = "audio"
+    format: DownloadFormat = "audio",
+    onprogress?: (progress: { progress: number; message?: string }) => void
+  ): Promise<PrepareDownloadOutput> {
+    return this.call(
+      "prepare_download",
+      { videoId, format },
+      { timeout: 10 * 60 * 1000, onprogress }
+    );
+  }
+
+  /**
+   * Upload a previously prepared file to a Blossom server using a client-signed
+   * BUD-01 kind 24242 auth event.
+   */
+  async UploadToBlossom(
+    tempId: string,
+    blossomUrl: string,
+    signedAuthEvent: string,
+    onprogress?: (progress: { progress: number; message?: string }) => void
   ): Promise<DownloadAudioOutput> {
     return this.call(
-      "download_audio",
-      { videoId, blossomServer, format },
-      { timeout: 10 * 60 * 1000, onprogress }  // 10 min ceiling, reset on each yt-dlp line
+      "upload_to_blossom",
+      { tempId, blossomUrl, signedAuthEvent },
+      { timeout: 5 * 60 * 1000, onprogress }
     );
   }
 }

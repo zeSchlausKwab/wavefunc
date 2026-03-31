@@ -1,7 +1,6 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { finalizeEvent } from "nostr-tools";
 
 // ─── yt-dlp binary resolution ─────────────────────────────────────────────────
 // Place the binary at contextvm/bin/yt-dlp (or set YTDLP_PATH).
@@ -12,6 +11,28 @@ import { finalizeEvent } from "nostr-tools";
 const LOCAL_BIN = join(dirname(fileURLToPath(import.meta.url)), "..", "bin", "yt-dlp");
 
 let resolvedBin: string | null = null;
+let cachedCaps: { audio: boolean; webm: boolean } | null = null;
+
+interface FfmpegCaps { audio: boolean; webm: boolean }
+
+async function ffmpegCaps(): Promise<FfmpegCaps> {
+  if (cachedCaps) return cachedCaps;
+
+  const which = Bun.spawn(["which", "ffmpeg"], { stdout: "pipe", stderr: "pipe" });
+  if ((await which.exited) !== 0) {
+    console.log("[yt-dlp] ffmpeg not found — using pre-merged formats");
+    return (cachedCaps = { audio: false, webm: false });
+  }
+
+  const enc = Bun.spawn(["ffmpeg", "-encoders"], { stdout: "pipe", stderr: "pipe" });
+  const out = await new Response(enc.stdout).text();
+  await enc.exited;
+
+  const audio = out.includes("libmp3lame");
+  const webm  = out.includes("libvpx-vp9");
+  console.log(`[yt-dlp] ffmpeg caps — mp3: ${audio}, webm/vp9: ${webm}`);
+  return (cachedCaps = { audio, webm });
+}
 
 async function ensureYtDlp(): Promise<string> {
   if (resolvedBin) return resolvedBin;
@@ -141,140 +162,259 @@ async function streamStderr(
   return full;
 }
 
+export interface PrepareDownloadResult {
+  tempId: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+}
+
+// In-memory store of downloaded files awaiting upload. TTL: 15 minutes.
+const tempStore = new Map<string, { dir: string; filePath: string; sha256: string; size: number; mimeType: string; expiresAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, entry] of tempStore) {
+    if (entry.expiresAt < now) {
+      try { rmSync(entry.dir, { recursive: true, force: true }); } catch {}
+      tempStore.delete(id);
+    }
+  }
+}, 60_000);
+
+export type DownloadFormat = "audio" | "360p" | "480p" | "720p";
+
+interface FormatSpec {
+  ext: string;
+  mimeType: string;
+  ytdlpArgs: string[];
+}
+
+// Selects yt-dlp args based on what ffmpeg codecs are actually available.
+// Falls back to pre-merged single-stream formats when codecs are missing.
+function getFormatSpec(format: DownloadFormat, outTemplate: string, videoUrl: string, caps: FfmpegCaps): FormatSpec {
+  const base = ["--no-playlist", "-o", outTemplate, videoUrl];
+  switch (format) {
+    case "audio":
+      if (caps.audio) {
+        return {
+          ext: "mp3",
+          mimeType: "audio/mpeg",
+          ytdlpArgs: ["-x", "--audio-format", "mp3", "--audio-quality", "5", ...base],
+        };
+      }
+      // No libmp3lame: native m4a, no postprocessing needed
+      return {
+        ext: "m4a",
+        mimeType: "audio/mp4",
+        ytdlpArgs: ["-f", "bestaudio[ext=m4a]/bestaudio", ...base],
+      };
+    case "360p":
+      if (caps.webm) {
+        // Only select VP9/webm-native streams — no H.264+AAC fallback into webm container.
+        // If no VP9 streams exist, fall back to pre-merged MP4 (no --merge-output-format).
+        return {
+          ext: "webm", // may actually produce .mp4 if fallback triggers — actualExt handles this
+          mimeType: "video/webm",
+          ytdlpArgs: ["-f", "bestvideo[height<=360][ext=webm]+bestaudio[ext=webm]/best[height<=360][ext=mp4]/best[height<=360]", ...base],
+        };
+      }
+      return {
+        ext: "mp4",
+        mimeType: "video/mp4",
+        ytdlpArgs: ["-f", "best[height<=360][ext=mp4]/best[height<=360]", ...base],
+      };
+    case "480p":
+      if (caps.webm) {
+        return {
+          ext: "webm",
+          mimeType: "video/webm",
+          ytdlpArgs: ["-f", "bestvideo[height<=480][ext=webm]+bestaudio[ext=webm]/best[height<=480][ext=mp4]/best[height<=480]", ...base],
+        };
+      }
+      return {
+        ext: "mp4",
+        mimeType: "video/mp4",
+        ytdlpArgs: ["-f", "best[height<=480][ext=mp4]/best[height<=480]", ...base],
+      };
+    case "720p":
+      if (caps.audio || caps.webm) {
+        // MP4 mux: ffmpeg just needs to remux (no encode), any ffmpeg build handles this.
+        return {
+          ext: "mp4",
+          mimeType: "video/mp4",
+          ytdlpArgs: ["-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]", "--merge-output-format", "mp4", ...base],
+        };
+      }
+      return {
+        ext: "mp4",
+        mimeType: "video/mp4",
+        ytdlpArgs: ["-f", "best[height<=720][ext=mp4]/best[height<=720]", ...base],
+      };
+  }
+}
+
 /**
- * Download a video/audio track via yt-dlp, then upload to a Blossom server
- * using BUD-01 auth signed by the server's private key.
+ * Download a video/audio track via yt-dlp and store it temporarily.
+ * Returns a tempId + sha256 so the client can sign the BUD-01 auth event.
  *
- * format: "audio" → MP3 (default), "video" → MP4 (best quality up to 720p).
- * onProgress is called with each log line so the MCP layer can forward it as
- * a progress notification (which also resets the request timeout).
+ * format:
+ *   "audio" → MP3
+ *   "360p"  → WebM/VP9 ≤360p (smallest video, ~10–30 MB)
+ *   "480p"  → WebM/VP9 ≤480p (~20–60 MB)
+ *   "720p"  → MP4/H.264 ≤720p (~80–200 MB)
  */
-export async function downloadAndUploadAudio(
+export async function prepareDownload(
   videoId: string,
-  blossomServer: string,
-  serverPrivKeyHex: string,
-  onProgress?: (message: string) => void,
-  format: "audio" | "video" = "audio"
-): Promise<AudioUploadResult> {
+  format: DownloadFormat = "audio",
+  onProgress?: (message: string) => void
+): Promise<PrepareDownloadResult> {
   const tmpDir = `/tmp/wf-ytdlp-${Date.now()}-${videoId}`;
   mkdirSync(tmpDir, { recursive: true });
-
-  const isVideo = format === "video";
-  const ext = isVideo ? "mp4" : "mp3";
-  const mimeType = isVideo ? "video/mp4" : "audio/mpeg";
-  const contentType = isVideo ? "video/mp4" : "audio/mpeg";
 
   try {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const outTemplate = `${tmpDir}/${videoId}.%(ext)s`;
 
-    console.log(`[download] Starting yt-dlp for ${videoId} (format: ${format})`);
-    onProgress?.(`Starting ${format} download: https://www.youtube.com/watch?v=${videoId}`);
+    const caps = await ffmpegCaps();
+    const spec = getFormatSpec(format, outTemplate, videoUrl, caps);
+
+    console.log(`[prepare_download] Starting yt-dlp for ${videoId} (format: ${format}, ext: ${spec.ext})`);
+    onProgress?.(`Starting download [${spec.mimeType}]: https://www.youtube.com/watch?v=${videoId}`);
 
     const bin = await ensureYtDlp();
+    const args = [bin, "--verbose", ...spec.ytdlpArgs];
 
-    const args = isVideo
-      ? [
-          bin,
-          "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
-          "--merge-output-format", "mp4",
-          "--no-playlist",
-          "-o", outTemplate,
-          videoUrl,
-        ]
-      : [
-          bin,
-          "-x",
-          "--audio-format", "mp3",
-          "--audio-quality", "5",
-          "--no-playlist",
-          "-o", outTemplate,
-          videoUrl,
-        ];
+    console.log(`[prepare_download] CMD: ${args.join(" ")}`);
 
     const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
 
-    // Stream stderr in real-time — each line resets the MCP timeout via onProgress
-    const [stderrFull, exitCode] = await Promise.all([
+    // yt-dlp writes everything (progress + errors) to stderr; stdout has the JSON info
+    // Collect both in parallel so neither pipe blocks
+    const [stderrFull, stdoutFull, exitCode] = await Promise.all([
       streamStderr(proc.stderr, "[yt-dlp]", onProgress),
+      new Response(proc.stdout).text(),
       proc.exited,
     ]);
 
     if (exitCode !== 0) {
-      throw new Error(`yt-dlp download failed (exit ${exitCode}): ${stderrFull.slice(0, 400)}`);
+      // Extract the most useful lines: ERROR and WARNING lines, plus last 10 lines for context
+      const lines = stderrFull.split("\n").filter((l) => l.trim());
+      const errorLines = lines.filter((l) => /ERROR|WARNING|Conversion|ffmpeg|PostProcessor/i.test(l));
+      const tail = lines.slice(-10);
+      const detail = [...new Set([...errorLines, ...tail])].join("\n");
+      console.error(`[prepare_download] FAILED (exit ${exitCode})\n--- stderr ---\n${stderrFull}\n--- stdout ---\n${stdoutFull}`);
+      rmSync(tmpDir, { recursive: true, force: true });
+      throw new Error(`yt-dlp failed (exit ${exitCode}):\n${detail}`);
     }
 
-    const filePath = `${tmpDir}/${videoId}.${ext}`;
+    // yt-dlp may produce a different extension than expected when falling back between formats.
+    // Use readdirSync (reliable in Bun) to find the actual output file.
+    const dirFiles = readdirSync(tmpDir);
+    console.log(`[prepare_download] Files in tmpDir: ${dirFiles.join(", ") || "(empty)"}`);
+
+    // Find the file yt-dlp produced — skip .part files (incomplete downloads)
+    const actualFile = dirFiles.find((f) => f.startsWith(videoId) && !f.endsWith(".part") && !f.endsWith(".ytdl"));
+    if (!actualFile) {
+      rmSync(tmpDir, { recursive: true, force: true });
+      throw new Error(`yt-dlp produced no output file. Dir contents: ${dirFiles.join(", ") || "(empty)"}`);
+    }
+
+    const filePath = `${tmpDir}/${actualFile}`;
+    const actualExt = actualFile.split(".").pop() ?? spec.ext;
+    const actualMime =
+      actualExt === "webm" ? "video/webm" :
+      actualExt === "mp4"  ? "video/mp4"  :
+      actualExt === "mp3"  ? "audio/mpeg" :
+      actualExt === "m4a"  ? "audio/mp4"  : "application/octet-stream";
+
+    console.log(`[prepare_download] Output: ${actualFile} (${actualMime})`);
+
     const file = Bun.file(filePath);
 
-    if (!(await file.exists())) {
-      throw new Error(`Downloaded file not found at ${filePath}`);
-    }
-
-    console.log(`[download] Download complete, reading file...`);
-    onProgress?.("Download complete, preparing upload...");
+    console.log(`[prepare_download] Reading file for hash...`);
+    onProgress?.("Download complete, computing hash...");
 
     const fileData = new Uint8Array(await file.arrayBuffer());
     const sizeMb = (fileData.length / 1024 / 1024).toFixed(2);
-    console.log(`[download] File size: ${sizeMb} MB`);
-    onProgress?.(`File size: ${sizeMb} MB`);
+    console.log(`[prepare_download] File size: ${sizeMb} MB`);
+    onProgress?.(`Ready to upload: ${sizeMb} MB`);
 
-    // SHA-256 hash (required by BUD-01)
     const hasher = new Bun.CryptoHasher("sha256");
     hasher.update(fileData);
     const sha256 = hasher.digest("hex");
 
-    // Build BUD-01 kind 24242 auth event signed with server key
-    const privKeyBytes = Uint8Array.from(Buffer.from(serverPrivKeyHex.padStart(64, "0"), "hex"));
-    const now = Math.floor(Date.now() / 1000);
-    const authEvent = finalizeEvent(
-      {
-        kind: 24242,
-        created_at: now,
-        content: `Upload ${format}`,
-        tags: [
-          ["t", "upload"],
-          ["x", sha256],
-          ["expiration", String(now + 600)],
-        ],
-      },
-      privKeyBytes
-    );
-
-    const uploadUrl = blossomServer.replace(/\/$/, "") + "/upload";
-    console.log(`[download] Uploading to Blossom: ${uploadUrl}`);
-    onProgress?.(`Uploading to Blossom: ${uploadUrl}`);
-
-    const authHeader = "Nostr " + Buffer.from(JSON.stringify(authEvent)).toString("base64");
-    const res = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": contentType,
-        "Authorization": authHeader,
-      },
-      body: fileData,
+    const tempId = crypto.randomUUID();
+    tempStore.set(tempId, {
+      dir: tmpDir,
+      filePath,
+      sha256,
+      size: fileData.length,
+      mimeType: actualMime,
+      expiresAt: Date.now() + 15 * 60 * 1000,
     });
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blossom upload failed (${res.status}): ${body.slice(0, 300)}`);
-    }
-
-    const blob = (await res.json()) as any;
-    console.log(`[download] Upload complete: ${blob.url}`);
-    onProgress?.(`Upload complete: ${blob.url}`);
-
-    return {
-      url: blob.url,
-      sha256: blob.sha256 ?? sha256,
-      size: blob.size ?? fileData.length,
-      mimeType,
-    };
-  } finally {
-    try {
-      rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      // Best-effort cleanup
-    }
+    console.log(`[prepare_download] Stored as tempId=${tempId}, sha256=${sha256}`);
+    return { tempId, sha256, size: fileData.length, mimeType: actualMime };
+  } catch (err) {
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    throw err;
   }
+}
+
+/**
+ * Upload a previously prepared file to a Blossom server using a client-signed
+ * BUD-01 auth event. The auth event must contain `["x", sha256]` and be signed
+ * by the user's Nostr key.
+ */
+export async function uploadToBlossomWithSignedEvent(
+  tempId: string,
+  blossomUrl: string,
+  signedEventJson: string,
+  onProgress?: (message: string) => void
+): Promise<AudioUploadResult> {
+  const entry = tempStore.get(tempId);
+  if (!entry) throw new Error("Temp file not found or expired. Please download again.");
+
+  const file = Bun.file(entry.filePath);
+  if (!(await file.exists())) {
+    tempStore.delete(tempId);
+    throw new Error("Temp file missing. Please download again.");
+  }
+
+  const fileData = new Uint8Array(await file.arrayBuffer());
+  const uploadUrl = blossomUrl.replace(/\/$/, "") + "/upload";
+
+  console.log(`[upload] Uploading to Blossom: ${uploadUrl} (${(fileData.length / 1024 / 1024).toFixed(2)} MB)`);
+  onProgress?.(`Uploading to Blossom: ${uploadUrl}`);
+
+  const authHeader = "Nostr " + Buffer.from(signedEventJson).toString("base64");
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": entry.mimeType,
+      "Authorization": authHeader,
+    },
+    body: fileData,
+  });
+
+  // Clean up regardless of outcome
+  try { rmSync(entry.dir, { recursive: true, force: true }); } catch {}
+  tempStore.delete(tempId);
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Blossom upload failed (${res.status}): ${body.slice(0, 300)}`);
+  }
+
+  const blob = (await res.json()) as any;
+  console.log(`[upload] Upload complete: ${blob.url}`);
+  onProgress?.(`Upload complete: ${blob.url}`);
+
+  return {
+    url: blob.url,
+    sha256: blob.sha256 ?? entry.sha256,
+    size: blob.size ?? fileData.length,
+    mimeType: entry.mimeType,
+  };
 }

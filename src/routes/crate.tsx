@@ -1,14 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSubscribe } from "@nostr-dev-kit/react";
+import { useSubscribe, useNDK } from "@nostr-dev-kit/react";
+import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { NDKSong } from "../lib/NDKSong";
 import { NDKWFSongList } from "../lib/NDKWFSongList";
 import { addressesToParameterizedFilters, getAppDataSubscriptionOptions } from "../config/nostr";
 import { cn } from "@/lib/utils";
-import { getMetadataClient, type YouTubeResult } from "../ctxcn/WavefuncMetadataServerClient";
+import { getMetadataClient, type YouTubeResult, type DownloadFormat } from "../ctxcn/WavefuncMetadataServerClient";
+
+const VIDEO_FORMATS: { label: string; format: DownloadFormat; icon: string; hint: string }[] = [
+  { label: "360p", format: "360p", icon: "video_file", hint: "WebM ≈10–30 MB" },
+  { label: "480p", format: "480p", icon: "video_file", hint: "WebM ≈20–60 MB" },
+  { label: "720p", format: "720p", icon: "video_file", hint: "MP4 ≈80–200 MB" },
+];
 import { useUIStore } from "../stores/uiStore";
 import { YoutubeEmbed } from "../components/YoutubeEmbed";
+
+const BLOSSOM_SERVERS = [
+  { label: "blossom.band", url: "https://blossom.band" },
+  { label: "cdn.hzrd149.com", url: "https://cdn.hzrd149.com" },
+  { label: "files.v0l.io", url: "https://files.v0l.io" },
+];
 
 export const Route = createFileRoute("/crate")({
   component: Crate,
@@ -46,12 +59,18 @@ interface YouTubeAudioPanelProps {
 function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
   const { isLoggedIn } = useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);
-  const [phase, setPhase] = useState<"searching" | "results" | "downloading" | "error">("searching");
+  const { ndk } = useNDK();
+  const [phase, setPhase] = useState<"searching" | "results" | "downloading" | "uploading" | "error">("searching");
   const [results, setResults] = useState<YouTubeResult[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string | null>(null);
   const [watchingId, setWatchingId] = useState<string | null>(null);
+  const [blossomUrl, setBlossomUrl] = useState(BLOSSOM_SERVERS[0]!.url);
+  const [customBlossom, setCustomBlossom] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  const effectiveBlossomUrl = showCustom ? customBlossom : blossomUrl;
 
   useEffect(() => {
     if (!isLoggedIn) { pulseLogin(); onClose(); return; }
@@ -62,18 +81,47 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
       .catch((err) => { setErrorMsg(err.message ?? "Search failed"); setPhase("error"); });
   }, []);
 
-  const handleDownload = async (result: YouTubeResult, format: "audio" | "video") => {
+  const handleDownload = async (result: YouTubeResult, format: DownloadFormat) => {
     if (!isLoggedIn) { pulseLogin(); return; }
+    if (!ndk?.signer) { setErrorMsg("No signer available — connect your wallet first"); setPhase("error"); return; }
+
     setDownloadingId(result.videoId);
     setProgressMsg(null);
     setPhase("downloading");
+
     try {
-      const { url } = await getMetadataClient().DownloadAudio(
+      // Step 1: server downloads the file and returns hash
+      const { tempId, sha256 } = await getMetadataClient().PrepareDownload(
         result.videoId,
-        undefined,
-        (p) => setProgressMsg(p.message ?? null),
-        format
+        format,
+        (p) => setProgressMsg(p.message ?? null)
       );
+
+      // Step 2: client signs BUD-01 kind 24242 auth event
+      setPhase("uploading");
+      setProgressMsg("Waiting for signature...");
+      const now = Math.floor(Date.now() / 1000);
+      const authEvent = new NDKEvent(ndk);
+      authEvent.kind = 24242;
+      authEvent.content = `Upload ${format}`;
+      authEvent.created_at = now;
+      authEvent.tags = [
+        ["t", "upload"],
+        ["x", sha256],
+        ["expiration", String(now + 600)],
+      ];
+      await authEvent.sign();
+      const signedEventJson = JSON.stringify(authEvent.rawEvent());
+
+      // Step 3: server uploads using our signed auth
+      setProgressMsg("Uploading to Blossom...");
+      const { url } = await getMetadataClient().UploadToBlossom(
+        tempId,
+        effectiveBlossomUrl,
+        signedEventJson,
+        (p) => setProgressMsg(p.message ?? null)
+      );
+
       await song.attachAudioAndPublish(url, result.videoId);
       onClose();
     } catch (err: any) {
@@ -84,25 +132,65 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
   };
 
   if (watchingId) {
-    return (
-      <YoutubeEmbed videoId={watchingId} onClose={() => setWatchingId(null)} />
-    );
+    return <YoutubeEmbed videoId={watchingId} onClose={() => setWatchingId(null)} />;
   }
 
   return (
-    <div className="border-t-2 border-on-background/10 bg-surface-container-high px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="border-t-2 border-on-background/10 bg-surface-container-high px-4 py-3 space-y-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-widest text-on-background/50 flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[12px]">smart_display</span>
           {phase === "searching" && "SEARCHING..."}
           {phase === "results" && `RESULTS_FOR: ${[song.title, song.artist].filter(Boolean).join(" — ")}`}
-          {phase === "downloading" && "DOWNLOADING_&_UPLOADING_TO_BLOSSOM..."}
+          {(phase === "downloading" || phase === "uploading") && "SAVING_TO_BLOSSOM..."}
           {phase === "error" && "ERROR"}
         </span>
         <button onClick={onClose} className="text-on-background/30 hover:text-on-background transition-colors">
           <span className="material-symbols-outlined text-[14px]">close</span>
         </button>
       </div>
+
+      {/* Blossom server picker (only in results phase) */}
+      {phase === "results" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-on-background/40 shrink-0">BLOSSOM:</span>
+          {BLOSSOM_SERVERS.map((s) => (
+            <button
+              key={s.url}
+              onClick={() => { setBlossomUrl(s.url); setShowCustom(false); }}
+              className={cn(
+                "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
+                !showCustom && blossomUrl === s.url
+                  ? "border-on-background bg-on-background text-surface"
+                  : "border-on-background/20 hover:border-on-background/60"
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+          <button
+            onClick={() => setShowCustom((v) => !v)}
+            className={cn(
+              "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
+              showCustom
+                ? "border-on-background bg-on-background text-surface"
+                : "border-on-background/20 hover:border-on-background/60"
+            )}
+          >
+            CUSTOM
+          </button>
+          {showCustom && (
+            <input
+              type="url"
+              value={customBlossom}
+              onChange={(e) => setCustomBlossom(e.target.value)}
+              placeholder="https://your-blossom-server.com"
+              className="flex-1 min-w-[200px] bg-transparent text-[9px] font-mono border-b border-on-background/40 outline-none py-0.5 placeholder:text-on-background/25"
+            />
+          )}
+        </div>
+      )}
 
       {phase === "searching" && (
         <div className="flex items-center gap-2 py-3 text-on-background/40">
@@ -120,14 +208,10 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
           {results.map((r) => {
             const isDownloading = downloadingId === r.videoId;
             return (
-              <div key={r.videoId} className="flex items-center gap-2.5 px-2 py-1.5 border border-transparent hover:border-on-background/20 group/yt">
+              <div key={r.videoId} className="flex items-center gap-2.5 px-2 py-1.5 border border-transparent hover:border-on-background/20">
                 {r.thumbnailUrl && (
-                  <img
-                    src={r.thumbnailUrl}
-                    alt=""
-                    className="w-12 h-9 object-cover shrink-0 bg-on-background/10"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
+                  <img src={r.thumbnailUrl} alt="" className="w-12 h-9 object-cover shrink-0 bg-on-background/10"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-tight truncate">{r.title}</p>
@@ -136,7 +220,6 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
                     {r.duration && <span className="ml-2 tabular-nums">{formatDuration(r.duration)}</span>}
                   </p>
                 </div>
-                {/* Preview source */}
                 <button
                   onClick={() => setWatchingId(r.videoId)}
                   disabled={downloadingId !== null}
@@ -146,45 +229,44 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
                   <span className="material-symbols-outlined text-[12px]">play_arrow</span>
                   PREVIEW
                 </button>
-                {/* Download audio */}
                 <button
                   onClick={() => handleDownload(r, "audio")}
                   disabled={downloadingId !== null}
                   className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
-                  title="Download audio to Blossom"
+                  title="Save audio to Blossom"
                 >
-                  <span
-                    className="material-symbols-outlined text-[12px]"
-                    style={isDownloading ? { animation: "spin 0.8s linear infinite" } : {}}
-                  >
+                  <span className="material-symbols-outlined text-[12px]"
+                    style={isDownloading ? { animation: "spin 0.8s linear infinite" } : {}}>
                     {isDownloading ? "sync" : "audio_file"}
                   </span>
                   AUDIO
                 </button>
-                {/* Download video */}
-                <button
-                  onClick={() => handleDownload(r, "video")}
-                  disabled={downloadingId !== null}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
-                  title="Download video to Blossom"
-                >
-                  <span className="material-symbols-outlined text-[12px]">video_file</span>
-                  VIDEO
-                </button>
+                {VIDEO_FORMATS.map(({ label, format, hint }) => (
+                  <button
+                    key={format}
+                    onClick={() => handleDownload(r, format)}
+                    disabled={downloadingId !== null}
+                    className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
+                    title={hint}
+                  >
+                    <span className="material-symbols-outlined text-[12px]">video_file</span>
+                    {label}
+                  </button>
+                ))}
               </div>
             );
           })}
         </div>
       )}
 
-      {phase === "downloading" && (
+      {(phase === "downloading" || phase === "uploading") && (
         <div className="flex items-start gap-2 py-3 text-on-background/60">
           <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest">DOWNLOADING_&_UPLOADING...</p>
-            <p className="text-[9px] text-on-background/50 mt-0.5 truncate font-mono">
-              {progressMsg ?? "Starting..."}
+            <p className="text-[10px] font-bold uppercase tracking-widest">
+              {phase === "uploading" ? "UPLOADING_TO_BLOSSOM..." : "DOWNLOADING..."}
             </p>
+            <p className="text-[9px] text-on-background/50 mt-0.5 truncate font-mono">{progressMsg ?? "Starting..."}</p>
           </div>
         </div>
       )}
@@ -194,7 +276,7 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
           <span className="material-symbols-outlined text-[14px]">error</span>
           <p className="text-[10px] font-bold uppercase tracking-tight truncate">{errorMsg}</p>
           <button
-            onClick={() => { setPhase("searching"); setErrorMsg(null); }}
+            onClick={() => { setPhase("results"); setErrorMsg(null); setDownloadingId(null); }}
             className="ml-auto shrink-0 text-[9px] font-black uppercase tracking-widest border border-current px-2 py-0.5 hover:bg-destructive hover:text-white transition-colors"
           >
             RETRY

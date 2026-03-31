@@ -11,7 +11,7 @@ import {
   searchLabels,
   searchRecordingsCombined,
 } from "./tools/musicbrainz.ts";
-import { searchYouTube, downloadAndUploadAudio } from "./tools/ytdlp.ts";
+import { searchYouTube, prepareDownload, uploadToBlossomWithSignedEvent } from "./tools/ytdlp.ts";
 import {
   extractStreamMetadataInputSchema,
   extractStreamMetadataOutputSchema,
@@ -27,8 +27,10 @@ import {
   searchRecordingsCombinedOutputSchema,
   searchYouTubeInputSchema,
   searchYouTubeOutputSchema,
-  downloadAudioInputSchema,
-  downloadAudioOutputSchema,
+  prepareDownloadInputSchema,
+  prepareDownloadOutputSchema,
+  uploadToBlossomInputSchema,
+  uploadToBlossomOutputSchema,
 } from "./schemas.ts";
 
 // Configuration
@@ -364,24 +366,20 @@ async function main() {
     }
   );
 
-  // 10. Register Tool: Download and Upload to Blossom
+  // 10a. Register Tool: Prepare Download (server-side yt-dlp, returns hash for client to sign)
   mcpServer.registerTool(
-    "download_audio",
+    "prepare_download",
     {
-      title: "Download from Source and Upload to Blossom",
+      title: "Prepare Media Download",
       description:
-        "Downloads a video or audio track via yt-dlp and uploads it to a Blossom server. Use format='audio' (default) for MP3 or format='video' for MP4 (≤720p). Returns the Blossom URL to attach to a song event. This operation may take 30-120 seconds — progress notifications are sent throughout.",
-      inputSchema: downloadAudioInputSchema,
-      outputSchema: downloadAudioOutputSchema,
+        "Downloads a video or audio track via yt-dlp and stores it temporarily. Returns a tempId and SHA-256 hash so the client can sign a BUD-01 upload auth event. Call upload_to_blossom next. Valid for 15 minutes. May take 30–120 seconds.",
+      inputSchema: prepareDownloadInputSchema,
+      outputSchema: prepareDownloadOutputSchema,
     },
-    async ({ videoId, blossomServer, format }, extra) => {
+    async ({ videoId, format }, extra) => {
       try {
-        const server = blossomServer || BLOSSOM_SERVER;
         const progressToken = extra._meta?.progressToken;
         let progressCount = 0;
-
-        // Each log line is forwarded as a progress notification so the client's
-        // resetTimeoutOnProgress can keep the request alive during long downloads.
         const onProgress = async (message: string) => {
           if (progressToken === undefined) return;
           try {
@@ -389,19 +387,57 @@ async function main() {
               method: "notifications/progress",
               params: { progressToken, progress: ++progressCount, message },
             } as any);
-          } catch {
-            // Non-fatal — just logging
-          }
+          } catch {}
         };
 
-        const result = await downloadAndUploadAudio(videoId, server, SERVER_PRIVATE_KEY, onProgress, format ?? "audio");
+        const result = await prepareDownload(videoId, format ?? "audio", onProgress);
+        console.log(`✅ Prepared: tempId=${result.tempId}, sha256=${result.sha256}`);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error: any) {
+        console.error(`❌ prepare_download failed: ${error.message}`);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 10b. Register Tool: Upload to Blossom with client-signed auth event
+  mcpServer.registerTool(
+    "upload_to_blossom",
+    {
+      title: "Upload to Blossom",
+      description:
+        "Uploads a previously prepared file (from prepare_download) to a Blossom server using a client-signed BUD-01 kind 24242 auth event. The file is attributed to the client's Nostr key.",
+      inputSchema: uploadToBlossomInputSchema,
+      outputSchema: uploadToBlossomOutputSchema,
+    },
+    async ({ tempId, blossomUrl, signedAuthEvent }, extra) => {
+      try {
+        const progressToken = extra._meta?.progressToken;
+        let progressCount = 0;
+        const onProgress = async (message: string) => {
+          if (progressToken === undefined) return;
+          try {
+            await extra.sendNotification({
+              method: "notifications/progress",
+              params: { progressToken, progress: ++progressCount, message },
+            } as any);
+          } catch {}
+        };
+
+        const result = await uploadToBlossomWithSignedEvent(tempId, blossomUrl, signedAuthEvent, onProgress);
         console.log(`✅ Uploaded: ${result.url} (${result.size} bytes)`);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
           structuredContent: result,
         };
       } catch (error: any) {
-        console.error(`❌ Download/upload failed: ${error.message}`);
+        console.error(`❌ upload_to_blossom failed: ${error.message}`);
         return {
           content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
           isError: true,
@@ -437,7 +473,8 @@ async function main() {
   console.log("   - search_recordings_combined (advanced multi-field search)");
   console.log("   - search_labels");
   console.log("   - search_youtube");
-  console.log("   - download_audio");
+  console.log("   - prepare_download");
+  console.log("   - upload_to_blossom");
   console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
   console.log("💡 Press Ctrl+C to exit.\n");
 

@@ -352,26 +352,52 @@ export type SearchYouTubeOutput = {
 // Download Audio Tool
 // ============================================================================
 
-export const downloadAudioInputSchema = {
+export const prepareDownloadInputSchema = {
   videoId: z.string().describe("YouTube video ID"),
-  blossomServer: z.string().optional().describe("Blossom server URL (uses server default if omitted)"),
-  format: z.enum(["audio", "video"]).optional().describe("Download format: 'audio' (MP3, default) or 'video' (MP4)"),
+  format: z.enum(["audio", "360p", "480p", "720p"]).optional().describe(
+    "Download format: 'audio' (MP3, default), '360p' (WebM ~10–30 MB), '480p' (WebM ~20–60 MB), '720p' (MP4 ~80–200 MB)"
+  ),
 };
 
-export const downloadAudioOutputSchema = {
+export const prepareDownloadOutputSchema = {
+  tempId: z.string().describe("Temporary file ID — valid for 15 minutes, pass to upload_to_blossom"),
+  sha256: z.string().describe("SHA-256 hash of the file — use this in the BUD-01 auth event"),
+  size: z.number().describe("File size in bytes"),
+  mimeType: z.string().describe("MIME type of the file"),
+};
+
+export type PrepareDownloadInput = {
+  videoId: string;
+  format?: "audio" | "360p" | "480p" | "720p";
+};
+
+export type PrepareDownloadOutput = {
+  tempId: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+};
+
+export const uploadToBlossomInputSchema = {
+  tempId: z.string().describe("Temporary file ID returned by prepare_download"),
+  blossomUrl: z.string().describe("Blossom server base URL, e.g. https://blossom.band"),
+  signedAuthEvent: z.string().describe("JSON-serialized signed Nostr kind 24242 event (BUD-01 upload auth)"),
+};
+
+export const uploadToBlossomOutputSchema = {
   url: z.string().describe("Blossom URL of the uploaded file"),
   sha256: z.string().describe("SHA-256 hash of the file"),
   size: z.number().describe("File size in bytes"),
   mimeType: z.string(),
 };
 
-export type DownloadAudioInput = {
-  videoId: string;
-  blossomServer?: string;
-  format?: "audio" | "video";
+export type UploadToBlossomInput = {
+  tempId: string;
+  blossomUrl: string;
+  signedAuthEvent: string;
 };
 
-export type DownloadAudioOutput = {
+export type UploadToBlossomOutput = {
   url: string;
   sha256: string;
   size: number;
