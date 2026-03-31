@@ -5,6 +5,12 @@ import { NDKSong } from "../lib/NDKSong";
 import { CrateSaveButton } from "../components/CrateSaveButton";
 import { getAppDataSubscriptionOptions } from "../config/nostr";
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export const Route = createFileRoute("/signals")({
   component: Signals,
 });
@@ -41,17 +47,41 @@ function SignalRow({ song }: SignalRowProps) {
         <p className="font-black text-[13px] uppercase tracking-tighter truncate leading-tight">
           {song.title || "UNKNOWN_TRACK"}
         </p>
-        <p className="text-[10px] text-on-background/55 truncate leading-tight">
-          {song.artist || "Unknown Artist"}
-          {song.album && <span className="opacity-70"> · {song.album}</span>}
-        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-[10px] text-on-background/55 truncate leading-tight">
+            {song.artist || "Unknown Artist"}
+            {song.album && <span className="opacity-70"> · {song.album}</span>}
+          </p>
+          {song.genres.slice(0, 2).map((g) => (
+            <span key={g} className="text-[8px] font-black uppercase tracking-widest text-on-background/35 border border-on-background/20 px-1 leading-tight hidden sm:inline">
+              {g}
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Year */}
-      {song.releaseYear && (
-        <span className="shrink-0 text-[10px] font-bold text-on-background/40 tabular-nums hidden sm:block">
-          {song.releaseYear}
-        </span>
+      {/* Year + Duration */}
+      <div className="shrink-0 hidden sm:flex flex-col items-end gap-0.5">
+        {song.releaseYear && (
+          <span className="text-[10px] font-bold text-on-background/40 tabular-nums">{song.releaseYear}</span>
+        )}
+        {song.duration && (
+          <span className="text-[9px] font-bold text-on-background/30 tabular-nums">{formatDuration(song.duration)}</span>
+        )}
+      </div>
+
+      {/* MusicBrainz link */}
+      {song.mbid && (
+        <a
+          href={`https://musicbrainz.org/recording/${song.mbid}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 text-on-background/20 hover:text-on-background/60 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+          title="View on MusicBrainz"
+        >
+          <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+        </a>
       )}
 
       {/* Saver */}

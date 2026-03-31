@@ -14,7 +14,7 @@ export function useSongFavorites() {
       : false;
   }, [currentUser?.pubkey]);
 
-  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions({ closeOnEose: false }));
 
   const songLists = useMemo(() => {
     if (!currentUser?.pubkey) return [];

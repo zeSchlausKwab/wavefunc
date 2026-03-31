@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MusicbrainzRouteImport } from './routes/musicbrainz'
 import { Route as FavoritesRouteImport } from './routes/favorites'
@@ -20,6 +21,11 @@ import { Route as StationNaddrRouteImport } from './routes/station.$naddr'
 import { Route as ProfilePubkeyRouteImport } from './routes/profile.$pubkey'
 import { Route as BrowseGenresRouteImport } from './routes/browse.genres'
 
+const SignalsRoute = SignalsRouteImport.update({
+  id: '/signals',
+  path: '/signals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
+  '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
+    | '/signals'
     | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
+    | '/signals'
     | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
+    | '/signals'
     | '/browse/genres'
     | '/profile/$pubkey'
     | '/station/$naddr'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   FavoritesRoute: typeof FavoritesRoute
   MusicbrainzRoute: typeof MusicbrainzRoute
   SettingsRoute: typeof SettingsRoute
+  SignalsRoute: typeof SignalsRoute
   BrowseGenresRoute: typeof BrowseGenresRoute
   ProfilePubkeyRoute: typeof ProfilePubkeyRoute
   StationNaddrRoute: typeof StationNaddrRoute
@@ -162,6 +175,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signals': {
+      id: '/signals'
+      path: '/signals'
+      fullPath: '/signals'
+      preLoaderRoute: typeof SignalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   FavoritesRoute: FavoritesRoute,
   MusicbrainzRoute: MusicbrainzRoute,
   SettingsRoute: SettingsRoute,
+  SignalsRoute: SignalsRoute,
   BrowseGenresRoute: BrowseGenresRoute,
   ProfilePubkeyRoute: ProfilePubkeyRoute,
   StationNaddrRoute: StationNaddrRoute,
