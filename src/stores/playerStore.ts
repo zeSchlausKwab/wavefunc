@@ -3,6 +3,8 @@ import type { NDKStation, Stream } from "../lib/NDKStation";
 import Hls from "hls.js";
 import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
 import {
+  canPlayStreamInApp,
+  getDefaultSelectedStream,
   normalizeUrl,
   playWithAdapter,
   sortStreamsByPreference,
@@ -118,15 +120,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { currentStation, currentStream, audioElement } = get();
 
     // Validation
-    const allStreams = sortStreamsByPreference(station.streams);
-    const preferred = stream ? { ...stream, url: normalizeUrl(stream.url) } : null;
+    const allStreams = sortStreamsByPreference(station.streams).filter(
+      canPlayStreamInApp
+    );
+    const preferred =
+      stream && canPlayStreamInApp(stream)
+        ? { ...stream, url: normalizeUrl(stream.url) }
+        : null;
     const candidates = preferred
       ? [preferred, ...allStreams.filter((s) => s.url !== preferred.url)]
       : allStreams;
 
+    if (stream && !canPlayStreamInApp(stream)) {
+      set({
+        error: "This stream must be opened from its source",
+        isLoading: false,
+        isPlaying: false,
+      });
+      return;
+    }
+
     if (candidates.length === 0) {
       console.error("playerStore: No stream available!");
-      set({ error: "No stream available for this station" });
+      set({ error: "No in-app stream available for this station" });
       return;
     }
 
@@ -396,7 +412,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         // Set the station but don't auto-play (leave in pause mode)
         set({
           currentStation: station,
-          currentStream: station.streams[0] || null,
+          currentStream: getDefaultSelectedStream(station.streams) || null,
           isPlaying: false,
           isLoading: false,
         });

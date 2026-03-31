@@ -33,11 +33,17 @@ import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation, type Stream } from "../lib/NDKStation";
+import {
+  canPlayStreamInApp,
+  getDefaultSelectedStream,
+  openStreamExternally,
+} from "../lib/player/adapters";
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
+import { StreamSelector } from "./StreamSelector";
 import { ZapDialog } from "./ZapDialog";
 import { StreamQualityBar } from "./StreamQualityBar";
 import { Button } from "./ui/button";
@@ -57,9 +63,15 @@ const MIME_TO_FORMAT: Record<string, string> = {
   "audio/x-hls": "HLS",
 };
 
+function normalizeBitrate(bitrate?: number): number | undefined {
+  if (!bitrate || bitrate <= 0) return undefined;
+  return bitrate >= 1000 ? Math.round(bitrate / 1000) : Math.round(bitrate);
+}
+
 function streamFormatLabel(format: string, bitrate?: number): string {
   const name = MIME_TO_FORMAT[format.toLowerCase()] ?? format.split("/").pop()?.toUpperCase() ?? format.toUpperCase();
-  return bitrate && bitrate > 0 ? `${name} ${bitrate}K` : name;
+  const normalized = normalizeBitrate(bitrate);
+  return normalized ? `${name} ${normalized}K` : name;
 }
 
 export type RadioCardVariant = "tile" | "list" | "list-compact" | "search-result" | "featured-item";
@@ -89,16 +101,26 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showZapDialog, setShowZapDialog] = useState(false);
-  const [selectedStream] = useState<Stream | undefined>(
-    station.streams.find((s) => s.primary) || station.streams[0]
+  const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
+    () => getDefaultSelectedStream(station.streams)
   );
+
+  useEffect(() => {
+    setSelectedStream(getDefaultSelectedStream(station.streams));
+  }, [station.id, station.content]);
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
   const isOwner = currentUser?.pubkey === station.pubkey;
+  const selectedStreamRequiresExternal =
+    selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
   const handlePlayClick = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (selectedStream?.url && selectedStreamRequiresExternal) {
+      openStreamExternally(selectedStream.url);
+      return;
+    }
     if (isCurrentlyPlaying) pause();
     else playStation(station, selectedStream);
   };
@@ -143,6 +165,86 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     : isCurrentStation
       ? "LOW_VOLTAGE"
       : (selectedStream ? streamFormatLabel(selectedStream.format, selectedStream.quality?.bitrate) : "STDBY");
+
+  const renderStreamBadge = (className?: string) => {
+    const badge = (
+      <button
+        type="button"
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "inline-flex items-center gap-1.5 border px-1.5 py-1 text-[10px] font-black uppercase tracking-widest transition-colors",
+          selectedStreamRequiresExternal
+            ? "border-secondary-fixed-dim text-secondary-fixed-dim"
+            : isCurrentlyPlaying
+              ? "border-primary text-primary"
+              : "border-outline text-outline",
+          station.streams.length > 1 && "hover:bg-secondary-fixed-dim/10",
+          className
+        )}
+        title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
+      >
+        <span>{statusLabel}</span>
+        {selectedStreamRequiresExternal && (
+          <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+        )}
+        {station.streams.length > 1 && (
+          <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+        )}
+      </button>
+    );
+
+    if (station.streams.length <= 1) return badge;
+
+    return (
+      <StreamSelector
+        streams={station.streams}
+        selectedStreamUrl={selectedStream?.url}
+        onStreamSelect={setSelectedStream}
+        trigger={badge}
+      />
+    );
+  };
+
+  const renderQualitySelector = (className?: string) => {
+    const trigger = (
+      <button
+        type="button"
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "inline-flex items-center gap-2 rounded-none bg-transparent p-0 hover:bg-transparent",
+          className
+        )}
+        title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
+      >
+        <StreamQualityBar
+          stream={selectedStream}
+          isActive={isCurrentlyPlaying}
+          className="w-full"
+        />
+        {selectedStreamRequiresExternal && (
+          <span className="material-symbols-outlined text-[14px] text-secondary-fixed-dim">
+            open_in_new
+          </span>
+        )}
+        {station.streams.length > 1 && (
+          <span className="material-symbols-outlined text-[14px] text-on-background/50">
+            arrow_drop_down
+          </span>
+        )}
+      </button>
+    );
+
+    if (station.streams.length <= 1) return trigger;
+
+    return (
+      <StreamSelector
+        streams={station.streams}
+        selectedStreamUrl={selectedStream?.url}
+        onStreamSelect={setSelectedStream}
+        trigger={trigger}
+      />
+    );
+  };
 
   const nameDisplay = (station.name || "UNKNOWN_STATION")
     .toUpperCase()
@@ -245,13 +347,25 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                     {station.genres[0].toUpperCase()}
                   </span>
                 )}
+                <div className="mt-1 overflow-hidden">{renderStreamBadge("max-w-full truncate")}</div>
               </div>
               <button
                 className="w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shrink-0"
-                onClick={handlePlayClick} title={isCurrentlyPlaying ? "Pause" : "Play"}
+                onClick={handlePlayClick}
+                title={
+                  selectedStreamRequiresExternal
+                    ? "Open stream source"
+                    : isCurrentlyPlaying
+                      ? "Pause"
+                      : "Play"
+                }
               >
                 <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                  {selectedStreamRequiresExternal
+                    ? "open_in_new"
+                    : isCurrentlyPlaying
+                      ? "pause"
+                      : "play_arrow"}
                 </span>
               </button>
             </div>
@@ -269,10 +383,20 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <button
               className="absolute bottom-2 right-2 w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shadow-[3px_3px_0px_0px_rgba(29,28,19,1)]"
               onClick={handlePlayClick}
-              title={isCurrentlyPlaying ? "Pause" : "Play"}
+              title={
+                selectedStreamRequiresExternal
+                  ? "Open stream source"
+                  : isCurrentlyPlaying
+                    ? "Pause"
+                    : "Play"
+              }
             >
               <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                {selectedStreamRequiresExternal
+                  ? "open_in_new"
+                  : isCurrentlyPlaying
+                    ? "pause"
+                    : "play_arrow"}
               </span>
             </button>
           </div>
@@ -305,12 +429,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                 </h3>
               )}
             </div>
-              <span className={cn(
-                "text-[10px] font-bold px-1 border shrink-0",
-                isCurrentlyPlaying ? "text-primary border-primary" : "text-outline border-outline"
-              )}>
-                {statusLabel}
-              </span>
+              <div className="shrink-0">{renderStreamBadge()}</div>
             </div>
             <p className="text-xs font-bold text-tertiary uppercase tracking-widest mb-4">
               MAINTAINER: {(station.pubkey || "UNKNOWN").slice(0, 8).toUpperCase()}
@@ -499,24 +618,50 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               <button
                 className="w-16 h-16 bg-primary text-white flex items-center justify-center border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
                 onClick={handlePlayClick}
-                title={isCurrentlyPlaying ? "Pause" : "Play"}
+                title={
+                  selectedStreamRequiresExternal
+                    ? "Open stream source"
+                    : isCurrentlyPlaying
+                      ? "Pause"
+                      : "Play"
+                }
               >
                 <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                  {selectedStreamRequiresExternal
+                    ? "open_in_new"
+                    : isCurrentlyPlaying
+                      ? "pause"
+                      : "play_arrow"}
                 </span>
               </button>
-              <div className="flex-grow flex items-end justify-between h-12 gap-1 px-2">
-                {([20, 60, 40, 80, 30, 50] as const).map((h, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "w-full transition-all",
-                      i === 1 ? "bg-primary" : i === 4 ? "bg-secondary-fixed-dim" : "bg-on-background",
-                      isCurrentlyPlaying && "animate-pulse"
-                    )}
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
+              <div className="min-w-0 flex-grow space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  {renderStreamBadge("min-w-0")}
+                  {selectedStreamRequiresExternal && selectedStream?.url && (
+                    <a
+                      href={selectedStream.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-secondary-fixed-dim hover:text-primary"
+                    >
+                      Open Source
+                    </a>
+                  )}
+                </div>
+                <div className="flex items-end justify-between h-12 gap-1 px-2">
+                  {([20, 60, 40, 80, 30, 50] as const).map((h, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-full transition-all",
+                        i === 1 ? "bg-primary" : i === 4 ? "bg-secondary-fixed-dim" : "bg-on-background",
+                        isCurrentlyPlaying && "animate-pulse"
+                      )}
+                      style={{ height: `${h}%` }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -529,7 +674,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   // ─── FEATURED-ITEM ────────────────────────────────────────────────────────────
   if (variant === "featured-item") {
-    const bitrate = selectedStream?.quality?.bitrate;
+    const bitrate = normalizeBitrate(selectedStream?.quality?.bitrate);
 
     return (
       <>
@@ -577,7 +722,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </div>
 
           {/* Quality bar */}
-          <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-20" />
+          <div onClick={(e) => e.stopPropagation()}>{renderQualitySelector("w-24")}</div>
         </div>
 
       </>
@@ -631,13 +776,15 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
             <p className="text-xs font-bold text-tertiary uppercase tracking-widest opacity-70 whitespace-nowrap">
               {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
-              {selectedStream?.quality?.bitrate ? ` / ${selectedStream.quality.bitrate}K` : ""}
+              {normalizeBitrate(selectedStream?.quality?.bitrate)
+                ? ` / ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
+                : ""}
             </p>
           </div>
 
           {/* Quality bar */}
           <div className="px-8 py-4 hidden md:flex items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 shrink-0">
-            <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-32" />
+            {renderQualitySelector("w-36")}
             <span
               className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -651,10 +798,20 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <button
               className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
               onClick={handlePlayClick}
-              title={isCurrentlyPlaying ? "Pause" : "Play"}
+              title={
+                selectedStreamRequiresExternal
+                  ? "Open stream source"
+                  : isCurrentlyPlaying
+                    ? "Pause"
+                    : "Play"
+              }
             >
               <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                {selectedStreamRequiresExternal
+                  ? "open_in_new"
+                  : isCurrentlyPlaying
+                    ? "pause"
+                    : "play_arrow"}
               </span>
             </button>
             <button
@@ -704,7 +861,34 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap shrink-0",
             isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
           )}>
-            {statusLabel}
+            {station.streams.length > 1 ? (
+              <StreamSelector
+                streams={station.streams}
+                selectedStreamUrl={selectedStream?.url}
+                onStreamSelect={setSelectedStream}
+                trigger={(
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-widest"
+                    title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
+                  >
+                    <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
+                    {selectedStreamRequiresExternal && (
+                      <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                    )}
+                    <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+                  </button>
+                )}
+              />
+            ) : (
+              <span className="flex items-center gap-1">
+                <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
+                {selectedStreamRequiresExternal && (
+                  <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
@@ -742,7 +926,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
         {/* Quality bar */}
         <div className="px-8 py-4 hidden md:flex items-center gap-4 border-l-2 border-on-background/20">
-          <StreamQualityBar stream={selectedStream} isActive={isCurrentlyPlaying} className="w-32" />
+          {renderQualitySelector("w-36")}
           <span
             className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -755,10 +939,20 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         <button
           className="px-6 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-l-4 border-on-background"
           onClick={handlePlayClick}
-          title={isCurrentlyPlaying ? "Pause" : "Play"}
+          title={
+            selectedStreamRequiresExternal
+              ? "Open stream source"
+              : isCurrentlyPlaying
+                ? "Pause"
+                : "Play"
+          }
         >
           <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            {isCurrentlyPlaying ? "pause" : "play_arrow"}
+            {selectedStreamRequiresExternal
+              ? "open_in_new"
+              : isCurrentlyPlaying
+                ? "pause"
+                : "play_arrow"}
           </span>
         </button>
 
@@ -799,7 +993,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap",
           isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
         )}>
-          {statusLabel}
+          {renderStreamBadge("border-current text-current")}
         </div>
       </div>
       {zapDialog}

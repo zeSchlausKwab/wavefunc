@@ -9,8 +9,14 @@ import { FavoritesDropdown } from "./FavoritesDropdown";
 import { Comment } from "./Comment";
 import { CommentForm } from "./CommentForm";
 import { SectionHeader } from "./SectionHeader";
+import { StreamSelector } from "./StreamSelector";
 import { ZapDialog } from "./ZapDialog";
 import { cn } from "../lib/utils";
+import {
+  canPlayStreamInApp,
+  getDefaultSelectedStream,
+  openStreamExternally,
+} from "../lib/player/adapters";
 
 interface StationDetailProps {
   station: NDKStation;
@@ -23,6 +29,11 @@ interface StationDetailProps {
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n);
+}
+
+function normalizeBitrate(bitrate?: number): number | null {
+  if (!bitrate || bitrate <= 0) return null;
+  return bitrate >= 1000 ? Math.round(bitrate / 1000) : Math.round(bitrate);
 }
 
 function PublisherBadge({ pubkey }: { pubkey: string }) {
@@ -73,8 +84,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     userHasCommented,
   } = useSocialInteractions(station);
 
-  const [selectedStream, setSelectedStream] = React.useState(
-    station.streams.find((s) => s.primary) || station.streams[0]
+  const [selectedStream, setSelectedStream] = React.useState(() =>
+    getDefaultSelectedStream(station.streams)
   );
   const [showZapDialog, setShowZapDialog] = useState(false);
   const [showStreams, setShowStreams] = useState(false);
@@ -82,6 +93,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
+  const selectedStreamRequiresExternal =
+    selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
   const { comments, totalCount } = useComments(station);
 
@@ -95,7 +108,15 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     }
   }, [focusCommentForm, onCommentFormFocused]);
 
+  useEffect(() => {
+    setSelectedStream(getDefaultSelectedStream(station.streams));
+  }, [station.id, station.content]);
+
   const handlePlayClick = () => {
+    if (selectedStream?.url && selectedStreamRequiresExternal) {
+      openStreamExternally(selectedStream.url);
+      return;
+    }
     if (isCurrentlyPlaying) pause();
     else playStation(station, selectedStream);
   };
@@ -167,10 +188,20 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 "absolute bottom-4 right-4 w-16 h-16 border-4 border-on-background flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none",
                 isCurrentlyPlaying ? "bg-primary text-white" : "bg-surface text-on-background"
               )}
-              title={isCurrentlyPlaying ? "Pause" : "Play"}
+              title={
+                selectedStreamRequiresExternal
+                  ? "Open stream source"
+                  : isCurrentlyPlaying
+                    ? "Pause"
+                    : "Play"
+              }
             >
               <span className="material-symbols-outlined text-3xl" style={isCurrentlyPlaying ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                {isCurrentlyPlaying ? "pause" : "play_arrow"}
+                {selectedStreamRequiresExternal
+                  ? "open_in_new"
+                  : isCurrentlyPlaying
+                    ? "pause"
+                    : "play_arrow"}
               </span>
             </button>
           </div>
@@ -267,28 +298,75 @@ export const StationDetail: React.FC<StationDetailProps> = ({
             )}
 
             {/* Stream quality selector */}
-            {sortedStreams.length > 1 && (
+            {sortedStreams.length > 0 && (
               <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-on-background/40 mb-2">SIGNAL_QUALITY</div>
-                <div className="flex flex-wrap gap-2">
-                  {sortedStreams.map((stream) => {
-                    const codec = stream.quality?.codec?.toUpperCase() || "STREAM";
-                    const bitrate = stream.quality?.bitrate ? `${Math.round(stream.quality.bitrate / 1000)}K` : null;
-                    const isSelected = selectedStream?.url === stream.url;
-                    return (
-                      <button
-                        key={stream.url}
-                        onClick={() => setSelectedStream(stream)}
-                        className={cn(
-                          "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border-2 border-on-background transition-colors",
-                          isSelected ? "bg-on-background text-surface" : "bg-surface-container-low hover:bg-surface-container-high"
-                        )}
-                      >
-                        {codec}{bitrate ? ` ${bitrate}` : ""}
-                        {stream.primary && <span className={cn("ml-1", isSelected ? "text-surface/60" : "text-primary")}>★</span>}
-                      </button>
-                    );
-                  })}
+                <div className="text-[10px] font-black uppercase tracking-widest text-on-background/40 mb-2">
+                  Signal Route
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {sortedStreams.length > 1 ? (
+                    <StreamSelector
+                      streams={sortedStreams}
+                      selectedStreamUrl={selectedStream?.url}
+                      onStreamSelect={setSelectedStream}
+                      align="start"
+                      trigger={(
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex items-center gap-2 border-2 px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em]",
+                            selectedStreamRequiresExternal
+                              ? "border-secondary-fixed-dim text-secondary-fixed-dim"
+                              : "border-on-background bg-surface-container-low"
+                          )}
+                        >
+                          <span>
+                            {selectedStream?.quality?.codec?.toUpperCase() || "STREAM"}
+                            {normalizeBitrate(selectedStream?.quality?.bitrate)
+                              ? ` ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
+                              : ""}
+                          </span>
+                          {selectedStreamRequiresExternal && (
+                            <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                          )}
+                          <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
+                        </button>
+                      )}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "inline-flex items-center gap-2 border-2 px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em]",
+                        selectedStreamRequiresExternal
+                          ? "border-secondary-fixed-dim text-secondary-fixed-dim"
+                          : "border-on-background bg-surface-container-low"
+                      )}
+                    >
+                      <span>
+                        {selectedStream?.quality?.codec?.toUpperCase() || "STREAM"}
+                        {normalizeBitrate(selectedStream?.quality?.bitrate)
+                          ? ` ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
+                          : ""}
+                      </span>
+                      {selectedStreamRequiresExternal && (
+                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                      )}
+                    </div>
+                  )}
+                  <span className="text-[10px] font-black uppercase tracking-widest text-on-background/50">
+                    {selectedStreamRequiresExternal ? "Opens At Source" : "Plays In App"}
+                  </span>
+                  {selectedStreamRequiresExternal && selectedStream?.url && (
+                    <a
+                      href={selectedStream.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary hover:text-on-background"
+                    >
+                      Open Stream
+                      <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                    </a>
+                  )}
                 </div>
               </div>
             )}
@@ -331,8 +409,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                           <span className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 border border-on-background/30 bg-surface">
                             {stream.quality?.codec?.toUpperCase() || "?"}
                           </span>
-                          {stream.quality?.bitrate && (
-                            <span className="text-[10px] font-bold text-on-background/50">{Math.round(stream.quality.bitrate / 1000)}KBPS</span>
+                          {normalizeBitrate(stream.quality?.bitrate) && (
+                            <span className="text-[10px] font-bold text-on-background/50">
+                              {normalizeBitrate(stream.quality?.bitrate)}KBPS
+                            </span>
                           )}
                           {stream.primary && <span className="text-[10px] font-black uppercase tracking-widest text-primary">PRIMARY</span>}
                         </div>

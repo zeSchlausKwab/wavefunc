@@ -193,6 +193,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     }
   };
 
+  const handleGrabberKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleGrabberClick();
+    }
+  };
+
   // ── Audio setup ──
   const handleSearchMetadata = () => {
     if (!currentMetadata?.song) return;
@@ -270,10 +277,12 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       >
         {/* Drag handle — only rendered when open; its presence pushes player bar down */}
         {sheetOpen && (
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onPointerDown={handleDragStart}
             onClick={handleGrabberClick}
+            onKeyDown={handleGrabberKeyDown}
             className="w-full shrink-0 flex items-center justify-center py-2.5 touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
             aria-label="Resize panel"
           >
@@ -289,7 +298,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
-          </button>
+          </div>
         )}
 
         {/* Player bar — always in DOM; sits at BOTTOM when closed, slides to TOP when open */}

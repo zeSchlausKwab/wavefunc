@@ -1,145 +1,134 @@
-import { Check, ChevronDown } from "lucide-react";
-import React, { useState } from "react";
+import { ChevronDown, ExternalLink, Radio } from "lucide-react";
+import React from "react";
 import type { Stream } from "../lib/NDKStation";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
+import { cn } from "@/lib/utils";
+import { canPlayStreamInApp, sortStreamsByPreference } from "../lib/player/adapters";
 
 interface StreamSelectorProps {
   streams: Stream[];
   selectedStreamUrl?: string;
   onStreamSelect: (stream: Stream) => void;
   className?: string;
+  align?: "start" | "center" | "end";
+  trigger?: React.ReactNode;
 }
 
-/**
- * Format bitrate for display (converts bps to kbps)
- */
-function formatBitrate(bitrate: number): string {
-  return `${Math.round(bitrate / 1000)}kbps`;
+function normalizeBitrate(bitrate?: number): number | null {
+  if (!bitrate || bitrate <= 0) return null;
+  return bitrate >= 1000 ? Math.round(bitrate / 1000) : Math.round(bitrate);
 }
 
-/**
- * Get codec badge color based on codec type
- */
-function getCodecBadgeColor(codec: string): string {
-  const c = codec.toLowerCase();
-  if (c.includes("aac")) return "bg-green-100 text-green-800";
-  if (c.includes("mp3")) return "bg-blue-100 text-blue-800";
-  if (c.includes("opus")) return "bg-purple-100 text-purple-800";
-  if (c.includes("flac")) return "bg-amber-100 text-amber-800";
-  return "bg-gray-100 text-gray-800";
+function formatCodec(stream: Stream): string {
+  const codec = stream.quality?.codec || stream.format || "stream";
+  return codec.split("/").pop()?.toUpperCase() || codec.toUpperCase();
 }
 
-/**
- * StreamSelector - Dropdown component for selecting between multiple streams
- */
+function formatLabel(stream: Stream): string {
+  const bitrate = normalizeBitrate(stream.quality?.bitrate);
+  return bitrate ? `${formatCodec(stream)} ${bitrate}K` : formatCodec(stream);
+}
+
 export const StreamSelector: React.FC<StreamSelectorProps> = ({
   streams,
   selectedStreamUrl,
   onStreamSelect,
   className = "",
+  align = "end",
+  trigger,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  // If there's only one stream, don't show the selector
   if (streams.length <= 1) {
     return null;
   }
 
-  // Find the currently selected stream or default to primary
   const selectedStream =
     streams.find((s) => s.url === selectedStreamUrl) ||
-    streams.find((s) => s.primary) ||
+    sortStreamsByPreference(streams)[0] ||
     streams[0];
 
-  // Sort streams by bitrate (highest first)
-  const sortedStreams = [...streams].sort(
-    (a, b) => (b.quality?.bitrate || 0) - (a.quality?.bitrate || 0)
+  const sortedStreams = sortStreamsByPreference(streams);
+  const defaultTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className={cn(
+        "h-auto rounded-none border-2 border-on-background bg-surface-container-low px-2 py-1 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white",
+        className
+      )}
+      title="Select stream source"
+    >
+      <Radio className="size-3" />
+      <span>{formatLabel(selectedStream)}</span>
+      <ChevronDown className="size-3" />
+    </Button>
   );
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          className={`flex items-center gap-2 text-xs ${className}`}
-          title="Select stream quality"
-        >
-          <span className="font-medium">
-            {selectedStream?.quality?.codec?.toUpperCase() || "Unknown"}
-          </span>
-          <span className="text-gray-500">
-            {selectedStream?.quality?.bitrate
-              ? formatBitrate(selectedStream.quality.bitrate)
-              : "N/A"}
-          </span>
-          <ChevronDown className="w-3 h-3" />
-        </Button>
+        {trigger ?? defaultTrigger}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-64">
-        <div className="p-2">
-          <div className="text-xs font-semibold text-gray-700 mb-2 px-2">
-            Select Stream Quality
-          </div>
-          {sortedStreams.map((stream, index) => {
-            const isSelected = stream.url === selectedStream?.url;
-            const isPrimary = stream.primary;
+      <DropdownMenuContent align={align} className="z-[120] w-72 rounded-none border-4 border-on-background bg-surface p-1 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
+        <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-on-background/50">
+          Signal Source
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-on-background/20" />
+        <DropdownMenuRadioGroup
+          value={selectedStream?.url}
+          onValueChange={(value) => {
+            const stream = sortedStreams.find((candidate) => candidate.url === value);
+            if (stream) onStreamSelect(stream);
+          }}
+        >
+          {sortedStreams.map((stream) => {
+            const externalOnly = !canPlayStreamInApp(stream);
+            const bitrate = normalizeBitrate(stream.quality?.bitrate);
 
             return (
-              <DropdownMenuItem
-                key={stream.url || index}
-                onClick={() => {
-                  onStreamSelect(stream);
-                  setIsOpen(false);
-                }}
-                className="flex items-center justify-between cursor-pointer px-3 py-2 rounded-md hover:bg-gray-100"
+              <DropdownMenuRadioItem
+                key={stream.url}
+                value={stream.url}
+                className="items-start gap-3 rounded-none px-10 py-3 focus:bg-secondary-fixed-dim/15"
               >
-                <div className="flex items-center gap-2 flex-1">
-                  {/* Codec Badge */}
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${getCodecBadgeColor(
-                      stream.quality?.codec || ""
-                    )}`}
-                  >
-                    {stream.quality?.codec?.toUpperCase() || "N/A"}
-                  </span>
-
-                  {/* Bitrate */}
-                  <span className="text-sm font-medium text-gray-900">
-                    {stream.quality?.bitrate
-                      ? formatBitrate(stream.quality.bitrate)
-                      : "N/A"}
-                  </span>
-
-                  {/* Primary indicator */}
-                  {isPrimary && (
-                    <span className="text-xs text-gray-500 italic">
-                      (recommended)
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="border border-on-background px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                      {formatCodec(stream)}
                     </span>
-                  )}
+                    {bitrate && (
+                      <span className="text-[10px] font-black uppercase tracking-widest text-on-background/50">
+                        {bitrate}K
+                      </span>
+                    )}
+                    {stream.primary && (
+                      <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-background/50">
+                    <span>{externalOnly ? "Open At Source" : "Play In App"}</span>
+                    {externalOnly && <ExternalLink className="size-3" />}
+                  </div>
+                  <span className="truncate text-[10px] font-mono text-on-background/40">
+                    {stream.url}
+                  </span>
                 </div>
-
-                {/* Selected indicator */}
-                {isSelected && (
-                  <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                )}
-              </DropdownMenuItem>
+              </DropdownMenuRadioItem>
             );
           })}
-        </div>
-
-        {/* Additional stream info */}
-        <div className="border-t border-gray-200 p-2 text-xs text-gray-500">
-          <div className="px-2">
-            {sortedStreams.length} stream{sortedStreams.length !== 1 ? "s" : ""}{" "}
-            available
-          </div>
-        </div>
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

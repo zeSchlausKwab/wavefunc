@@ -7,6 +7,11 @@ function bitrateToFill(bitrate: number): number {
   return Math.min(100, Math.max(8, Math.round((bitrate / 320) * 100)));
 }
 
+function normalizeBitrate(bitrate?: number): number | null {
+  if (!bitrate || bitrate <= 0) return null;
+  return bitrate >= 1000 ? Math.round(bitrate / 1000) : Math.round(bitrate);
+}
+
 const MIME_TO_SHORT: Record<string, string> = {
   "audio/mpeg": "MP3",
   "audio/mp3": "MP3",
@@ -43,7 +48,7 @@ interface StreamQualityBarProps {
 }
 
 export function StreamQualityBar({ stream, isActive, className }: StreamQualityBarProps) {
-  const rawBitrate = stream?.quality?.bitrate;
+  const rawBitrate = normalizeBitrate(stream?.quality?.bitrate);
   const fmt = stream?.format ? formatShort(stream.format) : null;
 
   const hasRealBitrate = rawBitrate != null && rawBitrate > 0;

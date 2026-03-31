@@ -6,6 +6,25 @@ export function normalizeUrl(url: string): string {
   return (url || "").trim().replace(/^`+|`+$/g, "");
 }
 
+export function requiresExternalPlayback(url: string): boolean {
+  const normalized = normalizeUrl(url);
+
+  if (typeof window === "undefined") return false;
+  if (window.location.protocol !== "https:") return false;
+
+  return normalized.startsWith("http://");
+}
+
+export function canPlayStreamInApp(stream: Stream): boolean {
+  return !requiresExternalPlayback(stream.url);
+}
+
+export function openStreamExternally(url: string): void {
+  const normalized = normalizeUrl(url);
+  if (typeof window === "undefined") return;
+  window.open(normalized, "_blank", "noopener,noreferrer");
+}
+
 // Basic helpers
 export function isHlsUrl(url: string): boolean {
   return /\.m3u8(\?.*)?$/i.test(url);
@@ -37,6 +56,10 @@ export async function playWithAdapter(
 ): Promise<{ hls?: Hls }> {
   const url = normalizeUrl(stream.url);
   const mime = getMime(stream);
+
+  if (requiresExternalPlayback(url)) {
+    throw new Error("This stream must be opened externally");
+  }
 
   // HLS via hls.js
   if (isHlsUrl(url) && Hls.isSupported()) {
@@ -101,9 +124,17 @@ export function sortStreamsByPreference(streams: Stream[]): Stream[] {
       stream: s,
       url: normalizeUrl(s.url),
       mime: getMime(s) || "",
-      rank: (s.primary ? 1000 : 0) + (FORMAT_RANK[getMime(s) || ""] || 0),
+      rank:
+        (canPlayStreamInApp(s) ? 10_000 : 0) +
+        (s.primary ? 1000 : 0) +
+        (FORMAT_RANK[getMime(s) || ""] || 0),
     }))
     .filter((x) => x.url.length > 0)
     .sort((a, b) => b.rank - a.rank)
     .map((x) => ({ ...x.stream, url: x.url }));
+}
+
+export function getDefaultSelectedStream(streams: Stream[]): Stream | undefined {
+  const sorted = sortStreamsByPreference(streams);
+  return sorted[0];
 }
