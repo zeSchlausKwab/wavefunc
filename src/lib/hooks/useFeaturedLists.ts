@@ -1,8 +1,11 @@
 import { useMemo } from "react";
-import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import { useAdminFeatures } from "./useAdminFeatures";
+import {
+  addressesToParameterizedFilters,
+  getAppDataSubscriptionOptions,
+} from "../../config/nostr";
 
 /**
  * Resolves the admin's featured-lists feature events into actual NDKWFFavorites objects.
@@ -31,27 +34,19 @@ export function useFeaturedLists() {
     return ordered;
   }, [features]);
 
-  const filters: NDKFilter[] = useMemo(() => {
-    if (listAddresses.length === 0) {
-      return [{ kinds: [30078], authors: [], limit: 0 }];
-    }
-    const authors = [
-      ...new Set(
-        listAddresses.map((addr) => addr.split(":")[1]).filter(Boolean)
-      ),
-    ];
-    const dTags = [
-      ...new Set(
-        listAddresses.map((addr) => addr.split(":")[2]).filter(Boolean)
-      ),
-    ];
-    return [{ kinds: [30078], authors, "#d": dTags, "#l": ["wavefunc_user_favourite_list"] }];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(listAddresses)]);
+  const filters = useMemo(
+    () =>
+      addressesToParameterizedFilters(30078, listAddresses, {
+        "#l": ["wavefunc_user_favourite_list"],
+      }),
+    [listAddresses]
+  );
 
-  const { events, eose } = useSubscribe(filters, undefined, [
-    JSON.stringify(listAddresses),
-  ]);
+  const { events, eose } = useSubscribe(
+    filters,
+    getAppDataSubscriptionOptions(),
+    [listAddresses]
+  );
 
   // Index by address, then restore the order defined by the admin
   const featuredLists = useMemo(() => {

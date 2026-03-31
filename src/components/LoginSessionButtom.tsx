@@ -61,30 +61,32 @@ export function LoginSessionButtons() {
 
   if (currentUser) {
     return (
-      <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
-        <WalletButton />
-        <MiniProfile userOrPubkey={currentUser} />
-        <Link to="/settings">
+      <div className="flex min-w-[176px] sm:min-w-[236px] justify-end">
+        <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+          <WalletButton />
+          <MiniProfile userOrPubkey={currentUser} />
+          <Link to="/settings">
+            <button
+              className="h-full px-3 border-r-4 border-on-background flex items-center hover:bg-surface-container-high transition-colors"
+              title="Settings"
+            >
+              <span className="material-symbols-outlined text-[18px]">settings</span>
+            </button>
+          </Link>
           <button
-            className="h-full px-3 border-r-4 border-on-background flex items-center hover:bg-surface-container-high transition-colors"
-            title="Settings"
+            onClick={() => logout()}
+            className="h-full px-3 flex items-center hover:bg-surface-container-high transition-colors"
+            title="Log out"
           >
-            <span className="material-symbols-outlined text-[18px]">settings</span>
+            <span className="material-symbols-outlined text-[18px]">logout</span>
           </button>
-        </Link>
-        <button
-          onClick={() => logout()}
-          className="h-full px-3 flex items-center hover:bg-surface-container-high transition-colors"
-          title="Log out"
-        >
-          <span className="material-symbols-outlined text-[18px]">logout</span>
-        </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="flex min-w-[176px] sm:min-w-[236px] justify-end">
       <div
         className={cn(
           "flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all",
@@ -96,7 +98,9 @@ export function LoginSessionButtons() {
           className="h-full px-3 flex items-center gap-1.5 border-r-4 border-on-background hover:bg-surface-container-high transition-colors"
           title="Create account / import key"
         >
-          <span className="material-symbols-outlined text-[16px]">key</span>
+          <span className="material-symbols-outlined text-[16px]">
+            key
+          </span>
           <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
             NSEC
           </span>
@@ -140,6 +144,6 @@ export function LoginSessionButtons() {
         onOpenChange={setShowSignupDialog}
         onConfirm={handleSignup}
       />
-    </>
+    </div>
   );
 }

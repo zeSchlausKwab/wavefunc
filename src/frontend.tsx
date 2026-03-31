@@ -13,7 +13,12 @@ import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { config, initConfig } from "./config/env";
+import { initConfig } from "./config/env";
+import {
+  getReadRelayUrls,
+  getWriteRelayUrls,
+  isDevelopmentEnvironment,
+} from "./config/nostr";
 
 // Initialize Dexie cache adapter for efficient caching and cache invalidation
 const dexieAdapter = new NDKCacheAdapterDexie({
@@ -27,27 +32,20 @@ const dexieAdapter = new NDKCacheAdapterDexie({
 // Initialize config and render app
 async function startApp() {
   await initConfig();
+  const isDevelopment = isDevelopmentEnvironment();
+  const readRelayUrls = getReadRelayUrls();
+  const writeRelayUrls = getWriteRelayUrls();
 
   const elem = document.getElementById("root")!;
   const app = (
     <StrictMode>
       <NDKHeadless
         ndk={{
-          explicitRelayUrls: [
-            config.relayUrl,
-            // "ws://localhost:10547",
-            // "wss://relay.primal.net",
-            // "wss://relay.damus.io",
-            // "wss://purplepag.es",
-            // "wss://relay.nostr.band",
-            // "wss://nos.lol",
-            // "wss://relay.minibits.cash",
-            // "wss://relay.coinos.io/",
-            // "wss://relay.nostr.net",
-            // "wss://nwc.primal.net",
-          ],
+          explicitRelayUrls: readRelayUrls,
+          devWriteRelayUrls: writeRelayUrls,
           cacheAdapter: dexieAdapter,
           enableOutboxModel: false,
+          autoConnectUserRelays: !isDevelopment,
         }}
         session={{
           storage: new NDKSessionLocalStorage(),
@@ -57,6 +55,9 @@ async function startApp() {
       <App />
     </StrictMode>
   );
+
+  console.log("📡 Read relays:", readRelayUrls);
+  console.log("✍️ Write relays:", writeRelayUrls);
 
   if (import.meta.hot) {
     // With hot module reloading, `import.meta.hot.data` is persisted.

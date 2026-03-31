@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
 import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
-import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import type { NDKWFAdminFeature } from "../../lib/NDKWFAdminFeature";
 import type { NDKWFFavorites } from "../../lib/NDKWFFavorites";
 import { FavoritesListPicker } from "./FavoritesListPicker";
+import {
+  addressesToParameterizedFilters,
+  getAppDataSubscriptionOptions,
+} from "../../config/nostr";
 
 interface FeatureGroupCardProps {
   feature: NDKWFAdminFeature;
@@ -12,19 +15,9 @@ interface FeatureGroupCardProps {
 
 /** Resolves a-tag addresses into NDKWFFavorites objects for display. */
 function useResolvedRefs(refs: string[]) {
-  const filters: NDKFilter[] = useMemo(() => {
-    if (refs.length === 0) return [{ kinds: [30078], authors: [], limit: 0 }];
-    const authors = [
-      ...new Set(refs.map((r) => r.split(":")[1]).filter(Boolean)),
-    ];
-    const dTags = [
-      ...new Set(refs.map((r) => r.split(":")[2]).filter(Boolean)),
-    ];
-    return [{ kinds: [30078], authors, "#d": dTags }];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(refs)]);
+  const filters = useMemo(() => addressesToParameterizedFilters(30078, refs), [refs]);
 
-  const { events } = useSubscribe(filters);
+  const { events } = useSubscribe(filters, getAppDataSubscriptionOptions());
 
   return useMemo(() => {
     const byAddress = new Map<string, NDKWFFavorites>();

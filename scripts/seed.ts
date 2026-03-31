@@ -6,6 +6,7 @@ import {
   devUser4,
   devUser5,
 } from "@/lib/fixtures";
+import { NDKWFAdminFeature } from "@/lib/NDKWFAdminFeature";
 import { NDKWFFavorites } from "@/lib/NDKWFFavorites";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
@@ -117,6 +118,7 @@ async function seedData() {
   // Create favorites lists for each user
   console.log("\nStarting favorites lists seeding...");
   let favoritesCount = 0;
+  const createdFavoritesAddresses: string[] = [];
 
   for (let userIndex = 0; userIndex < devUsers.length; userIndex++) {
     const user = devUsers[userIndex];
@@ -180,6 +182,7 @@ async function seedData() {
         ndk.signer = signer;
         await favoritesList.sign();
         const relays = await favoritesList.publish();
+        createdFavoritesAddresses.push(favoritesList.address);
 
         favoritesCount++;
         console.log(
@@ -198,6 +201,24 @@ async function seedData() {
   }
 
   console.log(`\n✅ Successfully seeded ${favoritesCount} favorites lists!`);
+
+  console.log("\nStarting admin featured references seeding...");
+  const adminSigner = new NDKPrivateKeySigner(devUser1.sk);
+  await adminSigner.blockUntilReady();
+  const adminPubkey = (await adminSigner.user()).pubkey;
+  const adminFeature = NDKWFAdminFeature.create(ndk as any, "lists");
+  adminFeature.featureId = "wavefunc-dev-featured-lists";
+  adminFeature.pubkey = adminPubkey;
+
+  createdFavoritesAddresses.slice(0, 6).forEach((address) => {
+    adminFeature.addRef(address);
+  });
+
+  ndk.signer = adminSigner;
+  await adminFeature.publishRefs();
+  console.log(
+    `✅ Seeded admin featured references (${Math.min(createdFavoritesAddresses.length, 6)} lists)`
+  );
 
   // Create featured lists signed by the app
   console.log("\nStarting featured lists seeding (app-signed)...");

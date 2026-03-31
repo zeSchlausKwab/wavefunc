@@ -10,6 +10,32 @@ interface StationViewProps {
   searchQuery: string;
 }
 
+function StationGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+      {Array.from({ length: 12 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[280px] border-4 border-on-background bg-surface-container-low shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
+function SearchResultsSkeleton() {
+  return (
+    <div className="space-y-[-4px]">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-24 border-4 border-on-background bg-surface-container-low shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function StationView({ searchQuery }: StationViewProps) {
   const [tileParent] = useAutoAnimate();
   const {
@@ -105,12 +131,7 @@ export function StationView({ searchQuery }: StationViewProps) {
             </span>
           </div>
 
-          {!eose && events.length === 0 && (
-            <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4">
-              <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
-              <span className="font-black uppercase tracking-tight">SCANNING_FREQUENCIES...</span>
-            </div>
-          )}
+          {!eose && events.length === 0 && <SearchResultsSkeleton />}
 
           {eose && events.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low">
@@ -145,12 +166,7 @@ export function StationView({ searchQuery }: StationViewProps) {
             LIVE_STATIONS
           </SectionHeader>
 
-          {!eose && events.length === 0 && (
-            <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4">
-              <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
-              <span className="font-black uppercase tracking-tight">LOADING_STATIONS...</span>
-            </div>
-          )}
+          {!eose && events.length === 0 && <StationGridSkeleton />}
 
           {eose && events.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low">

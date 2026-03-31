@@ -9,6 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import NDKStation from "../NDKStation";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import { useStations } from "./useStations";
+import { getAppDataSubscriptionOptions } from "../../config/nostr";
 
 // Extend window for debug throttling
 declare global {
@@ -39,7 +40,7 @@ export function useFavorites() {
       : false;
   }, [currentUser?.pubkey]);
 
-  const { events, eose } = useSubscribe(filters);
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
 
   const favoritesLists = useMemo(() => {
     if (!currentUser?.pubkey) return [];
@@ -243,7 +244,7 @@ export function useFavoritesLists(
     "#l": ["wavefunc_user_favourite_list"],
   }));
 
-  const { events, eose } = useSubscribe(filters);
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
   const favoritesLists = events.map(
     (event) => wrapEvent(event) as NDKWFFavorites
   );

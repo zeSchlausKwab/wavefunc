@@ -42,10 +42,14 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
           <Link to="/community" className={navLinkBase} activeProps={{ className: navLinkActive }}>
             ASSEMBLY
           </Link>
-          {adminUser && (
+          {adminUser ? (
             <Link to="/admin" className={navLinkBase} activeProps={{ className: navLinkActive }}>
               CONTROL
             </Link>
+          ) : (
+            <span className={`${navLinkBase} invisible`} aria-hidden="true">
+              CONTROL
+            </span>
           )}
         </nav>
       </div>

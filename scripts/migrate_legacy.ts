@@ -5,6 +5,7 @@ import NDK, { NDKEvent, NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
 import { readFileSync } from "fs";
 import { getPublicKey } from "nostr-tools/pure";
 import path from "path";
+import { NDKWFAdminFeature } from "../src/lib/NDKWFAdminFeature";
 import { NDKWFFavorites } from "../src/lib/NDKWFFavorites";
 import {
   devUser1,
@@ -43,6 +44,11 @@ function getRelayUrl(): string {
 }
 
 const RELAY_URL = getRelayUrl();
+const IS_LOCAL_RELAY =
+  RELAY_URL.includes("localhost") ||
+  RELAY_URL.includes("127.0.0.1") ||
+  RELAY_URL.includes("10.0.2.2");
+
 const ndk = new NDK({
   explicitRelayUrls: [RELAY_URL],
   enableOutboxModel: false,
@@ -429,10 +435,11 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
 
   if (stationAddresses.length === 0) {
     console.log("⚠️  No stations available for favorites lists");
-    return;
+    return [];
   }
 
   let favoritesCount = 0;
+  const createdFavoritesAddresses: string[] = [];
 
   for (let userIndex = 0; userIndex < devUsers.length; userIndex++) {
     const user = devUsers[userIndex];
@@ -487,6 +494,7 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
         ndk.signer = signer;
         await favoritesList.sign();
         const relays = await favoritesList.publish();
+        createdFavoritesAddresses.push(favoritesList.address);
 
         favoritesCount++;
         console.log(`  ✓ "${listInfo.name}" — ${selected.length} stations (${relays.size} relays)`);
@@ -498,6 +506,34 @@ async function seedFavoritesLists(publishedEvents: NDKEvent[]) {
   }
 
   console.log(`\n✅ Seeded ${favoritesCount} favorites lists`);
+  return createdFavoritesAddresses;
+}
+
+async function seedAdminFeaturedReferences(favoritesAddresses: string[]) {
+  if (!IS_LOCAL_RELAY || favoritesAddresses.length === 0) {
+    return;
+  }
+
+  console.log("\n🛡️  Seeding admin featured list references...");
+
+  const adminSigner = new NDKPrivateKeySigner(devUser1.sk);
+  await adminSigner.blockUntilReady();
+  const adminPubkey = (await adminSigner.user()).pubkey;
+
+  const feature = NDKWFAdminFeature.create(ndk as any, "lists");
+  feature.featureId = "wavefunc-dev-featured-lists";
+  feature.pubkey = adminPubkey;
+
+  favoritesAddresses.slice(0, 6).forEach((address) => {
+    feature.addRef(address);
+  });
+
+  ndk.signer = adminSigner;
+  await feature.publishRefs();
+
+  console.log(
+    `✅ Seeded admin references for ${Math.min(favoritesAddresses.length, 6)} favorites lists`
+  );
 }
 
 // Seed featured lists signed by app pubkey
@@ -620,7 +656,8 @@ async function migrateStations() {
   console.log(`\n📊 Migration complete — ${successCount} published, ${failCount} failed`);
 
   if (successCount > 0) {
-    await seedFavoritesLists(publishedEvents);
+    const favoritesAddresses = await seedFavoritesLists(publishedEvents);
+    await seedAdminFeaturedReferences(favoritesAddresses);
     await seedFeaturedLists(publishedEvents);
   }
 

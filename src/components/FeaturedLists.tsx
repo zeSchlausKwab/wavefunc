@@ -29,7 +29,7 @@ function formatCount(n: number): string {
 function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: number }) {
   const { ndk } = useNDK();
   const currentUser = useNDKCurrentUser();
-  const { stations } = useFavoriteStations(list);
+  const { stations, isLoading: stationsLoading } = useFavoriteStations(list);
   const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
   const [showZapDialog, setShowZapDialog] = useState(false);
 
@@ -92,12 +92,22 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
 
         {/* Station rows */}
         <div className="flex-grow overflow-y-auto mb-6 scrollbar-none min-h-0">
-          {stations.length === 0 && (
+          {stationsLoading && (
+            <div className="space-y-2 py-2">
+              {Array.from({ length: 4 }).map((_, skeletonIndex) => (
+                <div
+                  key={skeletonIndex}
+                  className="h-16 border-2 border-on-background/10 bg-surface-container-low animate-pulse"
+                />
+              ))}
+            </div>
+          )}
+          {!stationsLoading && stations.length === 0 && (
             <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/40 py-4">
               NO_STATIONS_LOADED
             </div>
           )}
-          {stations.map((station, i) => (
+          {!stationsLoading && stations.map((station, i) => (
             <RadioCard
               key={station.id}
               station={station}
@@ -172,9 +182,31 @@ export function FeaturedLists() {
 
   if (isLoading) {
     return (
-      <div className="mb-16 border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4">
-        <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
-        <span className="font-black uppercase tracking-tight">LOADING_FEATURED_COLLECTIONS...</span>
+      <div className="mb-16 space-y-6">
+        <SectionHeader label="CURATED_SIGNAL">FEATURED_COLLECTIONS</SectionHeader>
+        <div className="border-4 border-on-background bg-surface-container-low p-6 shadow-[8px_8px_0px_0px_rgba(29,28,19,1)]">
+          <div className="grid gap-6 md:grid-cols-[240px_1fr] min-h-[650px]">
+            <div className="border-4 border-on-background bg-on-background/5 animate-pulse" />
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <div className="h-12 w-3/4 bg-on-background/10 animate-pulse" />
+                <div className="h-4 w-48 bg-on-background/10 animate-pulse" />
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-16 border-2 border-on-background/10 bg-surface-container animate-pulse"
+                  />
+                ))}
+              </div>
+              <div className="mt-auto flex items-center justify-between border-t-4 border-on-background pt-4">
+                <div className="h-4 w-24 bg-on-background/10 animate-pulse" />
+                <div className="h-10 w-36 bg-on-background/10 animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

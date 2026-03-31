@@ -3,6 +3,10 @@ import { NDKSubscriptionCacheUsage } from "@nostr-dev-kit/ndk";
 import { useSubscribe, wrapEvent, useNDK } from "@nostr-dev-kit/react";
 import { useEffect, useState, useMemo } from "react";
 import { NDKStation } from "../NDKStation";
+import {
+  getAppDataRelayUrls,
+  getAppDataSubscriptionOptions,
+} from "../../config/nostr";
 
 /**
  * A simple hook for subscribing to station events with automatic event wrapping and casting to NDKStation.
@@ -19,7 +23,7 @@ export function useStations(
     kinds: NDKStation.kinds,
   }));
 
-  const { events, eose } = useSubscribe(filters);
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
   const stations = events.map((event) => wrapEvent(event) as NDKStation);
 
   return {
@@ -47,7 +51,10 @@ export function useSearchStations(filter: NDKFilter, searchQuery: string) {
     setEvents([]);
     setEose(false);
 
-    const sub = ndk.subscribe(filter as any, { closeOnEose: false });
+    const sub = ndk.subscribe(filter as any, {
+      closeOnEose: false,
+      relayUrls: getAppDataRelayUrls(),
+    });
     const eventMap = new Map<string, NDKStation>();
 
     sub.on("event", (event: any) => {
@@ -117,7 +124,11 @@ export function useStationsObserver(
       ? NDKSubscriptionCacheUsage.ONLY_RELAY
       : undefined;
 
-    const sub = ndk.subscribe(filter, { closeOnEose: false, cacheUsage });
+    const sub = ndk.subscribe(filter, {
+      closeOnEose: false,
+      cacheUsage,
+      relayUrls: getAppDataRelayUrls(),
+    });
     const eventMap = new Map<string, NDKStation>();
 
     sub.on("event", (event: any) => {

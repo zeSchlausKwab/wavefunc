@@ -3,6 +3,7 @@ import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { useSubscribe } from "@nostr-dev-kit/react";
 import { NDKWFAdminFeature, type AdminFeatureType } from "../NDKWFAdminFeature";
 import { ADMIN_PUBKEYS } from "../../config/admins";
+import { getAppDataSubscriptionOptions } from "../../config/nostr";
 
 /**
  * Subscribe to admin feature events of a given type.
@@ -20,7 +21,7 @@ export function useAdminFeatures(type: AdminFeatureType) {
     [type]
   );
 
-  const { events, eose } = useSubscribe(filters);
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
 
   const features = useMemo(
     () => events.map((e) => NDKWFAdminFeature.from(e)),

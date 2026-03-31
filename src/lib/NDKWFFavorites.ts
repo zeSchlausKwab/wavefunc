@@ -330,6 +330,7 @@ export class NDKWFFavorites extends NDKReplaceableEvent {
       await this.ndk.cacheAdapter.deleteEventIds([this.id]);
     }
 
+    await this.prepareReplaceablePublish();
     await this.sign();
     await this.publish();
 
@@ -380,14 +381,7 @@ export class NDKWFFavorites extends NDKReplaceableEvent {
     this.clearStations();
 
     if (hadStations) {
-      // Update the created_at timestamp to ensure this is the newest version
-      this.created_at = Math.floor(Date.now() / 1000);
-
-      // Invalidate cache before publishing
-      if (this.ndk?.cacheAdapter?.deleteEventIds && this.id) {
-        await this.ndk.cacheAdapter.deleteEventIds([this.id]);
-      }
-
+      await this.prepareReplaceablePublish();
       await this.sign();
       await this.publish();
     }

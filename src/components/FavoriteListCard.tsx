@@ -24,7 +24,7 @@ interface FavoriteListCardProps {
 
 export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCardProps) {
   const [animationParent] = useAutoAnimate();
-  const { stations: listStations } = useFavoriteStations(list);
+  const { stations: listStations, isLoading: stationsLoading } = useFavoriteStations(list);
   const { removeFavorite } = useFavorites();
   const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
   const currentUser = useNDKCurrentUser();
@@ -135,7 +135,16 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
 
         {/* Stations */}
         <div ref={animationParent} className="flex-1 min-h-0">
-          {listStations.length === 0 ? (
+          {stationsLoading ? (
+            <div className="border-t-2 border-on-background/20 py-4 space-y-2">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-16 border-2 border-on-background/10 bg-surface-container-low animate-pulse"
+                />
+              ))}
+            </div>
+          ) : listStations.length === 0 ? (
             <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/40 py-4 border-t-2 border-on-background/20">
               NO_STATIONS_LOADED
             </div>
