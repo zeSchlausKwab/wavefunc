@@ -212,6 +212,39 @@ export interface SearchRecordingsCombinedOutput {
   }[];
 }
 
+export interface SearchYouTubeInput {
+  query: string;
+  limit?: number;
+}
+
+export interface YouTubeResult {
+  videoId: string;
+  url: string;
+  title: string;
+  duration?: number;
+  channel?: string;
+  thumbnailUrl?: string;
+  viewCount?: number;
+  uploadDate?: string;
+}
+
+export interface SearchYouTubeOutput {
+  results: YouTubeResult[];
+}
+
+export interface DownloadAudioInput {
+  videoId: string;
+  blossomServer?: string;
+  format?: "audio" | "video";
+}
+
+export interface DownloadAudioOutput {
+  url: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+}
+
 export type WavefuncMetadataServer = {
   ExtractStreamMetadata: (url: string) => Promise<ExtractStreamMetadataOutput>;
   SearchArtists: (query: string, limit?: number) => Promise<SearchArtistsOutput>;
@@ -219,6 +252,8 @@ export type WavefuncMetadataServer = {
   SearchRecordings: (query: string, artist?: string, limit?: number) => Promise<SearchRecordingsOutput>;
   SearchLabels: (query: string, limit?: number) => Promise<SearchLabelsOutput>;
   SearchRecordingsCombined: (recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number) => Promise<SearchRecordingsCombinedOutput>;
+  SearchYouTube: (query: string, limit?: number) => Promise<SearchYouTubeOutput>;
+  DownloadAudio: (videoId: string, blossomServer?: string) => Promise<DownloadAudioOutput>;
 };
 
 export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
@@ -268,12 +303,23 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
 
   private async call<T = unknown>(
     name: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    options?: { timeout?: number; onprogress?: (progress: { progress: number; message?: string }) => void }
   ): Promise<T> {
-    const result = await this.client.callTool({
-      name,
-      arguments: { ...args },
-    });
+    const result = await this.client.callTool(
+      { name, arguments: { ...args } },
+      undefined,
+      options ? { timeout: options.timeout, resetTimeoutOnProgress: true, onprogress: options.onprogress } : undefined
+    );
+    if (result.isError) {
+      // Server returns { error: "..." } in content[0].text when isError: true
+      let msg = `Tool "${name}" failed`;
+      try {
+        const parsed = JSON.parse((result.content?.[0] as any)?.text ?? "{}");
+        if (parsed.error) msg = parsed.error;
+      } catch { /* ignore parse errors */ }
+      throw new Error(msg);
+    }
     return result.structuredContent as T;
   }
 
@@ -354,6 +400,35 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number
   ): Promise<SearchRecordingsCombinedOutput> {
     return this.call("search_recordings_combined", { recording, artist, release, isrc, country, date, duration, limit });
+  }
+
+  /**
+   * Search YouTube for videos matching a query. Uses yt-dlp's ytsearch feature.
+   * @param {string} query Search query, e.g. "artist song title"
+   * @param {number} limit [optional] Number of results (default: 5, max: 10)
+   */
+  async SearchYouTube(query: string, limit?: number): Promise<SearchYouTubeOutput> {
+    return this.call("search_youtube", { query, limit });
+  }
+
+  /**
+   * Download audio from a YouTube video and upload it to a Blossom server.
+   * Returns the Blossom URL to attach to the song's NDK event.
+   * This operation may take 30–60 seconds.
+   * @param {string} videoId YouTube video ID
+   * @param {string} blossomServer [optional] Override the default Blossom server
+   */
+  async DownloadAudio(
+    videoId: string,
+    blossomServer?: string,
+    onprogress?: (progress: { progress: number; message?: string }) => void,
+    format: "audio" | "video" = "audio"
+  ): Promise<DownloadAudioOutput> {
+    return this.call(
+      "download_audio",
+      { videoId, blossomServer, format },
+      { timeout: 10 * 60 * 1000, onprogress }  // 10 min ceiling, reset on each yt-dlp line
+    );
   }
 }
 

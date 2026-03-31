@@ -75,6 +75,32 @@ export class NDKSong extends NDKEvent {
     return `31337:${this.pubkey}:${this.songId}`;
   }
 
+  /** URL of the audio file (Blossom or other direct link), stored in the `r` tag. */
+  get audioUrl(): string | undefined {
+    return this.tagValue("r");
+  }
+
+  /** YouTube video ID stored as `["i", "youtube:<id>"]`. */
+  get youtubeId(): string | undefined {
+    return this.tags
+      .find((t) => t[0] === "i" && t[1]?.startsWith("youtube:"))?.[1]
+      ?.slice(8);
+  }
+
+  /**
+   * Attach a Blossom audio URL (and optionally a YouTube video ID) to the song
+   * and publish the updated event as a new version of the replaceable event.
+   */
+  async attachAudioAndPublish(audioUrl: string, youtubeId?: string): Promise<void> {
+    this.tags = this.tags.filter((t) => !(t[0] === "r" || (t[0] === "i" && t[1]?.startsWith("youtube:"))));
+    this.tags.push(["r", audioUrl]);
+    if (youtubeId) this.tags.push(["i", `youtube:${youtubeId}`]);
+    this.created_at = Math.floor(Date.now() / 1000);
+    await this.sign();
+    const relays = await this.publish();
+    if (relays.size === 0) throw new Error("Failed to publish updated song to any relay");
+  }
+
   /**
    * Build a kind 31337 event from current player metadata.
    * Uses MBID for the stable d-tag when available, falls back to a slug.

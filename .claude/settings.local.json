@@ -59,7 +59,16 @@
       "Bash(xargs -I {} basename {})",
       "Bash(bunx nak:*)",
       "Bash(node -e \"const {nip19} = require\\(''''nostr-tools''''\\); console.log\\(nip19.decode\\(''''npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf''''\\)\\)\")",
-      "Bash(bun -e \"import {nip19} from ''''nostr-tools''''; console.log\\(nip19.decode\\(''''npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf''''\\)\\)\")"
+      "Bash(bun -e \"import {nip19} from ''''nostr-tools''''; console.log\\(nip19.decode\\(''''npub182jczunncwe0jn6frpqwq3e0qjws7yqqnc3auccqv9nte2dnd63scjm4rf''''\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; files=json.load\\(sys.stdin\\); [print\\(f[''''name'''']\\) for f in files if f[''''name''''].endswith\\(''''.md''''\\)]\")",
+      "Bash(python3 -c \"import sys,json; pr=json.load\\(sys.stdin\\); print\\(pr.get\\(''''body'''',''''''''\\)[:3000]\\)\")",
+      "Bash(python3 -c \"import sys,json; pr=json.load\\(sys.stdin\\); print\\(pr.get\\(''''body'''',''''''''\\)[:2000]\\)\")",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(xargs ls:*)",
+      "Bash(node -e \"require\\(''''nostr-tools''''\\)\")",
+      "Bash(echo \"checking bun...\" bun -e \"import { finalizeEvent } from ''''nostr-tools''''; console.log\\(''''ok''''\\)\")",
+      "Bash(ls /Users/schlaus/workspace/wavefunc-rewrite/*.md)"
     ],
     "deny": [],
     "ask": []

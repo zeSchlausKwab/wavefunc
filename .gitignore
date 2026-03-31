@@ -26,6 +26,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # deployment artifacts
 deploy.tar.gz
 
+# yt-dlp binary (auto-downloaded at runtime)
+contextvm/bin/
+
 # caches
 .eslintcache
 .cache

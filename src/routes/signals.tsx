@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSubscribe, useProfileValue } from "@nostr-dev-kit/react";
 import { NDKSong } from "../lib/NDKSong";
 import { CrateSaveButton } from "../components/CrateSaveButton";
@@ -25,8 +25,10 @@ function SignalRow({ song }: SignalRowProps) {
   const profile = useProfileValue(song.pubkey, { subOpts: { closeOnEose: true } });
   const displayName = profile?.name || profile?.displayName || `${song.pubkey.slice(0, 8)}...`;
   const avatar = profile?.image || profile?.picture;
+  const [embedOpen, setEmbedOpen] = useState(false);
 
   return (
+    <>
     <div className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10 hover:bg-surface-container-high transition-colors group">
       {/* Thumbnail */}
       <div className="w-10 h-10 shrink-0 bg-on-background/10 border-2 border-on-background/20 flex items-center justify-center overflow-hidden">
@@ -70,6 +72,19 @@ function SignalRow({ song }: SignalRowProps) {
         )}
       </div>
 
+      {/* Play media */}
+      {song.audioUrl && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setEmbedOpen((v) => !v); }}
+          className={embedOpen ? "shrink-0 text-primary transition-colors" : "shrink-0 text-primary/60 hover:text-primary transition-colors"}
+          title={embedOpen ? "Close player" : "Play"}
+        >
+          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {embedOpen ? "stop_circle" : "play_circle"}
+          </span>
+        </button>
+      )}
+
       {/* MusicBrainz link */}
       {song.mbid && (
         <a
@@ -101,6 +116,18 @@ function SignalRow({ song }: SignalRowProps) {
       {/* Save to Crate */}
       <CrateSaveButton song={song} size="sm" className="shrink-0" />
     </div>
+    {embedOpen && song.audioUrl && (
+      <div className="border-t-2 border-on-background/10 bg-black px-4 py-2 flex items-center gap-3">
+        <video controls autoPlay src={song.audioUrl} className="flex-1 max-h-64 min-w-0" />
+        <button
+          onClick={() => setEmbedOpen(false)}
+          className="shrink-0 text-white/40 hover:text-white transition-colors"
+        >
+          <span className="material-symbols-outlined text-[12px]">close</span>
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 

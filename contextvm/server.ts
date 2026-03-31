@@ -11,6 +11,7 @@ import {
   searchLabels,
   searchRecordingsCombined,
 } from "./tools/musicbrainz.ts";
+import { searchYouTube, downloadAndUploadAudio } from "./tools/ytdlp.ts";
 import {
   extractStreamMetadataInputSchema,
   extractStreamMetadataOutputSchema,
@@ -24,12 +25,18 @@ import {
   searchLabelsOutputSchema,
   searchRecordingsCombinedInputSchema,
   searchRecordingsCombinedOutputSchema,
+  searchYouTubeInputSchema,
+  searchYouTubeOutputSchema,
+  downloadAudioInputSchema,
+  downloadAudioOutputSchema,
 } from "./schemas.ts";
 
 // Configuration
 const SERVER_PRIVATE_KEY =
   process.env.METADATA_SERVER_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001"; // Dev key
+const BLOSSOM_SERVER =
+  process.env.BLOSSOM_SERVER_URL || "https://blossom.band";
 const RELAYS = [
   process.env.RELAY_URL || "ws://localhost:3334",
   "wss://relay2.contextvm.org/",
@@ -327,7 +334,83 @@ async function main() {
     }
   );
 
-  // 9. Configure the Nostr Server Transport
+  // 9. Register Tool: Search YouTube
+  mcpServer.registerTool(
+    "search_youtube",
+    {
+      title: "Search YouTube",
+      description:
+        "Search YouTube for videos using yt-dlp. Returns video ID, title, duration, channel, and thumbnail. Use for finding audio sources to attach to songs.",
+      inputSchema: searchYouTubeInputSchema,
+      outputSchema: searchYouTubeOutputSchema,
+    },
+    async ({ query, limit }) => {
+      try {
+        console.log(`🎬 Searching YouTube: ${query} (limit=${limit ?? 5})`);
+        const results = await searchYouTube(query, limit ?? 5);
+        console.log(`✅ Found ${results.length} results`);
+        const output = { results };
+        return {
+          content: [{ type: "text", text: JSON.stringify(output, null, 2) }],
+          structuredContent: output,
+        };
+      } catch (error: any) {
+        console.error(`❌ YouTube search failed: ${error.message}`);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 10. Register Tool: Download and Upload to Blossom
+  mcpServer.registerTool(
+    "download_audio",
+    {
+      title: "Download from Source and Upload to Blossom",
+      description:
+        "Downloads a video or audio track via yt-dlp and uploads it to a Blossom server. Use format='audio' (default) for MP3 or format='video' for MP4 (≤720p). Returns the Blossom URL to attach to a song event. This operation may take 30-120 seconds — progress notifications are sent throughout.",
+      inputSchema: downloadAudioInputSchema,
+      outputSchema: downloadAudioOutputSchema,
+    },
+    async ({ videoId, blossomServer, format }, extra) => {
+      try {
+        const server = blossomServer || BLOSSOM_SERVER;
+        const progressToken = extra._meta?.progressToken;
+        let progressCount = 0;
+
+        // Each log line is forwarded as a progress notification so the client's
+        // resetTimeoutOnProgress can keep the request alive during long downloads.
+        const onProgress = async (message: string) => {
+          if (progressToken === undefined) return;
+          try {
+            await extra.sendNotification({
+              method: "notifications/progress",
+              params: { progressToken, progress: ++progressCount, message },
+            } as any);
+          } catch {
+            // Non-fatal — just logging
+          }
+        };
+
+        const result = await downloadAndUploadAudio(videoId, server, SERVER_PRIVATE_KEY, onProgress, format ?? "audio");
+        console.log(`✅ Uploaded: ${result.url} (${result.size} bytes)`);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (error: any) {
+        console.error(`❌ Download/upload failed: ${error.message}`);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // 11. Configure the Nostr Server Transport
   const serverTransport = new NostrServerTransport({
     signer,
     relayHandler: relayPool,
@@ -353,6 +436,8 @@ async function main() {
   console.log("   - search_recordings");
   console.log("   - search_recordings_combined (advanced multi-field search)");
   console.log("   - search_labels");
+  console.log("   - search_youtube");
+  console.log("   - download_audio");
   console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
   console.log("💡 Press Ctrl+C to exit.\n");
 

@@ -312,3 +312,68 @@ export type SearchRecordingsCombinedInput = {
 export type SearchRecordingsCombinedOutput = {
   result: MusicBrainzRecording[];
 };
+
+// ============================================================================
+// YouTube Search Tool
+// ============================================================================
+
+export const youTubeResultSchema = z.object({
+  videoId: z.string(),
+  url: z.string(),
+  title: z.string(),
+  duration: z.number().optional().describe("Duration in seconds"),
+  channel: z.string().optional(),
+  thumbnailUrl: z.string().optional(),
+  viewCount: z.number().optional(),
+  uploadDate: z.string().optional().describe("YYYYMMDD format"),
+});
+
+export const searchYouTubeInputSchema = {
+  query: z.string().describe("Search query (e.g. 'artist song title')"),
+  limit: z.number().int().min(1).max(10).optional().describe("Number of results (default: 5)"),
+};
+
+export const searchYouTubeOutputSchema = {
+  results: z.array(youTubeResultSchema),
+};
+
+export type YouTubeResult = z.infer<typeof youTubeResultSchema>;
+
+export type SearchYouTubeInput = {
+  query: string;
+  limit?: number;
+};
+
+export type SearchYouTubeOutput = {
+  results: YouTubeResult[];
+};
+
+// ============================================================================
+// Download Audio Tool
+// ============================================================================
+
+export const downloadAudioInputSchema = {
+  videoId: z.string().describe("YouTube video ID"),
+  blossomServer: z.string().optional().describe("Blossom server URL (uses server default if omitted)"),
+  format: z.enum(["audio", "video"]).optional().describe("Download format: 'audio' (MP3, default) or 'video' (MP4)"),
+};
+
+export const downloadAudioOutputSchema = {
+  url: z.string().describe("Blossom URL of the uploaded file"),
+  sha256: z.string().describe("SHA-256 hash of the file"),
+  size: z.number().describe("File size in bytes"),
+  mimeType: z.string(),
+};
+
+export type DownloadAudioInput = {
+  videoId: string;
+  blossomServer?: string;
+  format?: "audio" | "video";
+};
+
+export type DownloadAudioOutput = {
+  url: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+};

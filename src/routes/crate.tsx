@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSubscribe } from "@nostr-dev-kit/react";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { NDKSong } from "../lib/NDKSong";
 import { NDKWFSongList } from "../lib/NDKWFSongList";
 import { addressesToParameterizedFilters, getAppDataSubscriptionOptions } from "../config/nostr";
 import { cn } from "@/lib/utils";
+import { getMetadataClient, type YouTubeResult } from "../ctxcn/WavefuncMetadataServerClient";
+import { useUIStore } from "../stores/uiStore";
+import { YoutubeEmbed } from "../components/YoutubeEmbed";
 
 export const Route = createFileRoute("/crate")({
   component: Crate,
@@ -33,6 +36,175 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// ─── YouTube audio panel ─────────────────────────────────────────────────────
+
+interface YouTubeAudioPanelProps {
+  song: NDKSong;
+  onClose: () => void;
+}
+
+function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
+  const { isLoggedIn } = useSongFavorites();
+  const pulseLogin = useUIStore((s) => s.pulseLogin);
+  const [phase, setPhase] = useState<"searching" | "results" | "downloading" | "error">("searching");
+  const [results, setResults] = useState<YouTubeResult[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState<string | null>(null);
+  const [watchingId, setWatchingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn) { pulseLogin(); onClose(); return; }
+    const query = [song.title, song.artist].filter(Boolean).join(" ");
+    getMetadataClient()
+      .SearchYouTube(query, 5)
+      .then((out) => { setResults(out.results); setPhase("results"); })
+      .catch((err) => { setErrorMsg(err.message ?? "Search failed"); setPhase("error"); });
+  }, []);
+
+  const handleDownload = async (result: YouTubeResult, format: "audio" | "video") => {
+    if (!isLoggedIn) { pulseLogin(); return; }
+    setDownloadingId(result.videoId);
+    setProgressMsg(null);
+    setPhase("downloading");
+    try {
+      const { url } = await getMetadataClient().DownloadAudio(
+        result.videoId,
+        undefined,
+        (p) => setProgressMsg(p.message ?? null),
+        format
+      );
+      await song.attachAudioAndPublish(url, result.videoId);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Download failed");
+      setPhase("error");
+      setDownloadingId(null);
+    }
+  };
+
+  if (watchingId) {
+    return (
+      <YoutubeEmbed videoId={watchingId} onClose={() => setWatchingId(null)} />
+    );
+  }
+
+  return (
+    <div className="border-t-2 border-on-background/10 bg-surface-container-high px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[9px] font-black uppercase tracking-widest text-on-background/50 flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[12px]">smart_display</span>
+          {phase === "searching" && "SEARCHING..."}
+          {phase === "results" && `RESULTS_FOR: ${[song.title, song.artist].filter(Boolean).join(" — ")}`}
+          {phase === "downloading" && "DOWNLOADING_&_UPLOADING_TO_BLOSSOM..."}
+          {phase === "error" && "ERROR"}
+        </span>
+        <button onClick={onClose} className="text-on-background/30 hover:text-on-background transition-colors">
+          <span className="material-symbols-outlined text-[14px]">close</span>
+        </button>
+      </div>
+
+      {phase === "searching" && (
+        <div className="flex items-center gap-2 py-3 text-on-background/40">
+          <span className="material-symbols-outlined text-[16px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest">FETCHING_RESULTS...</span>
+        </div>
+      )}
+
+      {phase === "results" && results.length === 0 && (
+        <p className="text-[10px] text-on-background/40 uppercase tracking-widest py-3">NO_RESULTS_FOUND</p>
+      )}
+
+      {phase === "results" && results.length > 0 && (
+        <div className="space-y-1">
+          {results.map((r) => {
+            const isDownloading = downloadingId === r.videoId;
+            return (
+              <div key={r.videoId} className="flex items-center gap-2.5 px-2 py-1.5 border border-transparent hover:border-on-background/20 group/yt">
+                {r.thumbnailUrl && (
+                  <img
+                    src={r.thumbnailUrl}
+                    alt=""
+                    className="w-12 h-9 object-cover shrink-0 bg-on-background/10"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-tight truncate">{r.title}</p>
+                  <p className="text-[9px] text-on-background/50 truncate">
+                    {r.channel}
+                    {r.duration && <span className="ml-2 tabular-nums">{formatDuration(r.duration)}</span>}
+                  </p>
+                </div>
+                {/* Preview source */}
+                <button
+                  onClick={() => setWatchingId(r.videoId)}
+                  disabled={downloadingId !== null}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
+                  title="Preview"
+                >
+                  <span className="material-symbols-outlined text-[12px]">play_arrow</span>
+                  PREVIEW
+                </button>
+                {/* Download audio */}
+                <button
+                  onClick={() => handleDownload(r, "audio")}
+                  disabled={downloadingId !== null}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
+                  title="Download audio to Blossom"
+                >
+                  <span
+                    className="material-symbols-outlined text-[12px]"
+                    style={isDownloading ? { animation: "spin 0.8s linear infinite" } : {}}
+                  >
+                    {isDownloading ? "sync" : "audio_file"}
+                  </span>
+                  AUDIO
+                </button>
+                {/* Download video */}
+                <button
+                  onClick={() => handleDownload(r, "video")}
+                  disabled={downloadingId !== null}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
+                  title="Download video to Blossom"
+                >
+                  <span className="material-symbols-outlined text-[12px]">video_file</span>
+                  VIDEO
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {phase === "downloading" && (
+        <div className="flex items-start gap-2 py-3 text-on-background/60">
+          <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest">DOWNLOADING_&_UPLOADING...</p>
+            <p className="text-[9px] text-on-background/50 mt-0.5 truncate font-mono">
+              {progressMsg ?? "Starting..."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {phase === "error" && (
+        <div className="flex items-center gap-2 py-2 text-destructive">
+          <span className="material-symbols-outlined text-[14px]">error</span>
+          <p className="text-[10px] font-bold uppercase tracking-tight truncate">{errorMsg}</p>
+          <button
+            onClick={() => { setPhase("searching"); setErrorMsg(null); }}
+            className="ml-auto shrink-0 text-[9px] font-black uppercase tracking-widest border border-current px-2 py-0.5 hover:bg-destructive hover:text-white transition-colors"
+          >
+            RETRY
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Song row ─────────────────────────────────────────────────────────────────
 
 interface SongRowProps {
@@ -46,6 +218,8 @@ interface SongRowProps {
 function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [ytPanelOpen, setYtPanelOpen] = useState(false);
+  const [embedOpen, setEmbedOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleMove = async (toListId: string) => {
@@ -65,6 +239,7 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
   };
 
   return (
+    <>
     <div className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10 hover:bg-surface-container-high transition-colors group">
       {/* Thumbnail */}
       <div className="w-10 h-10 shrink-0 bg-on-background/10 border-2 border-on-background/20 flex items-center justify-center overflow-hidden">
@@ -122,6 +297,19 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </a>
       )}
 
+      {/* Play audio */}
+      {song.audioUrl && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setEmbedOpen((v) => !v); }}
+          className={cn("shrink-0 transition-colors", embedOpen ? "text-primary" : "text-primary/60 hover:text-primary")}
+          title={embedOpen ? "Close player" : "Play audio"}
+        >
+          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {embedOpen ? "stop_circle" : "play_circle"}
+          </span>
+        </button>
+      )}
+
       {/* Actions menu */}
       <div className="relative shrink-0" ref={menuRef}>
         <button
@@ -162,6 +350,16 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
                 </>
               )}
               <button
+                onClick={() => { setMenuOpen(false); setYtPanelOpen((v) => !v); }}
+                className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-on-background hover:text-surface transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {song.audioUrl ? "check_circle" : "download"}
+                </span>
+                {song.audioUrl ? "AUDIO_ATTACHED" : "GET_AUDIO"}
+              </button>
+              <div className="border-t border-on-background/10" />
+              <button
                 onClick={handleRemove}
                 className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-destructive hover:text-white transition-colors flex items-center gap-2 text-destructive"
               >
@@ -173,6 +371,21 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         )}
       </div>
     </div>
+    {ytPanelOpen && (
+      <YouTubeAudioPanel song={song} onClose={() => setYtPanelOpen(false)} />
+    )}
+    {embedOpen && song.audioUrl && (
+      <div className="border-t-2 border-on-background/10 bg-black px-4 py-2 flex items-center gap-3">
+        <video controls autoPlay src={song.audioUrl} className="flex-1 max-h-64 min-w-0" />
+        <button
+          onClick={() => setEmbedOpen(false)}
+          className="shrink-0 text-white/40 hover:text-white transition-colors"
+        >
+          <span className="material-symbols-outlined text-[12px]">close</span>
+        </button>
+      </div>
+    )}
+  </>
   );
 }
 
