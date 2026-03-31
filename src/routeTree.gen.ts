@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MusicbrainzRouteImport } from './routes/musicbrainz'
 import { Route as FavoritesRouteImport } from './routes/favorites'
+import { Route as CrateRouteImport } from './routes/crate'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -32,6 +33,11 @@ const MusicbrainzRoute = MusicbrainzRouteImport.update({
 const FavoritesRoute = FavoritesRouteImport.update({
   id: '/favorites',
   path: '/favorites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrateRoute = CrateRouteImport.update({
+  id: '/crate',
+  path: '/crate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
+  '/crate': typeof CrateRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
+  '/crate': typeof CrateRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/community': typeof CommunityRoute
+  '/crate': typeof CrateRoute
   '/favorites': typeof FavoritesRoute
   '/musicbrainz': typeof MusicbrainzRoute
   '/settings': typeof SettingsRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/community'
+    | '/crate'
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/community'
+    | '/crate'
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/community'
+    | '/crate'
     | '/favorites'
     | '/musicbrainz'
     | '/settings'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   CommunityRoute: typeof CommunityRoute
+  CrateRoute: typeof CrateRoute
   FavoritesRoute: typeof FavoritesRoute
   MusicbrainzRoute: typeof MusicbrainzRoute
   SettingsRoute: typeof SettingsRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/favorites'
       fullPath: '/favorites'
       preLoaderRoute: typeof FavoritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crate': {
+      id: '/crate'
+      path: '/crate'
+      fullPath: '/crate'
+      preLoaderRoute: typeof CrateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -219,6 +239,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CommunityRoute: CommunityRoute,
+  CrateRoute: CrateRoute,
   FavoritesRoute: FavoritesRoute,
   MusicbrainzRoute: MusicbrainzRoute,
   SettingsRoute: SettingsRoute,

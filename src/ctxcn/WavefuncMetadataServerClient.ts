@@ -127,6 +127,7 @@ export interface SearchRecordingsOutput {
     artist: string;
     artistId?: string;
     release?: string;
+    releaseId?: string;
     releaseDate?: string;
     duration?: number;
     score: number;
@@ -203,6 +204,7 @@ export interface SearchRecordingsCombinedOutput {
     artist: string;
     artistId?: string;
     release?: string;
+    releaseId?: string;
     releaseDate?: string;
     duration?: number;
     score: number;

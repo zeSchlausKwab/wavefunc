@@ -95,6 +95,23 @@ func (s *stationSearch) SaveEvent(evt nostr.Event) error {
 		}
 		// Index "name description" so both are searchable
 		content = strings.TrimSpace(name + " " + description)
+	} else if evt.Kind == 31337 {
+		// Song event: index title, artist, album, and genre tags
+		var parts []string
+		if tag := evt.Tags.Find("title"); tag != nil {
+			parts = append(parts, tag[1])
+		}
+		for tag := range evt.Tags.FindAll("c") {
+			if len(tag) >= 3 && (tag[2] == "artist" || tag[2] == "album") {
+				parts = append(parts, tag[1])
+			}
+		}
+		for tag := range evt.Tags.FindAll("t") {
+			if len(tag) >= 2 {
+				parts = append(parts, tag[1])
+			}
+		}
+		content = strings.TrimSpace(strings.Join(parts, " "))
 	}
 
 	doc := map[string]any{
@@ -332,6 +349,10 @@ func logIncomingEvent(evt nostr.Event) {
 		if tag := evt.Tags.Find("name"); tag != nil {
 			identifier = fmt.Sprintf(" (%s)", tag[1])
 		}
+	case 31337:
+		if tag := evt.Tags.Find("title"); tag != nil {
+			identifier = fmt.Sprintf(" (%s)", tag[1])
+		}
 	case 30078, 31990, 31989:
 		if tag := evt.Tags.Find("d"); tag != nil {
 			identifier = fmt.Sprintf(" (d:%s)", tag[1])
@@ -422,6 +443,8 @@ func getKindName(kind nostr.Kind) string {
 		return "App Data"
 	case 31237:
 		return "Radio Station"
+	case 31337:
+		return "Song"
 	case 31989:
 		return "Handler Recommendation"
 	case 31990:

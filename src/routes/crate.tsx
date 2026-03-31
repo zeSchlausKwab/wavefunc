@@ -1,0 +1,380 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useRef, useState } from "react";
+import { useSubscribe } from "@nostr-dev-kit/react";
+import { useSongFavorites } from "../lib/hooks/useSongFavorites";
+import { NDKSong } from "../lib/NDKSong";
+import { NDKWFSongList } from "../lib/NDKWFSongList";
+import { addressesToParameterizedFilters, getAppDataSubscriptionOptions } from "../config/nostr";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/crate")({
+  component: Crate,
+});
+
+// ─── Song resolution ──────────────────────────────────────────────────────────
+
+function useSongsFromList(list: NDKWFSongList | null) {
+  const addresses = list?.getSongs() ?? [];
+  const filters = useMemo(
+    () => addressesToParameterizedFilters(31337, addresses),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(addresses)]
+  );
+  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
+  const songs = useMemo(() => events.map((e) => NDKSong.from(e)), [events]);
+  return { songs, isLoading: !eose };
+}
+
+// ─── Song row ─────────────────────────────────────────────────────────────────
+
+interface SongRowProps {
+  song: NDKSong;
+  sourceList: NDKWFSongList;
+  otherLists: NDKWFSongList[];
+  onMove: (songAddress: string, fromListId: string, toListId: string) => Promise<void>;
+  onRemove: (songAddress: string, listId: string) => Promise<void>;
+}
+
+function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleMove = async (toListId: string) => {
+    if (!sourceList.listId) return;
+    setMenuOpen(false);
+    setBusy(true);
+    await onMove(song.address, sourceList.listId, toListId);
+    setBusy(false);
+  };
+
+  const handleRemove = async () => {
+    if (!sourceList.listId) return;
+    setMenuOpen(false);
+    setBusy(true);
+    await onRemove(song.address, sourceList.listId);
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10 hover:bg-surface-container-high transition-colors group">
+      {/* Thumbnail */}
+      <div className="w-10 h-10 shrink-0 bg-on-background/10 border-2 border-on-background/20 flex items-center justify-center overflow-hidden">
+        {song.thumb ? (
+          <img
+            src={song.thumb}
+            alt={song.album || song.title}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <span className="material-symbols-outlined text-[18px] text-on-background/30">music_note</span>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="font-black text-[13px] uppercase tracking-tighter truncate leading-tight">
+          {song.title || "UNKNOWN_TRACK"}
+        </p>
+        <p className="text-[10px] text-on-background/55 truncate leading-tight">
+          {song.artist || "Unknown Artist"}
+          {song.album && <span className="opacity-70"> · {song.album}</span>}
+        </p>
+      </div>
+
+      {/* Year */}
+      {song.releaseYear && (
+        <span className="shrink-0 text-[10px] font-bold text-on-background/40 tabular-nums hidden sm:block">
+          {song.releaseYear}
+        </span>
+      )}
+
+      {/* Actions menu */}
+      <div className="relative shrink-0" ref={menuRef}>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          disabled={busy}
+          className="w-7 h-7 flex items-center justify-center text-on-background/30 hover:text-on-background transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40"
+          title="Song options"
+        >
+          {busy ? (
+            <span className="material-symbols-outlined text-[16px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+          ) : (
+            <span className="material-symbols-outlined text-[16px]">more_horiz</span>
+          )}
+        </button>
+
+        {menuOpen && (
+          <>
+            {/* Backdrop */}
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            {/* Menu */}
+            <div className="absolute right-0 top-full mt-1 z-20 bg-background border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] min-w-[160px]">
+              {otherLists.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-on-background/40 border-b border-on-background/10">
+                    Move to
+                  </div>
+                  {otherLists.map((list) => (
+                    <button
+                      key={list.listId}
+                      onClick={() => handleMove(list.listId!)}
+                      className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-on-background hover:text-surface transition-colors flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">drive_file_move</span>
+                      {list.name || "Unnamed list"}
+                    </button>
+                  ))}
+                  <div className="border-t border-on-background/10" />
+                </>
+              )}
+              <button
+                onClick={handleRemove}
+                className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-destructive hover:text-white transition-colors flex items-center gap-2 text-destructive"
+              >
+                <span className="material-symbols-outlined text-[14px]">remove_circle</span>
+                Remove
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── List panel ───────────────────────────────────────────────────────────────
+
+interface SongListPanelProps {
+  list: NDKWFSongList;
+  allLists: NDKWFSongList[];
+  onMove: (songAddress: string, fromListId: string, toListId: string) => Promise<void>;
+  onRemove: (songAddress: string, listId: string) => Promise<void>;
+}
+
+function SongListPanel({ list, allLists, onMove, onRemove }: SongListPanelProps) {
+  const { songs, isLoading } = useSongsFromList(list);
+  const count = list.getSongCount();
+  const otherLists = allLists.filter((l) => l.listId !== list.listId);
+
+  return (
+    <div className="border-4 border-on-background shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
+      <div className="flex items-center justify-between px-4 py-3 bg-on-background text-surface">
+        <div>
+          <h2 className="font-black text-base uppercase tracking-tighter font-headline leading-none">
+            {list.name || "UNNAMED_LIST"}
+          </h2>
+          {list.description && (
+            <p className="text-[10px] opacity-60 mt-0.5">{list.description}</p>
+          )}
+        </div>
+        <span className="text-[10px] font-bold opacity-50 tabular-nums">{count}_TRACKS</span>
+      </div>
+
+      {isLoading && count > 0 ? (
+        <div>
+          {Array.from({ length: Math.min(count, 5) }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10 animate-pulse">
+              <div className="w-10 h-10 shrink-0 bg-on-background/10" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-on-background/10 w-2/3" />
+                <div className="h-2 bg-on-background/10 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : songs.length > 0 ? (
+        <div>
+          {songs.map((song) => (
+            <SongRow
+              key={song.id || song.songId}
+              song={song}
+              sourceList={list}
+              otherLists={otherLists}
+              onMove={onMove}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
+      ) : count === 0 ? (
+        <div className="px-4 py-8 text-center">
+          <span className="material-symbols-outlined text-4xl text-on-background/20 block mb-2">music_off</span>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/40">NO_TRACKS_YET</p>
+          <p className="text-[9px] text-on-background/30 mt-1">Like a song while listening to add it here</p>
+        </div>
+      ) : (
+        <div className="px-4 py-4 text-[10px] text-on-background/40 uppercase tracking-widest text-center">
+          LOADING_TRACKS...
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Inline create form ───────────────────────────────────────────────────────
+
+function CreateListForm({ onCreate, onCancel }: { onCreate: (name: string) => Promise<void>; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    await onCreate(name.trim());
+    setBusy(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="border-4 border-on-background bg-surface-container-high p-4 flex items-center gap-3 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
+      <input
+        autoFocus
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="LIST_NAME..."
+        maxLength={60}
+        className="flex-1 bg-transparent font-black uppercase tracking-tighter text-sm outline-none border-b-2 border-on-background py-1 placeholder:text-on-background/25 font-headline"
+      />
+      <button
+        type="submit"
+        disabled={!name.trim() || busy}
+        className="border-2 border-on-background px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors disabled:opacity-40"
+      >
+        {busy ? "CREATING..." : "CREATE"}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="border-2 border-on-background/30 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:border-on-background transition-colors"
+      >
+        CANCEL
+      </button>
+    </form>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+function Crate() {
+  const { songLists, isLoggedIn, isLoading, createList, moveSong, removeSongFromList } = useSongFavorites();
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  const totalTracks = useMemo(
+    () => songLists.reduce((n, l) => n + l.getSongCount(), 0),
+    [songLists]
+  );
+
+  const handleCreate = async (name: string) => {
+    await createList(name);
+    setShowCreateForm(false);
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="space-y-6">
+        <PageHeader totalTracks={0} />
+        <div className="border-4 border-on-background bg-surface-container-high shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] p-12 text-center">
+          <span className="material-symbols-outlined text-6xl text-on-background/20 block mb-4">lock</span>
+          <div className="text-xl font-black uppercase tracking-tight mb-2 font-headline">AUTHENTICATION_REQUIRED</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/50">CONNECT_TO_ACCESS_YOUR_CRATE</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader totalTracks={0} />
+        <div className="border-4 border-on-background shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] animate-pulse">
+          <div className="h-12 bg-on-background/10" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10">
+              <div className="w-10 h-10 bg-on-background/10 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-on-background/10 w-2/3" />
+                <div className="h-2 bg-on-background/10 w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <PageHeader
+          totalTracks={totalTracks}
+          showCreateForm={showCreateForm}
+          onNewList={() => setShowCreateForm((v) => !v)}
+        />
+        {showCreateForm && (
+          <CreateListForm onCreate={handleCreate} onCancel={() => setShowCreateForm(false)} />
+        )}
+      </div>
+
+      {songLists.length === 0 && !showCreateForm ? (
+        <div className="border-4 border-on-background bg-surface-container-high shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] p-12 text-center">
+          <span className="material-symbols-outlined text-6xl text-on-background/20 block mb-4">album</span>
+          <div className="text-xl font-black uppercase tracking-tight mb-2 font-headline">CRATE_IS_EMPTY</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 mb-2">
+            LIKE_A_SONG_WHILE_LISTENING_TO_START_YOUR_COLLECTION
+          </div>
+          <div className="text-[9px] text-on-background/30">Tap ★ next to the now-playing track in the player bar</div>
+        </div>
+      ) : (
+        songLists.map((list) => (
+          <SongListPanel
+            key={list.listId || list.pubkey}
+            list={list}
+            allLists={songLists}
+            onMove={moveSong}
+            onRemove={removeSongFromList}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── Page header ──────────────────────────────────────────────────────────────
+
+function PageHeader({
+  totalTracks,
+  showCreateForm,
+  onNewList,
+}: {
+  totalTracks: number;
+  showCreateForm?: boolean;
+  onNewList?: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline gap-4">
+        <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase tracking-tighter font-headline">CRATE</h1>
+        <div className={cn("h-2 flex-grow bg-on-background", totalTracks === 0 && "opacity-20")} />
+        {totalTracks > 0 && (
+          <span className="font-bold text-primary text-sm hidden md:block tracking-widest uppercase">{totalTracks}_TRACKS</span>
+        )}
+      </div>
+      {onNewList && (
+        <button
+          onClick={onNewList}
+          className={cn(
+            "border-2 border-on-background px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5",
+            showCreateForm
+              ? "bg-on-background text-surface"
+              : "bg-surface hover:bg-on-background hover:text-surface"
+          )}
+        >
+          <span className="material-symbols-outlined text-[14px]">{showCreateForm ? "close" : "add"}</span>
+          {showCreateForm ? "CANCEL" : "NEW_LIST"}
+        </button>
+      )}
+    </div>
+  );
+}

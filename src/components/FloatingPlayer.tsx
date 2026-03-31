@@ -15,6 +15,7 @@ import { SmallLogo } from "./SmallLogo";
 import { NavigationItems } from "./NavigationItems";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { LoginSessionButtons } from "./LoginSessionButtom";
+import { SongFavoriteButton } from "./SongFavoriteButton";
 
 // ─── Snap levels ──────────────────────────────────────────────────────────────
 
@@ -327,10 +328,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 : "SELECT_A_STATION"}
             </h4>
             {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-              <p className="text-[10px] text-on-background/55 truncate leading-none">
-                {currentMetadata.song}
-                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
-              </p>
+              <div className="flex items-center gap-1 min-w-0">
+                <p className="text-[10px] text-on-background/55 truncate leading-none flex-1 min-w-0">
+                  {currentMetadata.song}
+                  {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
+                </p>
+                <SongFavoriteButton size="sm" className="shrink-0" />
+              </div>
             )}
           </button>
 
@@ -466,14 +470,17 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   : "SELECT_A_STATION"}
               </h4>
               {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-                <p
-                  className="truncate text-[11px] text-on-background/70 cursor-pointer hover:text-primary transition-colors leading-tight"
-                  onClick={handleSearchMetadata}
-                  title="Search on MusicBrainz"
-                >
-                  {currentMetadata.song}
-                  {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p
+                    className="truncate text-[11px] text-on-background/70 cursor-pointer hover:text-primary transition-colors leading-tight flex-1 min-w-0"
+                    onClick={handleSearchMetadata}
+                    title="Search on MusicBrainz"
+                  >
+                    {currentMetadata.song}
+                    {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
+                  </p>
+                  <SongFavoriteButton size="sm" className="shrink-0" />
+                </div>
               )}
               {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-28 mt-0.5" />}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}

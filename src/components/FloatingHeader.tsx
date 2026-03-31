@@ -39,6 +39,12 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
           <Link to="/favorites" className={navLinkBase} activeProps={{ className: navLinkActive }}>
             ARCHIVE
           </Link>
+          <Link to="/crate" className={navLinkBase} activeProps={{ className: navLinkActive }}>
+            CRATE
+          </Link>
+          <Link to="/signals" className={navLinkBase} activeProps={{ className: navLinkActive }}>
+            SIGNALS
+          </Link>
           <Link to="/community" className={navLinkBase} activeProps={{ className: navLinkActive }}>
             ASSEMBLY
           </Link>

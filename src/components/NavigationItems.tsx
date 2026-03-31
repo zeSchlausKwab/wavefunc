@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
+import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { StationManagementSheet } from "./StationManagementSheet";
 
@@ -11,6 +12,8 @@ interface NavigationItemsProps {
 export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationItemsProps) {
   const { getFavoriteCount } = useFavorites();
   const favCount = getFavoriteCount();
+  const { songLists } = useSongFavorites();
+  const songCount = songLists.reduce((n, l) => n + l.getSongCount(), 0);
 
   // Desktop nav is in FloatingHeader
   if (variant === "desktop") return null;
@@ -42,6 +45,19 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
             {favCount}
           </span>
         )}
+      </Link>
+      <Link to="/crate" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
+        <span className="material-symbols-outlined text-[20px]">album</span>
+        CRATE
+        {songCount > 0 && (
+          <span className="ml-auto bg-secondary-fixed-dim text-on-background text-[10px] font-black px-2 py-0.5 min-w-[1.5rem] text-center">
+            {songCount}
+          </span>
+        )}
+      </Link>
+      <Link to="/signals" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
+        <span className="material-symbols-outlined text-[20px]">graphic_eq</span>
+        SIGNALS
       </Link>
       <Link to="/community" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
         <span className="material-symbols-outlined text-[20px]">forum</span>

@@ -102,6 +102,7 @@ export const musicBrainzRecordingSchema = z.object({
   artist: z.string(),
   artistId: z.string().optional(),
   release: z.string().optional(),
+  releaseId: z.string().optional(),
   releaseDate: z.string().optional(),
   duration: z.number().optional(),
   score: z.number(),

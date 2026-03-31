@@ -14,6 +14,7 @@ export interface RecordingResult extends BaseMusicBrainzResult {
   artist: string;
   artistId?: string;
   release?: string;
+  releaseId?: string;
   releaseDate?: string;
   duration?: number; // in milliseconds
 }

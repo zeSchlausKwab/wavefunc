@@ -51,6 +51,7 @@ interface CurrentMetadata {
     title: string;
     artist: string;
     release?: string;
+    releaseId?: string;
     releaseDate?: string;
     duration?: number;
     tags?: string[];
