@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useSubscribe, useProfileValue } from "@nostr-dev-kit/react";
 import { NDKSong } from "../lib/NDKSong";
 import { CrateSaveButton } from "../components/CrateSaveButton";
+import { ShareSongDialog } from "../components/ShareSongDialog";
 import { getAppDataSubscriptionOptions } from "../config/nostr";
 
 function formatDuration(seconds: number): string {
@@ -26,6 +27,7 @@ function SignalRow({ song }: SignalRowProps) {
   const displayName = profile?.name || profile?.displayName || `${song.pubkey.slice(0, 8)}...`;
   const avatar = profile?.image || profile?.picture;
   const [embedOpen, setEmbedOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <>
@@ -115,7 +117,19 @@ function SignalRow({ song }: SignalRowProps) {
 
       {/* Save to Crate */}
       <CrateSaveButton song={song} size="sm" className="shrink-0" />
+
+      {/* Share */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
+        className="shrink-0 text-on-background/30 hover:text-on-background transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+        title="Share as Nostr note"
+      >
+        <span className="material-symbols-outlined text-[16px]">share</span>
+      </button>
     </div>
+    {shareOpen && (
+      <ShareSongDialog song={song} onClose={() => setShareOpen(false)} />
+    )}
     {embedOpen && song.audioUrl && (
       <div className="border-t-2 border-on-background/10 bg-black px-4 py-2 flex items-center gap-3">
         <video controls autoPlay src={song.audioUrl} className="flex-1 max-h-64 min-w-0" />
@@ -135,7 +149,7 @@ function SignalRow({ song }: SignalRowProps) {
 
 function Signals() {
   const { events, eose } = useSubscribe(
-    [{ kinds: [31337], limit: 100 }],
+    [{ kinds: [31337 as number], limit: 100 }],
     getAppDataSubscriptionOptions({ closeOnEose: false })
   );
 

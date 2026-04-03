@@ -16,6 +16,7 @@ const VIDEO_FORMATS: { label: string; format: DownloadFormat; icon: string; hint
 ];
 import { useUIStore } from "../stores/uiStore";
 import { YoutubeEmbed } from "../components/YoutubeEmbed";
+import { ShareSongDialog } from "../components/ShareSongDialog";
 
 const BLOSSOM_SERVERS = [
   { label: "blossom.band", url: "https://blossom.band" },
@@ -302,19 +303,17 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
   const [busy, setBusy] = useState(false);
   const [ytPanelOpen, setYtPanelOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleMove = async (toListId: string) => {
     if (!sourceList.listId) return;
     setMenuOpen(false);
-    setBusy(true);
     await onMove(song.address, sourceList.listId, toListId);
-    setBusy(false);
   };
 
   const handleRemove = async () => {
     if (!sourceList.listId) return;
-    setMenuOpen(false);
     setBusy(true);
     await onRemove(song.address, sourceList.listId);
     setBusy(false);
@@ -372,7 +371,7 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="shrink-0 text-on-background/20 hover:text-on-background/60 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="shrink-0 text-on-background/20 hover:text-on-background/60 transition-colors"
           title="View on MusicBrainz"
         >
           <span className="material-symbols-outlined text-[14px]">open_in_new</span>
@@ -392,69 +391,82 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </button>
       )}
 
-      {/* Actions menu */}
-      <div className="relative shrink-0" ref={menuRef}>
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          disabled={busy}
-          className="w-7 h-7 flex items-center justify-center text-on-background/30 hover:text-on-background transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40"
-          title="Song options"
-        >
-          {busy ? (
-            <span className="material-symbols-outlined text-[16px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-          ) : (
-            <span className="material-symbols-outlined text-[16px]">more_horiz</span>
-          )}
-        </button>
-
-        {menuOpen && (
-          <>
-            {/* Backdrop */}
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            {/* Menu */}
-            <div className="absolute right-0 top-full mt-1 z-20 bg-background border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] min-w-[160px]">
-              {otherLists.length > 0 && (
-                <>
-                  <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-on-background/40 border-b border-on-background/10">
-                    Move to
-                  </div>
-                  {otherLists.map((list) => (
-                    <button
-                      key={list.listId}
-                      onClick={() => handleMove(list.listId!)}
-                      className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-on-background hover:text-surface transition-colors flex items-center gap-2"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">drive_file_move</span>
-                      {list.name || "Unnamed list"}
-                    </button>
-                  ))}
-                  <div className="border-t border-on-background/10" />
-                </>
-              )}
-              <button
-                onClick={() => { setMenuOpen(false); setYtPanelOpen((v) => !v); }}
-                className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-on-background hover:text-surface transition-colors flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[14px]">
-                  {song.audioUrl ? "check_circle" : "download"}
-                </span>
-                {song.audioUrl ? "AUDIO_ATTACHED" : "GET_AUDIO"}
-              </button>
-              <div className="border-t border-on-background/10" />
-              <button
-                onClick={handleRemove}
-                className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-destructive hover:text-white transition-colors flex items-center gap-2 text-destructive"
-              >
-                <span className="material-symbols-outlined text-[14px]">remove_circle</span>
-                Remove
-              </button>
-            </div>
-          </>
+      {/* Get audio */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setYtPanelOpen((v) => !v); }}
+        className={cn(
+          "shrink-0 transition-colors",
+          song.audioUrl ? "text-primary/60 hover:text-primary" : "text-on-background/30 hover:text-on-background"
         )}
-      </div>
+        title={song.audioUrl ? "Audio attached — replace?" : "Get audio"}
+      >
+        <span className="material-symbols-outlined text-[16px]">
+          {song.audioUrl ? "audio_file" : "download"}
+        </span>
+      </button>
+
+      {/* Share */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
+        className="shrink-0 text-on-background/30 hover:text-on-background transition-colors"
+        title="Share as Nostr note"
+      >
+        <span className="material-symbols-outlined text-[16px]">share</span>
+      </button>
+
+      {/* Remove */}
+      <button
+        onClick={(e) => { e.stopPropagation(); handleRemove(); }}
+        disabled={busy}
+        className="shrink-0 text-destructive/40 hover:text-destructive transition-colors disabled:opacity-40"
+        title="Remove from list"
+      >
+        {busy ? (
+          <span className="material-symbols-outlined text-[16px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+        ) : (
+          <span className="material-symbols-outlined text-[16px]">remove_circle</span>
+        )}
+      </button>
+
+      {/* Move to another list — dropdown, only when other lists exist */}
+      {otherLists.length > 0 && (
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="w-7 h-7 flex items-center justify-center text-on-background/30 hover:text-on-background transition-colors"
+            title="Move to list"
+          >
+            <span className="material-symbols-outlined text-[16px]">drive_file_move</span>
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-20 bg-background border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] min-w-[160px]">
+                <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-on-background/40 border-b border-on-background/10">
+                  Move to
+                </div>
+                {otherLists.map((list) => (
+                  <button
+                    key={list.listId}
+                    onClick={() => handleMove(list.listId!)}
+                    className="w-full text-left px-3 py-2 text-[11px] font-bold uppercase tracking-tight hover:bg-on-background hover:text-surface transition-colors flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">drive_file_move</span>
+                    {list.name || "Unnamed list"}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
     {ytPanelOpen && (
       <YouTubeAudioPanel song={song} onClose={() => setYtPanelOpen(false)} />
+    )}
+    {shareOpen && (
+      <ShareSongDialog song={song} onClose={() => setShareOpen(false)} />
     )}
     {embedOpen && song.audioUrl && (
       <div className="border-t-2 border-on-background/10 bg-black px-4 py-2 flex items-center gap-3">
