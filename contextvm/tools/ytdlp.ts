@@ -3,7 +3,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ─── yt-dlp binary resolution ─────────────────────────────────────────────────
-// Place the binary at contextvm/bin/yt-dlp (or set YTDLP_PATH).
+// Place the executable at contextvm/bin/yt-dlp (or set YTDLP_PATH).
 // Download it from https://github.com/yt-dlp/yt-dlp/releases/latest
 //   macOS:  curl -L .../yt-dlp_macos -o contextvm/bin/yt-dlp && chmod +x contextvm/bin/yt-dlp
 //   Linux:  curl -L .../yt-dlp       -o contextvm/bin/yt-dlp && chmod +x contextvm/bin/yt-dlp
@@ -12,6 +12,8 @@ const LOCAL_BIN = join(dirname(fileURLToPath(import.meta.url)), "..", "bin", "yt
 
 let resolvedBin: string | null = null;
 let cachedCaps: { audio: boolean; webm: boolean } | null = null;
+let cachedCommonArgsKey: string | null = null;
+let cachedCommonArgs: string[] | null = null;
 
 interface FfmpegCaps { audio: boolean; webm: boolean }
 
@@ -62,6 +64,30 @@ async function ensureYtDlp(): Promise<string> {
   );
 }
 
+function getCommonYtDlpArgs(): string[] {
+  const cookiesFile = process.env.YTDLP_COOKIES_FILE?.trim() || "";
+  const proxy = process.env.YTDLP_PROXY?.trim() || "";
+  const playerClients = process.env.YTDLP_PLAYER_CLIENTS?.trim() || "web_creator,web";
+  const cacheKey = JSON.stringify([cookiesFile, proxy, playerClients]);
+
+  if (cachedCommonArgs && cachedCommonArgsKey === cacheKey) return [...cachedCommonArgs];
+
+  const args = ["--extractor-args", `youtube:player_client=${playerClients}`];
+
+  if (proxy) {
+    args.push("--proxy", proxy);
+    console.log(`[yt-dlp] using proxy: ${proxy}`);
+  }
+
+  if (cookiesFile) {
+    args.push("--cookies", cookiesFile);
+  }
+
+  cachedCommonArgsKey = cacheKey;
+  cachedCommonArgs = args;
+  return [...args];
+}
+
 export interface YouTubeResult {
   videoId: string;
   url: string;
@@ -86,12 +112,14 @@ export interface AudioUploadResult {
  */
 export async function searchYouTube(query: string, limit = 5): Promise<YouTubeResult[]> {
   const bin = await ensureYtDlp();
+  const commonArgs = getCommonYtDlpArgs();
   const proc = Bun.spawn(
     [
       bin,
       "--flat-playlist",
       "--dump-single-json",
       "--no-warnings",
+      ...commonArgs,
       `ytsearch${limit}:${query}`,
     ],
     { stdout: "pipe", stderr: "pipe" }
@@ -104,7 +132,13 @@ export async function searchYouTube(query: string, limit = 5): Promise<YouTubeRe
 
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text();
-    throw new Error(`yt-dlp search failed (exit ${exitCode}): ${stderr.slice(0, 400)}`);
+    // Show the last meaningful lines — the traceback header is rarely useful
+    const lines = stderr.split("\n").filter((l) => l.trim());
+    const errorLines = lines.filter((l) => /error|warning|exception|failed/i.test(l));
+    const tail = lines.slice(-5);
+    const detail = [...new Set([...errorLines, ...tail])].join("\n");
+    console.error(`[search] FAILED (exit ${exitCode})\n${stderr}`);
+    throw new Error(`yt-dlp search failed (exit ${exitCode}):\n${detail}`);
   }
 
   let data: any;
@@ -283,7 +317,13 @@ export async function prepareDownload(
     onProgress?.(`Starting download [${spec.mimeType}]: https://www.youtube.com/watch?v=${videoId}`);
 
     const bin = await ensureYtDlp();
-    const args = [bin, "--verbose", ...spec.ytdlpArgs];
+    const commonArgs = getCommonYtDlpArgs();
+    const args = [
+      bin,
+      "--verbose",
+      ...commonArgs,
+      ...spec.ytdlpArgs,
+    ];
 
     console.log(`[prepare_download] CMD: ${args.join(" ")}`);
 

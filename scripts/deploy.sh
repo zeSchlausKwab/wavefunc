@@ -36,6 +36,7 @@ fi
 
 tar -czf deploy.tar.gz \
     --exclude='contextvm/node_modules' \
+    --exclude='contextvm/bin' \
     --exclude='relay/relay' \
     --exclude='relay/data' \
     --exclude='src-tauri' \

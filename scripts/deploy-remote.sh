@@ -21,9 +21,9 @@ echo "✓ Using Go: $(which go)"
 if ! command -v ffmpeg >/dev/null 2>&1; then
     echo "📦 Installing ffmpeg..."
     if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y ffmpeg
+        sudo apt-get install -y ffmpeg || echo "⚠️  ffmpeg install failed — run 'sudo apt-get install -y ffmpeg' manually"
     elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y ffmpeg
+        sudo yum install -y ffmpeg || echo "⚠️  ffmpeg install failed — run 'sudo yum install -y ffmpeg' manually"
     else
         echo "⚠️  Cannot install ffmpeg automatically — install it manually"
     fi
@@ -31,11 +31,12 @@ else
     echo "✓ ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
 fi
 
-# Install or update yt-dlp binary
+# Install yt-dlp standalone binary (no Python/venv required)
 YTDLP_BIN="contextvm/bin/yt-dlp"
 echo "📦 Installing/updating yt-dlp..."
 mkdir -p contextvm/bin
-curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "$YTDLP_BIN"
+rm -rf "$YTDLP_BIN"
+curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o "$YTDLP_BIN"
 chmod +x "$YTDLP_BIN"
 echo "✓ yt-dlp: $("$YTDLP_BIN" --version)"
 
@@ -85,9 +86,14 @@ fi
 echo "🔄 Restarting services..."
 pm2 delete all 2>/dev/null || true
 
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # Start each service with explicit settings
 # Using Bun interpreter for TypeScript files
 BUN_PATH="$HOME/.bun/bin/bun"
+YTDLP_BIN_ABS="$(pwd)/$YTDLP_BIN"
 
 NODE_ENV=production PORT=3000 pm2 start src/index.tsx \
     --name wavefunc-web \
@@ -106,7 +112,9 @@ PORT=3334 pm2 start relay/relay \
     -o logs/relay-out.log \
     --merge-logs
 
-NODE_ENV=production pm2 start contextvm/server.ts \
+NODE_ENV=production \
+YTDLP_PATH="${YTDLP_PATH:-$YTDLP_BIN_ABS}" \
+pm2 start contextvm/server.ts \
     --name wavefunc-contextvm \
     --interpreter "$BUN_PATH" \
     --max-memory-restart 500M \
