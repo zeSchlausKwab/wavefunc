@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSearchStore } from "../stores/searchStore";
 import { useUIStore } from "../stores/uiStore";
-import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation } from "../lib/NDKStation";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +14,8 @@ import { NavigationItems } from "./NavigationItems";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { SongFavoriteButton } from "./SongFavoriteButton";
+import { useCurrentAccount } from "../lib/nostr/auth";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 // ─── Snap levels ──────────────────────────────────────────────────────────────
 
@@ -30,14 +30,17 @@ function clampPanelVh(vh: number) {
 // ─── Social bar ───────────────────────────────────────────────────────────────
 
 function PlayerSocialBar({ station }: { station: NDKStation }) {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
   const [showZapDialog, setShowZapDialog] = useState(false);
-  const { reactions, zaps, comments, userHasReacted, userHasZapped, userHasCommented } =
-    useSocialInteractions(station);
+  const reactions = 0;
+  const zaps = 0;
+  const comments = 0;
+  const userHasReacted = false;
+  const userHasZapped = false;
+  const userHasCommented = false;
 
   const handleLike = async () => {
-    if (!currentUser || !ndk) return;
+    if (!currentUser) return;
     await station.react("❤️");
   };
 
@@ -102,7 +105,7 @@ interface FloatingPlayerProps {
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
   // ── Player store ──
-  const { ndk } = useNDK();
+  const { legacyNdk } = useWavefuncNostr();
   const {
     currentStation,
     currentMetadata,
@@ -144,15 +147,15 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     if (!currentStation) return null;
     return currentStation instanceof NDKStation
       ? currentStation
-      : new NDKStation(ndk ?? undefined, currentStation as any);
-  }, [currentStation, ndk]);
+      : new NDKStation(legacyNdk, currentStation as any);
+  }, [currentStation, legacyNdk]);
 
   const legacySheetStation = useMemo(() => {
     if (!sheetStation) return null;
     return sheetStation instanceof NDKStation
       ? sheetStation
-      : new NDKStation(ndk ?? undefined, sheetStation as any);
-  }, [sheetStation, ndk]);
+      : new NDKStation(legacyNdk, sheetStation as any);
+  }, [sheetStation, legacyNdk]);
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);

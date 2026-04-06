@@ -1,5 +1,4 @@
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useNDK } from "@nostr-dev-kit/react";
 import { useStationsObserver } from "../lib/nostr/hooks/useStations";
 import { NDKStation } from "../lib/NDKStation";
 import { RadioCard } from "./RadioCard";
@@ -7,6 +6,7 @@ import { SectionHeader } from "./SectionHeader";
 import { useMemo } from "react";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 interface StationViewProps {
   searchQuery: string;
@@ -39,7 +39,7 @@ function SearchResultsSkeleton() {
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
-  const { ndk } = useNDK();
+  const { legacyNdk } = useWavefuncNostr();
   const [tileParent] = useAutoAnimate();
   const {
     genres,
@@ -70,8 +70,8 @@ export function StationView({ searchQuery }: StationViewProps) {
 
   const { events, eose } = useStationsObserver(filter, clientSideFilters);
   const legacyStations = useMemo(
-    () => events.map((station) => new NDKStation(ndk ?? undefined, station.event as any)),
-    [events, ndk],
+    () => events.map((station) => new NDKStation(legacyNdk, station.event as any)),
+    [events, legacyNdk],
   );
 
   const isSearching = !!searchQuery.trim();

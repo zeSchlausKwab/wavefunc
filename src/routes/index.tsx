@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { StationView } from "../components/StationView";
-import { FeaturedLists } from "../components/FeaturedLists";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => {
@@ -16,8 +15,6 @@ function Index() {
 
   return (
     <>
-      {/* Only show featured lists on landing page (no search query) */}
-      {!search && <FeaturedLists />}
       <StationView searchQuery={search || ""} />
     </>
   );

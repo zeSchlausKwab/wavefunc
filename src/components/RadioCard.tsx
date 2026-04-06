@@ -1,4 +1,3 @@
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { Edit3, MoreVertical, Trash2 } from "lucide-react";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
@@ -30,8 +29,6 @@ function StationThumbnail({
   );
 }
 import { Link } from "@tanstack/react-router";
-import { useFavorites } from "../lib/hooks/useFavorites";
-import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKStation, type Stream } from "../lib/NDKStation";
 import {
   canPlayStreamInApp,
@@ -48,6 +45,7 @@ import { ZapDialog } from "./ZapDialog";
 import { StreamQualityBar } from "./StreamQualityBar";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 const MIME_TO_FORMAT: Record<string, string> = {
   "audio/mpeg": "MP3",
@@ -89,13 +87,16 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   variant = "tile",
   index,
 }) => {
-  const { ndk } = useNDK();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
-  const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const { toggleGenre } = useFilterStore();
-  const currentUser = useNDKCurrentUser();
-  const { zaps, comments, reactions, userHasZapped, userHasCommented, userHasReacted } =
-    useSocialInteractions(station);
+  const currentUser = useCurrentAccount();
+  const isLoggedIn = false;
+  const zaps = 0;
+  const comments = 0;
+  const reactions = 0;
+  const userHasZapped = false;
+  const userHasCommented = false;
+  const userHasReacted = false;
 
   const { openStationSheet } = useUIStore();
 
@@ -131,11 +132,11 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   };
 
   const handleAddToList = async (listId: string) => {
-    if (station.pubkey && station.stationId) await addFavorite(station, listId);
+    console.warn("Favorites are temporarily disabled during the auth/runtime migration", listId, station.id);
   };
 
   const handleRemoveFromList = async (_listId: string) => {
-    if (station.pubkey && station.stationId) await removeFavorite(station);
+    console.warn("Favorites are temporarily disabled during the auth/runtime migration", station.id);
   };
 
   const handleDeleteStation = async () => {
@@ -156,7 +157,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const handleLike = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!currentUser || !ndk) return;
+    if (!currentUser) return;
     await station.react("❤️");
   };
 
