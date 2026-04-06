@@ -21,6 +21,7 @@ import {
 } from "./config/nostr";
 import NDKStation from "./lib/NDKStation";
 import NDKWFFavorites from "./lib/NDKWFFavorites";
+import { WavefuncNostrProvider } from "./lib/nostr/runtime";
 
 // Setup Dexie cache adapter (Client-side only)
 let cacheAdapter: NDKCacheAdapterDexie | undefined;
@@ -42,21 +43,26 @@ async function startApp() {
   const elem = document.getElementById("root")!;
   const app = (
     <StrictMode>
-      <NDKHeadless
-        ndk={{
-          explicitRelayUrls: readRelayUrls,
-          devWriteRelayUrls: writeRelayUrls,
-          cacheAdapter: cacheAdapter,
-          enableOutboxModel: !isDevelopment,
-          autoConnectUserRelays: !isDevelopment,
-        }}
-        session={{
-          storage: new NDKSessionLocalStorage(),
-          opts: { follows: true, profile: true,
-          monitor: [NDKStation, NDKWFFavorites, NDKInterestList, 1111], },
-        }}
-      />
-      <App />
+      <WavefuncNostrProvider
+        readRelays={readRelayUrls}
+        writeRelays={writeRelayUrls}
+      >
+        <NDKHeadless
+          ndk={{
+            explicitRelayUrls: readRelayUrls,
+            devWriteRelayUrls: writeRelayUrls,
+            cacheAdapter: cacheAdapter,
+            enableOutboxModel: !isDevelopment,
+            autoConnectUserRelays: !isDevelopment,
+          }}
+          session={{
+            storage: new NDKSessionLocalStorage(),
+            opts: { follows: true, profile: true,
+            monitor: [NDKStation, NDKWFFavorites, NDKInterestList, 1111], },
+          }}
+        />
+        <App />
+      </WavefuncNostrProvider>
     </StrictMode>
   );
 
