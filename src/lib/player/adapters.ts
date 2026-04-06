@@ -1,5 +1,5 @@
 import Hls from "hls.js";
-import type { Stream } from "../NDKStation";
+import type { Stream } from "../nostr/domain";
 
 // Normalize URLs coming from events (trim spaces/backticks)
 export function normalizeUrl(url: string): string {

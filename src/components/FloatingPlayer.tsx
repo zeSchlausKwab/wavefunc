@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSearchStore } from "../stores/searchStore";
@@ -102,6 +102,7 @@ interface FloatingPlayerProps {
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
   // ── Player store ──
+  const { ndk } = useNDK();
   const {
     currentStation,
     currentMetadata,
@@ -138,6 +139,20 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     setSheetSnap,
     clearCommentFocus,
   } = useUIStore();
+
+  const legacyCurrentStation = useMemo(() => {
+    if (!currentStation) return null;
+    return currentStation instanceof NDKStation
+      ? currentStation
+      : new NDKStation(ndk ?? undefined, currentStation as any);
+  }, [currentStation, ndk]);
+
+  const legacySheetStation = useMemo(() => {
+    if (!sheetStation) return null;
+    return sheetStation instanceof NDKStation
+      ? sheetStation
+      : new NDKStation(ndk ?? undefined, sheetStation as any);
+  }, [sheetStation, ndk]);
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);
@@ -373,11 +388,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
         {sheetOpen && (
           sheetMode === "station" && sheetStation ? (
             <div className="flex-1 overflow-y-auto">
-              <StationDetail
-                station={sheetStation}
-                focusCommentForm={sheetFocusComment}
-                onCommentFormFocused={clearCommentFocus}
-              />
+              {legacySheetStation && (
+                <StationDetail
+                  station={legacySheetStation}
+                  focusCommentForm={sheetFocusComment}
+                  onCommentFormFocused={clearCommentFocus}
+                />
+              )}
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto">
@@ -434,9 +451,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           </div>
           {/* Station detail content */}
           <div className="flex-1 overflow-y-auto pb-[100px]">
-            {sheetStation && (
+            {legacySheetStation && (
               <StationDetail
-                station={sheetStation}
+                station={legacySheetStation}
                 focusCommentForm={sheetFocusComment}
                 onCommentFormFocused={clearCommentFocus}
               />
@@ -484,9 +501,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               )}
               {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-28 mt-0.5" />}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}
-              {currentStation && (
+              {legacyCurrentStation && (
                 <div className="mt-1">
-                  <PlayerSocialBar station={currentStation} />
+                  <PlayerSocialBar station={legacyCurrentStation} />
                 </div>
               )}
             </div>

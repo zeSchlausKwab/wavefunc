@@ -1,6 +1,6 @@
 import { ChevronDown, ExternalLink, Radio } from "lucide-react";
 import React from "react";
-import type { Stream } from "../lib/NDKStation";
+import type { Stream } from "../lib/nostr/domain";
 import {
   DropdownMenu,
   DropdownMenuContent,

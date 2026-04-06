@@ -31,6 +31,27 @@ const StationContentSchema = z.object({
 export type StreamQuality = z.infer<typeof StreamQualitySchema>;
 export type Stream = z.infer<typeof StreamSchema>;
 export type StationContent = z.infer<typeof StationContentSchema>;
+export type WavefuncStation = {
+  id: string;
+  kind: number;
+  pubkey: string;
+  created_at: number;
+  content: string;
+  tags: string[][];
+  stationId?: string;
+  name?: string;
+  description?: string;
+  thumbnail?: string;
+  website?: string;
+  location?: string;
+  countryCode?: string;
+  genres: string[];
+  languages: string[];
+  streams: Stream[];
+  streamingServerUrl?: string;
+  address: string | null;
+  naddr?: string;
+};
 
 export type ParsedStation = ReturnType<typeof parseStationEvent>;
 
@@ -92,7 +113,12 @@ export function parseStationEvent(event: NostrEvent, relays?: string[]) {
 
   return {
     event,
+    id: event.id,
     kind: STATION_KIND,
+    pubkey: event.pubkey,
+    created_at: event.created_at,
+    content: event.content,
+    tags: event.tags,
     stationId: getFirstTagValue(event, "d"),
     name: getFirstTagValue(event, "name"),
     description: getFirstTagValue(event, "description") ?? content?.description,

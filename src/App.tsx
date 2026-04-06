@@ -2,7 +2,6 @@ import type { NDKSigner } from "@nostr-dev-kit/ndk";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { registerEventClass, useNDK } from "@nostr-dev-kit/react";
 import { useEffect } from "react";
-import NDKStation from "./lib/NDKStation";
 import { NDKWFFavorites } from "./lib/NDKWFFavorites";
 import { routeTree } from "./routeTree.gen";
 import { useWalletInit } from "./lib/hooks/useWalletInit";
@@ -23,14 +22,13 @@ declare module "@tanstack/react-router" {
 
 export function App() {
   const { ndk } = useNDK();
-  const { clearSigner, setSigner } = useWavefuncNostr();
+  const { clearSigner, eventStore, setSigner } = useWavefuncNostr();
   const restoreLastStation = usePlayerStore((state) => state.restoreLastStation);
 
   // Initialize wallets from localStorage
   useWalletInit();
 
   useEffect(() => {
-    registerEventClass(NDKStation);
     registerEventClass(NDKWFFavorites);
   }, []);
 
@@ -49,10 +47,8 @@ export function App() {
 
   // Restore last played station on app load
   useEffect(() => {
-    if (ndk) {
-      restoreLastStation(ndk);
-    }
-  }, [ndk, restoreLastStation]);
+    restoreLastStation(eventStore);
+  }, [eventStore, restoreLastStation]);
 
   return <RouterProvider router={router} />;
 }

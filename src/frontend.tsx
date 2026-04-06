@@ -19,7 +19,6 @@ import {
   getWriteRelayUrls,
   isDevelopmentEnvironment,
 } from "./config/nostr";
-import NDKStation from "./lib/NDKStation";
 import NDKWFFavorites from "./lib/NDKWFFavorites";
 import { WavefuncNostrProvider } from "./lib/nostr/runtime";
 
@@ -58,7 +57,7 @@ async function startApp() {
           session={{
             storage: new NDKSessionLocalStorage(),
             opts: { follows: true, profile: true,
-            monitor: [NDKStation, NDKWFFavorites, NDKInterestList, 1111], },
+            monitor: [NDKWFFavorites, NDKInterestList, 1111], },
           }}
         />
         <App />

@@ -1,6 +1,12 @@
 import { create } from "zustand";
-import type { NDKStation, Stream } from "../lib/NDKStation";
+import type { EventStore } from "applesauce-core";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import {
+  decodeAddressPointer,
+  decodeEventPointer,
+} from "applesauce-core/helpers/pointers";
 import Hls from "hls.js";
+import { firstValueFrom, filter, timeout } from "rxjs";
 import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
 import {
   canPlayStreamInApp,
@@ -9,6 +15,11 @@ import {
   playWithAdapter,
   sortStreamsByPreference,
 } from "../lib/player/adapters";
+import {
+  parseStationEvent,
+  type Stream,
+  type WavefuncStation,
+} from "../lib/nostr/domain";
 import { useHistoryStore } from "./historyStore";
 
 const LAST_STATION_KEY = "wavefunc_last_station";
@@ -60,7 +71,7 @@ interface CurrentMetadata {
 
 interface PlayerState {
   // Current playing state
-  currentStation: NDKStation | null;
+  currentStation: WavefuncStation | null;
   currentStream: Stream | null;
   isPlaying: boolean;
   isLoading: boolean;
@@ -84,7 +95,7 @@ interface PlayerState {
   isMuted: boolean;
 
   // Actions
-  playStation: (station: NDKStation, stream?: Stream) => void;
+  playStation: (station: WavefuncStation, stream?: Stream) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -95,7 +106,7 @@ interface PlayerState {
   setError: (error: string | null) => void;
   setAudioElement: (element: HTMLAudioElement | null) => void;
   setHlsInstance: (hls: Hls | null) => void;
-  restoreLastStation: (ndk: any) => Promise<void>;
+  restoreLastStation: (eventStore: EventStore) => Promise<void>;
   getLastStationId: () => string | null;
 }
 
@@ -117,7 +128,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isMuted: false,
 
   // Play a new station
-  playStation: (station: NDKStation, stream?: Stream) => {
+  playStation: (station: WavefuncStation, stream?: Stream) => {
     const { currentStation, currentStream, audioElement } = get();
 
     // Validation
@@ -212,7 +223,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           played = true;
 
           // Add to play history and save as last station
-          const stationId = station.encode();
+          const stationId = station.naddr || station.id;
           if (stationId) {
             useHistoryStore.getState().addToHistory(stationId);
             saveLastStation(stationId);
@@ -402,14 +413,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setHlsInstance: (hls: Hls | null) => set({ hlsInstance: hls }),
 
   // Restore last played station from localStorage
-  restoreLastStation: async (ndk: any) => {
+  restoreLastStation: async (eventStore: EventStore) => {
     const lastStationId = loadLastStation();
-    if (!lastStationId || !ndk) return;
+    if (!lastStationId) return;
 
     try {
-      const event = await ndk.fetchEvent(lastStationId);
+      const pointer =
+        decodeAddressPointer(lastStationId) ??
+        decodeEventPointer(lastStationId) ??
+        lastStationId;
+      const event = await firstValueFrom(
+        eventStore.event(pointer).pipe(
+          filter((value): value is NostrEvent => Boolean(value)),
+          timeout(5000)
+        )
+      );
       if (event) {
-        const station = NDKStation.from(event);
+        const station = parseStationEvent(event);
         // Set the station but don't auto-play (leave in pause mode)
         set({
           currentStation: station,
