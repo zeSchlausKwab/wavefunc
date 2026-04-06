@@ -1,9 +1,9 @@
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { type ReactNode, type MouseEvent, forwardRef } from "react";
 import { useUIStore } from "../stores/uiStore";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 interface AuthRequiredButtonProps extends React.ComponentPropsWithoutRef<typeof Button> {
   children: ReactNode;
@@ -23,7 +23,7 @@ export const AuthRequiredButton = forwardRef<HTMLButtonElement, AuthRequiredButt
     },
     ref
   ) {
-    const currentUser = useNDKCurrentUser();
+    const currentUser = useCurrentAccount();
     const pulseLogin = useUIStore((state) => state.pulseLogin);
 
     const handleClick = (e: MouseEvent<HTMLButtonElement>) => {

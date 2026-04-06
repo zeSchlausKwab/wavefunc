@@ -1,4 +1,4 @@
-import { NDKPrivateKeySigner, useNDK } from "@nostr-dev-kit/react";
+import { PrivateKeySigner } from "applesauce-signers";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { nip19 } from "nostr-tools";
 import { QRCodeCanvas } from "qrcode.react";
@@ -8,11 +8,12 @@ import {
   DialogContent,
 } from "./ui/dialog";
 import { cn } from "../lib/utils";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 interface SignupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (signer: any) => Promise<void>;
+  onConfirm: (key: string) => Promise<void>;
 }
 
 type WizardView =
@@ -178,9 +179,9 @@ const VIEW_META: Record<WizardView, { title: string; step?: string }> = {
 };
 
 export function SignupDialog({ open, onOpenChange, onConfirm }: SignupDialogProps) {
-  const { ndk } = useNDK();
+  const { signAndPublish } = useWavefuncNostr();
   const [view, setView] = useState<WizardView>("choose");
-  const [signer, setSigner] = useState<NDKPrivateKeySigner | null>(null);
+  const [signer, setSigner] = useState<PrivateKeySigner | null>(null);
   const [nsec, setNsec] = useState("");
   const [npub, setNpub] = useState("");
   const [nsecCopied, setNsecCopied] = useState(false);
@@ -214,20 +215,14 @@ export function SignupDialog({ open, onOpenChange, onConfirm }: SignupDialogProp
   }, []);
 
   const generateNewKey = useCallback(() => {
-    const newSigner = NDKPrivateKeySigner.generate();
+    const newSigner = new PrivateKeySigner();
     setSigner(newSigner);
     setNsecCopied(false);
     setNpubCopied(false);
     setKeySaved(false);
-    const privateKeyHex = newSigner.privateKey;
-    if (privateKeyHex) {
-      const bytes = new Uint8Array(
-        privateKeyHex.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) || []
-      );
-      setNsec(nip19.nsecEncode(bytes));
-    }
-    newSigner.user().then((user) => {
-      if (user.pubkey) setNpub(nip19.npubEncode(user.pubkey));
+    setNsec(nip19.nsecEncode(newSigner.key));
+    newSigner.getPublicKey().then((pubkey) => {
+      setNpub(nip19.npubEncode(pubkey));
     });
   }, []);
 
@@ -332,10 +327,10 @@ ${qrDataUrl ? `<div class="qr-section"><img src="${qrDataUrl}" width="160" heigh
   }, []);
 
   const handleBeginnerNext = async () => {
-    if (!signer || !keySaved) return;
+    if (!nsec || !keySaved) return;
     setLoading(true);
     try {
-      await onConfirm(signer);
+      await onConfirm(nsec);
       setView("beginner-profile");
     } catch (error) {
       console.error("Login failed:", error);
@@ -347,18 +342,18 @@ ${qrDataUrl ? `<div class="qr-section"><img src="${qrDataUrl}" width="160" heigh
   const handlePublishProfile = async (skip = false) => {
     setProfileLoading(true);
     try {
-      if (!skip && ndk && signer && (profileDraft.name || profileDraft.about || profileDraft.picture)) {
-        const user = await signer.user();
-        const ndkUser = ndk.getUser({ pubkey: user.pubkey });
-        ndkUser.ndk = ndk;
-        ndkUser.profile = {
-          name: profileDraft.name || undefined,
-          displayName: profileDraft.name || undefined,
-          about: profileDraft.about || undefined,
-          image: profileDraft.picture || undefined,
-          picture: profileDraft.picture || undefined,
-        };
-        await ndkUser.publish();
+      if (!skip && (profileDraft.name || profileDraft.about || profileDraft.picture)) {
+        await signAndPublish({
+          kind: 0,
+          tags: [],
+          content: JSON.stringify({
+            name: profileDraft.name || undefined,
+            displayName: profileDraft.name || undefined,
+            about: profileDraft.about || undefined,
+            image: profileDraft.picture || undefined,
+            picture: profileDraft.picture || undefined,
+          }),
+        });
       }
       setView("beginner-done");
     } catch (error) {
@@ -370,10 +365,10 @@ ${qrDataUrl ? `<div class="qr-section"><img src="${qrDataUrl}" width="160" heigh
   };
 
   const handleExpertConfirm = async () => {
-    if (!signer) return;
+    if (!nsec) return;
     setLoading(true);
     try {
-      await onConfirm(signer);
+      await onConfirm(nsec);
       onOpenChange(false);
     } catch (error) {
       console.error("Login failed:", error);
@@ -390,7 +385,7 @@ ${qrDataUrl ? `<div class="qr-section"><img src="${qrDataUrl}" width="160" heigh
     }
     setLoading(true);
     try {
-      await onConfirm(new NDKPrivateKeySigner(hex));
+      await onConfirm(importKey.trim());
       onOpenChange(false);
     } catch (error) {
       console.error("Import failed:", error);

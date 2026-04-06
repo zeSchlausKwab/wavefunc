@@ -1,11 +1,6 @@
 import {
-  NDKNip07Signer,
-  NDKNip46Signer,
-  NDKPrivateKeySigner,
-  useNDKCurrentUser,
-  useNDKSessionLogin,
-  useNDKSessionLogout,
-} from "@nostr-dev-kit/react";
+  useAuth,
+} from "../lib/nostr/auth";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MiniProfile } from "./MiniProfile";
@@ -17,18 +12,22 @@ import { usePlatform } from "../lib/hooks/usePlatform";
 import { cn } from "../lib/utils";
 
 export function LoginSessionButtons() {
-  const login = useNDKSessionLogin();
-  const logout = useNDKSessionLogout();
-  const currentUser = useNDKCurrentUser();
+  const {
+    currentAccount,
+    loginWithBunker,
+    loginWithExtension,
+    loginWithPrivateKey,
+    logout,
+  } = useAuth();
   const shouldPulseLogin = useUIStore((state) => state.shouldPulseLogin);
   const { isTauri } = usePlatform();
 
   const [loading, setLoading] = useState(false);
   const [showSignupDialog, setShowSignupDialog] = useState(false);
 
-  const handleSignup = async (signer: NDKPrivateKeySigner) => {
+  const handleSignup = async (key: string) => {
     try {
-      await login(signer);
+      await loginWithPrivateKey(key);
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -38,8 +37,7 @@ export function LoginSessionButtons() {
   const handleNip07Login = async () => {
     try {
       setLoading(true);
-      const signer = new NDKNip07Signer();
-      await login(signer);
+      await loginWithExtension();
     } catch (error) {
       console.error("Extension login failed:", error);
     } finally {
@@ -47,10 +45,10 @@ export function LoginSessionButtons() {
     }
   };
 
-  const handleNip46Login = async (signer: NDKNip46Signer) => {
+  const handleNip46Login = async (bunker: string) => {
     try {
       setLoading(true);
-      await login(signer);
+      await loginWithBunker(bunker);
     } catch (error) {
       console.error("NIP-46 login failed:", error);
       throw error;
@@ -59,12 +57,12 @@ export function LoginSessionButtons() {
     }
   };
 
-  if (currentUser) {
+  if (currentAccount) {
     return (
       <div className="flex min-w-[176px] sm:min-w-[236px] justify-end">
         <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
           <WalletButton />
-          <MiniProfile userOrPubkey={currentUser} />
+          <MiniProfile userOrPubkey={currentAccount} />
           <Link to="/settings">
             <button
               className="h-full px-3 border-r-4 border-on-background flex items-center hover:bg-surface-container-high transition-colors"

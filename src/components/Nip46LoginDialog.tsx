@@ -1,21 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import NDK, {
-  NDKEvent,
-  NDKKind,
-  NDKNip46Signer,
-  NDKPrivateKeySigner,
-} from "@nostr-dev-kit/react";
+import { NostrConnectSigner } from "applesauce-signers";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "./ui/dialog";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 interface Nip46LoginDialogProps {
   trigger: React.ReactNode;
-  onLogin: (signer: NDKNip46Signer) => Promise<void>;
+  onLogin: (bunker: string) => Promise<void>;
 }
 
 type TabType = "scan" | "paste";
@@ -41,6 +37,7 @@ const CONNECTION_APP_NAME =
     : "Wavefunc Radio DEV";
 
 export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
+  const { createNostrConnectSigner } = useWavefuncNostr();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
 
@@ -49,24 +46,43 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const [selectedRelay, setSelectedRelay] = useState(DEFAULT_RELAYS[0].value);
 
   const [connectionUri, setConnectionUri] = useState("");
-  const [localSigner, setLocalSigner] = useState<NDKPrivateKeySigner | null>(null);
-
   const [bunkerUrl, setBunkerUrl] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  const ndkRef = useRef<NDK | null>(null);
-  const subscriptionRef = useRef<any>(null);
-  const secretRef = useRef<string>("");
-  const isProcessingRef = useRef(false);
+  const signerRef = useRef<NostrConnectSigner | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const cleanup = useCallback(() => {
-    isProcessingRef.current = false;
-    if (subscriptionRef.current) {
-      try { subscriptionRef.current.stop(); } catch (e) { console.error("Error stopping subscription:", e); }
-      subscriptionRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-    if (ndkRef.current) { ndkRef.current = null; }
+
+    if (signerRef.current) {
+      signerRef.current.close().catch(() => undefined);
+    }
+    signerRef.current = null;
+  }, []);
+
+  const buildBunkerUri = useCallback((signer: NostrConnectSigner) => {
+    if (!signer.remote) {
+      throw new Error("Remote signer pubkey is missing");
+    }
+
+    const params = new URLSearchParams();
+    for (const relay of signer.relays) {
+      params.append("relay", relay);
+    }
+    if (signer.secret) {
+      params.set("secret", signer.secret);
+    }
+
+    return `bunker://${signer.remote}?${params.toString()}`;
   }, []);
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -76,11 +92,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       setState("idle");
       setError(null);
       setConnectionUri("");
-      setLocalSigner(null);
       setBunkerUrl("");
       setShowScanner(false);
       setScanError(null);
-      secretRef.current = "";
     }
   };
 
@@ -101,26 +115,37 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       setState("generating");
       setError(null);
       try {
-        const signer = NDKPrivateKeySigner.generate();
-        const user = await signer.user();
-        secretRef.current = Math.random().toString(36).substring(2, 15);
+        const signer = createNostrConnectSigner({
+          relays: [selectedRelay],
+        });
+        signerRef.current = signer;
 
-        const params = new URLSearchParams({
-          relay: selectedRelay,
-          metadata: JSON.stringify({
-            name: CONNECTION_APP_NAME,
-            description: "Connect with WaveFunc Radio",
-            url: window.location.origin,
-          }),
-          token: secretRef.current,
+        const uri = signer.getNostrConnectURI({
+          name: CONNECTION_APP_NAME,
+          url: window.location.origin,
         });
 
-        const uri = `nostrconnect://${user.pubkey}?${params.toString()}`;
-        setLocalSigner(signer);
         setConnectionUri(uri);
         setState("waiting");
-        await startListening(signer, user.pubkey, selectedRelay);
+
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        timeoutRef.current = window.setTimeout(() => {
+          controller.abort();
+          setState("error");
+          setError("Connection timed out. Please try again.");
+        }, 300000);
+
+        await signer.waitForSigner(controller.signal);
+        setState("connected");
+        await onLogin(buildBunkerUri(signer));
+        cleanup();
+        setOpen(false);
       } catch (err) {
+        if (abortRef.current?.signal.aborted) {
+          return;
+        }
         console.error("Failed to initialize connection:", err);
         setState("error");
         setError(err instanceof Error ? err.message : "Failed to initialize");
@@ -128,87 +153,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     };
 
     initConnection();
-  }, [open, activeTab, connectionUri, selectedRelay]);
-
-  const startListening = async (
-    signer: NDKPrivateKeySigner,
-    pubkey: string,
-    relay: string
-  ) => {
-    cleanup();
-    const ndk = new NDK({ explicitRelayUrls: [relay] });
-    ndkRef.current = ndk;
-
-    try {
-      await ndk.connect();
-    } catch (error) {
-      console.error("Failed to connect to relay:", error);
-      setState("error");
-      setError(`Failed to connect to ${relay}`);
-      return;
-    }
-
-    const processedIds = new Set<string>();
-    const sub = ndk.subscribe(
-      { kinds: [NDKKind.NostrConnect], "#p": [pubkey] },
-      { closeOnEose: false }
-    );
-
-    subscriptionRef.current = sub;
-
-    sub.on("event", async (event: NDKEvent) => {
-      if (isProcessingRef.current || processedIds.has(event.id)) return;
-
-      try {
-        await event.decrypt(undefined, signer);
-        const request = JSON.parse(event.content);
-
-        if (request.method === "connect" && request.params?.token === secretRef.current) {
-          if (request.id) processedIds.add(request.id);
-
-          const response = new NDKEvent(ndk);
-          response.kind = NDKKind.NostrConnect;
-          response.tags = [["p", event.pubkey]];
-          response.content = JSON.stringify({ id: request.id, result: secretRef.current });
-
-          await response.sign(signer);
-          // @ts-ignore - NDK type mismatch
-          await response.encrypt(undefined, signer, event.pubkey);
-          await response.publish();
-        } else if (request.result === "ack") {
-          if (processedIds.has(event.id)) return;
-          processedIds.add(event.id);
-
-          isProcessingRef.current = true;
-          setState("connected");
-
-          const bunkerUrl = `bunker://${event.pubkey}?relay=${relay}&secret=${secretRef.current}`;
-          const loginNdk = new NDK({ explicitRelayUrls: [relay] });
-          await loginNdk.connect();
-
-          const nip46Signer = NDKNip46Signer.bunker(loginNdk, bunkerUrl, signer);
-          await nip46Signer.blockUntilReady();
-
-          await onLogin(nip46Signer);
-          cleanup();
-          setOpen(false);
-        }
-      } catch (error) {
-        console.error("Failed to process NIP-46 event:", error);
-        setState("error");
-        setError(error instanceof Error ? error.message : "Connection failed");
-        isProcessingRef.current = false;
-      }
-    });
-
-    setTimeout(() => {
-      if (state === "waiting") {
-        cleanup();
-        setState("error");
-        setError("Connection timed out. Please try again.");
-      }
-    }, 300000);
-  };
+  }, [activeTab, buildBunkerUri, cleanup, connectionUri, createNostrConnectSigner, onLogin, open, selectedRelay]);
 
   const handlePasteLogin = async () => {
     if (!bunkerUrl.trim()) {
@@ -220,23 +165,10 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     setError(null);
 
     try {
-      const url = new URL(bunkerUrl);
-      const relayParam = url.searchParams.get("relay");
-      const relay = relayParam || selectedRelay;
-
-      let signer = localSigner;
-      if (!signer) {
-        signer = NDKPrivateKeySigner.generate();
-        setLocalSigner(signer);
+      if (!bunkerUrl.trim().startsWith("bunker://")) {
+        throw new Error("Bunker URL must start with bunker://");
       }
-
-      const ndk = new NDK({ explicitRelayUrls: [relay] });
-      await ndk.connect();
-
-      const nip46Signer = NDKNip46Signer.bunker(ndk, bunkerUrl, signer);
-      await nip46Signer.blockUntilReady();
-
-      await onLogin(nip46Signer);
+      await onLogin(bunkerUrl.trim());
       setOpen(false);
     } catch (err: any) {
       console.error("NIP-46 login failed:", err);

@@ -1,3 +1,4 @@
+import NDK from "@nostr-dev-kit/ndk";
 import { EventFactory, EventStore } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { createEventLoaderForStore } from "applesauce-loaders/loaders";
@@ -6,31 +7,132 @@ import type { PublishResponse } from "applesauce-relay/types";
 import {
   ExtensionSigner,
   NostrConnectSigner,
+  PrivateKeySigner,
   type ISigner,
 } from "applesauce-signers";
 import {
   createContext,
+  useEffect,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { nip19 } from "nostr-tools";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+const SESSION_STORAGE_KEY = "wavefunc:nostr-session:v1";
+
+export type WavefuncSession =
+  | { type: "extension" }
+  | { type: "private-key"; key: string }
+  | { type: "nostr-connect"; bunker: string };
+
+export type WavefuncAccount = {
+  pubkey: string;
+  npub: string;
+};
+
+function accountFromPubkey(pubkey: string): WavefuncAccount {
+  return {
+    pubkey,
+    npub: nip19.npubEncode(pubkey),
+  };
+}
+
+function readStoredSession(): WavefuncSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || typeof parsed.type !== "string") {
+      return null;
+    }
+
+    if (parsed.type === "extension") {
+      return { type: "extension" };
+    }
+
+    if (parsed.type === "private-key" && typeof parsed.key === "string") {
+      return { type: "private-key", key: parsed.key };
+    }
+
+    if (parsed.type === "nostr-connect" && typeof parsed.bunker === "string") {
+      return { type: "nostr-connect", bunker: parsed.bunker };
+    }
+  } catch (error) {
+    console.error("Failed to read stored Nostr session", error);
+  }
+
+  return null;
+}
+
+function writeStoredSession(session: WavefuncSession | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!session) {
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function encodePrivateKey(signer: PrivateKeySigner) {
+  return nip19.nsecEncode(signer.key);
+}
+
+function buildBunkerUri(signer: NostrConnectSigner) {
+  if (!signer.remote) {
+    throw new Error("Remote signer pubkey is missing");
+  }
+
+  const params = new URLSearchParams();
+  for (const relay of signer.relays) {
+    params.append("relay", relay);
+  }
+  if (signer.secret) {
+    params.set("secret", signer.secret);
+  }
+
+  return `bunker://${signer.remote}?${params.toString()}`;
+}
+
 export type WavefuncNostrContextValue = {
   eventStore: EventStore;
   relayPool: RelayPool;
+  legacyNdk: NDK;
   eventFactory: EventFactory;
   readRelays: string[];
   writeRelays: string[];
   signer: ISigner | null;
   currentPubkey: string | null;
+  currentAccount: WavefuncAccount | null;
+  session: WavefuncSession | null;
+  sessionReady: boolean;
   setSigner: (signer: ISigner | null) => Promise<string | null>;
   clearSigner: () => void;
+  authenticate: (
+    signer: ISigner,
+    session: WavefuncSession | null
+  ) => Promise<WavefuncAccount>;
+  loginWithExtension: () => Promise<WavefuncAccount>;
+  loginWithPrivateKey: (key: string | Uint8Array) => Promise<WavefuncAccount>;
+  loginWithBunker: (bunker: string) => Promise<WavefuncAccount>;
+  logout: () => Promise<void>;
   connectExtensionSigner: () => Promise<string>;
   createNostrConnectSigner: (
     options?: Partial<{
@@ -81,6 +183,14 @@ export function WavefuncNostrProvider({
     return pool;
   }, [readRelayList, writeRelayList]);
 
+  const legacyNdk = useMemo(
+    () =>
+      new NDK({
+        explicitRelayUrls: readRelayList,
+      }),
+    [readRelayList]
+  );
+
   const eventStore = useMemo(() => {
     const store = new EventStore();
     createEventLoaderForStore(store, relayPool, {
@@ -93,11 +203,25 @@ export function WavefuncNostrProvider({
   const eventFactory = useMemo(() => new EventFactory(), []);
   const [signer, setSignerState] = useState<ISigner | null>(null);
   const [currentPubkey, setCurrentPubkey] = useState<string | null>(null);
+  const [currentAccount, setCurrentAccount] = useState<WavefuncAccount | null>(
+    null
+  );
+  const [session, setSession] = useState<WavefuncSession | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  useEffect(() => {
+    legacyNdk.connect().catch((error) => {
+      console.error("Failed to connect legacy NDK bridge", error);
+    });
+  }, [legacyNdk]);
 
   const clearSigner = useCallback(() => {
     setSignerState(null);
     setCurrentPubkey(null);
+    setCurrentAccount(null);
+    setSession(null);
     eventFactory.clearSigner();
+    writeStoredSession(null);
   }, [eventFactory]);
 
   const setSigner = useCallback(
@@ -111,9 +235,29 @@ export function WavefuncNostrProvider({
       const pubkey = await nextSigner.getPublicKey();
       setSignerState(nextSigner);
       setCurrentPubkey(pubkey);
+      setCurrentAccount(accountFromPubkey(pubkey));
       return pubkey;
     },
     [clearSigner, eventFactory]
+  );
+
+  const authenticate = useCallback(
+    async (nextSigner: ISigner, nextSession: WavefuncSession | null) => {
+      if (signer && "close" in signer && typeof signer.close === "function") {
+        await signer.close().catch(() => undefined);
+      }
+
+      const pubkey = await setSigner(nextSigner);
+      if (!pubkey) {
+        throw new Error("Failed to resolve signer pubkey");
+      }
+
+      const account = accountFromPubkey(pubkey);
+      setSession(nextSession);
+      writeStoredSession(nextSession);
+      return account;
+    },
+    [setSigner, signer]
   );
 
   const connectExtensionSigner = useCallback(async () => {
@@ -124,6 +268,22 @@ export function WavefuncNostrProvider({
 
     return pubkey;
   }, [setSigner]);
+
+  const loginWithExtension = useCallback(
+    async () => authenticate(new ExtensionSigner(), { type: "extension" }),
+    [authenticate]
+  );
+
+  const loginWithPrivateKey = useCallback(
+    async (key: string | Uint8Array) => {
+      const nextSigner = PrivateKeySigner.fromKey(key);
+      return authenticate(nextSigner, {
+        type: "private-key",
+        key: encodePrivateKey(nextSigner),
+      });
+    },
+    [authenticate]
+  );
 
   const createNostrConnectSigner = useCallback(
     (
@@ -147,6 +307,21 @@ export function WavefuncNostrProvider({
       }),
     [relayPool, writeRelayList]
   );
+
+  const loginWithBunker = useCallback(
+    async (bunker: string) => {
+      const nextSigner = await NostrConnectSigner.fromBunkerURI(bunker);
+      return authenticate(nextSigner, { type: "nostr-connect", bunker });
+    },
+    [authenticate]
+  );
+
+  const logout = useCallback(async () => {
+    if (signer && "close" in signer && typeof signer.close === "function") {
+      await signer.close().catch(() => undefined);
+    }
+    clearSigner();
+  }, [clearSigner, signer]);
 
   const publishEvent = useCallback(
     async (event: NostrEvent, relays?: string[]) => {
@@ -177,32 +352,89 @@ export function WavefuncNostrProvider({
     [eventFactory, publishEvent, signer]
   );
 
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      const stored = readStoredSession();
+
+      if (!stored) {
+        if (active) {
+          setSessionReady(true);
+        }
+        return;
+      }
+
+      try {
+        if (stored.type === "extension") {
+          await authenticate(new ExtensionSigner(), stored);
+        } else if (stored.type === "private-key") {
+          await authenticate(PrivateKeySigner.fromKey(stored.key), stored);
+        } else if (stored.type === "nostr-connect") {
+          const restored = await NostrConnectSigner.fromBunkerURI(stored.bunker);
+          await authenticate(restored, stored);
+        }
+      } catch (error) {
+        console.error("Failed to restore Nostr session", error);
+        clearSigner();
+      } finally {
+        if (active) {
+          setSessionReady(true);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, [authenticate, clearSigner]);
+
   const value = useMemo<WavefuncNostrContextValue>(
     () => ({
       eventStore,
       relayPool,
+      legacyNdk,
       eventFactory,
       readRelays: readRelayList,
       writeRelays: writeRelayList,
       signer,
       currentPubkey,
+      currentAccount,
+      session,
+      sessionReady,
       setSigner,
       clearSigner,
+      authenticate,
+      loginWithExtension,
+      loginWithPrivateKey,
+      loginWithBunker,
+      logout,
       connectExtensionSigner,
       createNostrConnectSigner,
       publishEvent,
       signAndPublish,
     }),
     [
+      authenticate,
       clearSigner,
       connectExtensionSigner,
       createNostrConnectSigner,
+      currentAccount,
       currentPubkey,
       eventFactory,
       eventStore,
+      legacyNdk,
+      loginWithBunker,
+      loginWithExtension,
+      loginWithPrivateKey,
+      logout,
       publishEvent,
       readRelayList,
       relayPool,
+      session,
+      sessionReady,
       setSigner,
       signAndPublish,
       signer,

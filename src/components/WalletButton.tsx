@@ -1,10 +1,10 @@
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useState } from "react";
 import { useWalletStore } from "../stores/walletStore";
 import { useNavigate } from "@tanstack/react-router";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 export function WalletButton() {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
   const {
     cashuBalance,
     nwcBalance,

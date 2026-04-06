@@ -1,14 +1,14 @@
-import { NDKUser, useProfileValue, type Hexpubkey } from "@nostr-dev-kit/react";
 import { Link } from "@tanstack/react-router";
+import type { WavefuncAccount } from "../lib/nostr/runtime";
+import { useProfile } from "../lib/nostr/auth";
 
 export function MiniProfile({
   userOrPubkey,
 }: {
-  userOrPubkey?: Hexpubkey | NDKUser | null | undefined;
+  userOrPubkey?: string | WavefuncAccount | null | undefined;
 }) {
-  const profile = useProfileValue(userOrPubkey);
-  const pubkey =
-    userOrPubkey instanceof NDKUser ? userOrPubkey.pubkey : userOrPubkey;
+  const profile = useProfile(userOrPubkey);
+  const pubkey = typeof userOrPubkey === "string" ? userOrPubkey : userOrPubkey?.pubkey;
 
   return (
     <Link to={`/profile/${pubkey}`}>

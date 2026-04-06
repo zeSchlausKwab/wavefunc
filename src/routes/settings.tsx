@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useState } from "react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { WalletsSettings } from "@/components/settings/WalletsSettings";
 import { MyStationsSettings } from "@/components/settings/MyStationsSettings";
 import { MyFavouritesSettings } from "@/components/settings/MyFavouritesSettings";
 import { RelaysSettings } from "@/components/settings/RelaysSettings";
+import { useCurrentAccount } from "@/lib/nostr/auth";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
@@ -22,7 +22,7 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
 ];
 
 function Settings() {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
 
   if (!currentUser) {

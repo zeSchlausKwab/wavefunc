@@ -1,6 +1,7 @@
-import { useNDKCurrentUser, useProfileValue } from "@nostr-dev-kit/react";
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
+import { useCurrentAccount, useProfile } from "../../lib/nostr/auth";
+import { useWavefuncNostr } from "../../lib/nostr/runtime";
 
 type ProfileFormData = {
   name: string;
@@ -58,8 +59,9 @@ function FieldError({ message }: { message: string }) {
 }
 
 export function ProfileSettings() {
-  const currentUser = useNDKCurrentUser();
-  const profile = useProfileValue(currentUser);
+  const currentUser = useCurrentAccount();
+  const profile = useProfile(currentUser);
+  const { signAndPublish } = useWavefuncNostr();
 
   const [success, setSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -79,16 +81,21 @@ export function ProfileSettings() {
       if (!currentUser) return;
       setSubmitError(null);
       try {
-        currentUser.profile = {
-          ...currentUser.profile,
-          name: value.name.trim(),
-          about: value.about.trim(),
-          picture: value.picture.trim(),
-          banner: value.banner.trim(),
-          website: value.website.trim(),
-          nip05: value.nip05.trim(),
-        };
-        await currentUser.publish();
+        await signAndPublish({
+          kind: 0,
+          tags: [],
+          content: JSON.stringify({
+            ...(profile ?? {}),
+            name: value.name.trim() || undefined,
+            displayName: value.name.trim() || undefined,
+            about: value.about.trim() || undefined,
+            picture: value.picture.trim() || undefined,
+            image: value.picture.trim() || undefined,
+            banner: value.banner.trim() || undefined,
+            website: value.website.trim() || undefined,
+            nip05: value.nip05.trim() || undefined,
+          }),
+        });
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       } catch (err: any) {

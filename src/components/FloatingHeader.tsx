@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { isAdmin } from "../config/admins";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -15,7 +15,7 @@ const navLinkActive =
   "font-bold tracking-tighter uppercase text-surface bg-primary px-4 py-1 -skew-x-12 transition-all whitespace-nowrap";
 
 export function FloatingHeader({ searchInput, setSearchInput, onSearch }: FloatingHeaderProps) {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
   const adminUser = isAdmin(currentUser?.pubkey);
 
   return (
