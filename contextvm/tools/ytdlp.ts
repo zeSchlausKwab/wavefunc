@@ -67,12 +67,32 @@ async function ensureYtDlp(): Promise<string> {
 function getCommonYtDlpArgs(): string[] {
   const cookiesFile = process.env.YTDLP_COOKIES_FILE?.trim() || "";
   const proxy = process.env.YTDLP_PROXY?.trim() || "";
-  const playerClients = process.env.YTDLP_PLAYER_CLIENTS?.trim() || "web_creator,web";
-  const cacheKey = JSON.stringify([cookiesFile, proxy, playerClients]);
+  const playerClients = process.env.YTDLP_PLAYER_CLIENTS?.trim() || "";
+  const jsRuntimesEnv = process.env.YTDLP_JS_RUNTIMES?.trim() || "";
+  const cacheKey = JSON.stringify([cookiesFile, proxy, playerClients, jsRuntimesEnv, process.execPath]);
 
   if (cachedCommonArgs && cachedCommonArgsKey === cacheKey) return [...cachedCommonArgs];
 
-  const args = ["--extractor-args", `youtube:player_client=${playerClients}`];
+  const args: string[] = [];
+
+  // yt-dlp's EJS flow only enables Deno by default. Node and Bun must be
+  // explicitly enabled via --js-runtimes or challenge solving will remain
+  // unavailable even when the binaries are installed.
+  const jsRuntimes = jsRuntimesEnv
+    ? jsRuntimesEnv.split(",").map((value) => value.trim()).filter(Boolean)
+    : (process.execPath ? [`bun:${process.execPath}`] : ["bun"]);
+
+  for (const runtime of jsRuntimes) {
+    args.push("--js-runtimes", runtime);
+  }
+  console.log(`[yt-dlp] enabled JS runtimes: ${jsRuntimes.join(", ")}`);
+
+  // Let yt-dlp choose its current default client mix unless we explicitly override it.
+  // Forcing `web` was brittle and triggered JS challenge failures on some videos.
+  if (playerClients) {
+    args.push("--extractor-args", `youtube:player_client=${playerClients}`);
+    console.log(`[yt-dlp] using player clients: ${playerClients}`);
+  }
 
   if (proxy) {
     args.push("--proxy", proxy);

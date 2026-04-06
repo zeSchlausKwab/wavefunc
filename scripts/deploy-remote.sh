@@ -17,6 +17,19 @@ command -v go >/dev/null 2>&1 || { echo "❌ Go not found"; exit 1; }
 echo "✓ Using Bun: $(which bun)"
 echo "✓ Using Go: $(which go)"
 
+# Install Node.js if missing (needed by yt-dlp for JS signature solving with YouTube web clients)
+if ! command -v node >/dev/null 2>&1; then
+    echo "📦 Installing Node.js (LTS)..."
+    if command -v apt-get >/dev/null 2>&1; then
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - 2>/dev/null || true
+        sudo apt-get install -y nodejs || echo "⚠️  Node.js install failed — run manually"
+    else
+        echo "⚠️  Cannot install Node.js automatically — install it manually"
+    fi
+else
+    echo "✓ Node.js: $(node --version)"
+fi
+
 # Install ffmpeg if missing (needed by yt-dlp for audio extraction and WebM encoding)
 if ! command -v ffmpeg >/dev/null 2>&1; then
     echo "📦 Installing ffmpeg..."
@@ -31,12 +44,14 @@ else
     echo "✓ ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
 fi
 
-# Install yt-dlp standalone binary (no Python/venv required)
+# Install yt-dlp from the generic release asset.
+# The linux_exe build regressed on the VPS by failing to detect usable JS runtimes,
+# which broke YouTube extraction for videos that need challenge solving.
 YTDLP_BIN="contextvm/bin/yt-dlp"
 echo "📦 Installing/updating yt-dlp..."
 mkdir -p contextvm/bin
 rm -rf "$YTDLP_BIN"
-curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o "$YTDLP_BIN"
+curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "$YTDLP_BIN"
 chmod +x "$YTDLP_BIN"
 echo "✓ yt-dlp: $("$YTDLP_BIN" --version)"
 

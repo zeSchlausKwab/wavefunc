@@ -21,10 +21,10 @@ interface Nip46LoginDialogProps {
 type TabType = "scan" | "paste";
 
 const DEFAULT_RELAYS = [
-  { value: "wss://relay.nsec.app", label: "relay.nsec.app (recommended)" },
+  { value: "wss://relay.primal.net", label: "relay.primal.net (recommended)" },
   { value: "wss://relay.damus.io", label: "relay.damus.io" },
   { value: "wss://nos.lol", label: "nos.lol" },
-  { value: "wss://relay.primal.net", label: "relay.primal.net" },
+  { value: "wss://relay.nsec.app", label: "relay.nsec.app" },
   { value: "wss://relay.wavefunc.live", label: "relay.wavefunc.live" },
 ];
 
@@ -34,6 +34,11 @@ type ConnectionState =
   | "waiting"
   | "connected"
   | "error";
+
+const CONNECTION_APP_NAME =
+  process.env.NODE_ENV === "production"
+    ? "Wavefunc Radio"
+    : "Wavefunc Radio DEV";
 
 export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const [open, setOpen] = useState(false);
@@ -103,7 +108,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         const params = new URLSearchParams({
           relay: selectedRelay,
           metadata: JSON.stringify({
-            name: "WaveFunc Radio",
+            name: CONNECTION_APP_NAME,
             description: "Connect with WaveFunc Radio",
             url: window.location.origin,
           }),
@@ -272,7 +277,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="rounded-none border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-0 max-w-md gap-0 overflow-hidden">
 
-        {/* Header */}
         <div className="bg-on-background text-surface px-5 py-4">
           <h2 className="text-base font-black uppercase tracking-tighter">Remote Signer</h2>
           <p className="text-xs font-medium text-surface/60 mt-0.5 uppercase tracking-wide">
@@ -281,7 +285,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Relay Selection */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-black uppercase tracking-widest text-on-background/60">
               NIP-46 Relay
@@ -304,7 +307,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
             </p>
           </div>
 
-          {/* Tab Buttons */}
           <div className="flex border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
             <button
               onClick={() => setActiveTab("scan")}
@@ -330,7 +332,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
             </button>
           </div>
 
-          {/* Tab Content */}
           {activeTab === "scan" ? (
             <div className="space-y-4">
               {state === "connected" ? (
@@ -445,7 +446,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
             <div className="flex items-start gap-2 border-2 border-red-600 bg-red-50 px-3 py-2">
               <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
@@ -455,7 +455,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         </div>
       </DialogContent>
 
-      {/* QR Scanner Dialog */}
       <Dialog open={showScanner} onOpenChange={setShowScanner}>
         <DialogContent className="rounded-none border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-0 max-w-sm gap-0 overflow-hidden">
           <div className="bg-on-background text-surface px-5 py-4">

@@ -9,7 +9,7 @@
 import "./polyfills";
 
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
-import { NDKHeadless, NDKSessionLocalStorage } from "@nostr-dev-kit/react";
+import { NDKHeadless, NDKInterestList, NDKSessionLocalStorage, NDKZap } from "@nostr-dev-kit/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
@@ -19,15 +19,18 @@ import {
   getWriteRelayUrls,
   isDevelopmentEnvironment,
 } from "./config/nostr";
+import NDKStation from "./lib/NDKStation";
+import NDKWFFavorites from "./lib/NDKWFFavorites";
 
-// Initialize Dexie cache adapter for efficient caching and cache invalidation
-const dexieAdapter = new NDKCacheAdapterDexie({
-  dbName: "wavefunc-cache",
+// Setup Dexie cache adapter (Client-side only)
+let cacheAdapter: NDKCacheAdapterDexie | undefined;
+if (typeof window !== "undefined") {
+    cacheAdapter = new NDKCacheAdapterDexie({   dbName: "wavefunc-cache",
   profileCacheSize: 5000,
   eventCacheSize: 10000,
   eventTagsCacheSize: 20000,
-  saveSig: true,
-});
+  saveSig: true, });
+}
 
 // Initialize config and render app
 async function startApp() {
@@ -43,13 +46,14 @@ async function startApp() {
         ndk={{
           explicitRelayUrls: readRelayUrls,
           devWriteRelayUrls: writeRelayUrls,
-          cacheAdapter: dexieAdapter,
-          enableOutboxModel: false,
+          cacheAdapter: cacheAdapter,
+          enableOutboxModel: !isDevelopment,
           autoConnectUserRelays: !isDevelopment,
         }}
         session={{
           storage: new NDKSessionLocalStorage(),
-          opts: { follows: true, profile: true },
+          opts: { follows: true, profile: true,
+          monitor: [NDKStation, NDKWFFavorites, NDKInterestList, 1111], },
         }}
       />
       <App />
