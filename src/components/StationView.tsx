@@ -1,8 +1,10 @@
-import { useStationsObserver } from "../lib/hooks/useStations";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { useNDK } from "@nostr-dev-kit/react";
+import { useStationsObserver } from "../lib/nostr/hooks/useStations";
+import { NDKStation } from "../lib/NDKStation";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
 import { useMemo } from "react";
-import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 
@@ -37,6 +39,7 @@ function SearchResultsSkeleton() {
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
+  const { ndk } = useNDK();
   const [tileParent] = useAutoAnimate();
   const {
     genres,
@@ -50,8 +53,8 @@ export function StationView({ searchQuery }: StationViewProps) {
     getActiveFilterCount,
   } = useFilterStore();
 
-  const filter = useMemo<Omit<NDKFilter, "kinds">>(() => {
-    const baseFilter: Omit<NDKFilter, "kinds"> = { limit: 500 };
+  const filter = useMemo<Omit<Filter, "kinds">>(() => {
+    const baseFilter: Omit<Filter, "kinds"> = { limit: 500 };
     if (searchQuery.trim()) baseFilter.search = searchQuery.trim();
     return baseFilter;
   }, [searchQuery]);
@@ -66,6 +69,10 @@ export function StationView({ searchQuery }: StationViewProps) {
   );
 
   const { events, eose } = useStationsObserver(filter, clientSideFilters);
+  const legacyStations = useMemo(
+    () => events.map((station) => new NDKStation(ndk ?? undefined, station.event as any)),
+    [events, ndk],
+  );
 
   const isSearching = !!searchQuery.trim();
 
@@ -143,14 +150,14 @@ export function StationView({ searchQuery }: StationViewProps) {
           )}
 
           <div className="space-y-[-4px]">
-            {events.map((station, i) => (
+            {legacyStations.map((station, i) => (
               <RadioCard key={station.id} station={station} variant="search-result" index={i} />
             ))}
           </div>
 
-          {eose && events.length > 0 && (
+          {eose && legacyStations.length > 0 && (
             <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-on-background/40">
-              {events.length} STATION{events.length !== 1 ? "S" : ""} FOUND
+              {legacyStations.length} STATION{legacyStations.length !== 1 ? "S" : ""} FOUND
             </p>
           )}
         </section>
@@ -161,14 +168,14 @@ export function StationView({ searchQuery }: StationViewProps) {
         <section>
           <SectionHeader
             className="mb-8"
-            label={eose && events.length > 0 ? `${events.length}_BROADCASTING` : undefined}
+            label={eose && legacyStations.length > 0 ? `${legacyStations.length}_BROADCASTING` : undefined}
           >
             LIVE_STATIONS
           </SectionHeader>
 
-          {!eose && events.length === 0 && <StationGridSkeleton />}
+          {!eose && legacyStations.length === 0 && <StationGridSkeleton />}
 
-          {eose && events.length === 0 && (
+          {eose && legacyStations.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low">
               <p className="font-black uppercase text-xl tracking-tight">NO_STATIONS_FOUND</p>
             </div>
@@ -178,7 +185,7 @@ export function StationView({ searchQuery }: StationViewProps) {
             ref={tileParent}
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
           >
-            {events.map((station) => (
+            {legacyStations.map((station) => (
               <RadioCard key={station.id} station={station} />
             ))}
           </div>

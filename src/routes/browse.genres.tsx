@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
-import { useStationsObserver } from "../lib/hooks/useStations";
+import { useStationsObserver } from "../lib/nostr/hooks/useStations";
 import { useFilterStore } from "../stores/filterStore";
 
 export const Route = createFileRoute("/browse/genres")({

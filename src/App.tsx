@@ -1,3 +1,4 @@
+import type { NDKSigner } from "@nostr-dev-kit/ndk";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { registerEventClass, useNDK } from "@nostr-dev-kit/react";
 import { useEffect } from "react";
@@ -5,6 +6,8 @@ import NDKStation from "./lib/NDKStation";
 import { NDKWFFavorites } from "./lib/NDKWFFavorites";
 import { routeTree } from "./routeTree.gen";
 import { useWalletInit } from "./lib/hooks/useWalletInit";
+import { createApplesauceSignerFromNDK } from "./lib/nostr/signers/ndk";
+import { useWavefuncNostr } from "./lib/nostr/runtime";
 import { usePlayerStore } from "./stores/playerStore";
 import "./index.css";
 
@@ -20,6 +23,7 @@ declare module "@tanstack/react-router" {
 
 export function App() {
   const { ndk } = useNDK();
+  const { clearSigner, setSigner } = useWavefuncNostr();
   const restoreLastStation = usePlayerStore((state) => state.restoreLastStation);
 
   // Initialize wallets from localStorage
@@ -29,6 +33,19 @@ export function App() {
     registerEventClass(NDKStation);
     registerEventClass(NDKWFFavorites);
   }, []);
+
+  useEffect(() => {
+    const activeSigner = ndk?.signer as NDKSigner | undefined;
+
+    if (!activeSigner) {
+      clearSigner();
+      return;
+    }
+
+    setSigner(createApplesauceSignerFromNDK(activeSigner)).catch((error) => {
+      console.error("Failed to sync Applesauce signer from NDK session", error);
+    });
+  }, [clearSigner, ndk, setSigner]);
 
   // Restore last played station on app load
   useEffect(() => {

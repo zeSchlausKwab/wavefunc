@@ -1,8 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { Plus, Edit3, Trash2, RadioIcon } from "lucide-react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
-import { NDKStation } from "../lib/NDKStation";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -14,17 +12,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-
-export interface Stream {
-  url: string;
-  format: string;
-  quality: {
-    bitrate: number;
-    codec: string;
-    sampleRate: number;
-  };
-  primary?: boolean;
-}
+import {
+  buildStationDeletionTemplate,
+  buildStationTemplate,
+  type Stream,
+} from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 export interface StationFormData {
   name: string;
@@ -38,8 +31,23 @@ export interface StationFormData {
   streams: Stream[];
 }
 
+type EditableStation = {
+  id: string;
+  pubkey?: string;
+  stationId?: string;
+  name?: string;
+  description?: string;
+  thumbnail?: string;
+  website?: string;
+  location?: string;
+  countryCode?: string;
+  genres: string[];
+  languages: string[];
+  streams: Stream[];
+};
+
 interface StationManagementSheetProps {
-  station?: NDKStation;
+  station?: EditableStation;
   mode?: "add" | "edit";
   trigger?: React.ReactNode;
 }
@@ -49,8 +57,7 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
   mode = "add",
   trigger,
 }) => {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const { currentPubkey, signAndPublish } = useWavefuncNostr();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -113,72 +120,30 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
       ],
     },
     onSubmit: async ({ value }) => {
-      if (!ndk || !currentUser?.pubkey) {
-        console.error("NDK or user not available");
+      if (!currentPubkey) {
+        console.error("No Applesauce signer is configured");
         return;
       }
 
       setIsSubmitting(true);
       try {
-        let targetStation: NDKStation;
-
-        if (mode === "edit" && station) {
-          targetStation = station;
-        } else {
-          targetStation = new NDKStation(ndk);
-          targetStation.pubkey = currentUser.pubkey;
-          targetStation.stationId = crypto.randomUUID();
-        }
-
-        // Update station properties
-        targetStation.name = value.name;
-        targetStation.description = value.description;
-        if (value.thumbnail) targetStation.thumbnail = value.thumbnail;
-        if (value.website) targetStation.website = value.website;
-        if (value.location) targetStation.location = value.location;
-        if (value.countryCode) targetStation.countryCode = value.countryCode;
-
-        // Set genres and languages
-        targetStation.setGenres(value.genres);
-        targetStation.setLanguages(value.languages);
-
-        // Set streams - update content with streams data
-        const content = {
-          description: value.description,
-          streams: value.streams,
-        };
-        targetStation.content = JSON.stringify(content);
-
-        // Ensure NDK is connected
-        if (!ndk.pool || ndk.pool.connectedRelays().length === 0) {
-          console.log("Connecting to relays...");
-          await ndk.connect();
-          // Wait a bit for connection to establish
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        console.log(
-          "Connected relays:",
-          ndk.pool?.connectedRelays().map((r) => r.url)
+        await signAndPublish(
+          buildStationTemplate({
+            stationId: mode === "edit" ? station?.stationId : undefined,
+            name: value.name,
+            description: value.description,
+            thumbnail: value.thumbnail || undefined,
+            website: value.website || undefined,
+            location: value.location || undefined,
+            countryCode: value.countryCode || undefined,
+            genres: value.genres,
+            languages: value.languages,
+            streams: value.streams,
+          })
         );
-
-        await targetStation.sign();
-
-        const relays = await targetStation.publish();
-        console.log("Published to relays:", relays);
-
-        if (relays.size === 0) {
-          throw new Error(
-            "Failed to publish to any relay. Check if the relay is running and accepting connections."
-          );
-        }
 
         setOpen(false);
-        console.log(
-          `Station ${mode === "edit" ? "updated" : "created"} successfully to ${
-            relays.size
-          } relay(s)`
-        );
+        console.log(`Station ${mode === "edit" ? "updated" : "created"} successfully`);
       } catch (error) {
         console.error(`Failed to ${mode} station:`, error);
         alert(
@@ -193,7 +158,7 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
   });
 
   const handleDelete = async () => {
-    if (!station || !ndk) return;
+    if (!station || !station.id || !station.pubkey) return;
 
     if (
       !confirm(
@@ -205,24 +170,13 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Create a deletion event (kind 5)
-      const deleteEvent = {
-        kind: 5,
-        content: "Station deleted",
-        tags: [
-          ["e", station.id],
-          ["k", "31237"],
-        ],
-      };
-
-      const ndkDeleteEvent = new (
-        await import("@nostr-dev-kit/react")
-      ).NDKEvent(ndk, deleteEvent);
-      ndkDeleteEvent.pubkey = station.pubkey;
-
-      await ndkDeleteEvent.sign();
-      await ndkDeleteEvent.publish();
-
+      await signAndPublish(
+        buildStationDeletionTemplate({
+          eventId: station.id,
+          pubkey: station.pubkey,
+          stationId: station.stationId,
+        })
+      );
       setOpen(false);
       console.log("Station deleted successfully");
     } catch (error) {

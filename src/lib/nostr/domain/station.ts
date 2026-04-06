@@ -42,8 +42,17 @@ export type StationTemplateInput = {
   website?: string;
   location?: string;
   countryCode?: string;
+  genres?: string[];
+  languages?: string[];
   streams: Stream[];
   streamingServerUrl?: string;
+};
+
+export type StationDeletionInput = {
+  eventId: string;
+  pubkey: string;
+  stationId?: string;
+  reason?: string;
 };
 
 function normalizeUrl(url: string) {
@@ -91,6 +100,13 @@ export function parseStationEvent(event: NostrEvent, relays?: string[]) {
     website: getFirstTagValue(event, "website"),
     location: getFirstTagValue(event, "location"),
     countryCode: getFirstTagValue(event, "country"),
+    genres: getMatchingTags(event, "c")
+      .filter((tag) => tag[2] === "genre")
+      .map((tag) => tag[1])
+      .filter((genre): genre is string => Boolean(genre)),
+    languages: getMatchingTags(event, "l")
+      .map((tag) => tag[1])
+      .filter((language): language is string => Boolean(language)),
     streams,
     streamingServerUrl: content?.streamingServerUrl,
     ...refs,
@@ -113,6 +129,8 @@ export function buildStationTemplate(
     ["d", stationId],
     ["name", input.name],
     ["description", input.description],
+    ...(input.genres ?? []).map((genre) => ["c", genre, "genre"]),
+    ...(input.languages ?? []).map((language) => ["l", language]),
     ...input.streams.map((stream) => [
       "stream",
       normalizeUrl(stream.url),
@@ -134,3 +152,22 @@ export function buildStationTemplate(
   };
 }
 
+export function buildStationDeletionTemplate(
+  input: StationDeletionInput
+): EventTemplate {
+  const tags: string[][] = [
+    ["e", input.eventId],
+    ["k", String(STATION_KIND)],
+    ["p", input.pubkey],
+  ];
+
+  if (input.stationId) {
+    tags.push(["a", `${STATION_KIND}:${input.pubkey}:${input.stationId}`]);
+  }
+
+  return {
+    kind: 5,
+    content: input.reason ?? "Deleted radio station",
+    tags,
+  };
+}

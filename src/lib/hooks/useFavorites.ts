@@ -8,7 +8,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import NDKStation from "../NDKStation";
 import { NDKWFFavorites } from "../NDKWFFavorites";
-import { useStations } from "./useStations";
+import { useStations } from "../nostr/hooks/useStations";
 import { getAppDataSubscriptionOptions } from "../../config/nostr";
 
 // Extend window for debug throttling
@@ -262,6 +262,7 @@ export function useFavoritesLists(
  * Reuses the proven useStations hook for consistency and reliability.
  */
 export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
+  const { ndk } = useNDK();
   const stationAddresses = favoritesList?.getStations() || [];
 
   // Build filter from station addresses
@@ -293,7 +294,12 @@ export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
     };
   }, [JSON.stringify(stationAddresses)]);
 
-  const { events: stations, eose } = useStations([filter]);
+  const { events: stationEvents, eose } = useStations([filter]);
+
+  const stations = useMemo(() => {
+    if (!ndk) return [];
+    return stationEvents.map((station) => new NDKStation(ndk, station.event as any));
+  }, [ndk, stationEvents]);
 
   return {
     stations,
