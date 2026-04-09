@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+// Canonical applesauce-react reactivity for admin feature events.
+
+import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { map, scan, startWith } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { ADMIN_PUBKEYS } from "../../config/admins";
 import { getAppDataRelayUrls } from "../../config/nostr";
 import {
@@ -18,8 +20,7 @@ import { useWavefuncNostr } from "../nostr/runtime";
  */
 export function useAdminFeatures(type: AdminFeatureType) {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
+
   const filters: Filter[] = useMemo(
     () => [
       {
@@ -28,32 +29,29 @@ export function useAdminFeatures(type: AdminFeatureType) {
         "#l": [getAdminFeatureLabel(type)],
       },
     ],
-    [type]
+    [type],
   );
-  const filtersKey = JSON.stringify(filters);
 
-  const eose =
-    use$(
-      () =>
-        relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        ),
-      [eventStore, filtersKey, relayPool, relaysKey],
-    ) ?? false;
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-  const events =
-    use$(
-      () =>
-        eventStore.timeline(filters).pipe(
-          map((timeline) =>
-            [...timeline].map((event) => parseAdminFeatureEvent(event, relays))
-          )
-        ),
-      [eventStore, filtersKey, relaysKey],
-    ) ?? [];
+  const rawEvents = useEventModel(TimelineModel, [filters]) ?? [];
 
-  return { features: events, isLoading: !eose };
+  const features = useMemo(
+    () => rawEvents.map((event) => parseAdminFeatureEvent(event)),
+    [rawEvents],
+  );
+
+  return { features, isLoading: !eose };
 }

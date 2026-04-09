@@ -1,4 +1,5 @@
-import { use$ } from "applesauce-react/hooks";
+import { ProfileModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
 import { useMemo } from "react";
 import { useWavefuncNostr, type WavefuncAccount } from "./runtime";
 
@@ -45,10 +46,8 @@ export function useCurrentPubkey(): string | null {
 }
 
 export function useProfile(user: AccountLike) {
-  const { eventStore } = useWavefuncNostr();
   const pubkey = getPubkey(user);
-
-  return use$(() => (pubkey ? eventStore.profile(pubkey) : undefined), [eventStore, pubkey]);
+  return useEventModel(ProfileModel, pubkey ? [pubkey] : null);
 }
 
 export function useCurrentProfile() {

@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { use$ } from "applesauce-react/hooks";
+import {
+  EventModel,
+  ReplaceableModel,
+} from "applesauce-core/models";
 import {
   decodeAddressPointer,
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
+import { useEventModel } from "applesauce-react/hooks";
 import { Radio } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { parseStationEvent, type ParsedStation } from "@/lib/nostr/domain";
-import { useWavefuncNostr } from "@/lib/nostr/runtime";
 import { StationDetail } from "@/components/StationDetail";
 
 const NOT_FOUND_TIMEOUT_MS = 10_000;
@@ -22,21 +25,27 @@ type StationLoadState =
   | { status: "not-found"; station: null };
 
 function useStationByNaddr(naddr: string): StationLoadState {
-  const { eventStore } = useWavefuncNostr();
+  const decoded = useMemo(() => {
+    const address = decodeAddressPointer(naddr);
+    if (address) return { kind: "address" as const, pointer: address };
+    const eventPointer = decodeEventPointer(naddr);
+    if (eventPointer) return { kind: "event" as const, pointer: eventPointer };
+    return { kind: "event" as const, pointer: naddr };
+  }, [naddr]);
 
-  const pointer = useMemo(
-    () =>
-      decodeAddressPointer(naddr) ?? decodeEventPointer(naddr) ?? naddr,
-    [naddr],
+  // ReplaceableModel for naddr (AddressPointer), EventModel for note id /
+  // EventPointer. Both are reactive — the runtime's event loader will pull
+  // the event from configured relays in the background, and we'll re-render
+  // as soon as it lands in the store.
+  const replaceableEvent = useEventModel(
+    ReplaceableModel,
+    decoded.kind === "address" ? [decoded.pointer] : null,
   );
-
-  // eventStore.event() emits undefined while the event isn't in the store
-  // (the runtime's event loader will fetch it from configured relays in the
-  // background) and emits the NostrEvent once it lands.
-  const event = use$(
-    () => eventStore.event(pointer),
-    [eventStore, pointer],
+  const eventModelEvent = useEventModel(
+    EventModel,
+    decoded.kind === "event" ? [decoded.pointer] : null,
   );
+  const event = decoded.kind === "address" ? replaceableEvent : eventModelEvent;
 
   // Separate "still loading" from "definitely not found" via a timeout that
   // resets when naddr changes.

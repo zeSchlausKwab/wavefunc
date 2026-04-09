@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { TimelineModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { useMemo, useState } from "react";
-import { map, of, scan, startWith } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { CrateSaveButton } from "../components/CrateSaveButton";
 import { ShareSongDialog } from "../components/ShareSongDialog";
 import { getAppDataRelayUrls } from "../config/nostr";
@@ -159,35 +159,27 @@ function SignalRow({ song }: SignalRowProps) {
 
 function Signals() {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
 
   const filters: Filter[] = useMemo(
     () => [{ kinds: [SONG_KIND], limit: 100 }],
     [],
   );
-  const filtersKey = JSON.stringify(filters);
 
-  const eose =
-    use$(
-      () =>
-        relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        ),
-      [eventStore, filtersKey, relayPool, relaysKey],
-    ) ?? false;
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-  const events =
-    use$(
-      () =>
-        eventStore
-          .timeline(filters)
-          .pipe(map((timeline) => [...timeline])),
-      [eventStore, filtersKey],
-    ) ?? [];
+  const events = useEventModel(TimelineModel, [filters]) ?? [];
 
   const songs: ParsedSong[] = useMemo(
     () =>

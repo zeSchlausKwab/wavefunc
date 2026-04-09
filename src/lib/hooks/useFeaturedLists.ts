@@ -1,12 +1,19 @@
-import { useMemo } from "react";
-import { use$ } from "applesauce-react/hooks";
+// Resolves the admin's featured-lists feature events into parsed favorites lists.
+// Canonical applesauce-react reactivity: useEventModel + TimelineModel.
+
+import { TimelineModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { combineLatest, map, of, scan, startWith } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminFeatures } from "./useAdminFeatures";
-import { addressesToParameterizedFilters, getAppDataRelayUrls } from "../../config/nostr";
+import {
+  addressesToParameterizedFilters,
+  getAppDataRelayUrls,
+} from "../../config/nostr";
 import {
   FAVORITES_LIST_LABEL,
   parseFavoritesListEvent,
+  type ParsedFavoritesList,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
 
@@ -22,8 +29,6 @@ import { useWavefuncNostr } from "../nostr/runtime";
 export function useFeaturedLists() {
   const { eventStore, relayPool } = useWavefuncNostr();
   const { features, isLoading: featuresLoading } = useAdminFeatures("lists");
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
 
   // All referenced favorites-list addresses, deduplicated, preserving order
   const listAddresses = useMemo(() => {
@@ -35,7 +40,7 @@ export function useFeaturedLists() {
           seen.add(ref);
           ordered.push(ref);
         }
-      })
+      }),
     );
     return ordered;
   }, [features]);
@@ -45,55 +50,48 @@ export function useFeaturedLists() {
       addressesToParameterizedFilters(30078, listAddresses, {
         "#l": [FAVORITES_LIST_LABEL],
       }),
-    [listAddresses]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(listAddresses)],
   );
-  const filtersKey = JSON.stringify(filters);
 
-  const listsEose =
-    use$(
-      () => {
-        if (listAddresses.length === 0) {
-          return of(true);
-        }
+  // Active relay subscription so referenced lists land in the store.
+  const [listsEose, setListsEose] = useState(false);
+  useEffect(() => {
+    if (listAddresses.length === 0) {
+      setListsEose(true);
+      return;
+    }
+    setListsEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setListsEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters, listAddresses.length]);
 
-        return relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        );
-      },
-      [eventStore, filtersKey, listAddresses.length, relayPool, relaysKey]
-    ) ?? listAddresses.length === 0;
+  // Reactive read from the store via the canonical TimelineModel.
+  const rawEvents =
+    useEventModel(
+      TimelineModel,
+      listAddresses.length > 0 ? [filters] : null,
+    ) ?? [];
 
-  const events = use$(
-    () => {
-      if (listAddresses.length === 0) {
-        return of([]);
-      }
-
-      return combineLatest(
-        listAddresses.map((address) => {
-          const [, pubkey, identifier] = address.split(":");
-
-          if (!pubkey || !identifier) {
-            return of(undefined);
-          }
-
-          return eventStore.replaceable(30078, pubkey, identifier);
-        })
-      ).pipe(
-        map((resolved) =>
-          resolved.filter((event): event is NonNullable<typeof event> => Boolean(event))
-        )
-      );
-    },
-    [eventStore, filtersKey, listAddresses.length]
-  ) ?? [];
-
-  const featuredLists = useMemo(() => {
-    return events.map((event) => parseFavoritesListEvent(event, relays));
-  }, [events, relays]);
+  // Reorder according to the feature event's reference order
+  const featuredLists: ParsedFavoritesList[] = useMemo(() => {
+    if (rawEvents.length === 0) return [];
+    const byAddress = new Map<string, ParsedFavoritesList>();
+    for (const event of rawEvents) {
+      const parsed = parseFavoritesListEvent(event);
+      if (parsed.address) byAddress.set(parsed.address, parsed);
+    }
+    return listAddresses
+      .map((address) => byAddress.get(address))
+      .filter((list): list is ParsedFavoritesList => list !== undefined);
+  }, [rawEvents, listAddresses]);
 
   return {
     featuredLists,

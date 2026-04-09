@@ -1,8 +1,14 @@
+// Canonical applesauce-react pattern: useEventModel + TimelineModel.
+// Reactive subscription to the user's song lists; the parsed list array is
+// derived directly from the timeline observable so any insert/remove on the
+// shared model immediately propagates here. A separate effect keeps a relay
+// subscription open so the store stays populated with the latest events.
+
+import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { useCallback, useMemo } from "react";
-import { map, of, scan, startWith } from "rxjs";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls } from "../../config/nostr";
 import { useCurrentAccount } from "../nostr/auth";
 import {
@@ -27,11 +33,9 @@ const DEFAULT_LIST_NAME = "Liked Songs";
 export function useSongFavorites() {
   const currentUser = useCurrentAccount();
   const { eventStore, relayPool, signAndPublish } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
 
-  const filters: Filter[] = useMemo(() => {
-    if (!currentUser?.pubkey) return [];
+  const filters: Filter[] | null = useMemo(() => {
+    if (!currentUser?.pubkey) return null;
     return [
       {
         kinds: [WF_SONG_LIST_KIND],
@@ -41,37 +45,38 @@ export function useSongFavorites() {
     ];
   }, [currentUser?.pubkey]);
 
-  const filtersKey = JSON.stringify(filters);
+  // Keep an active relay subscription so song list events get loaded into
+  // the store and stay fresh. Events flow into the store via storeEvents,
+  // which triggers insert$/remove$ → the TimelineModel below picks them up.
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    if (!filters) {
+      setEose(true);
+      return;
+    }
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-  const eose =
-    use$(
-      () => {
-        if (filters.length === 0) return of(true);
-        return relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        );
-      },
-      [eventStore, filtersKey, relayPool, relaysKey],
-    ) ?? false;
-
-  const events =
-    use$(
-      () => {
-        if (filters.length === 0) return of([]);
-        return eventStore
-          .timeline(filters)
-          .pipe(map((timeline) => [...timeline]));
-      },
-      [eventStore, filtersKey],
-    ) ?? [];
+  // useEventModel subscribes to a shared TimelineModel on the EventStore via
+  // the EventStoreProvider. The model emits a fresh array whenever an event
+  // matching `filters` is added or removed from the store.
+  const events = useEventModel(TimelineModel, filters ? [filters] : null) ?? [];
 
   const songLists: ParsedSongList[] = useMemo(
     () => events.map((event) => parseSongListEvent(event)),
     [events],
   );
+
+  const isLoading = !eose;
 
   const isInAnyList = useCallback(
     (songAddress: string) =>
@@ -89,7 +94,6 @@ export function useSongFavorites() {
       songLists[0];
     if (existing) return existing;
 
-    // No list yet — publish a fresh "Liked Songs" list and return its parsed form.
     const template = buildSongListTemplate({ name: DEFAULT_LIST_NAME });
     const event = await signAndPublish(template);
     return parseSongListEvent(event);
@@ -185,7 +189,7 @@ export function useSongFavorites() {
 
   return {
     songLists,
-    isLoading: !eose,
+    isLoading,
     isLoggedIn: !!currentUser?.pubkey,
     isInAnyList,
     addToDefaultList,
@@ -196,11 +200,6 @@ export function useSongFavorites() {
   };
 }
 
-/**
- * Re-export builder helpers that are commonly used together with this hook so
- * the consuming components only have to import from one place. Mirrors the
- * useFavorites pattern from the favorites slice.
- */
 export {
   buildSongAudioUpdateTemplate,
   buildSongTemplateFromMetadata,

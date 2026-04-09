@@ -1,8 +1,8 @@
+import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { useCallback, useMemo, useState } from "react";
-import { map, of, scan, startWith } from "rxjs";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { addressesToParameterizedFilters, getAppDataRelayUrls } from "../../config/nostr";
 import { useCurrentAccount } from "../nostr/auth";
 import {
@@ -35,42 +35,35 @@ function getStationAddress(station: StationLike) {
 
 function useFavoritesListStream(filters: Filter[] | false) {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
-  const filtersKey = JSON.stringify(filters ?? []);
 
-  const eose =
-    use$(
-      () => {
-        if (!filters || filters.length === 0) {
-          return of(true);
-        }
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    if (!filters || filters.length === 0) {
+      setEose(true);
+      return;
+    }
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-        return relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        );
-      },
-      [eventStore, filtersKey, relayPool, relaysKey]
-    ) ?? !filters;
-
-  const events =
-    use$(
-      () => {
-        if (!filters || filters.length === 0) {
-          return of([]);
-        }
-
-        return eventStore.timeline(filters).pipe(
-          map((timeline) =>
-            [...timeline].map((event) => parseFavoritesListEvent(event, relays))
-          )
-        );
-      },
-      [eventStore, filtersKey, relaysKey]
+  const rawEvents =
+    useEventModel(
+      TimelineModel,
+      filters && filters.length > 0 ? [filters] : null,
     ) ?? [];
+
+  const events = useMemo(
+    () => rawEvents.map((event) => parseFavoritesListEvent(event)),
+    [rawEvents],
+  );
 
   return { events, eose };
 }
@@ -354,57 +347,50 @@ export function useFavoritesLists(additionalFilters: Omit<Filter, "kinds">[] = [
 
 export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
   const stationAddresses = favoritesList?.stationAddresses ?? [];
 
   const filters = useMemo(
     () => addressesToParameterizedFilters(STATION_KIND, stationAddresses),
-    [stationAddresses]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(stationAddresses)],
   );
-  const filtersKey = JSON.stringify(filters);
 
-  const eose =
-    use$(
-      () => {
-        if (stationAddresses.length === 0) {
-          return of(true);
-        }
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    if (stationAddresses.length === 0) {
+      setEose(true);
+      return;
+    }
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters, stationAddresses.length]);
 
-        return relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        );
-      },
-      [eventStore, filtersKey, relayPool, relaysKey, stationAddresses.length]
-    ) ?? stationAddresses.length === 0;
-
-  const stations =
-    use$(
-      () => {
-        if (stationAddresses.length === 0) {
-          return of([]);
-        }
-
-        return eventStore.timeline(filters).pipe(
-          map((timeline) => {
-            const byAddress = new Map(
-              [...timeline].map((event) => {
-                const station = parseStationEvent(event, relays);
-                return [station.address, station] as const;
-              })
-            );
-
-            return stationAddresses
-              .map((address) => byAddress.get(address) ?? null)
-              .filter((station) => station !== null);
-          })
-        );
-      },
-      [eventStore, filtersKey, relaysKey, stationAddresses.length]
+  const rawEvents =
+    useEventModel(
+      TimelineModel,
+      stationAddresses.length > 0 ? [filters] : null,
     ) ?? [];
+
+  const stations = useMemo(() => {
+    if (stationAddresses.length === 0) return [];
+    const byAddress = new Map(
+      rawEvents.map((event) => {
+        const station = parseStationEvent(event);
+        return [station.address, station] as const;
+      }),
+    );
+    return stationAddresses
+      .map((address) => byAddress.get(address) ?? null)
+      .filter((station): station is NonNullable<typeof station> => station !== null);
+  }, [rawEvents, stationAddresses]);
 
   return {
     stations,

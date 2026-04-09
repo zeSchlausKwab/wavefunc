@@ -2,9 +2,10 @@ import {
   decodeAddressPointer,
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
-import { use$ } from "applesauce-react/hooks";
+import { useObservableEagerMemo } from "applesauce-react/hooks";
 import { History, Radio, Trash2, X } from "lucide-react";
 import { combineLatest, map, of } from "rxjs";
+import { withImmediateValueOrDefault } from "applesauce-core";
 import { useHistoryStore } from "../stores/historyStore";
 import { parseStationEvent, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
@@ -35,41 +36,46 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
   // observable subscriptions. The runtime's event loader auto-fetches
   // missing events from the configured relays, so subscribers will receive
   // the station as soon as it lands in the store.
-  const stations =
-    use$(
-      () => {
-        if (history.length === 0) {
-          return of(new Map<string, ParsedStation>());
-        }
+  // Reactive map of stationId → ParsedStation, populated by per-entry
+  // observable subscriptions. The runtime's event loader auto-fetches
+  // missing events from the configured relays, so subscribers will receive
+  // the station as soon as it lands in the store.
+  const stations = useObservableEagerMemo<Map<string, ParsedStation>>(
+    () => {
+      if (history.length === 0) {
+        return of(new Map<string, ParsedStation>());
+      }
 
-        const entryStreams = history.map((entry) => {
-          const pointer =
-            decodeAddressPointer(entry.stationId) ??
-            decodeEventPointer(entry.stationId) ??
-            entry.stationId;
+      const entryStreams = history.map((entry) => {
+        const pointer =
+          decodeAddressPointer(entry.stationId) ??
+          decodeEventPointer(entry.stationId) ??
+          entry.stationId;
 
-          return eventStore.event(pointer).pipe(
-            map((event) =>
-              event
-                ? ([entry.stationId, parseStationEvent(event)] as const)
-                : null,
-            ),
-          );
-        });
-
-        return combineLatest(entryStreams).pipe(
-          map(
-            (entries) =>
-              new Map(
-                entries.filter(
-                  (e): e is readonly [string, ParsedStation] => e !== null,
-                ),
-              ),
+        return eventStore.event(pointer).pipe(
+          map((event) =>
+            event
+              ? ([entry.stationId, parseStationEvent(event)] as const)
+              : null,
           ),
         );
-      },
-      [eventStore, historyKey],
-    ) ?? new Map<string, ParsedStation>();
+      });
+
+      return combineLatest(entryStreams).pipe(
+        map(
+          (entries) =>
+            new Map(
+              entries.filter(
+                (e): e is readonly [string, ParsedStation] => e !== null,
+              ),
+            ),
+        ),
+        withImmediateValueOrDefault(new Map<string, ParsedStation>()),
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [eventStore, historyKey],
+  );
 
   const loading = history.length > 0 && stations.size < history.length;
 

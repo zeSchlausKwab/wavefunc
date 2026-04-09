@@ -1,7 +1,12 @@
+// Canonical applesauce-react reactivity for station timelines.
+// Uses useEventModel + TimelineModel for the read path; a separate effect
+// keeps the relay subscription open so the store stays populated.
+
+import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { map, scan, startWith } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls } from "../../../config/nostr";
 import {
   parseStationEvent,
@@ -23,32 +28,32 @@ type StationClientFilters = {
 
 function useStationStream(filters: Filter[]): UseStationStreamResult {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
-  const filtersKey = JSON.stringify(filters);
 
-  const eose =
-    use$(
-      () =>
-        relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        ),
-      [eventStore, filtersKey, relayPool, relaysKey],
-    ) ?? false;
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    if (filters.length === 0) {
+      setEose(true);
+      return;
+    }
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-  const events =
-    use$(
-      () =>
-        eventStore.timeline(filters).pipe(
-          map((timeline) =>
-            [...timeline].map((event) => parseStationEvent(event, relays)),
-          ),
-        ),
-      [eventStore, filtersKey, relaysKey],
-    ) ?? [];
+  const rawEvents =
+    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
+
+  const events = useMemo(
+    () => rawEvents.map((event) => parseStationEvent(event)),
+    [rawEvents],
+  );
 
   return { events, eose };
 }
@@ -56,10 +61,15 @@ function useStationStream(filters: Filter[]): UseStationStreamResult {
 export function useStations(
   additionalFilters: Omit<Filter, "kinds">[] = [{}],
 ): UseStationStreamResult {
-  const filters = additionalFilters.map((filter) => ({
-    ...filter,
-    kinds: [STATION_KIND],
-  }));
+  const filters = useMemo(
+    () =>
+      additionalFilters.map((filter) => ({
+        ...filter,
+        kinds: [STATION_KIND],
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(additionalFilters)],
+  );
 
   return useStationStream(filters);
 }
@@ -68,64 +78,88 @@ export function useSearchStations(
   filter: Omit<Filter, "kinds"> = {},
   searchQuery: string,
 ): UseStationStreamResult {
-  return useStationStream([
-    {
-      ...filter,
-      kinds: [STATION_KIND],
-      search: searchQuery,
-    },
-  ]);
+  const filters = useMemo(
+    () => [
+      {
+        ...filter,
+        kinds: [STATION_KIND],
+        search: searchQuery,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(filter), searchQuery],
+  );
+  return useStationStream(filters);
 }
 
 export function useStationsObserver(
   filterWithoutKinds: Omit<Filter, "kinds"> = { limit: 50 },
   clientSideFilters?: StationClientFilters,
 ): UseStationStreamResult {
-  const { events: allEvents, eose } = useStationStream([
-    {
-      ...filterWithoutKinds,
-      kinds: [STATION_KIND],
-    },
-  ]);
+  const filters = useMemo(
+    () => [
+      {
+        ...filterWithoutKinds,
+        kinds: [STATION_KIND],
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(filterWithoutKinds)],
+  );
 
-  const events = clientSideFilters
-    ? allEvents.filter((station) => {
-        if (clientSideFilters.genres && clientSideFilters.genres.length > 0) {
-          const stationGenres = station.genres.map((genre) => genre.toLowerCase());
-          const hasMatchingGenre = clientSideFilters.genres.some((genre) =>
-            stationGenres.includes(genre.toLowerCase()),
-          );
-          if (!hasMatchingGenre) return false;
-        }
+  const { events: allEvents, eose } = useStationStream(filters);
 
-        if (clientSideFilters.languages && clientSideFilters.languages.length > 0) {
-          const stationLanguages = station.languages.map((language) => language.toLowerCase());
-          const hasMatchingLanguage = clientSideFilters.languages.some((language) =>
-            stationLanguages.includes(language.toLowerCase()),
-          );
-          if (!hasMatchingLanguage) return false;
-        }
+  const events = useMemo(() => {
+    if (!clientSideFilters) return allEvents;
+    return allEvents.filter((station) => {
+      if (clientSideFilters.genres && clientSideFilters.genres.length > 0) {
+        const stationGenres = station.genres.map((genre) => genre.toLowerCase());
+        const hasMatchingGenre = clientSideFilters.genres.some((genre) =>
+          stationGenres.includes(genre.toLowerCase()),
+        );
+        if (!hasMatchingGenre) return false;
+      }
 
-        if (clientSideFilters.countries && clientSideFilters.countries.length > 0) {
-          const stationCountry = station.countryCode?.toLowerCase();
-          const hasMatchingCountry = clientSideFilters.countries.some((country) =>
-            stationCountry === country.toLowerCase(),
-          );
-          if (!hasMatchingCountry) return false;
-        }
+      if (
+        clientSideFilters.languages &&
+        clientSideFilters.languages.length > 0
+      ) {
+        const stationLanguages = station.languages.map((language) =>
+          language.toLowerCase(),
+        );
+        const hasMatchingLanguage = clientSideFilters.languages.some(
+          (language) => stationLanguages.includes(language.toLowerCase()),
+        );
+        if (!hasMatchingLanguage) return false;
+      }
 
-        return true;
-      })
-    : allEvents;
+      if (
+        clientSideFilters.countries &&
+        clientSideFilters.countries.length > 0
+      ) {
+        const stationCountry = station.countryCode?.toLowerCase();
+        const hasMatchingCountry = clientSideFilters.countries.some(
+          (country) => stationCountry === country.toLowerCase(),
+        );
+        if (!hasMatchingCountry) return false;
+      }
+
+      return true;
+    });
+  }, [allEvents, clientSideFilters]);
 
   return { events, eose };
 }
 
 export function useMyStations(pubkey?: string | null): UseStationStreamResult {
-  return useStationStream([
-    {
-      authors: pubkey ? [pubkey] : [],
-      kinds: [STATION_KIND],
-    },
-  ]);
+  const filters = useMemo(
+    () => [
+      {
+        authors: pubkey ? [pubkey] : [],
+        kinds: [STATION_KIND],
+      },
+    ],
+    [pubkey],
+  );
+  return useStationStream(filters);
 }

@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
-import type { NostrEvent } from "applesauce-core/helpers/event";
-import { use$ } from "applesauce-react/hooks";
+import { TimelineModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { map, of } from "rxjs";
 import { getAppDataRelayUrls } from "../config/nostr";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import {
@@ -51,8 +50,6 @@ function useSongsFromList(list: ParsedSongList): {
   isLoading: boolean;
 } {
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
 
   const addresses = list.songAddresses;
   const filters: Filter[] = useMemo(() => {
@@ -70,35 +67,27 @@ function useSongsFromList(list: ParsedSongList): {
         "#d": dTags,
       },
     ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(addresses)]);
-  const filtersKey = JSON.stringify(filters);
 
-  // Fire the relay subscription via a side-effect (no rendered value).
-  use$(
-    () => {
-      if (filters.length === 0) return of(null);
-      return relayPool
-        .subscription(relays, filters)
-        .pipe(storeEvents(eventStore), map(() => null));
-    },
-    [eventStore, filtersKey, relayPool, relaysKey],
-  );
+  // Active relay subscription so song events stream into the store.
+  useEffect(() => {
+    if (filters.length === 0) return;
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe();
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
+  // Reactive timeline read from the canonical model.
   const events =
-    use$(
-      () => {
-        if (filters.length === 0) return of([]);
-        return eventStore
-          .timeline(filters)
-          .pipe(map((timeline) => [...timeline]));
-      },
-      [eventStore, filtersKey],
-    ) ?? [];
+    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
 
   const songs: ParsedSong[] = useMemo(
     () =>
       events
-        .map((event: NostrEvent) => parseSongEvent(event))
+        .map((event) => parseSongEvent(event))
         .filter((song) => song.address && addresses.includes(song.address)),
     [events, addresses],
   );

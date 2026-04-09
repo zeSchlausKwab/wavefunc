@@ -1,6 +1,10 @@
 import { EventFactory, EventStore } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { createEventLoaderForStore } from "applesauce-loaders/loaders";
+import {
+  EventStoreProvider,
+  FactoryProvider,
+} from "applesauce-react/providers";
 import { RelayPool } from "applesauce-relay";
 import type { PublishResponse } from "applesauce-relay/types";
 import {
@@ -450,7 +454,9 @@ export function WavefuncNostrProvider({
 
   return (
     <WavefuncNostrContext.Provider value={value}>
-      {children}
+      <EventStoreProvider eventStore={eventStore}>
+        <FactoryProvider factory={eventFactory}>{children}</FactoryProvider>
+      </EventStoreProvider>
     </WavefuncNostrContext.Provider>
   );
 }

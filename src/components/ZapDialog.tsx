@@ -1,6 +1,7 @@
 import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { use$ } from "applesauce-react/hooks";
+import { ProfileModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -76,11 +77,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const [paymentDetected, setPaymentDetected] = useState(false);
   const [zapStartTime, setZapStartTime] = useState<number>(0);
 
-  // ── Resolve recipient profile (lud16/lud06) via the applesauce event store ──
-  const ownerProfile = use$(
-    () => eventStore.profile(station.pubkey),
-    [eventStore, station.pubkey],
-  );
+  // ── Resolve recipient profile (lud16/lud06) via the canonical ProfileModel ──
+  const ownerProfile = useEventModel(ProfileModel, [station.pubkey]);
 
   // Trigger a profile fetch on open if the store doesn't have it yet
   useEffect(() => {

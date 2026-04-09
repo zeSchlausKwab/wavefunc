@@ -1,9 +1,14 @@
+// Canonical applesauce-react reactivity: useEventModel + TimelineModel.
+// Counts reactions / zaps / replies for a target event by subscribing to the
+// shared TimelineModel on the EventStore. A separate effect keeps a relay
+// subscription open so the store stays populated with the matching events.
+
+import { TimelineModel } from "applesauce-core/models";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { use$ } from "applesauce-react/hooks";
+import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { useMemo } from "react";
-import { map, of, scan, startWith } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls } from "../../config/nostr";
 import { useCurrentAccount } from "../nostr/auth";
 import { getFirstTagValue } from "../nostr/domain";
@@ -22,38 +27,19 @@ export interface SocialInteractionState extends SocialInteractionCounts {
   isLoading: boolean;
 }
 
-/**
- * Hook to fetch and track social interactions (reactions, zaps, comments) for an event
- *
- * This hook subscribes to:
- * - Reactions (kind 7) with content "❤️" or "+"
- * - Zap receipts (kind 9735)
- * - Generic replies (kind 1111) per NIP-22
- */
 type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">;
 
 export function useSocialInteractions(event: SocialTarget): SocialInteractionState {
   const currentUser = useCurrentAccount();
   const { eventStore, relayPool } = useWavefuncNostr();
-  const relays = getAppDataRelayUrls();
-  const relaysKey = JSON.stringify(relays);
 
   const filters: Filter[] = useMemo(() => {
     const dTag = getFirstTagValue(event, "d");
     const address = dTag ? `${event.kind}:${event.pubkey}:${dTag}` : null;
     const result: Filter[] = [
-      {
-        kinds: [7],
-        "#e": [event.id],
-      },
-      {
-        kinds: [9735],
-        "#e": [event.id],
-      },
-      {
-        kinds: [1111],
-        "#e": [event.id],
-      },
+      { kinds: [7], "#e": [event.id] },
+      { kinds: [9735], "#e": [event.id] },
+      { kinds: [1111], "#e": [event.id] },
     ];
 
     if (address) {
@@ -65,38 +51,30 @@ export function useSocialInteractions(event: SocialTarget): SocialInteractionSta
     return result;
   }, [event.id, event.kind, event.pubkey, JSON.stringify(event.tags)]);
 
-  const filtersKey = JSON.stringify(filters);
+  // Active relay subscription so reactions/zaps/comments load into the store.
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    if (filters.length === 0) {
+      setEose(true);
+      return;
+    }
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
 
-  const eose =
-    use$(
-      () => {
-        if (filters.length === 0) {
-          return of(true);
-        }
-
-        return relayPool.subscription(relays, filters).pipe(
-          storeEvents(eventStore),
-          map((message) => message === "EOSE"),
-          startWith(false),
-          scan((done, current) => done || current, false),
-        );
-      },
-      [eventStore, filtersKey, relayPool, relaysKey]
-    ) ?? false;
-
+  // Reactive timeline read from the shared model.
   const events =
-    use$(
-      () => {
-        if (filters.length === 0) {
-          return of([]);
-        }
+    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
 
-        return eventStore.timeline(filters).pipe(map((timeline) => [...timeline]));
-      },
-      [eventStore, filtersKey]
-    ) ?? [];
-
-  const state = useMemo(() => {
+  return useMemo(() => {
     const reactions = new Set<string>();
     const zaps = new Set<string>();
     const comments = new Set<string>();
@@ -104,31 +82,21 @@ export function useSocialInteractions(event: SocialTarget): SocialInteractionSta
     let userHasZapped = false;
     let userHasCommented = false;
 
-    events.forEach((e) => {
+    for (const e of events) {
       if (e.kind === 7) {
         reactions.add(e.id);
-        if (e.pubkey === currentUser?.pubkey) {
-          userHasReacted = true;
-        }
-      }
-
-      if (e.kind === 9735) {
+        if (e.pubkey === currentUser?.pubkey) userHasReacted = true;
+      } else if (e.kind === 9735) {
         zaps.add(e.id);
         const zapperPubkey =
           e.tags.find((tag) => tag[0] === "P")?.[1] ??
           e.tags.find((tag) => tag[0] === "p")?.[1];
-        if (zapperPubkey === currentUser?.pubkey) {
-          userHasZapped = true;
-        }
-      }
-
-      if (e.kind === 1111) {
+        if (zapperPubkey === currentUser?.pubkey) userHasZapped = true;
+      } else if (e.kind === 1111) {
         comments.add(e.id);
-        if (e.pubkey === currentUser?.pubkey) {
-          userHasCommented = true;
-        }
+        if (e.pubkey === currentUser?.pubkey) userHasCommented = true;
       }
-    });
+    }
 
     return {
       reactions: reactions.size,
@@ -140,6 +108,4 @@ export function useSocialInteractions(event: SocialTarget): SocialInteractionSta
       isLoading: !eose,
     };
   }, [eose, events, currentUser?.pubkey]);
-
-  return state;
 }
