@@ -17,6 +17,7 @@ import "applesauce-wallet/casts";
 
 import { EventStore, EventFactory } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers/event";
+import { castUser } from "applesauce-common/casts";
 import { RelayPool } from "applesauce-relay";
 import { storeEvents } from "applesauce-relay/operators";
 import { NostrConnectSigner } from "applesauce-signers";
@@ -28,6 +29,7 @@ import {
   NostrConnectAccount,
 } from "applesauce-accounts/accounts";
 import { ActionRunner } from "applesauce-actions";
+import { UnlockWallet } from "applesauce-wallet/actions";
 import {
   LocalStorageCouch,
   WALLET_KIND,
@@ -36,7 +38,7 @@ import {
   getWalletRelays,
 } from "applesauce-wallet/helpers";
 import { kinds as nostrKinds } from "nostr-tools";
-import { merge, Subject, type Subscription } from "rxjs";
+import { merge, Subject, Subscription } from "rxjs";
 
 const ACCOUNTS_STORAGE_KEY = "wavefunc:accounts:v1";
 const ACTIVE_ACCOUNT_STORAGE_KEY = "wavefunc:active-account:v1";
@@ -303,4 +305,74 @@ export function markEventLoaderAttached(): boolean {
   if (g.__wavefuncNostr!.eventLoaderAttached) return false;
   g.__wavefuncNostr!.eventLoaderAttached = true;
   return true;
+}
+
+// ── Auto-unlock ──────────────────────────────────────────────────────────────
+//
+// NIP-60 wallet content (the wallet config, every kind 7375 token, every
+// kind 7376 history entry) is encrypted with the user's signer. Until each
+// of those is decrypted, `wallet.balance$` reports 0 — which is why a fresh
+// reload would render the header pill at "0 SATS" until the user opened the
+// popover and `WalletManager` ran its own auto-unlock effect.
+//
+// This subscription hoists that auto-unlock to the runtime layer so it fires
+// as soon as the wallet event arrives, regardless of whether any wallet UI
+// is mounted. It also re-fires whenever new locked tokens or history entries
+// land in the store (e.g., after receiving a payment), so the header balance
+// stays current without any UI being open.
+//
+// `WalletManager` keeps its own local auto-unlock as a defense in depth — the
+// extra calls are harmless because the action only does work when something
+// is actually locked.
+export function subscribeAutoUnlockWallet(pubkey: string): Subscription {
+  const user = castUser(pubkey, eventStore);
+  const composite = new Subscription();
+  let inFlight = false;
+
+  const runUnlock = () => {
+    if (inFlight) return;
+    inFlight = true;
+    actions
+      .run(UnlockWallet, { history: true, tokens: true })
+      .catch((err) => console.error("Auto-unlock failed:", err))
+      .finally(() => {
+        inFlight = false;
+      });
+  };
+
+  let childSub: Subscription | undefined;
+
+  composite.add(
+    user.wallet$.subscribe((wallet) => {
+      // Tear down child subscriptions whenever the wallet reference changes
+      // (rare — only on logout or wallet event replacement). Without this we
+      // would leak per-wallet token/history subscriptions on every emission.
+      childSub?.unsubscribe();
+      childSub = undefined;
+
+      if (!wallet) return;
+
+      // Initial unlock attempt: handles the page-reload case where the
+      // wallet event has just arrived and everything is still encrypted.
+      if (wallet.unlocked === false) runUnlock();
+
+      // Watch for newly-arrived locked tokens / history entries (post-load
+      // payments, sends, melts, etc.). The action is idempotent so we can
+      // call it freely whenever something locked appears.
+      childSub = new Subscription();
+      childSub.add(
+        wallet.tokens$.subscribe((tokens) => {
+          if (tokens?.some((t) => t.unlocked === false)) runUnlock();
+        })
+      );
+      childSub.add(
+        wallet.history$.subscribe((history) => {
+          if (history?.some((h) => h.unlocked === false)) runUnlock();
+        })
+      );
+      composite.add(childSub);
+    })
+  );
+
+  return composite;
 }

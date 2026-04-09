@@ -37,6 +37,7 @@ import {
   couch as walletCouch,
   setPublishRelays,
   subscribeToWalletKinds,
+  subscribeAutoUnlockWallet,
   markEventLoaderAttached,
   loginWithExtension as storeLoginWithExtension,
   loginWithPrivateKey as storeLoginWithPrivateKey,
@@ -166,6 +167,15 @@ export function WavefuncNostrProvider({
     const sub = subscribeToWalletKinds(currentPubkey, readRelayList);
     return () => sub.unsubscribe();
   }, [currentPubkey, readRelayList]);
+
+  // Auto-unlock — decrypt the wallet/tokens/history as soon as they arrive
+  // so the header balance pill renders the correct value on first paint
+  // instead of "0 SATS" until the popover is opened.
+  useEffect(() => {
+    if (!currentPubkey) return;
+    const sub = subscribeAutoUnlockWallet(currentPubkey);
+    return () => sub.unsubscribe();
+  }, [currentPubkey]);
 
   // ── Login wrappers (return WavefuncAccount instead of raw Account) ──────
   const loginWithExtension = useCallback(async () => {
