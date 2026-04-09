@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAdminFeatures } from "../../lib/hooks/useAdminFeatures";
+import { useFavoritesLists } from "../../lib/hooks/useFavorites";
 import { FeatureGroupCard } from "./FeatureGroupCard";
 import {
   buildAdminFeatureTemplate,
@@ -18,6 +19,7 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
   const { features, isLoading } = useAdminFeatures(type);
+  const { events: allLists, eose: listsEose } = useFavoritesLists();
   const [creating, setCreating] = useState(false);
   // Track locally deleted IDs until relay confirms removal
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -60,6 +62,8 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
         <FeatureGroupCard
           key={feature.featureId ?? feature.id}
           feature={feature}
+          allLists={allLists}
+          listsEose={listsEose}
           onDeleted={() => {
             if (feature.id) {
               setDeletedIds((prev) => new Set(prev).add(feature.id));

@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { useFavoritesLists } from "../../lib/hooks/useFavorites";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,8 @@ import {
 interface FavoritesListPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  allLists: ParsedFavoritesList[];
+  eose: boolean;
   /** Addresses already referenced — these are shown as already-added */
   existingRefs: string[];
   onSelect: (list: ParsedFavoritesList) => void;
@@ -23,11 +24,12 @@ interface FavoritesListPickerProps {
 export function FavoritesListPicker({
   open,
   onOpenChange,
+  allLists,
+  eose,
   existingRefs,
   onSelect,
 }: FavoritesListPickerProps) {
   const [query, setQuery] = useState("");
-  const { events: allLists, eose } = useFavoritesLists();
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();

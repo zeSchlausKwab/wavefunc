@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { FavoritesListPicker } from "./FavoritesListPicker";
-import { useFavoritesLists } from "../../lib/hooks/useFavorites";
 import {
   buildAdminFeatureAddRefTemplate,
   buildAdminFeatureDeletionTemplate,
@@ -14,28 +13,31 @@ import { useWavefuncNostr } from "../../lib/nostr/runtime";
 
 interface FeatureGroupCardProps {
   feature: ParsedAdminFeature;
+  allLists: ParsedFavoritesList[];
+  listsEose: boolean;
   onDeleted: () => void;
 }
 
-function useResolvedRefs(refs: string[]) {
-  const { events } = useFavoritesLists();
+function resolveRefs(refs: string[], allLists: ParsedFavoritesList[]) {
+  const byAddress = new Map(
+    allLists.map((list) => [getFavoritesListAddress(list), list] as const)
+  );
 
-  return useMemo(() => {
-    const byAddress = new Map(
-      events.map((list) => [getFavoritesListAddress(list), list] as const)
-    );
-
-    return refs.map((addr) => ({ address: addr, list: byAddress.get(addr) ?? null }));
-  }, [events, refs]);
+  return refs.map((addr) => ({ address: addr, list: byAddress.get(addr) ?? null }));
 }
 
-export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) {
+export function FeatureGroupCard({
+  feature,
+  allLists,
+  listsEose,
+  onDeleted,
+}: FeatureGroupCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const { signAndPublish } = useWavefuncNostr();
 
   const refs = feature.refs;
-  const resolved = useResolvedRefs(refs);
+  const resolved = useMemo(() => resolveRefs(refs, allLists), [allLists, refs]);
 
   const handleAdd = async (list: ParsedFavoritesList) => {
     setBusy(true);
@@ -159,6 +161,8 @@ export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) 
       <FavoritesListPicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
+        allLists={allLists}
+        eose={listsEose}
         existingRefs={refs}
         onSelect={handleAdd}
       />

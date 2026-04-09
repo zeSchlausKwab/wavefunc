@@ -24,6 +24,8 @@ type StationLike = {
   stationId?: string | null;
 };
 
+const DEFAULT_FAVORITES_LIST_FILTERS: Omit<Filter, "kinds">[] = [{}];
+
 function getStationAddress(station: StationLike) {
   if (!station.pubkey || !station.stationId) {
     return null;
@@ -336,7 +338,9 @@ export function useFavorites() {
   };
 }
 
-export function useFavoritesLists(additionalFilters: Omit<Filter, "kinds">[] = [{}]) {
+export function useFavoritesLists(
+  additionalFilters: Omit<Filter, "kinds">[] = DEFAULT_FAVORITES_LIST_FILTERS
+) {
   const filters = useMemo(
     () =>
       additionalFilters.map((filter) => ({
@@ -344,7 +348,8 @@ export function useFavoritesLists(additionalFilters: Omit<Filter, "kinds">[] = [
         kinds: [30078],
         "#l": ["wavefunc_user_favourite_list"],
       })),
-    [additionalFilters]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(additionalFilters)]
   );
 
   const { events, eose } = useFavoritesListStream(filters);
