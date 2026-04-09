@@ -131,9 +131,9 @@ export function StationView({ searchQuery }: StationViewProps) {
             </span>
           </div>
 
-          {!eose && events.length === 0 && <SearchResultsSkeleton />}
+          {!eose && stations.length === 0 && <SearchResultsSkeleton />}
 
-          {eose && events.length === 0 && (
+          {eose && stations.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low">
               <p className="font-black uppercase text-xl tracking-tight">NO_SIGNAL_FOUND</p>
               <p className="text-sm font-bold text-on-background/50 uppercase tracking-widest mt-1">
