@@ -44,6 +44,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { StreamSelector } from "./StreamSelector";
@@ -97,13 +98,15 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const { toggleGenre } = useFilterStore();
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
-  const isLoggedIn = false;
-  const zaps = 0;
-  const comments = 0;
-  const reactions = 0;
-  const userHasZapped = false;
-  const userHasCommented = false;
-  const userHasReacted = false;
+  const isLoggedIn = !!currentUser;
+  const {
+    reactions,
+    zaps,
+    comments,
+    userHasReacted,
+    userHasZapped,
+    userHasCommented,
+  } = useSocialInteractions(station.event);
 
   const { openStationSheet } = useUIStore();
 

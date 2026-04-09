@@ -1,4 +1,5 @@
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
 import { z } from "zod";
 import {
   getAddressableIdentity,
@@ -7,6 +8,8 @@ import {
   getMatchingTags,
   parseJsonContent,
 } from "./shared";
+
+const ParsedStationSymbol = Symbol("ParsedStation");
 
 export const STATION_KIND = 31237;
 
@@ -83,39 +86,45 @@ export function isStationEvent(event: NostrEvent): boolean {
 }
 
 export function parseStationEvent(event: NostrEvent, relays?: string[]) {
-  const content = parseJsonContent<StationContent>(event.content);
-  const tagStreams = getMatchingTags(event, "stream")
-    .map(parseStreamTag)
-    .filter((stream): stream is Stream => stream !== null);
-  const streams = tagStreams.length > 0 ? tagStreams : content?.streams ?? [];
-  const refs = getAddressableReferences(event, relays);
+  // Cache parsed result on the event itself so the same NostrEvent reference
+  // yields a stable wrapper object across renders. This keeps React.memo /
+  // useMemo / observable-driven re-renders cheap and prevents needless work
+  // in downstream consumers.
+  return getOrComputeCachedValue(event, ParsedStationSymbol, () => {
+    const content = parseJsonContent<StationContent>(event.content);
+    const tagStreams = getMatchingTags(event, "stream")
+      .map(parseStreamTag)
+      .filter((stream): stream is Stream => stream !== null);
+    const streams = tagStreams.length > 0 ? tagStreams : content?.streams ?? [];
+    const refs = getAddressableReferences(event, relays);
 
-  return {
-    event,
-    id: event.id,
-    kind: STATION_KIND,
-    pubkey: event.pubkey,
-    created_at: event.created_at,
-    content: event.content,
-    tags: event.tags,
-    stationId: getFirstTagValue(event, "d"),
-    name: getFirstTagValue(event, "name"),
-    description: getFirstTagValue(event, "description") ?? content?.description,
-    thumbnail: getFirstTagValue(event, "thumbnail"),
-    website: getFirstTagValue(event, "website"),
-    location: getFirstTagValue(event, "location"),
-    countryCode: getFirstTagValue(event, "country"),
-    genres: getMatchingTags(event, "c")
-      .filter((tag) => tag[2] === "genre")
-      .map((tag) => tag[1])
-      .filter((genre): genre is string => Boolean(genre)),
-    languages: getMatchingTags(event, "l")
-      .map((tag) => tag[1])
-      .filter((language): language is string => Boolean(language)),
-    streams,
-    streamingServerUrl: content?.streamingServerUrl,
-    ...refs,
-  };
+    return {
+      event,
+      id: event.id,
+      kind: STATION_KIND,
+      pubkey: event.pubkey,
+      created_at: event.created_at,
+      content: event.content,
+      tags: event.tags,
+      stationId: getFirstTagValue(event, "d"),
+      name: getFirstTagValue(event, "name"),
+      description: getFirstTagValue(event, "description") ?? content?.description,
+      thumbnail: getFirstTagValue(event, "thumbnail"),
+      website: getFirstTagValue(event, "website"),
+      location: getFirstTagValue(event, "location"),
+      countryCode: getFirstTagValue(event, "country"),
+      genres: getMatchingTags(event, "c")
+        .filter((tag) => tag[2] === "genre")
+        .map((tag) => tag[1])
+        .filter((genre): genre is string => Boolean(genre)),
+      languages: getMatchingTags(event, "l")
+        .map((tag) => tag[1])
+        .filter((language): language is string => Boolean(language)),
+      streams,
+      streamingServerUrl: content?.streamingServerUrl,
+      ...refs,
+    };
+  });
 }
 
 export function buildStationTemplate(

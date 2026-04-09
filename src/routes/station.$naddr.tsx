@@ -5,44 +5,66 @@ import {
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
 import { Radio } from "lucide-react";
-import { filter, map, timeout } from "rxjs";
+import { useEffect, useMemo, useState } from "react";
 import { parseStationEvent, type ParsedStation } from "@/lib/nostr/domain";
 import { useWavefuncNostr } from "@/lib/nostr/runtime";
 import { StationDetail } from "@/components/StationDetail";
+
+const NOT_FOUND_TIMEOUT_MS = 10_000;
 
 export const Route = createFileRoute("/station/$naddr")({
   component: StationPage,
 });
 
-function useStationByNaddr(naddr: string): { station: ParsedStation | null; loading: boolean } {
+type StationLoadState =
+  | { status: "loading"; station: null }
+  | { status: "found"; station: ParsedStation }
+  | { status: "not-found"; station: null };
+
+function useStationByNaddr(naddr: string): StationLoadState {
   const { eventStore } = useWavefuncNostr();
 
-  const pointer =
-    decodeAddressPointer(naddr) ??
-    decodeEventPointer(naddr) ??
-    naddr;
-
-  const event = use$(
+  const pointer = useMemo(
     () =>
-      eventStore.event(pointer).pipe(
-        filter((e) => e !== undefined),
-        map((e) => e ?? null),
-        timeout({ first: 10_000, with: () => [null] }),
-      ),
-    [eventStore, naddr],
+      decodeAddressPointer(naddr) ?? decodeEventPointer(naddr) ?? naddr,
+    [naddr],
   );
 
-  if (event === undefined) return { station: null, loading: true };
-  if (event === null) return { station: null, loading: false };
+  // eventStore.event() emits undefined while the event isn't in the store
+  // (the runtime's event loader will fetch it from configured relays in the
+  // background) and emits the NostrEvent once it lands.
+  const event = use$(
+    () => eventStore.event(pointer),
+    [eventStore, pointer],
+  );
 
-  return { station: parseStationEvent(event), loading: false };
+  // Separate "still loading" from "definitely not found" via a timeout that
+  // resets when naddr changes.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (event) return;
+    const id = setTimeout(() => setTimedOut(true), NOT_FOUND_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [naddr, event]);
+
+  // Memoize parsed station so the same NostrEvent reference yields a stable
+  // wrapper across renders.
+  const station = useMemo(
+    () => (event ? parseStationEvent(event) : null),
+    [event],
+  );
+
+  if (station) return { status: "found", station };
+  if (timedOut) return { status: "not-found", station: null };
+  return { status: "loading", station: null };
 }
 
 function StationPage() {
   const { naddr } = Route.useParams();
-  const { station, loading } = useStationByNaddr(naddr);
+  const result = useStationByNaddr(naddr);
 
-  if (loading) {
+  if (result.status === "loading") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
@@ -51,7 +73,7 @@ function StationPage() {
     );
   }
 
-  if (!station) {
+  if (result.status === "not-found") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
         <Radio className="w-16 h-16 text-muted-foreground/20 mb-4" />
@@ -65,7 +87,7 @@ function StationPage() {
 
   return (
     <div className="w-full px-4 md:px-6">
-      <StationDetail station={station} withPadding={false} />
+      <StationDetail station={result.station} withPadding={false} />
     </div>
   );
 }

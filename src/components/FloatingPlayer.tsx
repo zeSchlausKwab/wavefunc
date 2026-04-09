@@ -4,6 +4,7 @@ import { useSearchStore } from "../stores/searchStore";
 import { useUIStore } from "../stores/uiStore";
 import { buildStationReactionTemplate, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
@@ -33,12 +34,8 @@ function PlayerSocialBar({ station }: { station: ParsedStation }) {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
   const [showZapDialog, setShowZapDialog] = useState(false);
-  const reactions = 0;
-  const zaps = 0;
-  const comments = 0;
-  const userHasReacted = false;
-  const userHasZapped = false;
-  const userHasCommented = false;
+  const { reactions, zaps, userHasReacted, userHasZapped } =
+    useSocialInteractions(station.event);
 
   const handleLike = async () => {
     if (!currentUser) return;

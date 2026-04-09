@@ -2,10 +2,9 @@ import {
   decodeAddressPointer,
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
+import { use$ } from "applesauce-react/hooks";
 import { History, Radio, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { firstValueFrom, filter, timeout } from "rxjs";
-import type { NostrEvent } from "applesauce-core/helpers/event";
+import { combineLatest, map, of } from "rxjs";
 import { useHistoryStore } from "../stores/historyStore";
 import { parseStationEvent, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
@@ -28,52 +27,51 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
   const { eventStore } = useWavefuncNostr();
   const { history, clearHistory, removeFromHistory } = useHistoryStore();
   const { playStation } = usePlayerStore();
-  const [stations, setStations] = useState<Map<string, ParsedStation>>(new Map());
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (history.length === 0) {
-      setStations(new Map());
-      return;
-    }
+  // Keyed by stationId so deps are stable as long as the set of ids doesn't change
+  const historyKey = history.map((entry) => entry.stationId).join(",");
 
-    let active = true;
+  // Reactive map of stationId → ParsedStation, populated by per-entry
+  // observable subscriptions. The runtime's event loader auto-fetches
+  // missing events from the configured relays, so subscribers will receive
+  // the station as soon as it lands in the store.
+  const stations =
+    use$(
+      () => {
+        if (history.length === 0) {
+          return of(new Map<string, ParsedStation>());
+        }
 
-    async function fetchStations() {
-      setLoading(true);
-      const newStations = new Map<string, ParsedStation>();
-
-      for (const entry of history) {
-        try {
+        const entryStreams = history.map((entry) => {
           const pointer =
             decodeAddressPointer(entry.stationId) ??
             decodeEventPointer(entry.stationId) ??
             entry.stationId;
 
-          const event = await firstValueFrom(
-            eventStore.event(pointer).pipe(
-              filter((value): value is NostrEvent => Boolean(value)),
-              timeout(3000),
+          return eventStore.event(pointer).pipe(
+            map((event) =>
+              event
+                ? ([entry.stationId, parseStationEvent(event)] as const)
+                : null,
             ),
-          ).catch(() => null);
+          );
+        });
 
-          if (event && active) {
-            newStations.set(entry.stationId, parseStationEvent(event));
-          }
-        } catch (err) {
-          console.error(`Failed to fetch station ${entry.stationId}:`, err);
-        }
-      }
+        return combineLatest(entryStreams).pipe(
+          map(
+            (entries) =>
+              new Map(
+                entries.filter(
+                  (e): e is readonly [string, ParsedStation] => e !== null,
+                ),
+              ),
+          ),
+        );
+      },
+      [eventStore, historyKey],
+    ) ?? new Map<string, ParsedStation>();
 
-      if (active) {
-        setStations(newStations);
-        setLoading(false);
-      }
-    }
-
-    fetchStations();
-    return () => { active = false; };
-  }, [eventStore, history]);
+  const loading = history.length > 0 && stations.size < history.length;
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);

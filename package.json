@@ -36,9 +36,9 @@
     "tauri:android:build": "tauri android build"
   },
   "dependencies": {
-    "@cashu/cashu-ts": "2.9.0",
+    "@cashu/cashu-ts": "3.6.2",
     "@cashu/crypto": "^0.3.4",
-    "@contextvm/sdk": "^0.7.8",
+    "@contextvm/sdk": "^0.8.0",
     "@faker-js/faker": "^10.4.0",
     "@formkit/auto-animate": "^0.9.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -83,8 +83,8 @@
     "nostr-tools": "^2.23.3",
     "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "react-use": "^17.6.0",
     "react18-json-view": "^0.2.10",
     "tailwind-merge": "^3.5.0",

@@ -329,10 +329,17 @@ export function WavefuncNostrProvider({
         throw new Error("No write relays configured");
       }
 
-      const responses = await relayPool.publish(targetRelays, event);
+      // Optimistic local update — add to store first so any reactive
+      // subscribers (timeline observables, profile observables, etc.) get
+      // an immediate signal. If the relay rejects the event we roll back.
       eventStore.add(event, targetRelays[0]!);
 
-      return responses;
+      try {
+        return await relayPool.publish(targetRelays, event);
+      } catch (error) {
+        eventStore.remove(event);
+        throw error;
+      }
     },
     [eventStore, relayPool, writeRelayList]
   );
@@ -343,7 +350,10 @@ export function WavefuncNostrProvider({
         throw new Error("No signer configured");
       }
 
-      const event = await eventFactory.sign(draft);
+      // factory.build() applies common operations (created_at, strip stamps,
+      // include replaceable d-tag) that the bare sign() pipeline doesn't.
+      const stamped = await eventFactory.build(draft);
+      const event = await eventFactory.sign(stamped);
       await publishEvent(event, relays);
       return event;
     },
