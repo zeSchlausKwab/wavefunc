@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useProfileValue, NDKUser } from "@nostr-dev-kit/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Globe, Zap, Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { useProfile } from "../lib/nostr/auth";
 
 export const Route = createFileRoute("/profile/$pubkey")({
   component: ProfilePage,
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/profile/$pubkey")({
 
 function ProfilePage() {
   const { pubkey } = Route.useParams();
-  const profile = useProfileValue(pubkey);
+  const profile = useProfile(pubkey);
   const [copied, setCopied] = useState(false);
 
   const handleCopyPubkey = async () => {

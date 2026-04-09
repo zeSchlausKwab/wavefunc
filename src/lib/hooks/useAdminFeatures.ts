@@ -3,9 +3,13 @@ import type { Filter } from "applesauce-core/helpers/filter";
 import { use$ } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { map, scan, startWith } from "rxjs";
-import { NDKWFAdminFeature, type AdminFeatureType } from "../NDKWFAdminFeature";
 import { ADMIN_PUBKEYS } from "../../config/admins";
 import { getAppDataRelayUrls } from "../../config/nostr";
+import {
+  getAdminFeatureLabel,
+  parseAdminFeatureEvent,
+  type AdminFeatureType,
+} from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
 
 /**
@@ -21,7 +25,7 @@ export function useAdminFeatures(type: AdminFeatureType) {
       {
         kinds: [30078],
         authors: ADMIN_PUBKEYS,
-        "#l": [NDKWFAdminFeature.labelFor(type)],
+        "#l": [getAdminFeatureLabel(type)],
       },
     ],
     [type]
@@ -42,13 +46,14 @@ export function useAdminFeatures(type: AdminFeatureType) {
 
   const events =
     use$(
-      () => eventStore.timeline(filters).pipe(map((timeline) => [...timeline])),
-      [eventStore, filtersKey],
+      () =>
+        eventStore.timeline(filters).pipe(
+          map((timeline) =>
+            [...timeline].map((event) => parseAdminFeatureEvent(event, relays))
+          )
+        ),
+      [eventStore, filtersKey, relaysKey],
     ) ?? [];
 
-  const features = useMemo(() => {
-    return events.map((event) => new NDKWFAdminFeature(undefined, event as any));
-  }, [events]);
-
-  return { features, isLoading: !eose };
+  return { features: events, isLoading: !eose };
 }

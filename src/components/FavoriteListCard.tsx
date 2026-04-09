@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useFavorites, useFavoriteStations } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { RadioCard } from "./RadioCard";
-import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { EditFavoritesListForm } from "./EditFavoritesListForm";
 import { SectionTitle } from "./SectionTitle";
-import { ZapDialog } from "./ZapDialog";
-import type { NDKStation } from "../lib/NDKStation";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { cn } from "../lib/utils";
+import {
+  buildReactionTemplate,
+  type ParsedFavoritesList,
+} from "../lib/nostr/domain";
+import { useCurrentAccount } from "../lib/nostr/auth";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -17,7 +19,7 @@ function formatCount(n: number): string {
 }
 
 interface FavoriteListCardProps {
-  list: NDKWFFavorites;
+  list: ParsedFavoritesList;
   isOwner: boolean;
   onDeleteList?: () => void;
 }
@@ -25,29 +27,29 @@ interface FavoriteListCardProps {
 export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCardProps) {
   const [animationParent] = useAutoAnimate();
   const { stations: listStations, isLoading: stationsLoading } = useFavoriteStations(list);
-  const { removeFavorite } = useFavorites();
-  const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
-  const currentUser = useNDKCurrentUser();
+  const { removeFavorite, updateFavoritesList } = useFavorites();
+  const { zaps, reactions, userHasReacted } = useSocialInteractions(list.event);
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const [isEditing, setIsEditing] = useState(false);
-  const [showZapDialog, setShowZapDialog] = useState(false);
+  const [, setShowZapDialog] = useState(false);
 
   const handleResonate = async () => {
     if (!currentUser) return;
-    await list.react("❤️");
+    await signAndPublish(buildReactionTemplate(list.event), list.relays);
   };
 
   const packId = (list.favoritesId ?? "XX-00").slice(0, 8).toUpperCase();
 
-  const handleRemoveStation = async (station: any) => {
-    if (isOwner) await removeFavorite(station);
+  const handleRemoveStation = async (station: { pubkey?: string | null; stationId?: string | null }) => {
+    if (isOwner) {
+      await removeFavorite(station, list.favoritesId);
+    }
   };
 
   const handleEditList = async (name: string, description: string, banner?: string) => {
-    list.name = name;
-    list.description = description;
-    if (banner) list.banner = banner;
-    await list.sign();
-    await list.publish();
+    if (!list.favoritesId) return;
+    await updateFavoritesList(list.favoritesId, { name, description, banner });
     setIsEditing(false);
   };
 

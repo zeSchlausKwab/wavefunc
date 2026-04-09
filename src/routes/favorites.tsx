@@ -14,6 +14,7 @@ function Favorites() {
     getFavoriteCount,
     clearFavorites,
     createFavoritesList,
+    deleteFavoritesList,
     isLoggedIn,
     currentUser,
   } = useFavorites();
@@ -27,12 +28,7 @@ function Favorites() {
     description: string,
     banner?: string
   ) => {
-    const newList = await createFavoritesList(name, description);
-    if (newList && banner) {
-      newList.banner = banner;
-      await newList.sign();
-      await newList.publish();
-    }
+    await createFavoritesList(name, description, banner);
     setShowCreateForm(false);
   };
 
@@ -44,10 +40,8 @@ function Favorites() {
     ) {
       return;
     }
-    const list = favoritesLists.find((l) => l.favoritesId === listId);
-    if (!list) return;
     try {
-      await list.deleteList();
+      await deleteFavoritesList(listId);
     } catch (error) {
       console.error("Failed to delete list:", error);
       alert("Failed to delete the list. Please try again.");

@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import type { NDKStation } from "../lib/NDKStation";
 import {
+  getFavoritesListStationCount,
+  hasFavoriteStation,
+} from "../lib/nostr/domain";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
@@ -33,7 +37,8 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
   const isInList = (listId: string): boolean => {
     if (!station.pubkey || !station.stationId) return false;
     const addr = `31237:${station.pubkey}:${station.stationId}`;
-    return favoritesLists.find((l) => l.favoritesId === listId)?.hasStation(addr) ?? false;
+    const list = favoritesLists.find((entry) => entry.favoritesId === listId);
+    return list ? hasFavoriteStation(list, addr) : false;
   };
 
   const hasAny = favoritesLists.some((l) => l.favoritesId && isInList(l.favoritesId));
@@ -116,7 +121,7 @@ export const FavoritesDropdown: React.FC<FavoritesDropdownProps> = ({
                         inList ? "text-surface/50" : "text-on-background/40"
                       )}
                     >
-                      {list.getStationCount()} STATION{list.getStationCount() !== 1 ? "S" : ""}
+                      {getFavoritesListStationCount(list)} STATION{getFavoritesListStationCount(list) !== 1 ? "S" : ""}
                     </p>
                   </div>
                   <span

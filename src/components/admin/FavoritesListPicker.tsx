@@ -1,19 +1,22 @@
 import { useState, useMemo } from "react";
 import { useFavoritesLists } from "../../lib/hooks/useFavorites";
-import type { NDKWFFavorites } from "../../lib/NDKWFFavorites";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import {
+  getFavoritesListStationCount,
+  type ParsedFavoritesList,
+} from "../../lib/nostr/domain";
 
 interface FavoritesListPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Addresses already referenced — these are shown as already-added */
   existingRefs: string[];
-  onSelect: (list: NDKWFFavorites) => void;
+  onSelect: (list: ParsedFavoritesList) => void;
 }
 
 export function FavoritesListPicker({
@@ -36,7 +39,7 @@ export function FavoritesListPicker({
     });
   }, [allLists, query]);
 
-  const handleSelect = (list: NDKWFFavorites) => {
+  const handleSelect = (list: ParsedFavoritesList) => {
     onSelect(list);
     onOpenChange(false);
     setQuery("");
@@ -96,7 +99,7 @@ export function FavoritesListPicker({
                     </p>
                   )}
                   <p className="text-[10px] font-bold tracking-widest text-on-background/30 mt-0.5">
-                    {list.getStationCount()} STATION{list.getStationCount() !== 1 ? "S" : ""}
+                    {getFavoritesListStationCount(list)} STATION{getFavoritesListStationCount(list) !== 1 ? "S" : ""}
                   </p>
                 </div>
                 {alreadyAdded ? (

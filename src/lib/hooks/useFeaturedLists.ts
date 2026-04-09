@@ -1,15 +1,17 @@
 import { useMemo } from "react";
 import { use$ } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { map, of, scan, startWith } from "rxjs";
-import { NDKWFFavorites } from "../NDKWFFavorites";
+import { combineLatest, map, of, scan, startWith } from "rxjs";
 import { useAdminFeatures } from "./useAdminFeatures";
-import { FAVORITES_LIST_LABEL } from "../nostr/domain/favorites-list";
 import { addressesToParameterizedFilters, getAppDataRelayUrls } from "../../config/nostr";
+import {
+  FAVORITES_LIST_LABEL,
+  parseFavoritesListEvent,
+} from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
 
 /**
- * Resolves the admin's featured-lists feature events into actual NDKWFFavorites objects.
+ * Resolves the admin's featured-lists feature events into parsed favorites lists.
  *
  * Flow:
  *   1. Fetch kind-30078 events from ADMIN_PUBKEYS labeled wavefunc:featured:lists
@@ -28,7 +30,7 @@ export function useFeaturedLists() {
     const seen = new Set<string>();
     const ordered: string[] = [];
     features.forEach((f) =>
-      f.getRefs().forEach((ref) => {
+      f.refs.forEach((ref) => {
         if (!seen.has(ref)) {
           seen.add(ref);
           ordered.push(ref);
@@ -70,29 +72,28 @@ export function useFeaturedLists() {
         return of([]);
       }
 
-      return eventStore.timeline(filters).pipe(map((timeline) => [...timeline]));
+      return combineLatest(
+        listAddresses.map((address) => {
+          const [, pubkey, identifier] = address.split(":");
+
+          if (!pubkey || !identifier) {
+            return of(undefined);
+          }
+
+          return eventStore.replaceable(30078, pubkey, identifier);
+        })
+      ).pipe(
+        map((resolved) =>
+          resolved.filter((event): event is NonNullable<typeof event> => Boolean(event))
+        )
+      );
     },
     [eventStore, filtersKey, listAddresses.length]
   ) ?? [];
 
   const featuredLists = useMemo(() => {
-    const favoritesByAddress = new Map<string, NDKWFFavorites>();
-
-    events.forEach((event) => {
-      const favorite = new NDKWFFavorites(undefined, event as any);
-
-      if (favorite.pubkey && favorite.favoritesId) {
-        favoritesByAddress.set(
-          `30078:${favorite.pubkey}:${favorite.favoritesId}`,
-          favorite
-        );
-      }
-    });
-
-    return listAddresses
-      .map((address) => favoritesByAddress.get(address) ?? null)
-      .filter((favorite): favorite is NDKWFFavorites => Boolean(favorite));
-  }, [events, listAddresses]);
+    return events.map((event) => parseFavoritesListEvent(event, relays));
+  }, [events, relays]);
 
   return {
     featuredLists,

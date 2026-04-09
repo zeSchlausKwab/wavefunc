@@ -1,50 +1,49 @@
-import { useState, useMemo } from "react";
-import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
-import type { NDKWFAdminFeature } from "../../lib/NDKWFAdminFeature";
-import type { NDKWFFavorites } from "../../lib/NDKWFFavorites";
+import { useMemo, useState } from "react";
 import { FavoritesListPicker } from "./FavoritesListPicker";
+import { useFavoritesLists } from "../../lib/hooks/useFavorites";
 import {
-  addressesToParameterizedFilters,
-  getAppDataSubscriptionOptions,
-} from "../../config/nostr";
+  buildAdminFeatureAddRefTemplate,
+  buildAdminFeatureDeletionTemplate,
+  buildAdminFeatureRemoveRefTemplate,
+  getFavoritesListAddress,
+  getFavoritesListStationCount,
+  type ParsedAdminFeature,
+  type ParsedFavoritesList,
+} from "../../lib/nostr/domain";
+import { useWavefuncNostr } from "../../lib/nostr/runtime";
 
 interface FeatureGroupCardProps {
-  feature: NDKWFAdminFeature;
+  feature: ParsedAdminFeature;
   onDeleted: () => void;
 }
 
-/** Resolves a-tag addresses into NDKWFFavorites objects for display. */
 function useResolvedRefs(refs: string[]) {
-  const filters = useMemo(() => addressesToParameterizedFilters(30078, refs), [refs]);
-
-  const { events } = useSubscribe(filters, getAppDataSubscriptionOptions());
+  const { events } = useFavoritesLists();
 
   return useMemo(() => {
-    const byAddress = new Map<string, NDKWFFavorites>();
-    events.forEach((e) => {
-      const fav = wrapEvent(e) as NDKWFFavorites;
-      if (fav.pubkey && fav.favoritesId) {
-        byAddress.set(`30078:${fav.pubkey}:${fav.favoritesId}`, fav);
-      }
-    });
-    // Return in the same order as refs
-    return refs
-      .map((addr) => ({ address: addr, list: byAddress.get(addr) ?? null }))
+    const byAddress = new Map(
+      events.map((list) => [getFavoritesListAddress(list), list] as const)
+    );
+
+    return refs.map((addr) => ({ address: addr, list: byAddress.get(addr) ?? null }));
   }, [events, refs]);
 }
 
 export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { signAndPublish } = useWavefuncNostr();
 
-  const refs = feature.getRefs();
+  const refs = feature.refs;
   const resolved = useResolvedRefs(refs);
 
-  const handleAdd = async (list: NDKWFFavorites) => {
-    if (!list.pubkey || !list.favoritesId) return;
+  const handleAdd = async (list: ParsedFavoritesList) => {
     setBusy(true);
     try {
-      await feature.addRefAndPublish(`30078:${list.pubkey}:${list.favoritesId}`);
+      await signAndPublish(
+        buildAdminFeatureAddRefTemplate(feature.event, getFavoritesListAddress(list)),
+        feature.relays
+      );
     } finally {
       setBusy(false);
     }
@@ -53,7 +52,10 @@ export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) 
   const handleRemove = async (address: string) => {
     setBusy(true);
     try {
-      await feature.removeRefAndPublish(address);
+      await signAndPublish(
+        buildAdminFeatureRemoveRefTemplate(feature.event, address),
+        feature.relays
+      );
     } finally {
       setBusy(false);
     }
@@ -63,7 +65,10 @@ export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) 
     if (!confirm("Delete this feature group?")) return;
     setBusy(true);
     try {
-      await feature.deleteFeature();
+      await signAndPublish(
+        buildAdminFeatureDeletionTemplate(feature.event),
+        feature.relays
+      );
       onDeleted();
     } finally {
       setBusy(false);
@@ -116,7 +121,7 @@ export function FeatureGroupCard({ feature, onDeleted }: FeatureGroupCardProps) 
                     {list.name ?? "UNTITLED"}
                   </p>
                   <p className="text-[10px] font-bold tracking-widest text-on-background/40 mt-0.5">
-                    {list.getStationCount()} STATION{list.getStationCount() !== 1 ? "S" : ""}
+                    {getFavoritesListStationCount(list)} STATION{getFavoritesListStationCount(list) !== 1 ? "S" : ""}
                     {" · "}
                     {address.split(":")[1]?.slice(0, 8)}…
                   </p>

@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Image } from "lucide-react";
-import { NDKWFFavorites } from "../lib/NDKWFFavorites";
+import type { ParsedFavoritesList } from "../lib/nostr/domain";
 
 interface EditFavoritesListFormProps {
-  list: NDKWFFavorites;
+  list: ParsedFavoritesList;
   onSubmit: (
     name: string,
     description: string,

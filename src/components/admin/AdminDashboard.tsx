@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useAdminFeatures } from "../../lib/hooks/useAdminFeatures";
-import { NDKWFAdminFeature, type AdminFeatureType } from "../../lib/NDKWFAdminFeature";
 import { FeatureGroupCard } from "./FeatureGroupCard";
+import {
+  buildAdminFeatureTemplate,
+  type AdminFeatureType,
+} from "../../lib/nostr/domain";
+import { useCurrentAccount } from "../../lib/nostr/auth";
+import { useWavefuncNostr } from "../../lib/nostr/runtime";
 
 const TABS: { type: AdminFeatureType; label: string; future?: boolean }[] = [
   { type: "lists", label: "FEATURED_LISTS" },
@@ -11,8 +15,8 @@ const TABS: { type: AdminFeatureType; label: string; future?: boolean }[] = [
 ];
 
 function FeatureTab({ type }: { type: AdminFeatureType }) {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const { features, isLoading } = useAdminFeatures(type);
   const [creating, setCreating] = useState(false);
   // Track locally deleted IDs until relay confirms removal
@@ -21,12 +25,10 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
   const visible = features.filter((f) => !deletedIds.has(f.id ?? ""));
 
   const handleCreate = async () => {
-    if (!ndk || !currentUser) return;
+    if (!currentUser) return;
     setCreating(true);
     try {
-      const feature = NDKWFAdminFeature.create(ndk, type);
-      feature.pubkey = currentUser.pubkey;
-      await feature.publishRefs();
+      await signAndPublish(buildAdminFeatureTemplate({ type }));
     } finally {
       setCreating(false);
     }
@@ -60,7 +62,7 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
           feature={feature}
           onDeleted={() => {
             if (feature.id) {
-              setDeletedIds((prev) => new Set(prev).add(feature.id!));
+              setDeletedIds((prev) => new Set(prev).add(feature.id));
             }
           }}
         />

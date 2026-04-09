@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { isAdmin } from "../config/admins";
 import { AdminDashboard } from "../components/admin/AdminDashboard";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminRoute,
 });
 
 function AdminRoute() {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
 
   if (!currentUser) {
     return (

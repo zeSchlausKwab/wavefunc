@@ -19,6 +19,7 @@ const FavoritesContentSchema = z.object({
 });
 
 export type FavoritesContent = z.infer<typeof FavoritesContentSchema>;
+export type ParsedFavoritesList = ReturnType<typeof parseFavoritesListEvent>;
 
 export type FavoritesTemplateInput = {
   favoritesId?: string;
@@ -75,6 +76,25 @@ export function parseFavoritesListEvent(event: NostrEvent, relays?: string[]) {
   };
 }
 
+export function getFavoritesListAddress(
+  list: Pick<ParsedFavoritesList, "address" | "pubkey" | "favoritesId">
+) {
+  return list.address ?? `30078:${list.pubkey}:${list.favoritesId ?? ""}`;
+}
+
+export function getFavoritesListStationCount(
+  list: Pick<ParsedFavoritesList, "stationAddresses">
+) {
+  return list.stationAddresses.length;
+}
+
+export function hasFavoriteStation(
+  list: Pick<ParsedFavoritesList, "stationAddresses">,
+  stationAddress: string
+) {
+  return list.stationAddresses.includes(stationAddress);
+}
+
 export function buildFavoritesListTemplate(
   input: FavoritesTemplateInput = {}
 ): EventTemplate {
@@ -102,6 +122,22 @@ export function buildFavoritesListTemplate(
     content: JSON.stringify(content),
     tags,
   };
+}
+
+export function buildFavoritesListUpdateTemplate(
+  event: NostrEvent,
+  input: Partial<Omit<FavoritesTemplateInput, "favoritesId">> = {}
+): EventTemplate {
+  const current = parseFavoritesListEvent(event);
+
+  return buildFavoritesListTemplate({
+    favoritesId: current.favoritesId,
+    name: input.name ?? current.name ?? "My Favorite Stations",
+    description: input.description ?? current.description,
+    image: input.image ?? current.image,
+    banner: input.banner ?? current.banner,
+    stationAddresses: input.stationAddresses ?? current.stationAddresses,
+  });
 }
 
 export function buildFavoritesListAddStationTemplate(
@@ -139,3 +175,24 @@ export function buildFavoritesListRemoveStationTemplate(
   };
 }
 
+export function buildFavoritesListDeletionTemplate(
+  event: NostrEvent,
+  reason = "Deleted favorites list"
+): EventTemplate {
+  const favoritesId = getFirstTagValue(event, "d");
+  const tags: string[][] = [
+    ["e", event.id],
+    ["k", String(WF_FAVORITES_KIND)],
+    ["p", event.pubkey],
+  ];
+
+  if (favoritesId) {
+    tags.push(["a", `${WF_FAVORITES_KIND}:${event.pubkey}:${favoritesId}`]);
+  }
+
+  return {
+    kind: 5,
+    content: reason,
+    tags,
+  };
+}

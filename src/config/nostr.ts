@@ -1,4 +1,4 @@
-import type { NDKFilter } from "@nostr-dev-kit/react";
+import type { Filter } from "applesauce-core/helpers/filter";
 import { config } from "./env";
 
 const PUBLIC_CONTENT_RELAYS = [
@@ -51,8 +51,8 @@ export function getAppDataSubscriptionOptions<T extends object = Record<string, 
 export function addressesToParameterizedFilters(
   kind: number,
   addresses: string[],
-  extra: Omit<NDKFilter, "kinds" | "authors" | "#d"> = {}
-): NDKFilter[] {
+  extra: Omit<Filter, "kinds" | "authors" | "#d"> = {}
+): Filter[] {
   if (addresses.length === 0) {
     return [{ kinds: [kind], authors: [], limit: 0 }];
   }

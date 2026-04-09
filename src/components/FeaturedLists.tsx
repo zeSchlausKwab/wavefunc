@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useFeaturedLists } from "../lib/hooks/useFeaturedLists";
 import { useFavoriteStations } from "../lib/hooks/useFavorites";
-import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { RadioCard } from "./RadioCard";
 import { SectionTitle } from "./SectionTitle";
 import { SectionHeader } from "./SectionHeader";
@@ -12,6 +11,11 @@ import {
   type CarouselApi,
 } from "./ui/carousel";
 import { useCurrentAccount } from "../lib/nostr/auth";
+import {
+  buildReactionTemplate,
+  type ParsedFavoritesList,
+} from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,13 +27,14 @@ function formatCount(n: number): string {
 
 // ─── Module ───────────────────────────────────────────────────────────────────
 
-function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: number }) {
+function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index: number }) {
   const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const { stations, isLoading: stationsLoading } = useFavoriteStations(list);
 
   const handleResonate = async () => {
     if (!currentUser) return;
-    await list.react("❤️");
+    await signAndPublish(buildReactionTemplate(list.event), list.relays);
   };
 
   const handleShare = () => {

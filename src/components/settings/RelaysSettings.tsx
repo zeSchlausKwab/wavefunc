@@ -1,31 +1,32 @@
-import { useNDK } from "@nostr-dev-kit/react";
 import { useState } from "react";
+import { useWavefuncNostr } from "@/lib/nostr/runtime";
 
 export function RelaysSettings() {
-  const { ndk } = useNDK();
+  const { readRelays, writeRelays } = useWavefuncNostr();
   const [newRelayUrl, setNewRelayUrl] = useState("");
 
-  const relays = ndk?.pool.relays;
-  const relayList = relays ? Array.from(relays.values()) : [];
+  const relayList = Array.from(
+    new Set([
+      ...readRelays.map((url) => ({ url, mode: "read" as const })),
+      ...writeRelays.map((url) => ({ url, mode: "write" as const })),
+    ].map((entry) => `${entry.url}::${entry.mode}`))
+  ).map((entry) => {
+    const [url, mode] = entry.split("::");
+    return { url: url ?? "", mode: mode === "write" ? "write" as const : "read" as const };
+  });
 
   const handleAddRelay = async () => {
-    if (!ndk || !newRelayUrl) return;
+    if (!newRelayUrl) return;
     try {
       new URL(newRelayUrl);
-      ndk.addExplicitRelay(newRelayUrl);
-      setNewRelayUrl("");
+      alert("Dynamic relay editing has not been rebuilt on Applesauce yet.");
     } catch {
       alert("Invalid relay URL. Please enter a valid WebSocket URL (ws:// or wss://)");
     }
   };
 
-  const handleRemoveRelay = (url: string) => {
-    if (!ndk) return;
-    const relay = relays?.get(url);
-    if (relay) {
-      relay.disconnect();
-      ndk.pool.removeRelay(url);
-    }
+  const handleRemoveRelay = () => {
+    alert("Dynamic relay editing has not been rebuilt on Applesauce yet.");
   };
 
   return (
@@ -37,7 +38,7 @@ export function RelaysSettings() {
       </div>
 
       <p className="text-sm text-on-background/60">
-        Manage the Nostr relays you connect to for discovering and publishing content.
+        Current runtime relays are now owned by the Applesauce provider. Editing them in-app has not been rebuilt yet.
       </p>
 
       {/* Add relay */}
@@ -78,29 +79,26 @@ export function RelaysSettings() {
         ) : (
           <div className="space-y-2">
             {relayList.map((relay) => {
-              const isConnected = relay.connectivity?.status === 1;
               return (
                 <div
                   key={relay.url}
                   className="flex items-center justify-between border-2 border-on-background px-3 py-2"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span
-                      className={`w-2 h-2 shrink-0 ${isConnected ? "bg-green-500" : "bg-on-background/30"}`}
-                    />
+                    <span className="w-2 h-2 shrink-0 bg-green-500" />
                     <code className="text-xs font-mono truncate">{relay.url}</code>
                     <span
                       className={`text-[9px] font-black uppercase tracking-widest shrink-0 ${
-                        isConnected ? "text-green-600" : "text-on-background/40"
+                        relay.mode === "write" ? "text-primary" : "text-green-600"
                       }`}
                     >
-                      {isConnected ? "Connected" : "Disconnected"}
+                      {relay.mode === "write" ? "WRITE" : "READ"}
                     </span>
                   </div>
                   <button
-                    onClick={() => handleRemoveRelay(relay.url)}
+                    onClick={() => handleRemoveRelay()}
                     className="ml-2 p-1 hover:bg-surface-container-high transition-colors shrink-0"
-                    title="Remove relay"
+                    title="Relay editing not available yet"
                   >
                     <span className="material-symbols-outlined text-[16px] text-on-background/60 hover:text-red-600">
                       delete
@@ -117,9 +115,7 @@ export function RelaysSettings() {
       <div className="border-2 border-on-background/30 bg-surface-container-low p-4 space-y-2">
         <h4 className="text-[11px] font-black uppercase tracking-widest">About Relays</h4>
         <p className="text-sm text-on-background/60">
-          Relays are servers that store and distribute Nostr events. Connecting to
-          multiple relays increases redundancy and helps you discover more content.
-          Popular relays include wss://relay.damus.io and wss://nos.lol.
+          Relay configuration is currently sourced from app config and the Applesauce runtime. In-app relay editing will need a dedicated settings flow instead of mutating an NDK pool.
         </p>
       </div>
     </div>

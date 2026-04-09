@@ -15,6 +15,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -198,8 +199,21 @@ export function WavefuncNostrProvider({
   );
   const [session, setSession] = useState<WavefuncSession | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const signerRef = useRef<ISigner | null>(null);
+
+  const closeSigner = useCallback(async (target: ISigner | null) => {
+    if (!target || !("close" in target) || typeof target.close !== "function") {
+      return;
+    }
+
+    await Promise.race([
+      target.close().catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 250)),
+    ]);
+  }, []);
 
   const clearSigner = useCallback(() => {
+    signerRef.current = null;
     setSignerState(null);
     setCurrentPubkey(null);
     setCurrentAccount(null);
@@ -217,6 +231,7 @@ export function WavefuncNostrProvider({
 
       eventFactory.setSigner(nextSigner);
       const pubkey = await nextSigner.getPublicKey();
+      signerRef.current = nextSigner;
       setSignerState(nextSigner);
       setCurrentPubkey(pubkey);
       setCurrentAccount(accountFromPubkey(pubkey));
@@ -227,8 +242,9 @@ export function WavefuncNostrProvider({
 
   const authenticate = useCallback(
     async (nextSigner: ISigner, nextSession: WavefuncSession | null) => {
-      if (signer && "close" in signer && typeof signer.close === "function") {
-        await signer.close().catch(() => undefined);
+      const previousSigner = signerRef.current;
+      if (previousSigner && previousSigner !== nextSigner) {
+        await closeSigner(previousSigner);
       }
 
       const pubkey = await setSigner(nextSigner);
@@ -241,7 +257,7 @@ export function WavefuncNostrProvider({
       writeStoredSession(nextSession);
       return account;
     },
-    [setSigner, signer]
+    [closeSigner, setSigner]
   );
 
   const connectExtensionSigner = useCallback(async () => {
@@ -301,11 +317,9 @@ export function WavefuncNostrProvider({
   );
 
   const logout = useCallback(async () => {
-    if (signer && "close" in signer && typeof signer.close === "function") {
-      await signer.close().catch(() => undefined);
-    }
+    await closeSigner(signerRef.current);
     clearSigner();
-  }, [clearSigner, signer]);
+  }, [clearSigner, closeSigner]);
 
   const publishEvent = useCallback(
     async (event: NostrEvent, relays?: string[]) => {

@@ -1,6 +1,6 @@
-import { useNDK, useProfileValue } from "@nostr-dev-kit/react";
-import React, { useEffect, useState } from "react";
-import { User, BadgeCheck, BadgeX } from "lucide-react";
+import React from "react";
+import { User, BadgeCheck } from "lucide-react";
+import { useProfile } from "../lib/nostr/auth";
 
 type UserAvatarMode = "name-only" | "avatar-name" | "avatar-name-bio" | "full-profile";
 
@@ -29,27 +29,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className = "",
   showNip05Badge = true,
 }) => {
-  const ndk = useNDK();
-  const profile = useProfileValue(pubkey);
-  const [nip05Valid, setNip05Valid] = useState<boolean | null>(null);
-
-  // Validate NIP-05 if present
-  useEffect(() => {
-    if (!profile?.nip05 || !ndk?.ndk || !showNip05Badge) return;
-
-    const validateNip05 = async () => {
-      try {
-        const user = ndk.ndk!.getUser({ pubkey });
-        const isValid = await user.validateNip05(profile.nip05!);
-        setNip05Valid(isValid);
-      } catch (error) {
-        console.error("Error validating NIP-05:", error);
-        setNip05Valid(false);
-      }
-    };
-
-    validateNip05();
-  }, [profile?.nip05, pubkey, ndk, showNip05Badge]);
+  const profile = useProfile(pubkey);
 
   // Get display name: profile name or first 6 chars of pubkey
   const displayName = profile?.name || profile?.displayName || pubkey.slice(0, 6);
@@ -80,21 +60,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   const Nip05Badge = () => {
     if (!showNip05Badge || !profile?.nip05) return null;
 
-    if (nip05Valid === null) {
-      return (
-        <span className="text-xs text-gray-400" title="Validating NIP-05...">
-          ...
-        </span>
-      );
-    }
-
-    return nip05Valid ? (
-      <span title={`Verified: ${profile.nip05}`}>
+    return (
+      <span title={profile.nip05}>
         <BadgeCheck className="w-4 h-4 text-green-500 flex-shrink-0" />
-      </span>
-    ) : (
-      <span title={`Invalid NIP-05: ${profile.nip05}`}>
-        <BadgeX className="w-4 h-4 text-red-500 flex-shrink-0" />
       </span>
     );
   };
