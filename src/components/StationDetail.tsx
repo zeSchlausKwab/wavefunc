@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useNDKCurrentUser, useProfileValue } from "@nostr-dev-kit/react";
-import type { NDKStation } from "../lib/NDKStation";
+import {
+  buildStationCommentTemplate,
+  buildStationReactionTemplate,
+  type ParsedStation,
+} from "../lib/nostr/domain";
+import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { useComments } from "../lib/hooks/useComments";
@@ -19,10 +24,9 @@ import {
 } from "../lib/player/adapters";
 
 interface StationDetailProps {
-  station: NDKStation;
+  station: ParsedStation;
   focusCommentForm?: boolean;
   onCommentFormFocused?: () => void;
-  /** Whether to add padding around the content. Default: true. Set to false for full-page layouts. */
   withPadding?: boolean;
 }
 
@@ -37,8 +41,8 @@ function normalizeBitrate(bitrate?: number): number | null {
 }
 
 function PublisherBadge({ pubkey }: { pubkey: string }) {
-  const profile = useProfileValue(pubkey);
-  const displayName = profile?.name || profile?.displayName || pubkey.slice(0, 8).toUpperCase();
+  const profile = useProfile(pubkey);
+  const displayName = profile?.name || profile?.display_name || pubkey.slice(0, 8).toUpperCase();
 
   return (
     <div className="flex items-center gap-2">
@@ -72,7 +76,8 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   onCommentFormFocused,
   withPadding = true,
 }) => {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const { addFavorite, removeFavorite, isLoggedIn } = useFavorites();
   const {
@@ -82,7 +87,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     userHasReacted,
     userHasZapped,
     userHasCommented,
-  } = useSocialInteractions(station);
+  } = useSocialInteractions(station.event);
 
   const [selectedStream, setSelectedStream] = React.useState(() =>
     getDefaultSelectedStream(station.streams)
@@ -96,7 +101,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   const selectedStreamRequiresExternal =
     selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
-  const { comments, totalCount } = useComments(station);
+  const { comments, totalCount } = useComments(station.event);
 
   useEffect(() => {
     if (focusCommentForm && commentFormRef.current) {
@@ -123,7 +128,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
   const handleLike = async () => {
     if (!currentUser) return;
-    await station.react("❤️", true);
+    await signAndPublish(buildStationReactionTemplate(station.event));
   };
 
   const handleRootComment = async (content: string) => {
@@ -132,9 +137,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
       return;
     }
     try {
-      const reply = station.reply(true);
-      reply.content = content;
-      await reply.publish();
+      await signAndPublish(buildStationCommentTemplate(station.event, content));
     } catch (error) {
       console.error("Error posting comment:", error);
       throw error;
@@ -384,7 +387,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
               ) : (
                 <div className="space-y-4">
                   {comments.map((commentNode) => (
-                    <Comment key={commentNode.event.id} commentNode={commentNode} stationAddress={station.address} stationId={station.id} />
+                    <Comment key={commentNode.event.id} commentNode={commentNode} stationAddress={station.address!} stationId={station.id} />
                   ))}
                 </div>
               )}

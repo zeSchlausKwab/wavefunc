@@ -17,8 +17,8 @@ import {
 } from "../lib/player/adapters";
 import {
   parseStationEvent,
+  type ParsedStation,
   type Stream,
-  type WavefuncStation,
 } from "../lib/nostr/domain";
 import { useHistoryStore } from "./historyStore";
 
@@ -71,7 +71,7 @@ interface CurrentMetadata {
 
 interface PlayerState {
   // Current playing state
-  currentStation: WavefuncStation | null;
+  currentStation: ParsedStation | null;
   currentStream: Stream | null;
   isPlaying: boolean;
   isLoading: boolean;
@@ -95,7 +95,7 @@ interface PlayerState {
   isMuted: boolean;
 
   // Actions
-  playStation: (station: WavefuncStation, stream?: Stream) => void;
+  playStation: (station: ParsedStation, stream?: Stream) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -128,7 +128,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isMuted: false,
 
   // Play a new station
-  playStation: (station: WavefuncStation, stream?: Stream) => {
+  playStation: (station: ParsedStation, stream?: Stream) => {
     const { currentStation, currentStream, audioElement } = get();
 
     // Validation

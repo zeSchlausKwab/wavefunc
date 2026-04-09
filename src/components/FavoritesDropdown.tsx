@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useFavorites } from "../lib/hooks/useFavorites";
-import type { NDKStation } from "../lib/NDKStation";
+import type { ParsedStation } from "../lib/nostr/domain";
 import {
   getFavoritesListStationCount,
   hasFavoriteStation,
@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface FavoritesDropdownProps {
-  station: NDKStation;
+  station: ParsedStation;
   onAddToList: (listId: string) => Promise<void>;
   onRemoveFromList: (listId: string) => Promise<void>;
   /** className applied to the trigger button */

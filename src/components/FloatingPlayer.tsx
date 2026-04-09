@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSearchStore } from "../stores/searchStore";
 import { useUIStore } from "../stores/uiStore";
-import { NDKStation } from "../lib/NDKStation";
+import { buildStationReactionTemplate, type ParsedStation } from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
@@ -28,8 +29,9 @@ function clampPanelVh(vh: number) {
 
 // ─── Social bar ───────────────────────────────────────────────────────────────
 
-function PlayerSocialBar({ station }: { station: NDKStation }) {
+function PlayerSocialBar({ station }: { station: ParsedStation }) {
   const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const [showZapDialog, setShowZapDialog] = useState(false);
   const reactions = 0;
   const zaps = 0;
@@ -40,7 +42,7 @@ function PlayerSocialBar({ station }: { station: NDKStation }) {
 
   const handleLike = async () => {
     if (!currentUser) return;
-    await station.react("❤️");
+    await signAndPublish(buildStationReactionTemplate(station.event));
   };
 
   const handleShare = () => {
@@ -140,20 +142,6 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     setSheetSnap,
     clearCommentFocus,
   } = useUIStore();
-
-  const legacyCurrentStation = useMemo(() => {
-    if (!currentStation) return null;
-    return currentStation instanceof NDKStation
-      ? currentStation
-      : new NDKStation(undefined, currentStation as any);
-  }, [currentStation]);
-
-  const legacySheetStation = useMemo(() => {
-    if (!sheetStation) return null;
-    return sheetStation instanceof NDKStation
-      ? sheetStation
-      : new NDKStation(undefined, sheetStation as any);
-  }, [sheetStation]);
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);
@@ -389,9 +377,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
         {sheetOpen && (
           sheetMode === "station" && sheetStation ? (
             <div className="flex-1 overflow-y-auto">
-              {legacySheetStation && (
+              {sheetStation && (
                 <StationDetail
-                  station={legacySheetStation}
+                  station={sheetStation}
                   focusCommentForm={sheetFocusComment}
                   onCommentFormFocused={clearCommentFocus}
                 />
@@ -452,9 +440,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           </div>
           {/* Station detail content */}
           <div className="flex-1 overflow-y-auto pb-[100px]">
-            {legacySheetStation && (
+            {sheetStation && (
               <StationDetail
-                station={legacySheetStation}
+                station={sheetStation}
                 focusCommentForm={sheetFocusComment}
                 onCommentFormFocused={clearCommentFocus}
               />
@@ -502,9 +490,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               )}
               {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-28 mt-0.5" />}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}
-              {legacyCurrentStation && (
+              {currentStation && (
                 <div className="mt-1">
-                  <PlayerSocialBar station={legacyCurrentStation} />
+                  <PlayerSocialBar station={currentStation} />
                 </div>
               )}
             </div>

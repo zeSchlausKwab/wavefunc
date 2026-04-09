@@ -1,66 +1,26 @@
-import { faker } from '@faker-js/faker'
-import type { NDKUserProfile } from '@nostr-dev-kit/ndk'
-import NDK, { type NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
+// User profile data generation for the seed script.
 
-const WALLETED_USER_LUD16 = 'plebeianuser@coinos.io'
+import { faker } from "@faker-js/faker";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
 
-/**
- * Generates random user profile data, optionally with user index for consistent profiles
- * @param userIndex Optional user index to create a more consistent profile across runs
- * @returns A randomly generated user profile
- */
-export function generateUserProfileData(userIndex?: number): NDKUserProfile {
-	// Use seed if user index is provided to generate consistent profiles
-	if (userIndex !== undefined) {
-		faker.seed(userIndex + 1000) // Add offset to avoid potential seed conflicts
-	}
+const WALLETED_USER_LUD16 = "plebeianuser@coinos.io";
 
-	// Create a base username that will be used for multiple fields
-	const baseUsername = faker.internet.username().toLowerCase()
+export function generateUserProfileData(userIndex?: number): ProfileContent {
+  if (userIndex !== undefined) {
+    faker.seed(userIndex + 1000);
+  }
 
-	// Categories for different banner images
-	const bannerCategories = ['abstract', 'nature', 'technology', 'business', 'city']
-	const selectedCategory =
-		userIndex !== undefined ? bannerCategories[userIndex % bannerCategories.length] : faker.helpers.arrayElement(bannerCategories)
+  const baseUsername = faker.internet.username().toLowerCase();
 
-	// Generate a profile with more consistent usernames across fields
-	return {
-		name: baseUsername,
-		displayName: faker.person.fullName(),
-		image: faker.image.urlPicsumPhotos({ width: 500, height: 500 }), // GitHub avatars are good placeholders
-		banner: faker.image.urlPicsumPhotos({ width: 1200, height: 400 }),
-		about: faker.lorem.paragraph(3),
-		nip05: `${baseUsername}@example.com`,
-		website: `https://${baseUsername}.com`,
-		lud06: faker.finance.bitcoinAddress(),
-		lud16: WALLETED_USER_LUD16,
-	}
-}
-
-/**
- * Creates and publishes a user profile event
- * @param signer NDK signer with the user's private key
- * @param ndk NDK instance connected to a relay
- * @param profileData Profile data to publish
- * @returns Boolean indicating success or failure
- */
-export async function createUserProfileEvent(signer: NDKPrivateKeySigner, ndk: NDK, profileData: NDKUserProfile): Promise<boolean> {
-	try {
-		// Get the user from the signer
-		const user = await signer.user()
-		ndk.signer = signer
-		user.ndk = ndk
-
-		// Set profile data
-		user.profile = profileData
-
-		// Publish the profile
-		await user.publish()
-
-		console.log(`Published profile for ${profileData.name}`)
-		return true
-	} catch (error) {
-		console.error('Failed to publish user profile', error)
-		return false
-	}
+  return {
+    name: baseUsername,
+    display_name: faker.person.fullName(),
+    picture: faker.image.urlPicsumPhotos({ width: 500, height: 500 }),
+    banner: faker.image.urlPicsumPhotos({ width: 1200, height: 400 }),
+    about: faker.lorem.paragraph(3),
+    nip05: `${baseUsername}@example.com`,
+    website: `https://${baseUsername}.com`,
+    lud06: faker.finance.bitcoinAddress(),
+    lud16: WALLETED_USER_LUD16,
+  };
 }

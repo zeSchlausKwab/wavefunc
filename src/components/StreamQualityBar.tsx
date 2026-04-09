@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { Stream } from "../lib/NDKStation";
+import type { Stream } from "../lib/nostr/domain";
 
 // Quality scale: 320 kbps = 100% fill.
 // Common reference points: 32→10%, 64→20%, 96→30%, 128→40%, 192→60%, 256→80%, 320→100%

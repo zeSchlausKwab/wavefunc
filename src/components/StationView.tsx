@@ -1,6 +1,5 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { useStationsObserver } from "../lib/nostr/hooks/useStations";
-import { NDKStation } from "../lib/NDKStation";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
 import { useMemo } from "react";
@@ -66,11 +65,7 @@ export function StationView({ searchQuery }: StationViewProps) {
     [genres, languages, countries]
   );
 
-  const { events, eose } = useStationsObserver(filter, clientSideFilters);
-  const legacyStations = useMemo(
-    () => events.map((station) => new NDKStation(undefined, station.event as any)),
-    [events],
-  );
+  const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);
 
   const isSearching = !!searchQuery.trim();
 
@@ -148,14 +143,14 @@ export function StationView({ searchQuery }: StationViewProps) {
           )}
 
           <div className="space-y-[-4px]">
-            {legacyStations.map((station, i) => (
+            {stations.map((station, i) => (
               <RadioCard key={station.id} station={station} variant="search-result" index={i} />
             ))}
           </div>
 
-          {eose && legacyStations.length > 0 && (
+          {eose && stations.length > 0 && (
             <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-on-background/40">
-              {legacyStations.length} STATION{legacyStations.length !== 1 ? "S" : ""} FOUND
+              {stations.length} STATION{stations.length !== 1 ? "S" : ""} FOUND
             </p>
           )}
         </section>
@@ -166,14 +161,14 @@ export function StationView({ searchQuery }: StationViewProps) {
         <section>
           <SectionHeader
             className="mb-8"
-            label={eose && legacyStations.length > 0 ? `${legacyStations.length}_BROADCASTING` : undefined}
+            label={eose && stations.length > 0 ? `${stations.length}_BROADCASTING` : undefined}
           >
             LIVE_STATIONS
           </SectionHeader>
 
-          {!eose && legacyStations.length === 0 && <StationGridSkeleton />}
+          {!eose && stations.length === 0 && <StationGridSkeleton />}
 
-          {eose && legacyStations.length === 0 && (
+          {eose && stations.length === 0 && (
             <div className="border-4 border-on-background p-8 bg-surface-container-low">
               <p className="font-black uppercase text-xl tracking-tight">NO_STATIONS_FOUND</p>
             </div>
@@ -183,7 +178,7 @@ export function StationView({ searchQuery }: StationViewProps) {
             ref={tileParent}
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
           >
-            {legacyStations.map((station) => (
+            {stations.map((station) => (
               <RadioCard key={station.id} station={station} />
             ))}
           </div>

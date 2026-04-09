@@ -29,7 +29,12 @@ function StationThumbnail({
   );
 }
 import { Link } from "@tanstack/react-router";
-import { NDKStation, type Stream } from "../lib/NDKStation";
+import {
+  buildStationDeletionTemplate,
+  buildStationReactionTemplate,
+  type ParsedStation,
+  type Stream,
+} from "../lib/nostr/domain";
 import {
   canPlayStreamInApp,
   getDefaultSelectedStream,
@@ -38,6 +43,7 @@ import {
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { StreamSelector } from "./StreamSelector";
@@ -75,7 +81,7 @@ function streamFormatLabel(format: string, bitrate?: number): string {
 export type RadioCardVariant = "tile" | "list" | "list-compact" | "search-result" | "featured-item";
 
 interface RadioCardProps {
-  station: NDKStation;
+  station: ParsedStation;
   className?: string;
   variant?: RadioCardVariant;
   index?: number;
@@ -90,6 +96,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   const { toggleGenre } = useFilterStore();
   const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const isLoggedIn = false;
   const zaps = 0;
   const comments = 0;
@@ -142,7 +149,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const handleDeleteStation = async () => {
     if (!confirm(`Are you sure you want to delete "${station.name}"? This action cannot be undone.`)) return;
     try {
-      await station.deleteStation();
+      await signAndPublish(
+        buildStationDeletionTemplate({
+          eventId: station.id,
+          pubkey: station.pubkey,
+          stationId: station.stationId,
+        }),
+      );
       setShowActionMenu(false);
     } catch (error) {
       console.error("Failed to delete station:", error);
@@ -158,7 +171,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const handleLike = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!currentUser) return;
-    await station.react("❤️");
+    await signAndPublish(buildStationReactionTemplate(station.event));
   };
 
   const statusLabel = isCurrentlyPlaying

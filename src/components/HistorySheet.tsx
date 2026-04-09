@@ -1,8 +1,14 @@
+import {
+  decodeAddressPointer,
+  decodeEventPointer,
+} from "applesauce-core/helpers/pointers";
 import { History, Radio, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNDK } from "@nostr-dev-kit/react";
+import { firstValueFrom, filter, timeout } from "rxjs";
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import { useHistoryStore } from "../stores/historyStore";
-import { NDKStation } from "../lib/NDKStation";
+import { parseStationEvent, type ParsedStation } from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { usePlayerStore } from "../stores/playerStore";
 import { Button } from "./ui/button";
 import {
@@ -19,42 +25,55 @@ interface HistorySheetProps {
 }
 
 export function HistorySheet({ trigger }: HistorySheetProps) {
-  const { ndk } = useNDK();
+  const { eventStore } = useWavefuncNostr();
   const { history, clearHistory, removeFromHistory } = useHistoryStore();
   const { playStation } = usePlayerStore();
-  const [stations, setStations] = useState<Map<string, NDKStation>>(new Map());
+  const [stations, setStations] = useState<Map<string, ParsedStation>>(new Map());
   const [loading, setLoading] = useState(false);
 
-  // Fetch stations when history changes
   useEffect(() => {
-    if (!ndk || history.length === 0) {
+    if (history.length === 0) {
       setStations(new Map());
       return;
     }
 
+    let active = true;
+
     async function fetchStations() {
       setLoading(true);
-      const newStations = new Map<string, NDKStation>();
+      const newStations = new Map<string, ParsedStation>();
 
-      // Fetch each station from history
       for (const entry of history) {
         try {
-          const event = await ndk!.fetchEvent(entry.stationId);
-          if (event) {
-            const station = NDKStation.from(event);
-            newStations.set(entry.stationId, station);
+          const pointer =
+            decodeAddressPointer(entry.stationId) ??
+            decodeEventPointer(entry.stationId) ??
+            entry.stationId;
+
+          const event = await firstValueFrom(
+            eventStore.event(pointer).pipe(
+              filter((value): value is NostrEvent => Boolean(value)),
+              timeout(3000),
+            ),
+          ).catch(() => null);
+
+          if (event && active) {
+            newStations.set(entry.stationId, parseStationEvent(event));
           }
         } catch (err) {
           console.error(`Failed to fetch station ${entry.stationId}:`, err);
         }
       }
 
-      setStations(newStations);
-      setLoading(false);
+      if (active) {
+        setStations(newStations);
+        setLoading(false);
+      }
     }
 
     fetchStations();
-  }, [ndk, history]);
+    return () => { active = false; };
+  }, [eventStore, history]);
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);

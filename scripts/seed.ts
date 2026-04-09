@@ -1,289 +1,270 @@
-// seed.ts
+// Seed development data into the local relay using applesauce primitives.
+// Publishes user profiles, radio stations, favorites lists, and admin
+// featured-list references — no NDK required.
+
+import { faker } from "@faker-js/faker";
+import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import { ProfileBlueprint } from "applesauce-common/blueprints";
+import { EventFactory } from "applesauce-core";
+import { RelayPool } from "applesauce-relay";
+import { PrivateKeySigner } from "applesauce-signers";
+import { hexToBytes } from "@noble/hashes/utils.js";
+import { getPublicKey } from "nostr-tools/pure";
+
+import {
+  buildAdminFeatureTemplate,
+  buildFavoritesListTemplate,
+  buildStationTemplate,
+} from "../src/lib/nostr/domain";
 import {
   devUser1,
   devUser2,
   devUser3,
   devUser4,
   devUser5,
-} from "@/lib/fixtures";
-import { NDKWFAdminFeature } from "@/lib/NDKWFAdminFeature";
-import { NDKWFFavorites } from "@/lib/NDKWFFavorites";
-import { hexToBytes } from "@noble/hashes/utils.js";
-import NDK, { NDKPrivateKeySigner } from "@nostr-dev-kit/ndk";
-import { getPublicKey } from "nostr-tools/pure";
+} from "../src/lib/fixtures";
+import { generateUserProfileData } from "./gen_user";
 import {
-  createStationEvent,
   generateStationData,
   stationOrganizations,
 } from "./gen_station";
-import { createUserProfileEvent, generateUserProfileData } from "./gen_user";
-import { faker } from "@faker-js/faker";
 
-// Use APP_PRIVATE_KEY from environment (same as the API uses)
+// ─── Configuration ───────────────────────────────────────────────────────────
+
+const RELAY_URL = "ws://localhost:3334";
 const APP_PRIVATE_KEY =
   process.env.APP_PRIVATE_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001";
 const APP_PUBKEY = getPublicKey(hexToBytes(APP_PRIVATE_KEY));
 
-const ndk = new NDK({ explicitRelayUrls: ["ws://localhost:3334"], enableOutboxModel: false });
-
 const devUsers = [devUser1, devUser2, devUser3, devUser4, devUser5];
 
-async function connectWithRetry(maxRetries = 5, delayMs = 1000) {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const pool = new RelayPool();
+pool.relay(RELAY_URL);
+
+async function publish(event: NostrEvent): Promise<void> {
+  await pool.publish([RELAY_URL], event);
+}
+
+async function signAndPublish(
+  signer: PrivateKeySigner,
+  template: EventTemplate,
+): Promise<NostrEvent> {
+  const factory = new EventFactory({ signer });
+  // factory.build() applies common operations (created_at, strip stamps,
+  // include replaceable d-tag) that the bare sign() pipeline doesn't.
+  const draft = await factory.build(template);
+  const event = await factory.sign(draft);
+  await publish(event);
+  return event;
+}
+
+async function waitForRelay(maxRetries = 10, delayMs = 500): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      console.log(`Connecting to relay (attempt ${i + 1}/${maxRetries})...`);
-      await ndk.connect();
-      console.log("✅ Connected to relay!");
+      const relay = pool.relay(RELAY_URL);
+      // Trigger a connection by subscribing to a no-op filter briefly
+      await new Promise<void>((resolve, reject) => {
+        const sub = relay
+          .request({ kinds: [0], limit: 1 })
+          .subscribe({
+            next: () => {},
+            complete: () => resolve(),
+            error: (err) => reject(err),
+          });
+        setTimeout(() => {
+          sub.unsubscribe();
+          resolve();
+        }, 1000);
+      });
+      console.log("✅ Relay reachable!");
       return;
     } catch (error) {
       if (i === maxRetries - 1) {
-        throw new Error(
-          `Failed to connect to relay after ${maxRetries} attempts: ${error}`
-        );
+        throw new Error(`Relay never came up: ${error}`);
       }
-      console.log(`⏳ Relay not ready, waiting ${delayMs}ms...`);
+      console.log(`⏳ Relay not ready, retrying in ${delayMs}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
 
-async function seedData() {
-  await connectWithRetry();
-  const userPubkeys: string[] = [];
-  const stationAddresses: string[] = [];
+// ─── Seed phases ─────────────────────────────────────────────────────────────
 
-  console.log("Starting user seeding...");
+async function seedUserProfiles(): Promise<void> {
+  console.log("\nStarting user seeding...");
 
-  // Create user profiles, products and shipping options for each user
   for (let i = 0; i < devUsers.length; i++) {
-    const user = devUsers[i];
-    const signer = new NDKPrivateKeySigner(user.sk);
-    await signer.blockUntilReady();
-    const pubkey = (await signer.user()).pubkey;
-    userPubkeys.push(pubkey);
+    const user = devUsers[i]!;
+    const signer = PrivateKeySigner.fromKey(user.sk);
+    const pubkey = await signer.getPublicKey();
 
-    // Create user profile with user index for more personalized data
     console.log(`Creating profile for user ${pubkey.substring(0, 8)}...`);
-    const userProfile = generateUserProfileData(i);
-    await createUserProfileEvent(signer, ndk, userProfile);
+    const profile = generateUserProfileData(i);
+    const factory = new EventFactory({ signer });
+    const draft = await factory.create(ProfileBlueprint, profile);
+    const event = await factory.sign(draft);
+    await publish(event);
   }
+}
 
-  console.log("Starting station seeding...");
+async function seedStations(): Promise<string[]> {
+  console.log("\nStarting station seeding...");
 
+  const stationAddresses: string[] = [];
   let stationIndex = 0;
   let successCount = 0;
 
-  // Generate stations for each organization type
   for (let orgIndex = 0; orgIndex < stationOrganizations.length; orgIndex++) {
-    const org = stationOrganizations[orgIndex];
-
-    // Generate 2-3 stations per organization
-    const stationsPerOrg = orgIndex < 4 ? 3 : 2; // More stations for first 4 orgs
+    const org = stationOrganizations[orgIndex]!;
+    const stationsPerOrg = orgIndex < 4 ? 3 : 2;
 
     for (let i = 0; i < stationsPerOrg; i++) {
       try {
-        // Generate station data
-        const stationData = generateStationData(stationIndex, orgIndex);
+        const data = generateStationData(stationIndex, orgIndex);
+        const signer = PrivateKeySigner.fromKey(data.organizationKey);
+        const orgPubkey = await signer.getPublicKey();
 
-        // Create signer with organization key
-        const signer = new NDKPrivateKeySigner(stationData.organizationKey);
-        await signer.blockUntilReady();
-        const orgPubkey = (await signer.user()).pubkey;
+        const template = buildStationTemplate(data);
+        await signAndPublish(signer, template);
 
-        // Create and publish station
-        const success = await createStationEvent(signer, ndk, stationData);
-
-        if (success) {
-          successCount++;
-          // Store station address for favorites lists
-          stationAddresses.push(`31237:${orgPubkey}:${stationData.stationId}`);
-        }
-
-        stationIndex++;
+        stationAddresses.push(`31237:${orgPubkey}:${data.stationId}`);
+        successCount++;
+        console.log(`  ✓ Published station: ${data.name} (${data.stationId})`);
       } catch (error) {
-        console.error(
-          `Failed to create station ${stationIndex} for ${org.name}:`,
-          error
-        );
-        stationIndex++;
+        console.error(`  ✗ Failed to create station ${stationIndex} for ${org.name}:`, error);
       }
+      stationIndex++;
     }
   }
 
-  console.log(
-    `Successfully seeded ${devUsers.length} users and ${successCount} radio stations!`
-  );
+  console.log(`✅ Seeded ${successCount} radio stations.`);
+  return stationAddresses;
+}
 
-  // Create favorites lists for each user
+async function seedUserFavoritesLists(stationAddresses: string[]): Promise<string[]> {
   console.log("\nStarting favorites lists seeding...");
-  let favoritesCount = 0;
+
   const createdFavoritesAddresses: string[] = [];
+  const listConfigs = [
+    { name: "My Favorite Stations", desc: "My personal collection of favorite radio stations", banner: "https://picsum.photos/seed/fav1/1200/400" },
+    { name: "Chill Vibes",          desc: "Stations for relaxing and unwinding",                banner: "https://picsum.photos/seed/chill/1200/400" },
+    { name: "Work Background",      desc: "Perfect stations for working and focusing",          banner: "https://picsum.photos/seed/work/1200/400" },
+  ] as const;
+
+  let favoritesCount = 0;
 
   for (let userIndex = 0; userIndex < devUsers.length; userIndex++) {
-    const user = devUsers[userIndex];
-    const signer = new NDKPrivateKeySigner(user.sk);
-    await signer.blockUntilReady();
-    const pubkey = (await signer.user()).pubkey;
+    const user = devUsers[userIndex]!;
+    const signer = PrivateKeySigner.fromKey(user.sk);
+    const pubkey = await signer.getPublicKey();
 
-    console.log(
-      `Creating favorites lists for user ${pubkey.substring(0, 8)}...`
-    );
-
-    // Seed faker for consistent but varied results per user
+    console.log(`Creating favorites lists for user ${pubkey.substring(0, 8)}...`);
     faker.seed(userIndex + 5000);
 
-    // Create exactly 3 favorites lists per user
-    const listConfigs = [
-      {
-        name: "My Favorite Stations",
-        desc: "My personal collection of favorite radio stations",
-        banner: "https://picsum.photos/seed/fav1/1200/400",
-      },
-      {
-        name: "Chill Vibes",
-        desc: "Stations for relaxing and unwinding",
-        banner: "https://picsum.photos/seed/chill/1200/400",
-      },
-      {
-        name: "Work Background",
-        desc: "Perfect stations for working and focusing",
-        banner: "https://picsum.photos/seed/work/1200/400",
-      },
-    ] as const;
-
-    for (let listIndex = 0; listIndex < listConfigs.length; listIndex++) {
+    for (const listInfo of listConfigs) {
       try {
-        const listInfo = listConfigs[listIndex]!;
-
-        // Create favorites list
-        const favoritesList = NDKWFFavorites.createDefault(
-          ndk,
-          listInfo.name,
-          listInfo.desc
-        );
-        favoritesList.pubkey = pubkey;
-
-        // Set banner image
-        favoritesList.banner = listInfo.banner;
-
-        // Add at least 5 random stations to this list
         const numStations = faker.number.int({ min: 5, max: 8 });
         const selectedStations = faker.helpers.arrayElements(
           stationAddresses,
-          Math.min(numStations, stationAddresses.length)
+          Math.min(numStations, stationAddresses.length),
         );
 
-        for (const stationAddress of selectedStations) {
-          favoritesList.addStation(stationAddress);
+        const template = buildFavoritesListTemplate({
+          name: listInfo.name,
+          description: listInfo.desc,
+          banner: listInfo.banner,
+          stationAddresses: selectedStations,
+        });
+
+        const event = await signAndPublish(signer, template);
+        const dTag = event.tags.find((tag) => tag[0] === "d")?.[1];
+        if (dTag) {
+          createdFavoritesAddresses.push(`30078:${pubkey}:${dTag}`);
         }
 
-        // Sign and publish
-        ndk.signer = signer;
-        await favoritesList.sign();
-        const relays = await favoritesList.publish();
-        createdFavoritesAddresses.push(favoritesList.address);
-
         favoritesCount++;
-        console.log(
-          `  ✓ Created "${listInfo.name}" with ${selectedStations.length} stations and banner (published to ${relays.size} relays)`
-        );
-
-        // Small delay to ensure relay processing
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        console.log(`  ✓ Created "${listInfo.name}" with ${selectedStations.length} stations`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
       } catch (error) {
-        console.error(
-          `  ✗ Failed to create favorites list for user ${userIndex}:`,
-          error
-        );
+        console.error(`  ✗ Failed to create favorites list for user ${userIndex}:`, error);
       }
     }
   }
 
-  console.log(`\n✅ Successfully seeded ${favoritesCount} favorites lists!`);
+  console.log(`✅ Seeded ${favoritesCount} user favorites lists.`);
+  return createdFavoritesAddresses;
+}
 
+async function seedAdminFeatures(favoritesAddresses: string[]): Promise<void> {
   console.log("\nStarting admin featured references seeding...");
-  const adminSigner = new NDKPrivateKeySigner(devUser1.sk);
-  await adminSigner.blockUntilReady();
-  const adminPubkey = (await adminSigner.user()).pubkey;
-  const adminFeature = NDKWFAdminFeature.create(ndk as any, "lists");
-  adminFeature.featureId = "wavefunc-dev-featured-lists";
-  adminFeature.pubkey = adminPubkey;
 
-  createdFavoritesAddresses.slice(0, 6).forEach((address) => {
-    adminFeature.addRef(address);
+  const adminSigner = PrivateKeySigner.fromKey(devUser1.sk);
+  const refs = favoritesAddresses.slice(0, 6);
+
+  const template = buildAdminFeatureTemplate({
+    type: "lists",
+    featureId: "wavefunc-dev-featured-lists",
+    refs,
   });
 
-  ndk.signer = adminSigner;
-  await adminFeature.publishRefs();
-  console.log(
-    `✅ Seeded admin featured references (${Math.min(createdFavoritesAddresses.length, 6)} lists)`
-  );
+  await signAndPublish(adminSigner, template);
+  console.log(`✅ Seeded admin featured references (${refs.length} lists).`);
+}
 
-  // Create featured lists signed by the app
+async function seedAppFeaturedLists(stationAddresses: string[]): Promise<void> {
   console.log("\nStarting featured lists seeding (app-signed)...");
-  let featuredCount = 0;
 
-  const appSigner = new NDKPrivateKeySigner(APP_PRIVATE_KEY);
-  await appSigner.blockUntilReady();
-
+  const appSigner = PrivateKeySigner.fromKey(APP_PRIVATE_KEY);
   const featuredListsConfig = [
-    {
-      name: "Staff Picks",
-      desc: "Our favorite stations handpicked by the Wavefunc team",
-      banner: "https://picsum.photos/seed/staff/1200/400",
-    },
-    {
-      name: "New & Noteworthy",
-      desc: "Recently added stations worth checking out",
-      banner: "https://picsum.photos/seed/new/1200/400",
-    },
+    { name: "Staff Picks",       desc: "Our favorite stations handpicked by the Wavefunc team", banner: "https://picsum.photos/seed/staff/1200/400" },
+    { name: "New & Noteworthy",  desc: "Recently added stations worth checking out",            banner: "https://picsum.photos/seed/new/1200/400" },
   ] as const;
+
+  let featuredCount = 0;
 
   for (const listConfig of featuredListsConfig) {
     try {
-      // Create featured list
-      const featuredList = NDKWFFavorites.createDefault(
-        ndk as any,
-        listConfig.name,
-        listConfig.desc
-      );
-      featuredList.pubkey = APP_PUBKEY;
-      featuredList.banner = listConfig.banner;
-
-      // Add 6-8 random stations to featured list
       const numStations = faker.number.int({ min: 6, max: 8 });
       const selectedStations = faker.helpers.arrayElements(
         stationAddresses,
-        Math.min(numStations, stationAddresses.length)
+        Math.min(numStations, stationAddresses.length),
       );
 
-      for (const stationAddress of selectedStations) {
-        featuredList.addStation(stationAddress);
-      }
+      const template = buildFavoritesListTemplate({
+        name: listConfig.name,
+        description: listConfig.desc,
+        banner: listConfig.banner,
+        stationAddresses: selectedStations,
+      });
 
-      // Sign and publish
-      ndk.signer = appSigner;
-      await featuredList.sign();
-      const relays = await featuredList.publish();
-
+      await signAndPublish(appSigner, template);
       featuredCount++;
-      console.log(
-        `  ✓ Created featured list "${listConfig.name}" with ${selectedStations.length} stations (published to ${relays.size} relays)`
-      );
-
-      // Small delay to ensure relay processing
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      console.log(`  ✓ Created featured list "${listConfig.name}" with ${selectedStations.length} stations`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
     } catch (error) {
-      console.error(
-        `  ✗ Failed to create featured list "${listConfig.name}":`,
-        error
-      );
+      console.error(`  ✗ Failed to create featured list "${listConfig.name}":`, error);
     }
   }
 
-  console.log(`\n✅ Successfully seeded ${featuredCount} featured lists!`);
-  console.log("Seeding complete!");
+  console.log(`✅ Seeded ${featuredCount} app-signed featured lists.`);
+  console.log(`   App pubkey: ${APP_PUBKEY}`);
+}
+
+// ─── Entry point ─────────────────────────────────────────────────────────────
+
+async function seedData() {
+  await waitForRelay();
+
+  await seedUserProfiles();
+  const stationAddresses = await seedStations();
+  const favoritesAddresses = await seedUserFavoritesLists(stationAddresses);
+  await seedAdminFeatures(favoritesAddresses);
+  await seedAppFeaturedLists(stationAddresses);
+
+  console.log("\n🎉 Seeding complete!");
   process.exit(0);
 }
 

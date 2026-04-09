@@ -1,21 +1,16 @@
 import React from "react";
-import type { NDKStation } from "../lib/NDKStation";
+import type { ParsedStation } from "../lib/nostr/domain";
 import { Sheet, SheetContent } from "./ui/sheet";
 import { StationDetail } from "./StationDetail";
 
 interface StationDetailSheetProps {
-  station: NDKStation;
+  station: ParsedStation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   focusCommentForm?: boolean;
   onCommentFormFocused?: () => void;
 }
 
-/**
- * StationDetailSheet - Full details view for a radio station in a sheet/modal
- * Mobile: Bottom sheet (70% height)
- * Desktop: Left sheet (40% width)
- */
 export const StationDetailSheet: React.FC<StationDetailSheetProps> = ({
   station,
   open,

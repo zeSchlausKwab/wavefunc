@@ -1,7 +1,9 @@
-import { useNDKCurrentUser } from "@nostr-dev-kit/react";
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import React, { useState } from "react";
+import { buildStationReactionTemplate } from "../lib/nostr/domain";
+import { useCurrentAccount } from "../lib/nostr/auth";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
-import type { NDKStation } from "../lib/NDKStation";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
@@ -11,29 +13,23 @@ import { ZapIcon } from "./ui/icons/lucide-zap";
 import { FileJsonIcon } from "./ui/icons/lucide-file-json";
 import { ZapDialog } from "./ZapDialog";
 
+type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">;
+
 interface SocialActionsProps {
-  station: NDKStation;
+  station: SocialTarget;
   className?: string;
   showDebug?: boolean;
-  onCommentClick?: () => void; // Callback to open detail sheet and focus comment form
+  onCommentClick?: () => void;
 }
 
-/**
- * SocialActions component displays reaction, zap, and comment buttons
- * with counts and user interaction state.
- *
- * Features:
- * - Heart: Reactions (kind 7) - filled red when user has reacted
- * - Lightning: Zaps (kind 9735) - filled yellow when user has zapped
- * - Comment: NIP-22 replies (kind 1111) - filled green when user has commented
- */
 export const SocialActions: React.FC<SocialActionsProps> = ({
   station,
   className = "",
   showDebug = true,
   onCommentClick,
 }) => {
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const {
     reactions,
     zaps,
@@ -52,7 +48,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
       alert("Please log in to react to stations");
       return;
     }
-    await station.react("❤️", true);
+    await signAndPublish(buildStationReactionTemplate(station));
   };
 
   const handleZap = async (amount: number) => {
@@ -60,14 +56,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
       alert("Please log in to zap stations");
       return;
     }
-
-    try {
-      // Mock implementation - in real app, this would use station.zap()
-      console.log(`Zapping ${amount} sats to station:`, station.name);
-      // await station.zap(...)
-    } catch (error) {
-      console.error("Error zapping:", error);
-    }
+    console.log(`Zapping ${amount} sats to station:`, station.id);
   };
 
   const formatCount = (count: number): string => {
@@ -78,7 +67,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      {/* Heart/Reaction Button */}
       <AuthRequiredButton
         variant="ghost"
         size="sm"
@@ -99,7 +87,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         )}
       </AuthRequiredButton>
 
-      {/* Lightning/Zap Button */}
       <Button
         variant="ghost"
         size="sm"
@@ -118,7 +105,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         )}
       </Button>
 
-      {/* Comment Button */}
       <Button
         variant="ghost"
         size="sm"
@@ -139,7 +125,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         )}
       </Button>
 
-      {/* Debug/JSON Button */}
       {showDebug && (
         <Button
           variant="ghost"
@@ -152,7 +137,6 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         </Button>
       )}
 
-      {/* Zap Dialog */}
       <ZapDialog
         station={station}
         open={showZapDialog}
@@ -160,10 +144,9 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         onZap={handleZap}
       />
 
-      {/* Debug Dialog */}
       {showDebug && (
         <DebugDialog
-          station={station}
+          event={station}
           open={showDebugDialog}
           onOpenChange={setShowDebugDialog}
         />

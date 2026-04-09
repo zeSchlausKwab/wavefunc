@@ -1,3 +1,5 @@
+// NOTE: Zap flow still uses NDK (NDKZapper, NDKEvent). This is a separate
+// migration concern — see docs/APPLESAUCE_REFACTOR_STATUS.md §5 "Zap Flow".
 import { type NDKPaymentConfirmationLN } from "@nostr-dev-kit/ndk";
 import {
   NDKEvent,
@@ -5,10 +7,11 @@ import {
   useNDK,
   useNDKCurrentUser,
 } from "@nostr-dev-kit/react";
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useState } from "react";
-import type { NDKStation } from "../lib/NDKStation";
+import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useWalletStore } from "../stores/walletStore";
 import { Button } from "./ui/button";
 import {
@@ -25,8 +28,12 @@ import { Label } from "./ui/label";
 
 type ZapState = "input" | "processing" | "invoice" | "success" | "error";
 
+type StationLike = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags" | "content"> & {
+  name?: string;
+};
+
 interface ZapDialogProps {
-  station: NDKStation;
+  station: StationLike;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onZap?: (amount: number) => Promise<void>;
@@ -46,6 +53,12 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const currentUser = useNDKCurrentUser();
   const { getActiveWallet, nwcConnection } = useWalletStore();
 
+  const stationAddress = getAddressableIdentity(station) ?? `${station.kind}:${station.pubkey}`;
+  const stationName = station.name ?? getFirstTagValue(station, "name") ?? "Station";
+
+  // NDKZapper still requires an NDKEvent instance — bridge until zap flow is migrated
+  const ndkStation = ndk ? new NDKEvent(ndk, station as any) : null;
+
   const [amount, setAmount] = useState("21");
   const [comment, setComment] = useState("");
   const [zapState, setZapState] = useState<ZapState>("input");
@@ -61,7 +74,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const handleZapSuccess = (amountSats: number) => {
     setPaymentDetected(true);
     setWaitingForPayment(false);
-    setZapReceipt(`Zapped ${amountSats} sats to ${station.name}`);
+    setZapReceipt(`Zapped ${amountSats} sats to ${stationName}`);
     setZapState("success");
 
     if (onZap) {
@@ -83,7 +96,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     const sub = ndk.subscribe(
       {
         kinds: [9735],
-        "#a": [station.address],
+        "#a": [stationAddress],
         since: zapStartTime,
       },
       { closeOnEose: false }
@@ -123,7 +136,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
         } catch {}
       }, 10);
     };
-  }, [ndk, invoice, zapState, station.address, zapStartTime, amount]);
+  }, [ndk, invoice, zapState, stationAddress, zapStartTime, amount]);
 
   // Reset state when dialog closes
   useEffect(() => {
@@ -155,12 +168,12 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     if (!wallet?.lnPay) throw new Error("NWC wallet not available");
 
     // Create zapper - it will automatically use ndk.walletConfig.lnPay
-    const zapper = new NDKZapper(station, amountSats * 1000, "msats", {
+    if (!ndkStation) throw new Error("NDK station bridge not available");
+    const zapper = new NDKZapper(ndkStation, amountSats * 1000, "msats", {
       comment,
-      ndk, // Explicitly pass the NDK instance
+      ndk,
     });
 
-    // Set signer if available
     if (ndk.signer && !zapper.ndk.signer) {
       zapper.ndk.signer = ndk.signer;
     }
@@ -171,6 +184,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const zapWithWebLN = async (amountSats: number): Promise<boolean> => {
     if (!ndk) throw new Error("NDK not available");
+    if (!ndkStation) throw new Error("NDK station bridge not available");
     if (typeof window === "undefined" || !(window as any).webln) {
       throw new Error("WebLN not available");
     }
@@ -178,8 +192,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     const webln = (window as any).webln;
     await webln.enable();
 
-    // Create zapper with WebLN payment callback
-    const zapper = new NDKZapper(station, amountSats * 1000, "msats", {
+    const zapper = new NDKZapper(ndkStation, amountSats * 1000, "msats", {
       comment,
       ndk,
       lnPay: async (payment: any) => {
@@ -209,7 +222,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
     if (!lud06 && !lud16) {
       throw new Error(
-        `Station owner (${station.name}) has no Lightning address configured`
+        `Station owner (${stationName}) has no Lightning address configured`
       );
     }
 
@@ -233,7 +246,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       ].slice(0, 5),
       ["amount", amountMsat.toString()],
       ["p", station.pubkey],
-      ["a", station.address],
+      ["a", stationAddress],
     ];
 
     await zapRequestEvent.sign(ndk.signer);
@@ -373,7 +386,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ZapIcon className="w-5 h-5 text-yellow-500" />
-            Zap {station.name}
+            Zap {stationName}
           </DialogTitle>
           <DialogDescription>
             Support this radio station with a lightning payment
@@ -450,7 +463,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               <Zap className="w-12 h-12 text-yellow-500 animate-pulse" />
               <p className="mt-4 text-lg font-semibold">Processing Zap...</p>
               <p className="text-sm text-muted-foreground">
-                Sending {amount} sats to {station.name}
+                Sending {amount} sats to {stationName}
               </p>
             </div>
           </div>

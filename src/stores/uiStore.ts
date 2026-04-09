@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { WavefuncStation } from "../lib/nostr/domain";
+import type { ParsedStation } from "../lib/nostr/domain";
 
 interface UIState {
   // Login prompt animation
@@ -10,11 +10,11 @@ interface UIState {
   // Bottom sheet
   sheetOpen: boolean;
   sheetMode: "nav" | "station";
-  sheetStation: WavefuncStation | null;
+  sheetStation: ParsedStation | null;
   sheetSnap: "peek" | "expanded";
   sheetFocusComment: boolean;
   openNavSheet: () => void;
-  openStationSheet: (station: WavefuncStation, focusComment?: boolean) => void;
+  openStationSheet: (station: ParsedStation, focusComment?: boolean) => void;
   closeSheet: () => void;
   setSheetSnap: (snap: "peek" | "expanded") => void;
   clearCommentFocus: () => void;

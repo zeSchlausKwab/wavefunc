@@ -1,6 +1,7 @@
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { z } from "zod";
 import {
+  getAddressableIdentity,
   getAddressableReferences,
   getFirstTagValue,
   getMatchingTags,
@@ -31,28 +32,6 @@ const StationContentSchema = z.object({
 export type StreamQuality = z.infer<typeof StreamQualitySchema>;
 export type Stream = z.infer<typeof StreamSchema>;
 export type StationContent = z.infer<typeof StationContentSchema>;
-export type WavefuncStation = {
-  id: string;
-  kind: number;
-  pubkey: string;
-  created_at: number;
-  content: string;
-  tags: string[][];
-  stationId?: string;
-  name?: string;
-  description?: string;
-  thumbnail?: string;
-  website?: string;
-  location?: string;
-  countryCode?: string;
-  genres: string[];
-  languages: string[];
-  streams: Stream[];
-  streamingServerUrl?: string;
-  address: string | null;
-  naddr?: string;
-};
-
 export type ParsedStation = ReturnType<typeof parseStationEvent>;
 
 export type StationTemplateInput = {
@@ -195,5 +174,58 @@ export function buildStationDeletionTemplate(
     kind: 5,
     content: input.reason ?? "Deleted radio station",
     tags,
+  };
+}
+
+// ─── Action helpers ──────────────────────────────────────────────────────────
+
+export function buildStationReactionTemplate(
+  station: Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">,
+  content = "❤️",
+): EventTemplate {
+  const address = getAddressableIdentity(station);
+  return {
+    kind: 7,
+    content,
+    tags: [
+      ...(address ? [["a", address]] : []),
+      ["e", station.id],
+      ["k", String(station.kind)],
+    ],
+  };
+}
+
+export function buildStationCommentTemplate(
+  station: Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">,
+  content: string,
+): EventTemplate {
+  const address = getAddressableIdentity(station);
+  return {
+    kind: 1111,
+    content,
+    tags: [
+      ...(address ? [["A", address]] : []),
+      ["K", String(station.kind)],
+      ["P", station.pubkey],
+      ["e", station.id],
+    ],
+  };
+}
+
+export function buildCommentReplyTemplate(
+  parentEvent: Pick<NostrEvent, "id" | "pubkey">,
+  stationAddress: string,
+  stationId: string,
+  content: string,
+): EventTemplate {
+  return {
+    kind: 1111,
+    content,
+    tags: [
+      ["e", parentEvent.id, "", "reply"],
+      ["p", parentEvent.pubkey],
+      ["A", stationAddress],
+      ["e", stationId, "", "root"],
+    ],
   };
 }

@@ -1,7 +1,7 @@
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import React from "react";
 import JsonView from 'react18-json-view'
 import 'react18-json-view/src/style.css'
-import { NDKStation } from "../lib/NDKStation";
 import {
   Dialog,
   DialogContent,
@@ -11,30 +11,28 @@ import {
 } from "./ui/dialog";
 
 interface DebugDialogProps {
-  station: NDKStation;
+  event: Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags" | "content" | "created_at">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export const DebugDialog: React.FC<DebugDialogProps> = ({
-  station,
+  event,
   open,
   onOpenChange,
 }) => {
-  const rawEvent = station.rawEvent();
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Radio Event Debug</DialogTitle>
           <DialogDescription>
-            Raw Nostr event data for {station.name || "Unnamed Station"}
+            Raw Nostr event data for event {event.id?.slice(0, 12)}...
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-auto bg-gray-50 rounded-md p-4">
           <JsonView
-            src={rawEvent}
+            src={event}
             collapsed={1}
           />
         </div>
