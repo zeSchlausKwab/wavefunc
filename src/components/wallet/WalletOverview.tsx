@@ -3,6 +3,11 @@ import { useState } from "react";
 import type { Wallet } from "applesauce-wallet/casts";
 import { UnlockWallet } from "applesauce-wallet/actions";
 import { actions } from "../../lib/nostr/store";
+import { useCurrentAccount } from "../../lib/nostr/auth";
+import {
+  usePreferredMint,
+  useSetPreferredMint,
+} from "../../stores/preferredMintStore";
 import { Button } from "../ui/button";
 import { SendCashu } from "./flows/SendCashu";
 import { PayLightning } from "./flows/PayLightning";
@@ -30,6 +35,9 @@ const ACTIONS: Array<{
 
 export function WalletOverview({ wallet }: { wallet: Wallet }) {
   const balance = use$(wallet.balance$);
+  const currentUser = useCurrentAccount();
+  const preferredMint = usePreferredMint(currentUser?.pubkey);
+  const setPreferredMint = useSetPreferredMint(currentUser?.pubkey);
   const [unlocking, setUnlocking] = useState(false);
   const [action, setAction] = useState<Action>("none");
 
@@ -130,27 +138,53 @@ export function WalletOverview({ wallet }: { wallet: Wallet }) {
         </div>
       )}
 
-      {/* Balance by mint - collapsed by default */}
+      {/* Balance by mint — also where the user picks their preferred mint
+          (the star). Open by default now that it has a primary action; click
+          a star to set/unset that mint as the default for sends, melts,
+          mints, and nutzaps. Falls back to the highest-balance mint when
+          nothing is starred. */}
       {balance && Object.keys(balance).length > 0 && !activeAction && (
-        <details className="group">
+        <details className="group" open>
           <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground select-none flex items-center gap-1">
             <span className="transition-transform group-open:rotate-90">›</span>
             Balance by mint ({Object.keys(balance).length})
           </summary>
           <div className="mt-2 space-y-1">
-            {Object.entries(balance).map(([mint, amount]) => (
-              <div
-                key={mint}
-                className="flex justify-between items-center text-xs py-1.5 px-2 rounded bg-muted/30"
-              >
-                <span className="font-mono truncate text-muted-foreground">
-                  {new URL(mint).hostname}
-                </span>
-                <span className="font-medium tabular-nums ml-2">
-                  {amount.toLocaleString()}
-                </span>
-              </div>
-            ))}
+            {Object.entries(balance).map(([mint, amount]) => {
+              const isPreferred = preferredMint === mint;
+              return (
+                <div
+                  key={mint}
+                  className="flex justify-between items-center text-xs py-1.5 px-2 rounded bg-muted/30"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPreferredMint(isPreferred ? null : mint)}
+                    aria-label={
+                      isPreferred ? "Unset preferred mint" : "Set as preferred mint"
+                    }
+                    title={
+                      isPreferred
+                        ? "Preferred mint — click to clear"
+                        : "Set as preferred mint"
+                    }
+                    className={`mr-1.5 leading-none text-sm transition-colors shrink-0 ${
+                      isPreferred
+                        ? "text-yellow-500 hover:text-yellow-600"
+                        : "text-muted-foreground/40 hover:text-yellow-500"
+                    }`}
+                  >
+                    {isPreferred ? "★" : "☆"}
+                  </button>
+                  <span className="font-mono truncate text-muted-foreground flex-1">
+                    {new URL(mint).hostname}
+                  </span>
+                  <span className="font-medium tabular-nums ml-2">
+                    {amount.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </details>
       )}

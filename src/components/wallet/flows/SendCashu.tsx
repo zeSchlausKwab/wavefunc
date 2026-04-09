@@ -9,12 +9,19 @@ import {
   type Proof,
 } from "@cashu/cashu-ts";
 import { actions, couch } from "../../../lib/nostr/store";
+import { useCurrentAccount } from "../../../lib/nostr/auth";
+import {
+  usePreferredMint,
+  pickEffectiveMint,
+} from "../../../stores/preferredMintStore";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { CopyableQR } from "../../QRCode";
 
 export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
   const balance = use$(wallet.balance$);
+  const currentUser = useCurrentAccount();
+  const preferredMint = usePreferredMint(currentUser?.pubkey);
   const [amount, setAmount] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +32,21 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
     amount: number;
   } | null>(null);
   const [claimed, setClaimed] = useState(false);
-  const [selectedMint, setSelectedMint] = useState<string | undefined>(undefined);
+  // Default to the preferred mint when it has a positive balance, otherwise
+  // leave on "auto" so TokensOperation picks the highest-balance mint.
+  const [selectedMint, setSelectedMint] = useState<string | undefined>(() =>
+    pickEffectiveMint(preferredMint, balance)
+  );
+  // Keep the preselected value in sync as the wallet/balance loads after
+  // mount (the cast may not be ready on the first render).
+  useEffect(() => {
+    if (selectedMint) return;
+    const next = pickEffectiveMint(preferredMint, balance);
+    if (next) setSelectedMint(next);
+    // Intentionally only re-run when preferredMint or balance change so the
+    // user's manual selection is never overwritten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredMint, balance]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const availableMints = useMemo(() => {

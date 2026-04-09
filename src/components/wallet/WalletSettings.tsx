@@ -50,8 +50,11 @@ function MintManager({ wallet }: { wallet: Wallet }) {
   }, [mints, balance]);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Mints</h3>
+    <details className="group space-y-3">
+      <summary className="cursor-pointer text-sm font-semibold flex items-center gap-1 list-none [&::-webkit-details-marker]:hidden">
+        <span className="transition-transform group-open:rotate-90">›</span>
+        Mints
+      </summary>
       {mints && mints.length > 0 ? (
         <div className="space-y-2">
           {mints.map((mint) => (
@@ -84,7 +87,7 @@ function MintManager({ wallet }: { wallet: Wallet }) {
         </Button>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    </details>
   );
 }
 
@@ -122,8 +125,11 @@ function RelayManager({ wallet }: { wallet: Wallet }) {
   }, [relays]);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Wallet Relays</h3>
+    <details className="group space-y-3">
+      <summary className="cursor-pointer text-sm font-semibold flex items-center gap-1 list-none [&::-webkit-details-marker]:hidden">
+        <span className="transition-transform group-open:rotate-90">›</span>
+        Wallet Relays
+      </summary>
       {relays && relays.length > 0 ? (
         <div className="space-y-2">
           {relays.map((relay) => (
@@ -151,7 +157,7 @@ function RelayManager({ wallet }: { wallet: Wallet }) {
         </Button>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    </details>
   );
 }
 
@@ -184,8 +190,11 @@ function BackupTool({ wallet }: { wallet: Wallet }) {
   };
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Backup & Recovery</h3>
+    <details className="group space-y-3">
+      <summary className="cursor-pointer text-sm font-semibold flex items-center gap-1 list-none [&::-webkit-details-marker]:hidden">
+        <span className="transition-transform group-open:rotate-90">›</span>
+        Backup & Recovery
+      </summary>
       <p className="text-xs text-muted-foreground">
         Your wallet is already backed up on Nostr relays (encrypted). The P2PK
         private key below is needed to receive nutzaps — keep it safe.
@@ -255,7 +264,7 @@ function BackupTool({ wallet }: { wallet: Wallet }) {
           </Button>
         </div>
       )}
-    </div>
+    </details>
   );
 }
 
@@ -265,8 +274,11 @@ function ToolsSection() {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Maintenance</h3>
+    <details className="group space-y-3">
+      <summary className="cursor-pointer text-sm font-semibold flex items-center gap-1 list-none [&::-webkit-details-marker]:hidden">
+        <span className="transition-transform group-open:rotate-90">›</span>
+        Maintenance
+      </summary>
 
       <div className="space-y-2">
         <Button
@@ -322,7 +334,7 @@ function ToolsSection() {
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    </details>
   );
 }
 

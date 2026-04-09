@@ -1,17 +1,25 @@
 import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import { castUser } from "applesauce-common/casts";
 import { ProfileModel } from "applesauce-core/models";
-import { useEventModel } from "applesauce-react/hooks";
+import { use$, useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
+import { TokensOperation } from "applesauce-wallet/actions";
+import { NutzapEvent } from "applesauce-wallet/actions";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getPublicContentRelayUrls } from "../config/nostr";
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { actions, couch } from "../lib/nostr/store";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
+import {
+  pickEffectiveMint,
+  usePreferredMint,
+} from "../stores/preferredMintStore";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -60,7 +68,22 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const currentUser = useCurrentAccount();
   const { eventStore, relayPool, accounts, readRelays } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
+  const preferredMint = usePreferredMint(currentUser?.pubkey);
   const signer = accounts.active?.signer ?? null;
+
+  // ── Wallet (sender) + nutzap info (recipient) for the NIP-61 zap path ──
+  const ourUser = useMemo(
+    () => (currentUser ? castUser(currentUser.pubkey, eventStore) : null),
+    [currentUser?.pubkey, eventStore]
+  );
+  const wallet = use$(ourUser?.wallet$);
+  const balance = use$(wallet?.balance$);
+
+  const recipientUser = useMemo(
+    () => castUser(station.pubkey, eventStore),
+    [station.pubkey, eventStore]
+  );
+  const recipientNutzapInfo = use$(recipientUser.nutzap$);
 
   const stationAddress =
     getAddressableIdentity(station) ?? `${station.kind}:${station.pubkey}`;
@@ -81,17 +104,22 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   // ── Resolve recipient profile (lud16/lud06) via the canonical ProfileModel ──
   const ownerProfile = useEventModel(ProfileModel, [station.pubkey]);
 
-  // Trigger a profile fetch on open if the store doesn't have it yet
+  // Trigger a fetch on open for both the recipient's kind 0 (so we have
+  // lud16 for NIP-57) and kind 10019 (so we know whether they accept
+  // nutzaps and which mints they trust). Always re-issue the subscription
+  // when the dialog opens — kind 10019 is replaceable so it's cheap to ask
+  // again, and we don't want to gate on `ownerProfile` because the dialog
+  // can be reopened after the profile arrived but before nutzap info did.
   useEffect(() => {
-    if (!open || ownerProfile) return;
+    if (!open) return;
     const sub = relayPool
       .subscription(readRelays, [
-        { kinds: [0], authors: [station.pubkey], limit: 1 },
+        { kinds: [0, 10019], authors: [station.pubkey], limit: 1 },
       ])
       .pipe(storeEvents(eventStore))
       .subscribe();
     return () => sub.unsubscribe();
-  }, [open, ownerProfile, relayPool, eventStore, readRelays, station.pubkey]);
+  }, [open, relayPool, eventStore, readRelays, station.pubkey]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -234,6 +262,170 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     return Boolean(result?.preimage);
   };
 
+  // ── NIP-61 nutzap path ────────────────────────────────────────────────────
+  //
+  // Spends P2PK-locked tokens from our own NIP-60 cashu wallet directly to
+  // the recipient. Unlike NIP-57 there is no Lightning round-trip and no
+  // LNURL endpoint involved — the nutzap event itself IS the receipt, and
+  // the recipient redeems it later by unlocking the proofs with their
+  // NIP-60 wallet's private key.
+  //
+  // Mint compatibility is the tricky part: the recipient publishes the list
+  // of mints they trust in their kind 10019 event, and the cashu spec says
+  // we MUST send from one of those mints (or risk burning the funds — the
+  // recipient may never see proofs minted at a mint they don't pull from).
+  // We intersect our wallet's positive-balance mints with the recipient's
+  // accepted mints and prefer the user's preferred mint if it's in that
+  // intersection, otherwise pick the highest balance.
+  const acceptedMints = useMemo(
+    () => recipientNutzapInfo?.mints.map((m) => m.mint) ?? [],
+    [recipientNutzapInfo]
+  );
+
+  const nutzapMint = useMemo(
+    () => pickEffectiveMint(preferredMint, balance, acceptedMints),
+    [preferredMint, balance, acceptedMints]
+  );
+
+  const canNutzap = Boolean(
+    currentUser &&
+      wallet?.unlocked &&
+      recipientNutzapInfo?.p2pk &&
+      acceptedMints.length > 0 &&
+      nutzapMint
+  );
+
+  const zapWithNutzap = async (amountSats: number): Promise<boolean> => {
+    if (!currentUser) throw new Error("Not logged in");
+    if (!wallet?.unlocked) throw new Error("Cashu wallet is locked");
+    if (!recipientNutzapInfo?.p2pk) {
+      throw new Error("Recipient has not published a nutzap p2pk key");
+    }
+    if (!nutzapMint) {
+      throw new Error(
+        "No mint with sufficient balance is accepted by the recipient",
+      );
+    }
+    const mintBalance = balance?.[nutzapMint] ?? 0;
+    if (mintBalance < amountSats) {
+      throw new Error(
+        `Need ${amountSats} sats in ${new URL(nutzapMint).hostname}, have ${mintBalance}`,
+      );
+    }
+
+    // Cashu/NIP-61 require the P2PK pubkey to be prefixed with "02" before
+    // locking. The applesauce-wallet `NutzapInfo.p2pk` getter returns the
+    // raw 32-byte hex pubkey from the kind 10019 event — we add the prefix
+    // here when handing it to cashu-ts.
+    const lockPubkey = recipientNutzapInfo.p2pk.startsWith("02")
+      ? recipientNutzapInfo.p2pk
+      : `02${recipientNutzapInfo.p2pk}`;
+
+    await actions.run(
+      TokensOperation,
+      amountSats,
+      async ({ selectedProofs, mint, cashuWallet }) => {
+        const { keep, send } = await cashuWallet.ops
+          .send(amountSats, selectedProofs)
+          .asP2PK({ pubkey: lockPubkey })
+          .run();
+
+        // Nest the NutzapEvent action inside TokensOperation so the locked
+        // proofs are published as a kind 9321 event before TokensOperation
+        // commits the change. If the publish throws, TokensOperation rolls
+        // back the spend and the user keeps their tokens.
+        await actions.run(
+          NutzapEvent,
+          station as NostrEvent,
+          { mint, proofs: send, unit: "sat" },
+          { comment: comment || undefined, couch },
+        );
+
+        return { change: keep.length > 0 ? keep : undefined };
+      },
+      { mint: nutzapMint, couch },
+    );
+
+    return true;
+  };
+
+  // ── NIP-57 zap funded by the cashu wallet ────────────────────────────────
+  //
+  // This is the same NIP-57 zap flow as the WebLN/NWC paths (LNURL → BOLT11
+  // invoice → kind 9735 receipt), except the invoice is paid by melting
+  // tokens out of our own NIP-60 cashu wallet. From the recipient's
+  // perspective it looks identical to a normal Lightning zap — they just
+  // see the kind 9735 receipt.
+  //
+  // The mint selection is independent of NIP-61 nutzap accepted-mint logic
+  // (the recipient doesn't care which mint we melt from for a Lightning
+  // zap), so we use the user's preferred mint with a highest-balance
+  // fallback against the full wallet.
+  const cashuLightningZapMint = useMemo(
+    () => pickEffectiveMint(preferredMint, balance),
+    [preferredMint, balance],
+  );
+
+  const canCashuLightningZap = Boolean(
+    currentUser &&
+      wallet?.unlocked &&
+      cashuLightningZapMint &&
+      (ownerProfile?.lud16 || ownerProfile?.lud06),
+  );
+
+  const zapWithCashuLightning = async (amountSats: number): Promise<boolean> => {
+    if (!currentUser) throw new Error("Not logged in");
+    if (!wallet?.unlocked) throw new Error("Cashu wallet is locked");
+    if (!cashuLightningZapMint) {
+      throw new Error("No mint with positive balance");
+    }
+    const mintBalance = balance?.[cashuLightningZapMint] ?? 0;
+    if (mintBalance < amountSats) {
+      throw new Error(
+        `Need ${amountSats} sats in ${new URL(cashuLightningZapMint).hostname}, have ${mintBalance}`,
+      );
+    }
+
+    // 1. Build the NIP-57 zap request and pull a BOLT11 invoice from the
+    //    recipient's LNURL endpoint. The invoice carries the zap request as
+    //    a query param so the LNURL service knows to publish a kind 9735
+    //    receipt back to the relays we advertised.
+    const inv = await getInvoice(amountSats);
+    setInvoice(inv);
+    setZapStartTime(Math.floor(Date.now() / 1000));
+
+    // 2. Melt tokens to pay the invoice. We over-budget the token selection
+    //    by ~5% (with a 20-sat floor) because TokensOperation needs an
+    //    upper bound on selected proofs *before* createMeltQuoteBolt11
+    //    tells us the actual fee_reserve. The inner check verifies the
+    //    real fee fits in the mint's balance and throws cleanly if not.
+    const feeBuffer = Math.max(20, Math.ceil(amountSats * 0.05));
+
+    await actions.run(
+      TokensOperation,
+      amountSats + feeBuffer,
+      async ({ selectedProofs, cashuWallet }) => {
+        const meltQuote = await cashuWallet.createMeltQuoteBolt11(inv);
+        const totalNeeded = meltQuote.amount + meltQuote.fee_reserve;
+        if (totalNeeded > mintBalance) {
+          throw new Error(
+            `Need ${totalNeeded} sats (${meltQuote.amount} + ${meltQuote.fee_reserve} fee), have ${mintBalance} in ${new URL(cashuLightningZapMint).hostname}`,
+          );
+        }
+        const { keep, send } = await cashuWallet.send(
+          totalNeeded,
+          selectedProofs,
+          { includeFees: true },
+        );
+        const meltResponse = await cashuWallet.meltProofs(meltQuote, send);
+        return { change: [...keep, ...(meltResponse.change || [])] };
+      },
+      { mint: cashuLightningZapMint, couch },
+    );
+
+    return true;
+  };
+
   // ── Zap receipt monitoring ─────────────────────────────────────────────────
 
   useEffect(() => {
@@ -336,6 +528,10 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const handleZapWithNWC = () => handleZap(zapWithNWC, "Failed to zap with NWC");
   const handleZapWithWebLN = () => handleZap(zapWithWebLN, "Failed to zap with WebLN");
+  const handleZapWithNutzap = () =>
+    handleZap(zapWithNutzap, "Failed to send nutzap");
+  const handleZapWithCashuLightning = () =>
+    handleZap(zapWithCashuLightning, "Failed to zap from cashu wallet");
 
   const handleShowInvoice = async () => {
     const amountNum = parseInt(amount, 10);
@@ -541,6 +737,38 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
         <DialogFooter className="sm:justify-between">
           {zapState === "input" && (
             <div className="w-full space-y-2">
+              {canNutzap && (
+                <Button
+                  onClick={handleZapWithNutzap}
+                  disabled={!amount || parseInt(amount) <= 0 || isProcessing}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                  title={
+                    nutzapMint
+                      ? `Spending from ${new URL(nutzapMint).hostname}`
+                      : undefined
+                  }
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Nutzap from Cashu Wallet
+                </Button>
+              )}
+
+              {canCashuLightningZap && (
+                <Button
+                  onClick={handleZapWithCashuLightning}
+                  disabled={!amount || parseInt(amount) <= 0 || isProcessing}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  title={
+                    cashuLightningZapMint
+                      ? `Melting from ${new URL(cashuLightningZapMint).hostname}`
+                      : undefined
+                  }
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Lightning Zap from Cashu Wallet
+                </Button>
+              )}
+
               {nwcConnection && (
                 <Button
                   onClick={handleZapWithNWC}

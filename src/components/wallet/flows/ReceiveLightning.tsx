@@ -7,13 +7,23 @@ import {
   MintQuoteState,
 } from "@cashu/cashu-ts";
 import { actions } from "../../../lib/nostr/store";
+import { useCurrentAccount } from "../../../lib/nostr/auth";
+import { usePreferredMint } from "../../../stores/preferredMintStore";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { CopyableQR } from "../../QRCode";
 
 export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
   const mints = use$(wallet.mints$);
-  const [selectedMint, setSelectedMint] = useState(mints?.[0] || "");
+  const currentUser = useCurrentAccount();
+  const preferredMint = usePreferredMint(currentUser?.pubkey);
+  // Default to the preferred mint when it's still in the wallet's mint list,
+  // otherwise pick the first available mint as before.
+  const [selectedMint, setSelectedMint] = useState(
+    preferredMint && mints?.includes(preferredMint)
+      ? preferredMint
+      : mints?.[0] || ""
+  );
   const [amount, setAmount] = useState("");
   const [quote, setQuote] = useState<{
     mint: string;
@@ -28,8 +38,13 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!selectedMint && mints?.[0]) setSelectedMint(mints[0]);
-  }, [mints, selectedMint]);
+    if (selectedMint) return;
+    if (preferredMint && mints?.includes(preferredMint)) {
+      setSelectedMint(preferredMint);
+    } else if (mints?.[0]) {
+      setSelectedMint(mints[0]);
+    }
+  }, [mints, selectedMint, preferredMint]);
 
   useEffect(() => {
     return () => {
