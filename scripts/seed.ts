@@ -1,6 +1,5 @@
 // Seed development data into the local relay using applesauce primitives.
 // Publishes user profiles, radio stations, favorites lists, and admin
-// featured-list references — no NDK required.
 
 import { faker } from "@faker-js/faker";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";

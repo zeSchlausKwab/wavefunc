@@ -1,10 +1,3 @@
-// Fully Applesauce-native zap flow.
-// Replaces the previous NDKZapper-based implementation per the migration
-// rules in docs/APPLESAUCE_REFACTOR_STATUS.md.
-//
-// NWC payment goes through `src/lib/nostr/nwc.ts` which speaks NIP-47
-// directly over the runtime RelayPool — no NDK wallet stack involvement.
-
 import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { use$ } from "applesauce-react/hooks";

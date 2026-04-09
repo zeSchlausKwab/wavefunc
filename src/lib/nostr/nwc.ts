@@ -5,9 +5,6 @@
 //   2. Build a kind 23194 request with NIP-04 encrypted JSON-RPC content
 //   3. Publish the request to the NWC relay via the runtime RelayPool
 //   4. Subscribe to the matching kind 23195 response and decrypt the result
-//
-// No dependency on NDK or any external NWC SDK.
-
 import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import type { RelayPool } from "applesauce-relay";

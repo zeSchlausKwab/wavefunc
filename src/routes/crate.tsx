@@ -1,22 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { Filter } from "applesauce-core/helpers/filter";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import { use$ } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSubscribe, useNDK } from "@nostr-dev-kit/react";
-import { NDKEvent } from "@nostr-dev-kit/ndk";
+import { map, of } from "rxjs";
+import { getAppDataRelayUrls } from "../config/nostr";
+import { useCurrentAccount } from "../lib/nostr/auth";
+import {
+  buildSongAudioUpdateTemplate,
+  getSongListSongCount,
+  parseSongEvent,
+  SONG_KIND,
+  songListHasSong,
+  type ParsedSong,
+  type ParsedSongList,
+} from "../lib/nostr/domain";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
-import { NDKSong } from "../lib/NDKSong";
-import { NDKWFSongList } from "../lib/NDKWFSongList";
-import { addressesToParameterizedFilters, getAppDataSubscriptionOptions } from "../config/nostr";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
+import {
+  getMetadataClient,
+  type DownloadFormat,
+  type YouTubeResult,
+} from "../ctxcn/WavefuncMetadataServerClient";
+import { ShareSongDialog } from "../components/ShareSongDialog";
+import { YoutubeEmbed } from "../components/YoutubeEmbed";
+import { useUIStore } from "../stores/uiStore";
 import { cn } from "@/lib/utils";
-import { getMetadataClient, type YouTubeResult, type DownloadFormat } from "../ctxcn/WavefuncMetadataServerClient";
 
 const VIDEO_FORMATS: { label: string; format: DownloadFormat; icon: string; hint: string }[] = [
   { label: "360p", format: "360p", icon: "video_file", hint: "WebM ≈10–30 MB" },
   { label: "480p", format: "480p", icon: "video_file", hint: "WebM ≈20–60 MB" },
   { label: "720p", format: "720p", icon: "video_file", hint: "MP4 ≈80–200 MB" },
 ];
-import { useUIStore } from "../stores/uiStore";
-import { YoutubeEmbed } from "../components/YoutubeEmbed";
-import { ShareSongDialog } from "../components/ShareSongDialog";
 
 const BLOSSOM_SERVERS = [
   { label: "blossom.band", url: "https://blossom.band" },
@@ -30,16 +46,67 @@ export const Route = createFileRoute("/crate")({
 
 // ─── Song resolution ──────────────────────────────────────────────────────────
 
-function useSongsFromList(list: NDKWFSongList | null) {
-  const addresses = list?.getSongs() ?? [];
-  const filters = useMemo(
-    () => addressesToParameterizedFilters(31337, addresses),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(addresses)]
+function useSongsFromList(list: ParsedSongList): {
+  songs: ParsedSong[];
+  isLoading: boolean;
+} {
+  const { eventStore, relayPool } = useWavefuncNostr();
+  const relays = getAppDataRelayUrls();
+  const relaysKey = JSON.stringify(relays);
+
+  const addresses = list.songAddresses;
+  const filters: Filter[] = useMemo(() => {
+    if (addresses.length === 0) return [];
+    const authors = Array.from(
+      new Set(addresses.map((a) => a.split(":")[1]).filter(Boolean) as string[]),
+    );
+    const dTags = Array.from(
+      new Set(addresses.map((a) => a.split(":")[2]).filter(Boolean) as string[]),
+    );
+    return [
+      {
+        kinds: [SONG_KIND],
+        authors,
+        "#d": dTags,
+      },
+    ];
+  }, [JSON.stringify(addresses)]);
+  const filtersKey = JSON.stringify(filters);
+
+  // Fire the relay subscription via a side-effect (no rendered value).
+  use$(
+    () => {
+      if (filters.length === 0) return of(null);
+      return relayPool
+        .subscription(relays, filters)
+        .pipe(storeEvents(eventStore), map(() => null));
+    },
+    [eventStore, filtersKey, relayPool, relaysKey],
   );
-  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
-  const songs = useMemo(() => events.map((e) => NDKSong.from(e)), [events]);
-  return { songs, isLoading: !eose };
+
+  const events =
+    use$(
+      () => {
+        if (filters.length === 0) return of([]);
+        return eventStore
+          .timeline(filters)
+          .pipe(map((timeline) => [...timeline]));
+      },
+      [eventStore, filtersKey],
+    ) ?? [];
+
+  const songs: ParsedSong[] = useMemo(
+    () =>
+      events
+        .map((event: NostrEvent) => parseSongEvent(event))
+        .filter((song) => song.address && addresses.includes(song.address)),
+    [events, addresses],
+  );
+
+  return {
+    songs,
+    isLoading: addresses.length > 0 && songs.length < addresses.length,
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -53,14 +120,14 @@ function formatDuration(seconds: number): string {
 // ─── YouTube audio panel ─────────────────────────────────────────────────────
 
 interface YouTubeAudioPanelProps {
-  song: NDKSong;
+  song: ParsedSong;
   onClose: () => void;
 }
 
 function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
   const { isLoggedIn } = useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);
-  const { ndk } = useNDK();
+  const { signer, signAndPublish } = useWavefuncNostr();
   const [phase, setPhase] = useState<"searching" | "results" | "downloading" | "uploading" | "error">("searching");
   const [results, setResults] = useState<YouTubeResult[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -74,17 +141,35 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
   const effectiveBlossomUrl = showCustom ? customBlossom : blossomUrl;
 
   useEffect(() => {
-    if (!isLoggedIn) { pulseLogin(); onClose(); return; }
+    if (!isLoggedIn) {
+      pulseLogin();
+      onClose();
+      return;
+    }
     const query = [song.title, song.artist].filter(Boolean).join(" ");
     getMetadataClient()
       .SearchYouTube(query, 5)
-      .then((out) => { setResults(out.results); setPhase("results"); })
-      .catch((err) => { setErrorMsg(err.message ?? "Search failed"); setPhase("error"); });
+      .then((out) => {
+        setResults(out.results);
+        setPhase("results");
+      })
+      .catch((err) => {
+        setErrorMsg(err.message ?? "Search failed");
+        setPhase("error");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDownload = async (result: YouTubeResult, format: DownloadFormat) => {
-    if (!isLoggedIn) { pulseLogin(); return; }
-    if (!ndk?.signer) { setErrorMsg("No signer available — connect your wallet first"); setPhase("error"); return; }
+    if (!isLoggedIn) {
+      pulseLogin();
+      return;
+    }
+    if (!signer) {
+      setErrorMsg("No signer available — connect your account first");
+      setPhase("error");
+      return;
+    }
 
     setDownloadingId(result.videoId);
     setProgressMsg(null);
@@ -95,24 +180,25 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
       const { tempId, sha256 } = await getMetadataClient().PrepareDownload(
         result.videoId,
         format,
-        (p) => setProgressMsg(p.message ?? null)
+        (p) => setProgressMsg(p.message ?? null),
       );
 
       // Step 2: client signs BUD-01 kind 24242 auth event
       setPhase("uploading");
       setProgressMsg("Waiting for signature...");
       const now = Math.floor(Date.now() / 1000);
-      const authEvent = new NDKEvent(ndk);
-      authEvent.kind = 24242;
-      authEvent.content = `Upload ${format}`;
-      authEvent.created_at = now;
-      authEvent.tags = [
-        ["t", "upload"],
-        ["x", sha256],
-        ["expiration", String(now + 600)],
-      ];
-      await authEvent.sign();
-      const signedEventJson = JSON.stringify(authEvent.rawEvent());
+      const authTemplate = {
+        kind: 24242,
+        content: `Upload ${format}`,
+        created_at: now,
+        tags: [
+          ["t", "upload"],
+          ["x", sha256],
+          ["expiration", String(now + 600)],
+        ] as string[][],
+      };
+      const authEvent = await signer.signEvent(authTemplate);
+      const signedEventJson = JSON.stringify(authEvent);
 
       // Step 3: server uploads using our signed auth
       setProgressMsg("Uploading to Blossom...");
@@ -120,10 +206,17 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
         tempId,
         effectiveBlossomUrl,
         signedEventJson,
-        (p) => setProgressMsg(p.message ?? null)
+        (p) => setProgressMsg(p.message ?? null),
       );
 
-      await song.attachAudioAndPublish(url, result.videoId);
+      // Step 4: publish updated song event with the new audio URL attached
+      const updateTemplate = buildSongAudioUpdateTemplate(
+        song.event,
+        url,
+        result.videoId,
+      );
+      await signAndPublish(updateTemplate);
+
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message ?? "Download failed");
@@ -164,7 +257,7 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
                 "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
                 !showCustom && blossomUrl === s.url
                   ? "border-on-background bg-on-background text-surface"
-                  : "border-on-background/20 hover:border-on-background/60"
+                  : "border-on-background/20 hover:border-on-background/60",
               )}
             >
               {s.label}
@@ -176,7 +269,7 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
               "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
               showCustom
                 ? "border-on-background bg-on-background text-surface"
-                : "border-on-background/20 hover:border-on-background/60"
+                : "border-on-background/20 hover:border-on-background/60",
             )}
           >
             CUSTOM
@@ -291,9 +384,9 @@ function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
 // ─── Song row ─────────────────────────────────────────────────────────────────
 
 interface SongRowProps {
-  song: NDKSong;
-  sourceList: NDKWFSongList;
-  otherLists: NDKWFSongList[];
+  song: ParsedSong;
+  sourceList: ParsedSongList;
+  otherLists: ParsedSongList[];
   onMove: (songAddress: string, fromListId: string, toListId: string) => Promise<void>;
   onRemove: (songAddress: string, listId: string) => Promise<void>;
 }
@@ -306,16 +399,18 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
   const [shareOpen, setShareOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const songAddress = song.address;
+
   const handleMove = async (toListId: string) => {
-    if (!sourceList.listId) return;
+    if (!sourceList.listId || !songAddress) return;
     setMenuOpen(false);
-    await onMove(song.address, sourceList.listId, toListId);
+    await onMove(songAddress, sourceList.listId, toListId);
   };
 
   const handleRemove = async () => {
-    if (!sourceList.listId) return;
+    if (!sourceList.listId || !songAddress) return;
     setBusy(true);
-    await onRemove(song.address, sourceList.listId);
+    await onRemove(songAddress, sourceList.listId);
     setBusy(false);
   };
 
@@ -396,7 +491,7 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         onClick={(e) => { e.stopPropagation(); setYtPanelOpen((v) => !v); }}
         className={cn(
           "shrink-0 transition-colors",
-          song.audioUrl ? "text-primary/60 hover:text-primary" : "text-on-background/30 hover:text-on-background"
+          song.audioUrl ? "text-primary/60 hover:text-primary" : "text-on-background/30 hover:text-on-background",
         )}
         title={song.audioUrl ? "Audio attached — replace?" : "Get audio"}
       >
@@ -486,15 +581,15 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
 // ─── List panel ───────────────────────────────────────────────────────────────
 
 interface SongListPanelProps {
-  list: NDKWFSongList;
-  allLists: NDKWFSongList[];
+  list: ParsedSongList;
+  allLists: ParsedSongList[];
   onMove: (songAddress: string, fromListId: string, toListId: string) => Promise<void>;
   onRemove: (songAddress: string, listId: string) => Promise<void>;
 }
 
 function SongListPanel({ list, allLists, onMove, onRemove }: SongListPanelProps) {
   const { songs, isLoading } = useSongsFromList(list);
-  const count = list.getSongCount();
+  const count = getSongListSongCount(list);
   const otherLists = allLists.filter((l) => l.listId !== list.listId);
 
   return (
@@ -597,12 +692,17 @@ function CreateListForm({ onCreate, onCancel }: { onCreate: (name: string) => Pr
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function Crate() {
-  const { songLists, isLoggedIn, isLoading, createList, moveSong, removeSongFromList } = useSongFavorites();
+  // Auth check uses applesauce-native useCurrentAccount. The previous version
+  // migration, so this route showed AUTHENTICATION_REQUIRED even when logged in.
+  const currentUser = useCurrentAccount();
+  const isLoggedIn = !!currentUser;
+  const { songLists, isLoading, createList, moveSong, removeSongFromList } =
+    useSongFavorites();
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const totalTracks = useMemo(
-    () => songLists.reduce((n, l) => n + l.getSongCount(), 0),
-    [songLists]
+    () => songLists.reduce((n, l) => n + getSongListSongCount(l), 0),
+    [songLists],
   );
 
   const handleCreate = async (name: string) => {
@@ -707,7 +807,7 @@ function PageHeader({
             "border-2 border-on-background px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5",
             showCreateForm
               ? "bg-on-background text-surface"
-              : "bg-surface hover:bg-on-background hover:text-surface"
+              : "bg-surface hover:bg-on-background hover:text-surface",
           )}
         >
           <span className="material-symbols-outlined text-[14px]">{showCreateForm ? "close" : "add"}</span>

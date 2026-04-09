@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNDK } from "@nostr-dev-kit/react";
-import { NDKEvent } from "@nostr-dev-kit/ndk";
-import type { NDKSong } from "../lib/NDKSong";
+import { buildShareSongNoteTemplate, type ParsedSong } from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { cn } from "@/lib/utils";
 
 interface ShareSongDialogProps {
-  song: NDKSong;
+  song: ParsedSong;
   onClose: () => void;
 }
 
@@ -15,7 +14,15 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function Toggle({ label, enabled, onChange }: { label: string; enabled: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  label,
+  enabled,
+  onChange,
+}: {
+  label: string;
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <button
       type="button"
@@ -24,7 +31,7 @@ function Toggle({ label, enabled, onChange }: { label: string; enabled: boolean;
         "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
         enabled
           ? "border-on-background bg-on-background text-surface"
-          : "border-on-background/20 hover:border-on-background/60"
+          : "border-on-background/20 hover:border-on-background/60",
       )}
     >
       {label}
@@ -33,13 +40,9 @@ function Toggle({ label, enabled, onChange }: { label: string; enabled: boolean;
 }
 
 export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
-  const { ndk } = useNDK();
+  const { signer, signAndPublish } = useWavefuncNostr();
 
-  // Collect all audio URLs from `r` tags
-  const audioUrls = useMemo(
-    () => song.getMatchingTags("r").map((t) => t[1]).filter(Boolean),
-    [song]
-  );
+  const audioUrls = song.audioUrls;
 
   const [selectedUrl, setSelectedUrl] = useState<string | null>(audioUrls[0] ?? null);
   const [includeMetadata, setIncludeMetadata] = useState(true);
@@ -98,27 +101,26 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
   };
 
   const handlePublish = async () => {
-    if (!ndk?.signer) {
+    if (!signer) {
       setErrorMsg("No signer — connect your account first");
       setPhase("error");
       return;
     }
     setPhase("publishing");
     try {
-      const event = new NDKEvent(ndk);
-      event.kind = 1;
-      event.content = content;
-      event.created_at = Math.floor(Date.now() / 1000);
+      const hashtags = [
+        tagWavefunc ? "wavefunc" : null,
+        tagSongstr ? "songstr" : null,
+        tagTunestr ? "tunestr" : null,
+      ].filter((tag): tag is string => Boolean(tag));
 
-      if (tagWavefunc) event.tags.push(["t", "wavefunc"]);
-      if (tagSongstr) event.tags.push(["t", "songstr"]);
-      if (tagTunestr) event.tags.push(["t", "tunestr"]);
-      if (selectedUrl) event.tags.push(["r", selectedUrl]);
-      if (song.songId) event.tags.push(["a", song.address]);
-
-      await event.sign();
-      const relays = await event.publish();
-      if (relays.size === 0) throw new Error("Published to 0 relays");
+      const template = buildShareSongNoteTemplate({
+        song,
+        content,
+        audioUrl: selectedUrl,
+        hashtags,
+      });
+      await signAndPublish(template);
       setPhase("done");
     } catch (err: any) {
       setErrorMsg(err.message ?? "Publish failed");
@@ -182,7 +184,7 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
                         "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors font-mono",
                         selectedUrl === url
                           ? "border-on-background bg-on-background text-surface"
-                          : "border-on-background/20 hover:border-on-background/60"
+                          : "border-on-background/20 hover:border-on-background/60",
                       )}
                       title={url}
                     >
@@ -197,7 +199,7 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
                     "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
                     selectedUrl === null
                       ? "border-on-background bg-on-background text-surface"
-                      : "border-on-background/20 hover:border-on-background/60"
+                      : "border-on-background/20 hover:border-on-background/60",
                   )}
                 >
                   NO_FILE

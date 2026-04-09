@@ -1,3 +1,4 @@
+import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import {
   getAddressableReferences,
@@ -8,6 +9,10 @@ import {
 
 export const WF_SONG_LIST_KIND = 30078;
 export const SONG_LIST_LABEL = "wavefunc_user_song_list";
+
+const ParsedSongListSymbol = Symbol("ParsedSongList");
+
+export type ParsedSongList = ReturnType<typeof parseSongListEvent>;
 
 export type SongListTemplateInput = {
   listId?: string;
@@ -35,18 +40,38 @@ export function getSongAddresses(event: NostrEvent) {
 }
 
 export function parseSongListEvent(event: NostrEvent, relays?: string[]) {
-  const refs = getAddressableReferences(event, relays);
+  return getOrComputeCachedValue(event, ParsedSongListSymbol, () => {
+    const refs = getAddressableReferences(event, relays);
 
-  return {
-    event,
-    kind: WF_SONG_LIST_KIND,
-    listId: getFirstTagValue(event, "d"),
-    name: getFirstTagValue(event, "name"),
-    description: getFirstTagValue(event, "description"),
-    label: getFirstTagValue(event, "l"),
-    songAddresses: getSongAddresses(event),
-    ...refs,
-  };
+    return {
+      event,
+      id: event.id,
+      kind: WF_SONG_LIST_KIND,
+      pubkey: event.pubkey,
+      created_at: event.created_at,
+      content: event.content,
+      tags: event.tags,
+      listId: getFirstTagValue(event, "d"),
+      name: getFirstTagValue(event, "name"),
+      description: getFirstTagValue(event, "description"),
+      label: getFirstTagValue(event, "l"),
+      songAddresses: getSongAddresses(event),
+      ...refs,
+    };
+  });
+}
+
+export function songListHasSong(
+  list: Pick<ParsedSongList, "songAddresses">,
+  songAddress: string,
+): boolean {
+  return list.songAddresses.includes(songAddress);
+}
+
+export function getSongListSongCount(
+  list: Pick<ParsedSongList, "songAddresses">,
+): number {
+  return list.songAddresses.length;
 }
 
 export function buildSongListTemplate(

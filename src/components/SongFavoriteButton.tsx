@@ -1,18 +1,15 @@
 import { useMemo, useState } from "react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
+import { useCurrentAccount } from "../lib/nostr/auth";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { usePlayerStore } from "../stores/playerStore";
 import { useUIStore } from "../stores/uiStore";
-import { useSongFavorites } from "../lib/hooks/useSongFavorites";
-import { NDKSong } from "../lib/NDKSong";
+import {
+  buildSongTemplateFromMetadata,
+  deriveSongIdFromMetadata,
+  getSongAddressForPubkey,
+  useSongFavorites,
+} from "../lib/hooks/useSongFavorites";
 import { cn } from "@/lib/utils";
-
-function slugify(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 64);
-}
 
 interface Props {
   size?: "sm" | "md";
@@ -20,32 +17,27 @@ interface Props {
 }
 
 export function SongFavoriteButton({ size = "sm", className }: Props) {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
   const { currentMetadata } = usePlayerStore();
-  const { addToDefaultList, removeFromAllLists, isInAnyList, isLoggedIn } = useSongFavorites();
+  const { addToDefaultList, removeFromAllLists, isInAnyList, isLoggedIn } =
+    useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);
   const [busy, setBusy] = useState(false);
   // Optimistic: null = use server state, true/false = override until relay confirms
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
 
-  // Derive the canonical address for the current track
+  // Derive the canonical song address for the current track
   const songAddress = useMemo(() => {
     if (!currentMetadata?.song || !currentUser?.pubkey) return null;
-    const mb = currentMetadata.musicBrainz;
-    const title = mb?.title || currentMetadata.song;
-    const artist = mb?.artist || currentMetadata.artist || "";
-    const dTag = mb?.id
-      ? `mb-${mb.id}`
-      : slugify(`${title}-by-${artist}`) || "unknown";
-    return `31337:${currentUser.pubkey}:${dTag}`;
+    const songId = deriveSongIdFromMetadata(currentMetadata);
+    return getSongAddressForPubkey(songId, currentUser.pubkey);
   }, [currentMetadata, currentUser?.pubkey]);
 
   const serverFavorited = useMemo(
     () => (songAddress ? isInAnyList(songAddress) : false),
-    [songAddress, isInAnyList]
+    [songAddress, isInAnyList],
   );
-  // Once relay confirms, drop the optimistic override
   const isFavorited = optimistic !== null ? optimistic : serverFavorited;
 
   if (!currentMetadata?.song) return null;
@@ -55,8 +47,10 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (busy) return;
-    if (!isLoggedIn) { pulseLogin(); return; }
-    if (!ndk || !currentUser?.pubkey) return;
+    if (!isLoggedIn || !currentUser?.pubkey) {
+      pulseLogin();
+      return;
+    }
 
     const next = !isFavorited;
     setOptimistic(next);
@@ -65,16 +59,17 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
       if (!next && songAddress) {
         await removeFromAllLists(songAddress);
       } else {
-        const song = NDKSong.fromMetadata(ndk, currentMetadata, currentUser.pubkey);
-        await song.sign();
-        await song.publish();
-        await addToDefaultList(song.address);
+        // Publish the song event itself first, then add it to the default list.
+        const songTemplate = buildSongTemplateFromMetadata(currentMetadata);
+        const songEvent = await signAndPublish(songTemplate);
+        const songId = deriveSongIdFromMetadata(currentMetadata);
+        const address = getSongAddressForPubkey(songId, songEvent.pubkey);
+        await addToDefaultList(address);
       }
-      // Let the subscription take over — clear optimistic state
       setOptimistic(null);
     } catch (err) {
       console.error("Song favourite error:", err);
-      setOptimistic(null); // revert on error
+      setOptimistic(null);
     } finally {
       setBusy(false);
     }
@@ -87,7 +82,7 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
       className={cn(
         "flex items-center justify-center transition-colors",
         isFavorited ? "text-primary" : "text-on-background/40 hover:text-primary",
-        className
+        className,
       )}
       title={
         !isLoggedIn

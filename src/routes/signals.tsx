@@ -1,10 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { use$ } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
 import { useMemo, useState } from "react";
-import { useSubscribe, useProfileValue } from "@nostr-dev-kit/react";
-import { NDKSong } from "../lib/NDKSong";
+import { map, of, scan, startWith } from "rxjs";
 import { CrateSaveButton } from "../components/CrateSaveButton";
 import { ShareSongDialog } from "../components/ShareSongDialog";
-import { getAppDataSubscriptionOptions } from "../config/nostr";
+import { getAppDataRelayUrls } from "../config/nostr";
+import { useProfile } from "../lib/nostr/auth";
+import {
+  parseSongEvent,
+  SONG_KIND,
+  type ParsedSong,
+} from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -19,13 +28,14 @@ export const Route = createFileRoute("/signals")({
 // ─── Song signal row ──────────────────────────────────────────────────────────
 
 interface SignalRowProps {
-  song: NDKSong;
+  song: ParsedSong;
 }
 
 function SignalRow({ song }: SignalRowProps) {
-  const profile = useProfileValue(song.pubkey, { subOpts: { closeOnEose: true } });
-  const displayName = profile?.name || profile?.displayName || `${song.pubkey.slice(0, 8)}...`;
-  const avatar = profile?.image || profile?.picture;
+  const profile = useProfile(song.pubkey);
+  const displayName =
+    profile?.name || profile?.display_name || `${song.pubkey.slice(0, 8)}...`;
+  const avatar = profile?.picture;
   const [embedOpen, setEmbedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -148,17 +158,43 @@ function SignalRow({ song }: SignalRowProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function Signals() {
-  const { events, eose } = useSubscribe(
-    [{ kinds: [31337 as number], limit: 100 }],
-    getAppDataSubscriptionOptions({ closeOnEose: false })
-  );
+  const { eventStore, relayPool } = useWavefuncNostr();
+  const relays = getAppDataRelayUrls();
+  const relaysKey = JSON.stringify(relays);
 
-  const songs = useMemo(
+  const filters: Filter[] = useMemo(
+    () => [{ kinds: [SONG_KIND], limit: 100 }],
+    [],
+  );
+  const filtersKey = JSON.stringify(filters);
+
+  const eose =
+    use$(
+      () =>
+        relayPool.subscription(relays, filters).pipe(
+          storeEvents(eventStore),
+          map((message) => message === "EOSE"),
+          startWith(false),
+          scan((done, current) => done || current, false),
+        ),
+      [eventStore, filtersKey, relayPool, relaysKey],
+    ) ?? false;
+
+  const events =
+    use$(
+      () =>
+        eventStore
+          .timeline(filters)
+          .pipe(map((timeline) => [...timeline])),
+      [eventStore, filtersKey],
+    ) ?? [];
+
+  const songs: ParsedSong[] = useMemo(
     () =>
       events
-        .map((e) => NDKSong.from(e))
+        .map((e) => parseSongEvent(e))
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)),
-    [events]
+    [events],
   );
 
   return (
