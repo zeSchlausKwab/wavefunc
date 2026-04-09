@@ -17,7 +17,6 @@ export function useAuth() {
   const {
     currentAccount,
     currentPubkey,
-    session,
     sessionReady,
     loginWithExtension,
     loginWithPrivateKey,
@@ -28,7 +27,6 @@ export function useAuth() {
   return {
     currentAccount,
     currentPubkey,
-    session,
     sessionReady,
     loginWithExtension,
     loginWithPrivateKey,

@@ -11,7 +11,7 @@ import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
-import { useWalletStore } from "../stores/walletStore";
+import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -58,8 +58,9 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   onZap,
 }) => {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, signer, readRelays } = useWavefuncNostr();
-  const { nwcConnection } = useWalletStore();
+  const { eventStore, relayPool, accounts, readRelays } = useWavefuncNostr();
+  const nwcConnection = useNWCConnectionStore((s) => s.connection);
+  const signer = accounts.active?.signer ?? null;
 
   const stationAddress =
     getAddressableIdentity(station) ?? `${station.kind}:${station.pubkey}`;

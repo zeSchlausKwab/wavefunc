@@ -1,24 +1,39 @@
-import {
-  NDKEvent,
-  NDKKind,
-  useNDK,
-  useNDKCurrentUser,
-  useProfileValue,
-  useSubscribe,
-} from "@nostr-dev-kit/react";
+// Applesauce-native community feed.
+// kind 1 root notes + kind 1111 replies, both tagged #wavefunc.
+// Reactivity goes through useEventModel(TimelineModel, ...) and a separate
+// effect keeps a relay subscription open so the store stays populated.
+
 import { createFileRoute } from "@tanstack/react-router";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { TimelineModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
+import { getAppDataRelayUrls } from "../config/nostr";
+import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
+import {
+  buildCommunityReplyTemplate,
+  buildCommunityRootTemplate,
+  buildReactionTemplate,
+  COMMUNITY_POST_KIND,
+  COMMUNITY_REPLY_KIND,
+  COMMUNITY_TOPIC,
+  parseCommunityPostEvent,
+  type CommunityCategory,
+  type ParsedCommunityPost,
+} from "../lib/nostr/domain";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/community")({
   component: Community,
 });
 
-type ShoutboxCategory = "all" | "bug" | "feature" | "greeting" | "general";
+type ShoutboxCategory = "all" | CommunityCategory;
 
 interface CategoryOption {
-  value: Exclude<ShoutboxCategory, "all">;
+  value: CommunityCategory;
   label: string;
   icon: string;
 }
@@ -33,101 +48,115 @@ const categoryOptions: CategoryOption[] = [
 // ── Community page ────────────────────────────────────────────────────────────
 
 function Community() {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
+  const { eventStore, relayPool, signAndPublish } = useWavefuncNostr();
   const [activeFilter, setActiveFilter] = useState<ShoutboxCategory>("all");
   const [inputText, setInputText] = useState("");
   const [transmitError, setTransmitError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<Exclude<ShoutboxCategory, "all">>("general");
-
-  const [categoryCount, setCategoryCount] = useState<Record<ShoutboxCategory, number>>({
-    all: 0, bug: 0, feature: 0, greeting: 0, general: 0,
-  });
+  const [selectedCategory, setSelectedCategory] =
+    useState<CommunityCategory>("general");
 
   // Subscribe to both kind 1 root notes and kind 1111 replies tagged #wavefunc
-  const filters = useMemo(() => [
-    { kinds: [NDKKind.Text],         "#t": ["wavefunc"], limit: 100 },
-    { kinds: [NDKKind.GenericReply], "#t": ["wavefunc"], limit: 500 },
-  ], []);
+  const filters: Filter[] = useMemo(
+    () => [
+      { kinds: [COMMUNITY_POST_KIND], "#t": [COMMUNITY_TOPIC], limit: 100 },
+      { kinds: [COMMUNITY_REPLY_KIND], "#t": [COMMUNITY_TOPIC], limit: 500 },
+    ],
+    [],
+  );
 
-  const { events: allEvents, eose } = useSubscribe(
-    filters,
-    { closeOnEose: false, groupable: false }
+  // Active relay subscription so events flow into the store
+  const [eose, setEose] = useState(false);
+  useEffect(() => {
+    setEose(false);
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe({
+        next: (message) => {
+          if (message === "EOSE") setEose(true);
+        },
+      });
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
+
+  const rawEvents = useEventModel(TimelineModel, [filters]) ?? [];
+
+  const allPosts: ParsedCommunityPost[] = useMemo(
+    () => rawEvents.map((event) => parseCommunityPostEvent(event)),
+    [rawEvents],
   );
 
   // Kind 1 root messages, newest first
-  const rootMessages = useMemo(() =>
-    allEvents
-      .filter((e) => e.kind === NDKKind.Text)
-      .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)),
-    [allEvents]
+  const rootMessages = useMemo(
+    () =>
+      allPosts
+        .filter((post) => post.kind === COMMUNITY_POST_KIND)
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)),
+    [allPosts],
   );
 
-  // Build thread map: rootMessageId → replies[]
+  // Build thread map: parentEventId → replies[]
   const threadMap = useMemo(() => {
-    const map = new Map<string, NDKEvent[]>();
-    allEvents
-      .filter((e) => e.kind === NDKKind.GenericReply)
-      .forEach((reply) => {
-        const eTag = reply.tags.find((t) => t[0] === "e");
-        const parentId = eTag?.[1];
-        if (!parentId) return;
-        if (!map.has(parentId)) map.set(parentId, []);
-        map.get(parentId)!.push(reply);
-      });
+    const map = new Map<string, ParsedCommunityPost[]>();
+    for (const post of allPosts) {
+      if (post.kind !== COMMUNITY_REPLY_KIND) continue;
+      if (!post.parentEventId) continue;
+      if (!map.has(post.parentEventId)) map.set(post.parentEventId, []);
+      map.get(post.parentEventId)!.push(post);
+    }
     return map;
-  }, [allEvents]);
+  }, [allPosts]);
 
   // Filter root messages by active category
   const filteredMessages = useMemo(() => {
     if (activeFilter === "all") return rootMessages;
-    return rootMessages.filter((e) =>
-      e.tags.some((t) => t[0] === "t" && t[1] === activeFilter)
-    );
+    return rootMessages.filter((post) => {
+      if (activeFilter === "general") {
+        // "general" = no other category tag set
+        return post.categories.length === 0;
+      }
+      return post.categories.includes(activeFilter);
+    });
   }, [rootMessages, activeFilter]);
 
-  // Category counts
-  useEffect(() => {
+  // Category counts (derived directly from rootMessages — no setState needed)
+  const categoryCount = useMemo(() => {
     const counts: Record<ShoutboxCategory, number> = {
-      all: rootMessages.length, bug: 0, feature: 0, greeting: 0, general: 0,
+      all: rootMessages.length,
+      bug: 0,
+      feature: 0,
+      greeting: 0,
+      general: 0,
     };
-    rootMessages.forEach((e) => {
-      const tags = e.tags;
-      let found = false;
-      if (tags.some((t) => t[0] === "t" && t[1] === "bug"))      { counts.bug++;      found = true; }
-      if (tags.some((t) => t[0] === "t" && t[1] === "feature"))  { counts.feature++;  found = true; }
-      if (tags.some((t) => t[0] === "t" && t[1] === "greeting")) { counts.greeting++; found = true; }
-      if (!found) counts.general++;
-    });
-    setCategoryCount(counts);
+    for (const post of rootMessages) {
+      if (post.categories.includes("bug")) counts.bug++;
+      if (post.categories.includes("feature")) counts.feature++;
+      if (post.categories.includes("greeting")) counts.greeting++;
+      if (post.categories.length === 0) counts.general++;
+    }
+    return counts;
   }, [rootMessages]);
 
   // Publish a kind 1 root note with #wavefunc + optional category tag
   const handleRootComment = async (
     content: string,
-    category: Exclude<ShoutboxCategory, "all"> = "general"
+    category: CommunityCategory = "general",
   ) => {
-    if (!currentUser || !ndk) { alert("Please log in to post"); return; }
-    const note = new NDKEvent(ndk);
-    note.kind = NDKKind.Text;
-    note.content = content;
-    note.tags = [["t", "wavefunc"]];
-    if (category !== "general") note.tags.push(["t", category]);
-    await note.publish();
+    if (!currentUser) {
+      alert("Please log in to post");
+      return;
+    }
+    await signAndPublish(buildCommunityRootTemplate({ content, category }));
   };
 
   // Publish a kind 1111 reply referencing the parent event
-  const handleReply = async (content: string, parentEvent: NDKEvent) => {
-    if (!currentUser || !ndk) { alert("Please log in to reply"); return; }
-    const reply = new NDKEvent(ndk);
-    reply.kind = NDKKind.GenericReply;
-    reply.content = content;
-    reply.tags = [
-      ["t", "wavefunc"],
-      ["e", parentEvent.id, "", "reply"],
-      ["p", parentEvent.pubkey],
-    ];
-    await reply.publish();
+  const handleReply = async (content: string, parent: ParsedCommunityPost) => {
+    if (!currentUser) {
+      alert("Please log in to reply");
+      return;
+    }
+    await signAndPublish(buildCommunityReplyTemplate(parent.event, content));
   };
 
   const handleSubmit = async () => {
@@ -145,7 +174,7 @@ function Community() {
     ? `OPERATOR@${currentUser.pubkey.slice(0, 8).toUpperCase()}`
     : "GUEST@WAVEFUNC";
 
-  if (!eose && allEvents.length === 0) {
+  if (!eose && allPosts.length === 0) {
     return (
       <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
         <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
@@ -388,55 +417,78 @@ function Community() {
   );
 }
 
+// ── Reactions hook ────────────────────────────────────────────────────────────
+
+function useEventReactions(eventId: string) {
+  const currentUser = useCurrentAccount();
+  const { eventStore, relayPool } = useWavefuncNostr();
+
+  const filters: Filter[] = useMemo(
+    () => [{ kinds: [7], "#e": [eventId] }],
+    [eventId],
+  );
+
+  useEffect(() => {
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe();
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
+
+  const reactionEvents = useEventModel(TimelineModel, [filters]) ?? [];
+
+  return useMemo(() => {
+    return {
+      count: reactionEvents.length,
+      userHasReacted: reactionEvents.some(
+        (e) => e.pubkey === currentUser?.pubkey,
+      ),
+    };
+  }, [reactionEvents, currentUser?.pubkey]);
+}
+
 // ── Root message card ─────────────────────────────────────────────────────────
 
 interface CommunityMessageCardProps {
-  message: NDKEvent;
-  replies: NDKEvent[];
-  threadMap: Map<string, NDKEvent[]>;
-  onReply: (content: string, parentEvent: NDKEvent) => Promise<void>;
+  message: ParsedCommunityPost;
+  replies: ParsedCommunityPost[];
+  threadMap: Map<string, ParsedCommunityPost[]>;
+  onReply: (content: string, parent: ParsedCommunityPost) => Promise<void>;
   canReply: boolean;
 }
 
-function CommunityMessageCard({ message, replies, threadMap, onReply, canReply }: CommunityMessageCardProps) {
+function CommunityMessageCard({
+  message,
+  replies,
+  threadMap,
+  onReply,
+  canReply,
+}: CommunityMessageCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
-  const profile = useProfileValue(message.pubkey);
-  const currentUser = useNDKCurrentUser();
+  const profile = useProfile(message.pubkey);
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
 
-  // Reactions on the root message (kind 1)
-  const reactionFilter = useMemo(
-    () => [{ kinds: [NDKKind.Reaction], "#e": [message.id] }],
-    [message.id]
-  );
-  const { events: reactionEvents } = useSubscribe(
-    reactionFilter,
-    { closeOnEose: true },
-    [message.id]
-  );
-  const reactionCount = reactionEvents.length;
-  const userHasReacted = reactionEvents.some((e) => e.pubkey === currentUser?.pubkey);
+  const { count: reactionCount, userHasReacted } = useEventReactions(message.id);
 
   const timestamp = message.created_at
     ? formatDistanceToNow(new Date(message.created_at * 1000), { addSuffix: true })
     : "UNKNOWN_TIME";
 
-  const categories = message.tags
-    .filter((t) => t[0] === "t" && t[1] !== "wavefunc")
-    .map((t) => t[1]);
-
   const opId = `OP_${message.pubkey.slice(0, 8).toUpperCase()}`;
 
   const sortedReplies = useMemo(
     () => [...replies].sort((a, b) => (a.created_at || 0) - (b.created_at || 0)),
-    [replies]
+    [replies],
   );
 
   const handleReact = async () => {
     if (!currentUser) return;
-    await message.react("❤️");
+    await signAndPublish(buildReactionTemplate(message.event));
   };
 
   const handleShare = () => {
@@ -486,7 +538,7 @@ function CommunityMessageCard({ message, replies, threadMap, onReply, canReply }
               {opId}
             </span>
             <div className="flex items-center gap-2 flex-wrap">
-              {categories.map((cat) => (
+              {message.categories.map((cat) => (
                 <span
                   key={cat}
                   className="text-[8px] font-black uppercase bg-on-background text-surface px-1.5 py-0.5"
@@ -632,33 +684,31 @@ function CommunityMessageCard({ message, replies, threadMap, onReply, canReply }
 // ── Reply card — recursive, identical style to root message card ──────────────
 
 interface ReplyCardProps {
-  reply: NDKEvent;
-  directReplies: NDKEvent[];
-  threadMap: Map<string, NDKEvent[]>;
-  onReply: (content: string, parentEvent: NDKEvent) => Promise<void>;
+  reply: ParsedCommunityPost;
+  directReplies: ParsedCommunityPost[];
+  threadMap: Map<string, ParsedCommunityPost[]>;
+  onReply: (content: string, parent: ParsedCommunityPost) => Promise<void>;
   canReply: boolean;
   defaultShowReplies?: boolean;
 }
 
-function ReplyCard({ reply, directReplies, threadMap, onReply, canReply, defaultShowReplies }: ReplyCardProps) {
+function ReplyCard({
+  reply,
+  directReplies,
+  threadMap,
+  onReply,
+  canReply,
+  defaultShowReplies,
+}: ReplyCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [showReplies, setShowReplies] = useState(defaultShowReplies ?? false);
   const [replyText, setReplyText] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
-  const profile = useProfileValue(reply.pubkey);
-  const currentUser = useNDKCurrentUser();
+  const profile = useProfile(reply.pubkey);
+  const currentUser = useCurrentAccount();
+  const { signAndPublish } = useWavefuncNostr();
 
-  const reactionFilter = useMemo(
-    () => [{ kinds: [NDKKind.Reaction], "#e": [reply.id] }],
-    [reply.id]
-  );
-  const { events: reactionEvents } = useSubscribe(
-    reactionFilter,
-    { closeOnEose: true },
-    [reply.id]
-  );
-  const reactionCount = reactionEvents.length;
-  const userHasReacted = reactionEvents.some((e) => e.pubkey === currentUser?.pubkey);
+  const { count: reactionCount, userHasReacted } = useEventReactions(reply.id);
 
   const opId = `OP_${reply.pubkey.slice(0, 8).toUpperCase()}`;
   const timestamp = reply.created_at
@@ -667,12 +717,12 @@ function ReplyCard({ reply, directReplies, threadMap, onReply, canReply, default
 
   const sortedReplies = useMemo(
     () => [...directReplies].sort((a, b) => (a.created_at || 0) - (b.created_at || 0)),
-    [directReplies]
+    [directReplies],
   );
 
   const handleReact = async () => {
     if (!currentUser) return;
-    await reply.react("❤️");
+    await signAndPublish(buildReactionTemplate(reply.event));
   };
 
   const handleShare = () => {

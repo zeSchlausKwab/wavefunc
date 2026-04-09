@@ -1,40 +1,54 @@
-import { EventFactory, EventStore } from "applesauce-core";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { createEventLoaderForStore } from "applesauce-loaders/loaders";
+/**
+ * Wavefunc nostr React provider.
+ *
+ * Reads from the singletons in `./store` and exposes them via context for
+ * components that prefer hook-based access. The provider also pushes the
+ * env-derived read/write relay lists into the singleton pool, attaches the
+ * applesauce event loader exactly once, and runs the wallet kinds bootstrap
+ * subscription whenever the active account changes.
+ */
 import {
   EventStoreProvider,
   FactoryProvider,
 } from "applesauce-react/providers";
-import { RelayPool } from "applesauce-relay";
+import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import type { PublishResponse } from "applesauce-relay/types";
-import {
-  ExtensionSigner,
-  NostrConnectSigner,
-  PrivateKeySigner,
-  type ISigner,
-} from "applesauce-signers";
+import type { AccountManager } from "applesauce-accounts";
+import type { ActionRunner } from "applesauce-actions";
+import type { LocalStorageCouch } from "applesauce-wallet/helpers";
+import { createEventLoaderForStore } from "applesauce-loaders/loaders";
+import { NostrConnectSigner } from "applesauce-signers";
 import {
   createContext,
   useEffect,
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { nip19 } from "nostr-tools";
+import {
+  eventStore,
+  relayPool,
+  eventFactory,
+  accounts as accountManager,
+  actions as actionRunner,
+  couch as walletCouch,
+  setPublishRelays,
+  subscribeToWalletKinds,
+  markEventLoaderAttached,
+  loginWithExtension as storeLoginWithExtension,
+  loginWithPrivateKey as storeLoginWithPrivateKey,
+  loginWithBunker as storeLoginWithBunker,
+  loginWithConnectSigner as storeLoginWithConnectSigner,
+  logout as storeLogout,
+  type AccountMetadata,
+} from "./store";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
-
-const SESSION_STORAGE_KEY = "wavefunc:nostr-session:v1";
-
-export type WavefuncSession =
-  | { type: "extension" }
-  | { type: "private-key"; key: string }
-  | { type: "nostr-connect"; bunker: string };
 
 export type WavefuncAccount = {
   pubkey: string;
@@ -48,95 +62,25 @@ function accountFromPubkey(pubkey: string): WavefuncAccount {
   };
 }
 
-function readStoredSession(): WavefuncSession | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || typeof parsed.type !== "string") {
-      return null;
-    }
-
-    if (parsed.type === "extension") {
-      return { type: "extension" };
-    }
-
-    if (parsed.type === "private-key" && typeof parsed.key === "string") {
-      return { type: "private-key", key: parsed.key };
-    }
-
-    if (parsed.type === "nostr-connect" && typeof parsed.bunker === "string") {
-      return { type: "nostr-connect", bunker: parsed.bunker };
-    }
-  } catch (error) {
-    console.error("Failed to read stored Nostr session", error);
-  }
-
-  return null;
-}
-
-function writeStoredSession(session: WavefuncSession | null) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (!session) {
-    window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-}
-
-function encodePrivateKey(signer: PrivateKeySigner) {
-  return nip19.nsecEncode(signer.key);
-}
-
-function buildBunkerUri(signer: NostrConnectSigner) {
-  if (!signer.remote) {
-    throw new Error("Remote signer pubkey is missing");
-  }
-
-  const params = new URLSearchParams();
-  for (const relay of signer.relays) {
-    params.append("relay", relay);
-  }
-  if (signer.secret) {
-    params.set("secret", signer.secret);
-  }
-
-  return `bunker://${signer.remote}?${params.toString()}`;
-}
-
 export type WavefuncNostrContextValue = {
-  eventStore: EventStore;
-  relayPool: RelayPool;
-  eventFactory: EventFactory;
+  eventStore: typeof eventStore;
+  relayPool: typeof relayPool;
+  eventFactory: typeof eventFactory;
+  accounts: AccountManager<AccountMetadata>;
+  actions: ActionRunner;
+  couch: LocalStorageCouch;
   readRelays: string[];
   writeRelays: string[];
-  signer: ISigner | null;
   currentPubkey: string | null;
   currentAccount: WavefuncAccount | null;
-  session: WavefuncSession | null;
   sessionReady: boolean;
-  setSigner: (signer: ISigner | null) => Promise<string | null>;
-  clearSigner: () => void;
-  authenticate: (
-    signer: ISigner,
-    session: WavefuncSession | null
-  ) => Promise<WavefuncAccount>;
   loginWithExtension: () => Promise<WavefuncAccount>;
   loginWithPrivateKey: (key: string | Uint8Array) => Promise<WavefuncAccount>;
   loginWithBunker: (bunker: string) => Promise<WavefuncAccount>;
+  loginWithConnectSigner: (
+    signer: NostrConnectSigner
+  ) => Promise<WavefuncAccount>;
   logout: () => Promise<void>;
-  connectExtensionSigner: () => Promise<string>;
   createNostrConnectSigner: (
     options?: Partial<{
       relays: string[];
@@ -175,119 +119,84 @@ export function WavefuncNostrProvider({
   const readRelayList = useMemo(() => unique(readRelays), [readRelays]);
   const writeRelayList = useMemo(() => unique(writeRelays), [writeRelays]);
 
-  const relayPool = useMemo(() => {
-    const pool = new RelayPool();
-
-    for (const relay of unique([...readRelayList, ...writeRelayList])) {
-      pool.relay(relay);
+  // Push the configured relays into the singleton pool. Calling
+  // `relayPool.relay(url)` is idempotent — it warm-connects each relay
+  // exactly once and is safe to re-run on prop changes.
+  useEffect(() => {
+    for (const url of unique([...readRelayList, ...writeRelayList])) {
+      relayPool.relay(url);
     }
-
-    NostrConnectSigner.pool = pool;
-    return pool;
+    setPublishRelays(writeRelayList);
   }, [readRelayList, writeRelayList]);
 
-  const eventStore = useMemo(() => {
-    const store = new EventStore();
-    createEventLoaderForStore(store, relayPool, {
+  // Attach the event loader exactly once across HMR. The loader resolves
+  // address pointers / replaceable events lazily and needs an initial set of
+  // lookup relays so it knows where to ask for events with no hint.
+  useEffect(() => {
+    if (!markEventLoaderAttached()) return;
+    createEventLoaderForStore(eventStore, relayPool, {
       lookupRelays: readRelayList,
       extraRelays: readRelayList,
     });
-    return store;
-  }, [readRelayList, relayPool]);
-
-  const eventFactory = useMemo(() => new EventFactory(), []);
-  const [signer, setSignerState] = useState<ISigner | null>(null);
-  const [currentPubkey, setCurrentPubkey] = useState<string | null>(null);
-  const [currentAccount, setCurrentAccount] = useState<WavefuncAccount | null>(
-    null
-  );
-  const [session, setSession] = useState<WavefuncSession | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
-  const signerRef = useRef<ISigner | null>(null);
-
-  const closeSigner = useCallback(async (target: ISigner | null) => {
-    if (!target || !("close" in target) || typeof target.close !== "function") {
-      return;
-    }
-
-    await Promise.race([
-      target.close().catch(() => undefined),
-      new Promise((resolve) => setTimeout(resolve, 250)),
-    ]);
+    // readRelayList is intentionally captured at first-mount; the loader
+    // doesn't pick up later changes. New relay URLs added later are still
+    // reachable through `relayPool.relay()` above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const clearSigner = useCallback(() => {
-    signerRef.current = null;
-    setSignerState(null);
-    setCurrentPubkey(null);
-    setCurrentAccount(null);
-    setSession(null);
-    eventFactory.clearSigner();
-    writeStoredSession(null);
-  }, [eventFactory]);
+  // Reactive currentPubkey from the AccountManager.
+  const [currentPubkey, setCurrentPubkey] = useState<string | null>(
+    accountManager.active?.pubkey ?? null
+  );
+  useEffect(() => {
+    const sub = accountManager.active$.subscribe((a) => {
+      setCurrentPubkey(a?.pubkey ?? null);
+    });
+    return () => sub.unsubscribe();
+  }, []);
 
-  const setSigner = useCallback(
-    async (nextSigner: ISigner | null) => {
-      if (!nextSigner) {
-        clearSigner();
-        return null;
-      }
-
-      eventFactory.setSigner(nextSigner);
-      const pubkey = await nextSigner.getPublicKey();
-      signerRef.current = nextSigner;
-      setSignerState(nextSigner);
-      setCurrentPubkey(pubkey);
-      setCurrentAccount(accountFromPubkey(pubkey));
-      return pubkey;
-    },
-    [clearSigner, eventFactory]
+  const currentAccount = useMemo(
+    () => (currentPubkey ? accountFromPubkey(currentPubkey) : null),
+    [currentPubkey]
   );
 
-  const authenticate = useCallback(
-    async (nextSigner: ISigner, nextSession: WavefuncSession | null) => {
-      const previousSigner = signerRef.current;
-      if (previousSigner && previousSigner !== nextSigner) {
-        await closeSigner(previousSigner);
-      }
+  // Wallet bootstrap — load wallet kinds whenever the active account changes.
+  useEffect(() => {
+    if (!currentPubkey) return;
+    const sub = subscribeToWalletKinds(currentPubkey, readRelayList);
+    return () => sub.unsubscribe();
+  }, [currentPubkey, readRelayList]);
 
-      const pubkey = await setSigner(nextSigner);
-      if (!pubkey) {
-        throw new Error("Failed to resolve signer pubkey");
-      }
-
-      const account = accountFromPubkey(pubkey);
-      setSession(nextSession);
-      writeStoredSession(nextSession);
-      return account;
-    },
-    [closeSigner, setSigner]
-  );
-
-  const connectExtensionSigner = useCallback(async () => {
-    const pubkey = await setSigner(new ExtensionSigner());
-    if (!pubkey) {
-      throw new Error("Failed to connect extension signer");
-    }
-
-    return pubkey;
-  }, [setSigner]);
-
-  const loginWithExtension = useCallback(
-    async () => authenticate(new ExtensionSigner(), { type: "extension" }),
-    [authenticate]
-  );
+  // ── Login wrappers (return WavefuncAccount instead of raw Account) ──────
+  const loginWithExtension = useCallback(async () => {
+    const account = await storeLoginWithExtension();
+    return accountFromPubkey(account.pubkey);
+  }, []);
 
   const loginWithPrivateKey = useCallback(
     async (key: string | Uint8Array) => {
-      const nextSigner = PrivateKeySigner.fromKey(key);
-      return authenticate(nextSigner, {
-        type: "private-key",
-        key: encodePrivateKey(nextSigner),
-      });
+      const account = storeLoginWithPrivateKey(key);
+      return accountFromPubkey(account.pubkey);
     },
-    [authenticate]
+    []
   );
+
+  const loginWithBunker = useCallback(async (bunker: string) => {
+    const account = await storeLoginWithBunker(bunker);
+    return accountFromPubkey(account.pubkey);
+  }, []);
+
+  const loginWithConnectSigner = useCallback(
+    async (signer: NostrConnectSigner) => {
+      const account = await storeLoginWithConnectSigner(signer);
+      return accountFromPubkey(account.pubkey);
+    },
+    []
+  );
+
+  const logout = useCallback(async () => {
+    storeLogout();
+  }, []);
 
   const createNostrConnectSigner = useCallback(
     (
@@ -309,21 +218,8 @@ export function WavefuncNostrProvider({
         signer: options.signer,
         onAuth: options.onAuth,
       }),
-    [relayPool, writeRelayList]
+    [writeRelayList]
   );
-
-  const loginWithBunker = useCallback(
-    async (bunker: string) => {
-      const nextSigner = await NostrConnectSigner.fromBunkerURI(bunker);
-      return authenticate(nextSigner, { type: "nostr-connect", bunker });
-    },
-    [authenticate]
-  );
-
-  const logout = useCallback(async () => {
-    await closeSigner(signerRef.current);
-    clearSigner();
-  }, [clearSigner, closeSigner]);
 
   const publishEvent = useCallback(
     async (event: NostrEvent, relays?: string[]) => {
@@ -333,9 +229,8 @@ export function WavefuncNostrProvider({
         throw new Error("No write relays configured");
       }
 
-      // Optimistic local update — add to store first so any reactive
-      // subscribers (timeline observables, profile observables, etc.) get
-      // an immediate signal. If the relay rejects the event we roll back.
+      // Optimistic local update — add to store first so reactive subscribers
+      // get an immediate signal. Roll back if the relay rejects the event.
       eventStore.add(event, targetRelays[0]!);
 
       try {
@@ -345,110 +240,60 @@ export function WavefuncNostrProvider({
         throw error;
       }
     },
-    [eventStore, relayPool, writeRelayList]
+    [writeRelayList]
   );
 
   const signAndPublish = useCallback(
     async (draft: EventTemplate, relays?: string[]) => {
-      if (!signer) {
-        throw new Error("No signer configured");
+      if (!accountManager.active) {
+        throw new Error("No account active");
       }
 
-      // factory.build() applies common operations (created_at, strip stamps,
-      // include replaceable d-tag) that the bare sign() pipeline doesn't.
+      // factory.build() applies the common operations (created_at, strip
+      // stamps, replaceable d-tag) that the bare sign() pipeline doesn't.
       const stamped = await eventFactory.build(draft);
       const event = await eventFactory.sign(stamped);
       await publishEvent(event, relays);
       return event;
     },
-    [eventFactory, publishEvent, signer]
+    [publishEvent]
   );
-
-  useEffect(() => {
-    let active = true;
-
-    async function restoreSession() {
-      const stored = readStoredSession();
-
-      if (!stored) {
-        if (active) {
-          setSessionReady(true);
-        }
-        return;
-      }
-
-      try {
-        if (stored.type === "extension") {
-          await authenticate(new ExtensionSigner(), stored);
-        } else if (stored.type === "private-key") {
-          await authenticate(PrivateKeySigner.fromKey(stored.key), stored);
-        } else if (stored.type === "nostr-connect") {
-          const restored = await NostrConnectSigner.fromBunkerURI(stored.bunker);
-          await authenticate(restored, stored);
-        }
-      } catch (error) {
-        console.error("Failed to restore Nostr session", error);
-        clearSigner();
-      } finally {
-        if (active) {
-          setSessionReady(true);
-        }
-      }
-    }
-
-    restoreSession();
-
-    return () => {
-      active = false;
-    };
-  }, [authenticate, clearSigner]);
 
   const value = useMemo<WavefuncNostrContextValue>(
     () => ({
       eventStore,
       relayPool,
       eventFactory,
+      accounts: accountManager,
+      actions: actionRunner,
+      couch: walletCouch,
       readRelays: readRelayList,
       writeRelays: writeRelayList,
-      signer,
       currentPubkey,
       currentAccount,
-      session,
-      sessionReady,
-      setSigner,
-      clearSigner,
-      authenticate,
+      sessionReady: true,
       loginWithExtension,
       loginWithPrivateKey,
       loginWithBunker,
+      loginWithConnectSigner,
       logout,
-      connectExtensionSigner,
       createNostrConnectSigner,
       publishEvent,
       signAndPublish,
     }),
     [
-      authenticate,
-      clearSigner,
-      connectExtensionSigner,
-      createNostrConnectSigner,
-      currentAccount,
+      readRelayList,
+      writeRelayList,
       currentPubkey,
-      eventFactory,
-      eventStore,
-      loginWithBunker,
+      currentAccount,
       loginWithExtension,
       loginWithPrivateKey,
+      loginWithBunker,
+      loginWithConnectSigner,
       logout,
+      createNostrConnectSigner,
       publishEvent,
-      readRelayList,
-      relayPool,
-      session,
-      sessionReady,
-      setSigner,
       signAndPublish,
-      signer,
-      writeRelayList,
     ]
   );
 

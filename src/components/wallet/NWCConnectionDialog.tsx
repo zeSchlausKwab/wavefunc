@@ -1,9 +1,8 @@
-import { useNDK } from "@nostr-dev-kit/react";
 import { useState } from "react";
-import { Scanner } from "@yudiel/react-qr-scanner";
 import { Link as LinkIcon, QrCode } from "lucide-react";
-import { useWalletStore } from "../../stores/walletStore";
-import { initializeNWCWallet } from "../../lib/nwcWalletUtils";
+import { useNWCConnectionStore } from "../../stores/nwcConnectionStore";
+import { parseNWCConnectionString } from "../../lib/nostr/nwc";
+import { QRScanner } from "../QRScanner";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -21,25 +20,25 @@ interface NWCConnectionDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * NWC pairing dialog. Validates the connection string by parsing it (no
+ * network round-trip) and persists it via `useNWCConnectionStore`. The
+ * actual `pay_invoice` flow lives in `src/lib/nostr/nwc.ts` and is invoked
+ * from `ZapDialog` when the user picks the NWC zap path.
+ */
 export function NWCConnectionDialog({
   open,
   onOpenChange,
 }: NWCConnectionDialogProps) {
-  const { ndk } = useNDK();
-  const { setNWCWallet } = useWalletStore();
+  const setConnection = useNWCConnectionStore((s) => s.setConnection);
   const [connectionString, setConnectionString] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"input" | "scan">("input");
 
-  const handleConnect = async () => {
+  const handleConnect = () => {
     if (!connectionString.trim()) {
       setError("Please enter a connection string");
-      return;
-    }
-
-    if (!ndk) {
-      setError("NDK not initialized");
       return;
     }
 
@@ -47,15 +46,9 @@ export function NWCConnectionDialog({
     setError(null);
 
     try {
-      if (!connectionString.startsWith("nostr+walletconnect://")) {
-        throw new Error(
-          'Connection string must start with "nostr+walletconnect://"'
-        );
-      }
-
-      const wallet = initializeNWCWallet(ndk, connectionString);
-      setNWCWallet(wallet, connectionString);
-
+      // Validate by parsing — throws on bad scheme / missing relay / missing secret.
+      parseNWCConnectionString(connectionString);
+      setConnection(connectionString);
       setConnectionString("");
       setMode("input");
       onOpenChange(false);
@@ -124,22 +117,10 @@ export function NWCConnectionDialog({
             </>
           ) : (
             <div className="space-y-4">
-              <div className="aspect-square w-full max-w-md mx-auto rounded-lg overflow-hidden bg-black">
-                <Scanner
-                  onScan={(result) => {
-                    if (result && result.length > 0 && result[0]) {
-                      handleScan(result[0].rawValue);
-                    }
-                  }}
-                  onError={(error) => {
-                    console.error("QR Scanner error:", error);
-                    setError("Failed to access camera");
-                  }}
-                  constraints={{
-                    facingMode: "environment",
-                  }}
-                />
-              </div>
+              <QRScanner
+                onScan={(data) => handleScan(data)}
+                onClose={() => setMode("input")}
+              />
               <Button
                 variant="outline"
                 onClick={() => setMode("input")}

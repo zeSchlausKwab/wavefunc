@@ -37,7 +37,8 @@ const CONNECTION_APP_NAME =
     : "Wavefunc Radio DEV";
 
 export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
-  const { createNostrConnectSigner } = useWavefuncNostr();
+  const { createNostrConnectSigner, loginWithConnectSigner } =
+    useWavefuncNostr();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("scan");
 
@@ -139,7 +140,14 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
 
         await signer.waitForSigner(controller.signal);
         setState("connected");
-        await onLogin(buildBunkerUri(signer));
+        // Wrap the *already-connected* signer in an account directly so the
+        // established session (client key, remote pubkey, relays) is preserved
+        // across reloads — going through onLogin/loginWithBunker(uri) would
+        // throw away the session and the bunker would re-prompt the user.
+        await loginWithConnectSigner(signer);
+        // Drop the ref before cleanup() so the close() call doesn't tear down
+        // the signer the new account now owns.
+        signerRef.current = null;
         cleanup();
         setOpen(false);
       } catch (err) {

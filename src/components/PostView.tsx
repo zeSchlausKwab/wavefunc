@@ -1,9 +1,27 @@
-import { NDKKind, useSubscribe } from "@nostr-dev-kit/react";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { TimelineModel } from "applesauce-core/models";
+import { useEventModel } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
+import { useEffect, useMemo } from "react";
+import { getAppDataRelayUrls } from "../config/nostr";
+import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { MiniProfile } from "./MiniProfile";
 
 export function PostView() {
-  const { events, eose } = useSubscribe([{ kinds: [NDKKind.Text], limit: 50 }]);
+  const { eventStore, relayPool } = useWavefuncNostr();
+
+  const filters: Filter[] = useMemo(() => [{ kinds: [1], limit: 50 }], []);
+
+  useEffect(() => {
+    const subscription = relayPool
+      .subscription(getAppDataRelayUrls(), filters)
+      .pipe(storeEvents(eventStore))
+      .subscribe();
+    return () => subscription.unsubscribe();
+  }, [eventStore, relayPool, filters]);
+
+  const events = useEventModel(TimelineModel, [filters]) ?? [];
 
   return (
     <div>
