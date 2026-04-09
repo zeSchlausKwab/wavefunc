@@ -1,4 +1,7 @@
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { use$ } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
 import {
   useNDK,
   useNDKCurrentUser,
@@ -6,10 +9,13 @@ import {
   wrapEvent,
 } from "@nostr-dev-kit/react";
 import { useCallback, useMemo, useState } from "react";
+import { map, scan, startWith } from "rxjs";
+import { NDKEvent } from "@nostr-dev-kit/ndk";
 import NDKStation from "../NDKStation";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import { useStations } from "../nostr/hooks/useStations";
-import { getAppDataSubscriptionOptions } from "../../config/nostr";
+import { getAppDataRelayUrls, getAppDataSubscriptionOptions } from "../../config/nostr";
+import { useWavefuncNostr } from "../nostr/runtime";
 
 // Extend window for debug throttling
 declare global {
@@ -238,15 +244,41 @@ export function useFavorites() {
 export function useFavoritesLists(
   additionalFilters: Omit<NDKFilter, "kinds">[] = [{}]
 ) {
-  const filters = additionalFilters.map((filter) => ({
-    ...filter,
-    kinds: NDKWFFavorites.kinds,
-    "#l": ["wavefunc_user_favourite_list"],
-  }));
+  const { eventStore, relayPool } = useWavefuncNostr();
+  const relays = getAppDataRelayUrls();
+  const relaysKey = JSON.stringify(relays);
+  const filters = useMemo(
+    () =>
+      additionalFilters.map((filter) => ({
+        ...filter,
+        kinds: NDKWFFavorites.kinds,
+        "#l": ["wavefunc_user_favourite_list"],
+      })) as Filter[],
+    [additionalFilters]
+  );
+  const filtersKey = JSON.stringify(filters);
 
-  const { events, eose } = useSubscribe(filters, getAppDataSubscriptionOptions());
-  const favoritesLists = events.map(
-    (event) => wrapEvent(event) as NDKWFFavorites
+  const eose =
+    use$(
+      () =>
+        relayPool.subscription(relays, filters).pipe(
+          storeEvents(eventStore),
+          map((message) => message === "EOSE"),
+          startWith(false),
+          scan((done, current) => done || current, false),
+        ),
+      [eventStore, filtersKey, relayPool, relaysKey],
+    ) ?? false;
+
+  const events =
+    use$(
+      () => eventStore.timeline(filters).pipe(map((timeline) => [...timeline])),
+      [eventStore, filtersKey],
+    ) ?? [];
+
+  const favoritesLists = useMemo(
+    () => events.map((event) => NDKWFFavorites.from(new NDKEvent(undefined, event as any))),
+    [events]
   );
 
   return {
@@ -262,7 +294,6 @@ export function useFavoritesLists(
  * Reuses the proven useStations hook for consistency and reliability.
  */
 export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
-  const { ndk } = useNDK();
   const stationAddresses = favoritesList?.getStations() || [];
 
   // Build filter from station addresses
@@ -297,9 +328,8 @@ export function useFavoriteStations(favoritesList: NDKWFFavorites | null) {
   const { events: stationEvents, eose } = useStations([filter]);
 
   const stations = useMemo(() => {
-    if (!ndk) return [];
-    return stationEvents.map((station) => new NDKStation(ndk, station.event as any));
-  }, [ndk, stationEvents]);
+    return stationEvents.map((station) => new NDKStation(undefined, station.event as any));
+  }, [stationEvents]);
 
   return {
     stations,

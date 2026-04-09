@@ -6,7 +6,6 @@ import { SectionHeader } from "./SectionHeader";
 import { useMemo } from "react";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 interface StationViewProps {
   searchQuery: string;
@@ -39,7 +38,6 @@ function SearchResultsSkeleton() {
 }
 
 export function StationView({ searchQuery }: StationViewProps) {
-  const { legacyNdk } = useWavefuncNostr();
   const [tileParent] = useAutoAnimate();
   const {
     genres,
@@ -70,8 +68,8 @@ export function StationView({ searchQuery }: StationViewProps) {
 
   const { events, eose } = useStationsObserver(filter, clientSideFilters);
   const legacyStations = useMemo(
-    () => events.map((station) => new NDKStation(legacyNdk, station.event as any)),
-    [events, legacyNdk],
+    () => events.map((station) => new NDKStation(undefined, station.event as any)),
+    [events],
   );
 
   const isSearching = !!searchQuery.trim();

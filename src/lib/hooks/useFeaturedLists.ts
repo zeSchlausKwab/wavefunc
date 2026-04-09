@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { useSubscribe, wrapEvent } from "@nostr-dev-kit/react";
+import { use$ } from "applesauce-react/hooks";
+import { storeEvents } from "applesauce-relay/operators";
+import { map, of, scan, startWith } from "rxjs";
 import { NDKWFFavorites } from "../NDKWFFavorites";
 import { useAdminFeatures } from "./useAdminFeatures";
-import {
-  addressesToParameterizedFilters,
-  getAppDataSubscriptionOptions,
-} from "../../config/nostr";
+import { FAVORITES_LIST_LABEL } from "../nostr/domain/favorites-list";
+import { addressesToParameterizedFilters, getAppDataRelayUrls } from "../../config/nostr";
+import { useWavefuncNostr } from "../nostr/runtime";
 
 /**
  * Resolves the admin's featured-lists feature events into actual NDKWFFavorites objects.
@@ -17,7 +18,10 @@ import {
  *   4. Return them ordered by their position in the feature events
  */
 export function useFeaturedLists() {
+  const { eventStore, relayPool } = useWavefuncNostr();
   const { features, isLoading: featuresLoading } = useAdminFeatures("lists");
+  const relays = getAppDataRelayUrls();
+  const relaysKey = JSON.stringify(relays);
 
   // All referenced favorites-list addresses, deduplicated, preserving order
   const listAddresses = useMemo(() => {
@@ -37,33 +41,61 @@ export function useFeaturedLists() {
   const filters = useMemo(
     () =>
       addressesToParameterizedFilters(30078, listAddresses, {
-        "#l": ["wavefunc_user_favourite_list"],
+        "#l": [FAVORITES_LIST_LABEL],
       }),
     [listAddresses]
   );
+  const filtersKey = JSON.stringify(filters);
 
-  const { events, eose } = useSubscribe(
-    filters,
-    getAppDataSubscriptionOptions(),
-    [listAddresses]
-  );
+  const listsEose =
+    use$(
+      () => {
+        if (listAddresses.length === 0) {
+          return of(true);
+        }
 
-  // Index by address, then restore the order defined by the admin
+        return relayPool.subscription(relays, filters).pipe(
+          storeEvents(eventStore),
+          map((message) => message === "EOSE"),
+          startWith(false),
+          scan((done, current) => done || current, false),
+        );
+      },
+      [eventStore, filtersKey, listAddresses.length, relayPool, relaysKey]
+    ) ?? listAddresses.length === 0;
+
+  const events = use$(
+    () => {
+      if (listAddresses.length === 0) {
+        return of([]);
+      }
+
+      return eventStore.timeline(filters).pipe(map((timeline) => [...timeline]));
+    },
+    [eventStore, filtersKey, listAddresses.length]
+  ) ?? [];
+
   const featuredLists = useMemo(() => {
-    const byAddress = new Map<string, NDKWFFavorites>();
-    events.forEach((e) => {
-      const fav = wrapEvent(e) as NDKWFFavorites;
-      if (fav.pubkey && fav.favoritesId) {
-        byAddress.set(`30078:${fav.pubkey}:${fav.favoritesId}`, fav);
+    const favoritesByAddress = new Map<string, NDKWFFavorites>();
+
+    events.forEach((event) => {
+      const favorite = new NDKWFFavorites(undefined, event as any);
+
+      if (favorite.pubkey && favorite.favoritesId) {
+        favoritesByAddress.set(
+          `30078:${favorite.pubkey}:${favorite.favoritesId}`,
+          favorite
+        );
       }
     });
+
     return listAddresses
-      .map((addr) => byAddress.get(addr))
-      .filter((f): f is NDKWFFavorites => Boolean(f));
+      .map((address) => favoritesByAddress.get(address) ?? null)
+      .filter((favorite): favorite is NDKWFFavorites => Boolean(favorite));
   }, [events, listAddresses]);
 
   return {
     featuredLists,
-    isLoading: featuresLoading || (listAddresses.length > 0 && !eose),
+    isLoading: featuresLoading || !listsEose,
   };
 }

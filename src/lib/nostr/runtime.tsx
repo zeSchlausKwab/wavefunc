@@ -1,4 +1,3 @@
-import NDK from "@nostr-dev-kit/ndk";
 import { EventFactory, EventStore } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { createEventLoaderForStore } from "applesauce-loaders/loaders";
@@ -114,7 +113,6 @@ function buildBunkerUri(signer: NostrConnectSigner) {
 export type WavefuncNostrContextValue = {
   eventStore: EventStore;
   relayPool: RelayPool;
-  legacyNdk: NDK;
   eventFactory: EventFactory;
   readRelays: string[];
   writeRelays: string[];
@@ -183,14 +181,6 @@ export function WavefuncNostrProvider({
     return pool;
   }, [readRelayList, writeRelayList]);
 
-  const legacyNdk = useMemo(
-    () =>
-      new NDK({
-        explicitRelayUrls: readRelayList,
-      }),
-    [readRelayList]
-  );
-
   const eventStore = useMemo(() => {
     const store = new EventStore();
     createEventLoaderForStore(store, relayPool, {
@@ -208,12 +198,6 @@ export function WavefuncNostrProvider({
   );
   const [session, setSession] = useState<WavefuncSession | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
-
-  useEffect(() => {
-    legacyNdk.connect().catch((error) => {
-      console.error("Failed to connect legacy NDK bridge", error);
-    });
-  }, [legacyNdk]);
 
   const clearSigner = useCallback(() => {
     setSignerState(null);
@@ -395,7 +379,6 @@ export function WavefuncNostrProvider({
     () => ({
       eventStore,
       relayPool,
-      legacyNdk,
       eventFactory,
       readRelays: readRelayList,
       writeRelays: writeRelayList,
@@ -425,7 +408,6 @@ export function WavefuncNostrProvider({
       currentPubkey,
       eventFactory,
       eventStore,
-      legacyNdk,
       loginWithBunker,
       loginWithExtension,
       loginWithPrivateKey,

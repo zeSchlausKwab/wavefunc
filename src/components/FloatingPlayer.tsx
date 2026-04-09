@@ -15,7 +15,6 @@ import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { SongFavoriteButton } from "./SongFavoriteButton";
 import { useCurrentAccount } from "../lib/nostr/auth";
-import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 // ─── Snap levels ──────────────────────────────────────────────────────────────
 
@@ -105,7 +104,6 @@ interface FloatingPlayerProps {
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
   // ── Player store ──
-  const { legacyNdk } = useWavefuncNostr();
   const {
     currentStation,
     currentMetadata,
@@ -147,15 +145,15 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     if (!currentStation) return null;
     return currentStation instanceof NDKStation
       ? currentStation
-      : new NDKStation(legacyNdk, currentStation as any);
-  }, [currentStation, legacyNdk]);
+      : new NDKStation(undefined, currentStation as any);
+  }, [currentStation]);
 
   const legacySheetStation = useMemo(() => {
     if (!sheetStation) return null;
     return sheetStation instanceof NDKStation
       ? sheetStation
-      : new NDKStation(legacyNdk, sheetStation as any);
-  }, [sheetStation, legacyNdk]);
+      : new NDKStation(undefined, sheetStation as any);
+  }, [sheetStation]);
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);

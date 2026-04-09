@@ -1,20 +1,17 @@
 import { useState, useEffect } from "react";
-import { useNDK, useNDKCurrentUser } from "@nostr-dev-kit/react";
 import { useFeaturedLists } from "../lib/hooks/useFeaturedLists";
 import { useFavoriteStations } from "../lib/hooks/useFavorites";
-import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { NDKWFFavorites } from "../lib/NDKWFFavorites";
 import { RadioCard } from "./RadioCard";
 import { SectionTitle } from "./SectionTitle";
 import { SectionHeader } from "./SectionHeader";
-import { ZapDialog } from "./ZapDialog";
-import type { NDKStation } from "../lib/NDKStation";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   type CarouselApi,
 } from "./ui/carousel";
+import { useCurrentAccount } from "../lib/nostr/auth";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,14 +24,11 @@ function formatCount(n: number): string {
 // ─── Module ───────────────────────────────────────────────────────────────────
 
 function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: number }) {
-  const { ndk } = useNDK();
-  const currentUser = useNDKCurrentUser();
+  const currentUser = useCurrentAccount();
   const { stations, isLoading: stationsLoading } = useFavoriteStations(list);
-  const { zaps, reactions, userHasReacted } = useSocialInteractions(list);
-  const [showZapDialog, setShowZapDialog] = useState(false);
 
   const handleResonate = async () => {
-    if (!currentUser || !ndk) return;
+    if (!currentUser) return;
     await list.react("❤️");
   };
 
@@ -122,11 +116,10 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
           <div className="flex gap-4">
             <button
               className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors"
-              onClick={() => setShowZapDialog(true)}
-              title="Zap"
+              onClick={handleShare}
+              title="Share"
             >
               <span className="material-symbols-outlined text-sm">bolt</span>
-              {zaps > 0 && <span className="text-[10px] font-bold">{formatCount(zaps)}</span>}
             </button>
             <button
               className="flex items-center gap-1 hover:text-primary transition-colors"
@@ -141,26 +134,14 @@ function FeaturedListModule({ list, index }: { list: NDKWFFavorites; index: numb
             onClick={handleResonate}
             title="Resonate"
           >
-            <span
-              className="material-symbols-outlined text-sm"
-              style={{ fontVariationSettings: userHasReacted ? "'FILL' 1" : "'FILL' 0" }}
-            >
-              favorite
-            </span>
+            <span className="material-symbols-outlined text-sm">favorite</span>
             <span className="text-[10px] font-black uppercase tracking-widest">
-              {reactions > 0 ? `RESONATE · ${formatCount(reactions)}` : "RESONATE"}
+              RESONATE
             </span>
           </button>
         </div>
 
       </div>
-
-      <ZapDialog
-        station={list as unknown as NDKStation}
-        open={showZapDialog}
-        onOpenChange={setShowZapDialog}
-        onZap={async (_amount: number) => {}}
-      />
     </div>
   );
 }
@@ -215,7 +196,6 @@ export function FeaturedLists() {
 
   return (
     <div className="mb-16 space-y-6">
-
       {/* Section header */}
       <SectionHeader label="CURATED_SIGNAL">
         FEATURED_COLLECTIONS
