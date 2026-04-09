@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import {
+  getFavoritesListAddress,
   getFavoritesListStationCount,
   type ParsedFavoritesList,
 } from "../../lib/nostr/domain";
@@ -80,7 +81,7 @@ export function FavoritesListPicker({
             </div>
           )}
           {filtered.map((list) => {
-            const address = `30078:${list.pubkey}:${list.favoritesId}`;
+            const address = getFavoritesListAddress(list);
             const alreadyAdded = existingRefs.includes(address);
             return (
               <button

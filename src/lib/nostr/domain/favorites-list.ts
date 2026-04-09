@@ -64,7 +64,12 @@ export function parseFavoritesListEvent(event: NostrEvent, relays?: string[]) {
 
   return {
     event,
+    id: event.id,
     kind: WF_FAVORITES_KIND,
+    pubkey: event.pubkey,
+    created_at: event.created_at,
+    content: event.content,
+    tags: event.tags,
     favoritesId: getFirstTagValue(event, "d"),
     name: getFirstTagValue(event, "name") ?? content?.name,
     description:
@@ -72,6 +77,7 @@ export function parseFavoritesListEvent(event: NostrEvent, relays?: string[]) {
     image: content?.image,
     banner: content?.banner,
     stationAddresses: getFavoriteStationAddresses(event),
+    relays,
     ...refs,
   };
 }

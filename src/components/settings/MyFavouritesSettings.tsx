@@ -35,8 +35,13 @@ export function MyFavouritesSettings() {
     );
   }
 
-  const handleCreateList = async (name: string, description: string, banner?: string) => {
-    await createFavoritesList(name, description, banner);
+  const handleCreateList = async (
+    name: string,
+    description: string,
+    image?: string,
+    banner?: string
+  ) => {
+    await createFavoritesList(name, description, image, banner);
     setShowCreateForm(false);
   };
 
@@ -121,7 +126,7 @@ export function MyFavouritesSettings() {
             <FavoriteListCard
               key={list.favoritesId}
               list={list}
-              isOwner={currentUser?.pubkey === list.pubkey}
+              isOwner={currentUser?.pubkey === list.event.pubkey}
               onDeleteList={() => handleDeleteList(list.favoritesId!)}
             />
           ))}

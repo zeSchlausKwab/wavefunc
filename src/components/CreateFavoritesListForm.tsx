@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Image } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 
 interface CreateFavoritesListFormProps {
   onSubmit: (
     name: string,
     description: string,
+    image?: string,
     banner?: string
   ) => Promise<void>;
   onCancel: () => void;
@@ -18,15 +19,22 @@ export function CreateFavoritesListForm({
 }: CreateFavoritesListFormProps) {
   const [newListName, setNewListName] = useState("");
   const [newListDescription, setNewListDescription] = useState("");
+  const [newListImage, setNewListImage] = useState("");
   const [newListBanner, setNewListBanner] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newListName.trim()) return;
 
-    await onSubmit(newListName, newListDescription, newListBanner || undefined);
+    await onSubmit(
+      newListName,
+      newListDescription,
+      newListImage || undefined,
+      newListBanner || undefined
+    );
     setNewListName("");
     setNewListDescription("");
+    setNewListImage("");
     setNewListBanner("");
   };
 
@@ -63,6 +71,33 @@ export function CreateFavoritesListForm({
 
           <div>
             <label className="block text-sm font-medium mb-2">
+              List Image URL
+            </label>
+            <div className="space-y-2">
+              <Input
+                type="url"
+                placeholder="https://example.com/cover.jpg"
+                value={newListImage}
+                onChange={(e) => setNewListImage(e.target.value)}
+              />
+              {newListImage && (
+                <div className="rounded-lg overflow-hidden border size-24">
+                  <img
+                    src={newListImage}
+                    alt="List image preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="w-3 h-3" />
+                Optional: Add a square cover image for the list
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
               Banner Image URL
             </label>
             <div className="space-y-2">
@@ -90,7 +125,7 @@ export function CreateFavoritesListForm({
                 </div>
               )}
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Image className="w-3 h-3" />
+                <ImageIcon className="w-3 h-3" />
                 Optional: Add a banner image URL (1200x400 recommended)
               </p>
             </div>

@@ -47,9 +47,19 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
     }
   };
 
-  const handleEditList = async (name: string, description: string, banner?: string) => {
+  const handleEditList = async (
+    name: string,
+    description: string,
+    image?: string,
+    banner?: string
+  ) => {
     if (!list.favoritesId) return;
-    await updateFavoritesList(list.favoritesId, { name, description, banner });
+    await updateFavoritesList(list.favoritesId, {
+      name,
+      description,
+      image,
+      banner,
+    });
     setIsEditing(false);
   };
 
@@ -91,47 +101,59 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
           STATION_VISUAL_FEED
         </div>
 
-        {/* Owner actions */}
-        {isOwner && (
-          <div className="absolute top-2 right-2 flex gap-1 z-10">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="bg-on-background/80 text-surface p-1.5 hover:bg-primary transition-colors"
-              title="Edit list"
-            >
-              <span className="material-symbols-outlined text-[14px]">edit</span>
-            </button>
-            <button
-              onClick={onDeleteList}
-              className="bg-on-background/80 text-surface p-1.5 hover:bg-red-600 transition-colors"
-              title="Delete list"
-            >
-              <span className="material-symbols-outlined text-[14px]">delete</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 p-4 flex flex-col gap-3 min-w-0">
 
         {/* Header */}
-        <div>
-          <SectionTitle className="text-2xl mb-1">
-            {list.name || "UNNAMED_LIST"}
-          </SectionTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="bg-on-background text-surface text-[9px] px-2 py-0.5 font-bold uppercase tracking-tighter">
-              PACK_ID: {packId}
-            </span>
-            <span className="text-outline text-[9px] font-bold uppercase tracking-widest">
-              {listStations.length} STATION{listStations.length !== 1 ? "S" : ""}
-            </span>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            {list.image && (
+              <img
+                src={list.image}
+                alt={list.name ?? "List image"}
+                className="size-16 shrink-0 border-2 border-on-background object-cover bg-surface-container-low"
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <SectionTitle className="text-2xl mb-1">
+                {list.name || "UNNAMED_LIST"}
+              </SectionTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-on-background text-surface text-[9px] px-2 py-0.5 font-bold uppercase tracking-tighter">
+                  PACK_ID: {packId}
+                </span>
+                <span className="text-outline text-[9px] font-bold uppercase tracking-widest">
+                  {listStations.length} STATION{listStations.length !== 1 ? "S" : ""}
+                </span>
+              </div>
+            </div>
           </div>
           {list.description && (
             <p className="text-[11px] text-on-background/50 mt-1.5 line-clamp-2 uppercase tracking-wide font-bold">
               {list.description}
             </p>
+          )}
+          {isOwner && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1.5 border-2 border-on-background px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors"
+                title="Edit list"
+              >
+                <span className="material-symbols-outlined text-[14px]">edit</span>
+                EDIT_LIST
+              </button>
+              <button
+                onClick={onDeleteList}
+                className="flex items-center gap-1.5 border-2 border-red-700 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-red-700 hover:bg-red-700 hover:text-white transition-colors"
+                title="Delete list"
+              >
+                <span className="material-symbols-outlined text-[14px]">delete</span>
+                DELETE_LIST
+              </button>
+            </div>
           )}
         </div>
 
@@ -153,21 +175,29 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
           ) : (
             <div className="border-t-2 border-on-background/20 max-h-[260px] overflow-y-auto scrollbar-none">
               {listStations.map((station, i) => (
-                <div key={station.id} className="flex items-stretch">
+                <div
+                  key={station.id}
+                  className={cn(
+                    "flex items-stretch",
+                    isOwner && "border-b-2 border-outline/30"
+                  )}
+                >
                   <div className="flex-1 min-w-0">
                     <RadioCard
                       station={station}
                       variant="featured-item"
                       index={i}
+                      className={isOwner ? "border-b-0" : undefined}
                     />
                   </div>
                   {isOwner && (
                     <button
                       onClick={() => handleRemoveStation(station)}
-                      className="shrink-0 px-2 text-on-background/30 hover:text-red-500 hover:bg-red-500/10 transition-colors border-l-2 border-on-background/20"
+                      className="shrink-0 self-stretch w-12 text-on-background/35 hover:text-red-700 hover:bg-red-700/10 transition-colors border-l-2 border-on-background/20 flex items-center justify-center"
                       title="Remove from list"
+                      aria-label="Remove from list"
                     >
-                      <span className="material-symbols-outlined text-[14px]">close</span>
+                      <span className="material-symbols-outlined text-[14px]">delete</span>
                     </button>
                   )}
                 </div>

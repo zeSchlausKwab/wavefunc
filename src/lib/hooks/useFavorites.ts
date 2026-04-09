@@ -11,7 +11,6 @@ import {
   buildFavoritesListRemoveStationTemplate,
   buildFavoritesListTemplate,
   buildFavoritesListUpdateTemplate,
-  getFavoritesListStationCount,
   hasFavoriteStation,
   parseFavoritesListEvent,
   parseStationEvent,
@@ -98,14 +97,19 @@ export function useFavorites() {
   }, [favoritesLists]);
 
   const createFavoritesList = useCallback(
-    async (name: string, description?: string, banner?: string) => {
+    async (
+      name: string,
+      description?: string,
+      image?: string,
+      banner?: string
+    ) => {
       if (!currentAccount?.pubkey) {
         return null;
       }
 
       try {
         const event = await signAndPublish(
-          buildFavoritesListTemplate({ name, description, banner }),
+          buildFavoritesListTemplate({ name, description, image, banner }),
           getAppDataRelayUrls()
         );
 
@@ -124,7 +128,12 @@ export function useFavorites() {
   const updateFavoritesList = useCallback(
     async (
       listId: string,
-      input: { name?: string; description?: string; banner?: string }
+      input: {
+        name?: string;
+        description?: string;
+        image?: string;
+        banner?: string;
+      }
     ) => {
       const list = favoritesLists.find((entry) => entry.favoritesId === listId);
       if (!list) {
@@ -136,6 +145,7 @@ export function useFavorites() {
           buildFavoritesListUpdateTemplate(list.event, {
             name: input.name,
             description: input.description,
+            image: input.image,
             banner: input.banner,
           }),
           getAppDataRelayUrls()

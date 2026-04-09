@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Image } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import type { ParsedFavoritesList } from "../lib/nostr/domain";
 
 interface EditFavoritesListFormProps {
@@ -9,6 +9,7 @@ interface EditFavoritesListFormProps {
   onSubmit: (
     name: string,
     description: string,
+    image?: string,
     banner?: string
   ) => Promise<void>;
   onCancel: () => void;
@@ -21,13 +22,14 @@ export function EditFavoritesListForm({
 }: EditFavoritesListFormProps) {
   const [name, setName] = useState(list.name || "");
   const [description, setDescription] = useState(list.description || "");
+  const [image, setImage] = useState(list.image || "");
   const [banner, setBanner] = useState(list.banner || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    await onSubmit(name, description, banner || undefined);
+    await onSubmit(name, description, image || undefined, banner || undefined);
     onCancel();
   };
 
@@ -64,6 +66,33 @@ export function EditFavoritesListForm({
 
           <div>
             <label className="block text-sm font-medium mb-2">
+              List Image URL
+            </label>
+            <div className="space-y-2">
+              <Input
+                type="url"
+                placeholder="https://example.com/cover.jpg"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+              />
+              {image && (
+                <div className="rounded-lg overflow-hidden border size-24">
+                  <img
+                    src={image}
+                    alt="List image preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="w-3 h-3" />
+                Optional: Add a square cover image for the list
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
               Banner Image URL
             </label>
             <div className="space-y-2">
@@ -91,7 +120,7 @@ export function EditFavoritesListForm({
                 </div>
               )}
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Image className="w-3 h-3" />
+                <ImageIcon className="w-3 h-3" />
                 Optional: Add a banner image URL (1200x400 recommended)
               </p>
             </div>
