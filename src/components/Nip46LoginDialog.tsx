@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { NostrConnectSigner } from "applesauce-signers";
-import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "./ui/dialog";
+import { QRScanner } from "./QRScanner";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 
 interface Nip46LoginDialogProps {
@@ -190,22 +190,14 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     setScanError(null);
   };
 
-  const handleScan = useCallback((detectedCodes: any[]) => {
-    if (detectedCodes && detectedCodes.length > 0) {
-      const result = detectedCodes[0].rawValue;
-      if (result && result.startsWith("bunker://")) {
-        setBunkerUrl(result);
-        setError(null);
-        setShowScanner(false);
-      } else if (result) {
-        setScanError("The scanned code is not a valid bunker:// URI");
-      }
+  const handleScan = useCallback((data: string) => {
+    if (data && data.startsWith("bunker://")) {
+      setBunkerUrl(data);
+      setError(null);
+      setShowScanner(false);
+    } else if (data) {
+      setScanError("The scanned code is not a valid bunker:// URI");
     }
-  }, []);
-
-  const handleScanError = useCallback((err: any) => {
-    console.error(err);
-    setScanError("Error accessing camera: " + (err.message || "Unknown error"));
   }, []);
 
   useEffect(() => {
@@ -395,48 +387,33 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         </div>
       </DialogContent>
 
-      <Dialog open={showScanner} onOpenChange={setShowScanner}>
-        <DialogContent className="rounded-none border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-0 max-w-sm gap-0 overflow-hidden">
-          <div className="bg-on-background text-surface px-5 py-4">
-            <h2 className="text-base font-black uppercase tracking-tighter">Scan Bunker QR</h2>
-            <p className="text-xs font-medium text-surface/60 mt-0.5 uppercase tracking-wide">
-              Point camera at bunker:// QR code
-            </p>
-          </div>
-
-          <div className="p-5 space-y-4">
-            {scanError ? (
-              <div className="space-y-3">
-                <div className="flex items-start gap-2 border-2 border-red-600 bg-red-50 px-3 py-2">
-                  <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">error</span>
-                  <p className="text-xs font-bold text-red-700">{scanError}</p>
-                </div>
-                <button
-                  onClick={() => setScanError(null)}
-                  className="w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(29,28,19,1)] transition-all"
-                >
-                  Try Again
-                </button>
-              </div>
-            ) : (
-              <div className="border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] overflow-hidden aspect-square">
-                <Scanner
-                  onScan={handleScan}
-                  onError={handleScanError}
-                  constraints={{ facingMode: "environment" }}
-                />
-              </div>
-            )}
-
+      {showScanner && (
+        <QRScanner
+          onScan={handleScan}
+          onClose={() => {
+            setShowScanner(false);
+            setScanError(null);
+          }}
+        />
+      )}
+      {scanError && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-background border-4 border-on-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] p-5 max-w-sm w-full space-y-3">
+            <div className="flex items-start gap-2 border-2 border-red-600 bg-red-50 px-3 py-2">
+              <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0 mt-0.5">
+                error
+              </span>
+              <p className="text-xs font-bold text-red-700">{scanError}</p>
+            </div>
             <button
-              onClick={() => setShowScanner(false)}
+              onClick={() => setScanError(null)}
               className="w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] px-4 py-2 text-[11px] font-black uppercase tracking-widest hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(29,28,19,1)] transition-all"
             >
-              Cancel
+              Dismiss
             </button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </Dialog>
   );
 }

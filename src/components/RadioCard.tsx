@@ -44,6 +44,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
@@ -98,6 +99,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const { toggleGenre } = useFilterStore();
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
+  const { addFavorite, removeFavorite } = useFavorites();
   const isLoggedIn = !!currentUser;
   const {
     reactions,
@@ -142,11 +144,11 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   };
 
   const handleAddToList = async (listId: string) => {
-    console.warn("Favorites are temporarily disabled during the auth/runtime migration", listId, station.id);
+    await addFavorite(station, listId);
   };
 
-  const handleRemoveFromList = async (_listId: string) => {
-    console.warn("Favorites are temporarily disabled during the auth/runtime migration", station.id);
+  const handleRemoveFromList = async (listId: string) => {
+    await removeFavorite(station, listId);
   };
 
   const handleDeleteStation = async () => {
