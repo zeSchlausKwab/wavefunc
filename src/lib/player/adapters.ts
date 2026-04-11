@@ -63,7 +63,22 @@ export async function playWithAdapter(
 
   // HLS via hls.js
   if (isHlsUrl(url) && Hls.isSupported()) {
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+    // Tuned for live radio robustness over latency. Most radio HLS
+    // streams aren't LL-HLS, so `lowLatencyMode` tightens buffer
+    // targets pointlessly and makes stalls more likely on jittery
+    // connections. A larger buffer gives us headroom to survive
+    // short network drops without a visible buffering state.
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      maxBufferLength: 60,
+      maxMaxBufferLength: 600,
+      // Let hls.js retry on its own for transient loader errors
+      // before we see a fatal event and escalate to the supervisor.
+      fragLoadingMaxRetry: 4,
+      manifestLoadingMaxRetry: 4,
+      levelLoadingMaxRetry: 4,
+    });
     return new Promise((resolve, reject) => {
       hls.loadSource(url);
       hls.attachMedia(audio);

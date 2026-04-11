@@ -2,6 +2,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { routeTree } from "./routeTree.gen";
 import { useWavefuncNostr } from "./lib/nostr/runtime";
+import { installMetadataSubscription } from "./stores/metadataStore";
 import { usePlayerStore } from "./stores/playerStore";
 import "./index.css";
 
@@ -19,10 +20,18 @@ export function App() {
   const { eventStore } = useWavefuncNostr();
   const restoreLastStation = usePlayerStore((state) => state.restoreLastStation);
 
-  // Restore last played station on app load
+  // Restore last played station on app load.
   useEffect(() => {
     restoreLastStation(eventStore);
   }, [eventStore, restoreLastStation]);
+
+  // Install the metadata poll subscription once. It observes the
+  // player store and starts/stops fetching when playback state
+  // transitions. Decoupled from the player itself so metadata
+  // failures never affect audio.
+  useEffect(() => {
+    return installMetadataSubscription();
+  }, []);
 
   return <RouterProvider router={router} />;
 }

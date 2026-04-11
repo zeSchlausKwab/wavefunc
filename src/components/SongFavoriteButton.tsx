@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { usePlayerStore } from "../stores/playerStore";
+import { useMetadataStore } from "../stores/metadataStore";
 import { useUIStore } from "../stores/uiStore";
 import {
   buildSongTemplateFromMetadata,
@@ -19,7 +19,7 @@ interface Props {
 export function SongFavoriteButton({ size = "sm", className }: Props) {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
-  const { currentMetadata } = usePlayerStore();
+  const currentMetadata = useMetadataStore((s) => s.currentMetadata);
   const { addToDefaultList, removeFromAllLists, isInAnyList, isLoggedIn } =
     useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);

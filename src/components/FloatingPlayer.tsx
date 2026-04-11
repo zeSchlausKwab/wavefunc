@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { usePlayerStore } from "../stores/playerStore";
+import { useMetadataStore } from "../stores/metadataStore";
 import { useSearchStore } from "../stores/searchStore";
 import { useUIStore } from "../stores/uiStore";
 import { buildStationReactionTemplate, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
+import { useMediaSession } from "../lib/hooks/useMediaSession";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
 import { ZapDialog } from "./ZapDialog";
+import { PlayerDiagnostics, useDiagnosticsEnabled } from "./PlayerDiagnostics";
 import { StationDetail } from "./StationDetail";
 import { cn } from "@/lib/utils";
 import { SmallLogo } from "./SmallLogo";
@@ -103,24 +106,60 @@ interface FloatingPlayerProps {
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
   // ── Player store ──
-  const {
-    currentStation,
-    currentMetadata,
-    isPlaying,
-    isLoading,
-    error,
-    volume,
-    isMuted,
-    pause,
-    resume,
-    stop,
-    setVolume,
-    toggleMute,
-    setAudioElement,
-    setIsPlaying,
-    setIsLoading,
-    setError,
-  } = usePlayerStore();
+  //
+  // We read the state machine directly for precise UI states, plus a
+  // handful of flat fields for legacy call sites and actions. The
+  // supervisor (owned by the store) drives transitions — this
+  // component does NOT attach audio event listeners; it only mounts
+  // the element and hands it off via setAudioElement.
+  const state = usePlayerStore((s) => s.state);
+  const currentStation = usePlayerStore((s) => s.currentStation);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const isLoading = usePlayerStore((s) => s.isLoading);
+  const error = usePlayerStore((s) => s.error);
+  const volume = usePlayerStore((s) => s.volume);
+  const isMuted = usePlayerStore((s) => s.isMuted);
+  const pause = usePlayerStore((s) => s.pause);
+  const resume = usePlayerStore((s) => s.resume);
+  const stop = usePlayerStore((s) => s.stop);
+  const retry = usePlayerStore((s) => s.retry);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const toggleMute = usePlayerStore((s) => s.toggleMute);
+  const setAudioElement = usePlayerStore((s) => s.setAudioElement);
+
+  // Metadata comes from its own store now (decoupled from playback).
+  const currentMetadata = useMetadataStore((s) => s.currentMetadata);
+
+  // Mirror playback state to the OS media session (lockscreen controls,
+  // headset buttons, macOS Now Playing, Windows SMTC, etc). No-op in
+  // browsers without the API.
+  useMediaSession();
+
+  // Derive a user-facing status label from the state machine. This is
+  // what we show in the "NOW_TRANSMITTING" slot to reflect the real
+  // player state rather than a boolean.
+  const statusLabel = useMemo(() => {
+    switch (state.kind) {
+      case "idle":
+        return "AWAITING_SIGNAL";
+      case "loading":
+        return state.candidateCount > 1 && state.attempt > 1
+          ? `TRYING_${state.attempt}_OF_${state.candidateCount}`
+          : "CONNECTING";
+      case "playing":
+        return "NOW_TRANSMITTING";
+      case "buffering":
+        return "BUFFERING";
+      case "reconnecting":
+        return `RECONNECTING_${state.attempt}`;
+      case "failed":
+        return "CONNECTION_FAILED";
+      case "paused":
+        return "PAUSED";
+    }
+  }, [state]);
+
+  const diagnosticsEnabled = useDiagnosticsEnabled();
 
   const { triggerMusicBrainzSearch } = useSearchStore();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -150,7 +189,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
   const baseHeightVh = sheetSnap === "expanded" ? EXPANDED_VH : PEEK_VH;
   const panelHeightVh = dragHeightVh ?? baseHeightVh;
 
-  const handleDragStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const handleDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     dragStartYRef.current = event.clientY;
     dragStartHeightRef.current = panelHeightVh;
@@ -211,6 +250,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     triggerMusicBrainzSearch(query);
   };
 
+  // Mount the audio element into the store. The store spins up a
+  // PlaybackSupervisor that owns the element's playback event listeners
+  // (play/pause/waiting/stalled/canplay/error) and drives the state
+  // machine. Do NOT add audio listeners here — the supervisor is the
+  // single source of truth for audio events.
   useEffect(() => {
     if (audioRef.current) setAudioElement(audioRef.current);
     return () => {
@@ -218,47 +262,6 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
   }, [setAudioElement]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handlePlay      = () => setIsPlaying(true);
-    const handlePause     = () => setIsPlaying(false);
-    const handleLoadStart = () => setIsLoading(true);
-    const handleCanPlay   = () => setIsLoading(false);
-    const handleWaiting   = () => setIsLoading(true);
-    const handlePlaying   = () => setIsLoading(false);
-    const handleStalled   = () => console.warn("Audio: stalled");
-    const handleSuspend   = () => console.log("Audio: suspend");
-    const handleError     = (e: Event) => {
-      const audioError = (e.target as HTMLAudioElement).error;
-      setError(audioError ? `Error ${audioError.code}: ${audioError.message}` : "Failed to load audio");
-      setIsLoading(false);
-    };
-
-    audio.addEventListener("play",      handlePlay);
-    audio.addEventListener("pause",     handlePause);
-    audio.addEventListener("loadstart", handleLoadStart);
-    audio.addEventListener("canplay",   handleCanPlay);
-    audio.addEventListener("error",     handleError);
-    audio.addEventListener("waiting",   handleWaiting);
-    audio.addEventListener("playing",   handlePlaying);
-    audio.addEventListener("stalled",   handleStalled);
-    audio.addEventListener("suspend",   handleSuspend);
-
-    return () => {
-      audio.removeEventListener("play",      handlePlay);
-      audio.removeEventListener("pause",     handlePause);
-      audio.removeEventListener("loadstart", handleLoadStart);
-      audio.removeEventListener("canplay",   handleCanPlay);
-      audio.removeEventListener("error",     handleError);
-      audio.removeEventListener("waiting",   handleWaiting);
-      audio.removeEventListener("playing",   handlePlaying);
-      audio.removeEventListener("stalled",   handleStalled);
-      audio.removeEventListener("suspend",   handleSuspend);
-    };
-  }, [setIsPlaying, setIsLoading, setError]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -308,8 +311,17 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           "h-16 shrink-0 flex items-center overflow-hidden bg-background",
           sheetOpen && "border-b-4 border-on-background"
         )}>
-          <button
-            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors"
+          {/*
+            Station info block. Uses role="button" on a <div> rather than a
+            real <button>, because we render <SongFavoriteButton> inside it
+            when now-playing metadata lands — and nested interactive
+            elements (button-in-button) are invalid HTML, which React 19
+            flags as a hydration error.
+          */}
+          <div
+            role="button"
+            tabIndex={0}
+            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors cursor-pointer"
             onClick={() => {
               if (sheetOpen) {
                 closeSheet();
@@ -319,9 +331,22 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 openNavSheet();
               }
             }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (sheetOpen) closeSheet();
+                else if (currentStation) openStationSheet(currentStation);
+                else openNavSheet();
+              }
+            }}
           >
-            <p className="text-[8px] font-bold text-primary uppercase tracking-widest leading-none">
-              {currentStation ? (isPlaying ? "NOW_TRANSMITTING" : "PAUSED") : "AWAITING_SIGNAL"}
+            <p className={cn(
+              "text-[8px] font-bold uppercase tracking-widest leading-none",
+              state.kind === "failed" ? "text-destructive" :
+              state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
+              "text-primary"
+            )}>
+              {statusLabel}
             </p>
             <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
               {currentStation
@@ -337,17 +362,30 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 <SongFavoriteButton size="sm" className="shrink-0" />
               </div>
             )}
-          </button>
+          </div>
 
           <button
-            onClick={isPlaying ? pause : resume}
-            disabled={!currentStation || isLoading}
-            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-          >
-            {isLoading
-              ? <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-              : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+            onClick={
+              state.kind === "failed" ? retry :
+              isPlaying ? pause :
+              resume
             }
+            disabled={!currentStation}
+            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+            title={
+              state.kind === "failed" ? "Retry" :
+              state.kind === "reconnecting" ? "Reconnecting…" :
+              state.kind === "buffering" ? "Buffering…" :
+              isPlaying ? "Pause" : "Play"
+            }
+          >
+            {state.kind === "failed" ? (
+              <span className="material-symbols-outlined">refresh</span>
+            ) : isLoading ? (
+              <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+            ) : (
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+            )}
           </button>
 
           <button
@@ -374,6 +412,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
         {sheetOpen && (
           sheetMode === "station" && sheetStation ? (
             <div className="flex-1 overflow-y-auto">
+              {diagnosticsEnabled && <PlayerDiagnostics />}
               {sheetStation && (
                 <StationDetail
                   station={sheetStation}
@@ -405,6 +444,10 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               <nav className="flex flex-col">
                 <NavigationItems variant="mobile" onNavigate={closeSheet} />
               </nav>
+
+              {/* Diagnostics at the bottom of the nav sheet, hidden
+                  unless ?debug=player in the URL. */}
+              {diagnosticsEnabled && <PlayerDiagnostics />}
             </div>
           )
         )}
@@ -437,6 +480,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           </div>
           {/* Station detail content */}
           <div className="flex-1 overflow-y-auto pb-[100px]">
+            {diagnosticsEnabled && <PlayerDiagnostics />}
             {sheetStation && (
               <StationDetail
                 station={sheetStation}
@@ -464,8 +508,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               )}
             </div>
             <div className="flex flex-col justify-center overflow-hidden min-w-0 gap-0.5">
-              <p className="font-bold uppercase text-[9px] text-primary tracking-widest leading-none">
-                {currentStation ? "NOW_TRANSMITTING" : "AWAITING_SIGNAL"}
+              <p className={cn(
+                "font-bold uppercase text-[9px] tracking-widest leading-none",
+                state.kind === "failed" ? "text-destructive" :
+                state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
+                "text-primary"
+              )}>
+                {statusLabel}
               </p>
               <h4 className="font-black text-base uppercase tracking-tighter truncate font-headline leading-tight">
                 {currentStation
@@ -506,17 +555,31 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               <span className="material-symbols-outlined">stop_circle</span>
             </button>
             <button
-              onClick={resume}
-              disabled={!currentStation || isLoading || isPlaying}
+              onClick={state.kind === "failed" ? retry : resume}
+              disabled={!currentStation || isPlaying || state.kind === "reconnecting"}
               className="bg-secondary-fixed-dim text-on-background px-10 lg:px-16 flex flex-col justify-center items-center hover:translate-y-1 transition-all active:translate-y-2 border-x-4 border-on-background disabled:opacity-40"
-              title="Play"
+              title={
+                state.kind === "failed" ? "Retry" :
+                state.kind === "reconnecting" ? "Reconnecting…" :
+                state.kind === "buffering" ? "Buffering…" :
+                state.kind === "loading" ? "Tuning…" :
+                "Play"
+              }
             >
-              {isLoading ? (
+              {state.kind === "failed" ? (
+                <span className="material-symbols-outlined text-4xl">refresh</span>
+              ) : isLoading ? (
                 <span className="material-symbols-outlined text-4xl" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
               ) : (
                 <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
               )}
-              <span className="font-bold uppercase text-[9px]">{isLoading ? "TUNING" : "PLAY"}</span>
+              <span className="font-bold uppercase text-[9px]">
+                {state.kind === "failed" ? "RETRY" :
+                 state.kind === "reconnecting" ? "RECONNECT" :
+                 state.kind === "buffering" ? "BUFFER" :
+                 state.kind === "loading" ? "TUNING" :
+                 "PLAY"}
+              </span>
             </button>
             <button
               onClick={pause}

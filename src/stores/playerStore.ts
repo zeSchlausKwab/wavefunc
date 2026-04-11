@@ -1,3 +1,15 @@
+/**
+ * Player store — the thin reactive wrapper around the PlaybackSupervisor.
+ *
+ * The supervisor (src/lib/player/supervisor.ts) owns the hard work:
+ * audio element events, candidate fallback, reconnect, probe. This
+ * store holds the state machine output, exposes a stable compat API
+ * for existing callers, and manages volume/mute and the Web Audio
+ * visualization graph.
+ *
+ * See docs/PLAYER_V2.md for the design rationale.
+ */
+
 import { create } from "zustand";
 import type { EventStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers/event";
@@ -5,33 +17,41 @@ import {
   decodeAddressPointer,
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
-import Hls from "hls.js";
 import { firstValueFrom, filter, timeout } from "rxjs";
-import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
+
 import {
-  canPlayStreamInApp,
   getDefaultSelectedStream,
-  normalizeUrl,
-  playWithAdapter,
-  sortStreamsByPreference,
 } from "../lib/player/adapters";
+import { PlaybackSupervisor } from "../lib/player/supervisor";
+import {
+  idleState,
+  selectCurrentStation,
+  selectCurrentStream,
+  selectError,
+  selectIsLoading,
+  selectIsPlaying,
+  type PlayerState,
+} from "../lib/player/state";
 import {
   parseStationEvent,
   type ParsedStation,
   type Stream,
 } from "../lib/nostr/domain";
-import { useHistoryStore } from "./historyStore";
 
 const LAST_STATION_KEY = "wavefunc_last_station";
 
-// Track which audio elements have been connected to Web Audio API
-// This persists across HMR reloads
+// Track which audio elements have been connected to Web Audio API.
+// WeakMap so we don't hold refs to dead elements, and so HMR can
+// re-attach without creating a second AudioContext per element.
 const connectedAudioElements = new WeakMap<
   HTMLAudioElement,
-  { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode }
+  {
+    context: AudioContext;
+    analyser: AnalyserNode;
+    source: MediaElementAudioSourceNode;
+  }
 >();
 
-// Save last played station to localStorage
 const saveLastStation = (stationId: string) => {
   try {
     localStorage.setItem(LAST_STATION_KEY, stationId);
@@ -40,7 +60,6 @@ const saveLastStation = (stationId: string) => {
   }
 };
 
-// Load last played station from localStorage
 const loadLastStation = (): string | null => {
   try {
     return localStorage.getItem(LAST_STATION_KEY);
@@ -50,370 +69,252 @@ const loadLastStation = (): string | null => {
   }
 };
 
-interface CurrentMetadata {
-  title?: string;
-  artist?: string;
-  song?: string;
-  station?: string;
-  genre?: string;
-  bitrate?: string;
-  musicBrainz?: {
-    id: string;
-    title: string;
-    artist: string;
-    release?: string;
-    releaseId?: string;
-    releaseDate?: string;
-    duration?: number;
-    tags?: string[];
-  };
-}
+interface PlayerStoreState {
+  // Source of truth — the state machine
+  state: PlayerState;
 
-interface PlayerState {
-  // Current playing state
+  // Compat fields, derived from `state` on every update. Existing
+  // callers read these directly; new code should prefer `state.kind`
+  // for precision.
   currentStation: ParsedStation | null;
   currentStream: Stream | null;
   isPlaying: boolean;
   isLoading: boolean;
   error: string | null;
 
-  // Metadata
-  currentMetadata: CurrentMetadata | null;
-  metadataInterval: ReturnType<typeof setInterval> | null;
+  // Volume / mute (independent of playback state)
+  volume: number;
+  isMuted: boolean;
 
-  // Audio element reference (managed externally)
+  // Audio element + supervisor (managed internally after setAudioElement)
   audioElement: HTMLAudioElement | null;
-  hlsInstance: Hls | null;
+  supervisor: PlaybackSupervisor | null;
 
-  // Web Audio API for visualization
+  // Web Audio API visualization graph
   audioContext: AudioContext | null;
   analyser: AnalyserNode | null;
   sourceNode: MediaElementAudioSourceNode | null;
-
-  // Volume and controls
-  volume: number;
-  isMuted: boolean;
 
   // Actions
   playStation: (station: ParsedStation, stream?: Stream) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  retry: () => void;
   setVolume: (volume: number) => void;
   toggleMute: () => void;
-  setIsPlaying: (isPlaying: boolean) => void;
-  setIsLoading: (isLoading: boolean) => void;
-  setError: (error: string | null) => void;
   setAudioElement: (element: HTMLAudioElement | null) => void;
-  setHlsInstance: (hls: Hls | null) => void;
   restoreLastStation: (eventStore: EventStore) => Promise<void>;
   getLastStationId: () => string | null;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
+function deriveCompat(state: PlayerState): Pick<
+  PlayerStoreState,
+  "currentStation" | "currentStream" | "isPlaying" | "isLoading" | "error"
+> {
+  return {
+    currentStation: selectCurrentStation(state),
+    currentStream: selectCurrentStream(state),
+    isPlaying: selectIsPlaying(state),
+    isLoading: selectIsLoading(state),
+    error: selectError(state),
+  };
+}
+
+export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   // Initial state
-  currentStation: null,
-  currentStream: null,
-  isPlaying: false,
-  isLoading: false,
-  error: null,
-  currentMetadata: null,
-  metadataInterval: null,
+  state: idleState(),
+  ...deriveCompat(idleState()),
+  volume: 0.7,
+  isMuted: false,
   audioElement: null,
-  hlsInstance: null,
+  supervisor: null,
   audioContext: null,
   analyser: null,
   sourceNode: null,
-  volume: 0.7,
-  isMuted: false,
 
-  // Play a new station
-  playStation: (station: ParsedStation, stream?: Stream) => {
-    const { currentStation, currentStream, audioElement } = get();
+  // ─── Playback actions ───────────────────────────────────────────────
 
-    // Validation
-    const allStreams = sortStreamsByPreference(station.streams).filter(
-      canPlayStreamInApp
-    );
-    const preferred =
-      stream && canPlayStreamInApp(stream)
-        ? { ...stream, url: normalizeUrl(stream.url) }
-        : null;
-    const candidates = preferred
-      ? [preferred, ...allStreams.filter((s) => s.url !== preferred.url)]
-      : allStreams;
+  playStation: (station, stream) => {
+    const { supervisor, audioContext } = get();
+    if (!supervisor) {
+      console.error(
+        "playerStore.playStation: no supervisor (audio element not mounted)"
+      );
+      return;
+    }
 
-    if (stream && !canPlayStreamInApp(stream)) {
+    // CRITICAL: Chrome (and most Chromium WebViews) keep newly-created
+    // AudioContexts in `suspended` state until a user gesture resumes
+    // them. When the audio element is piped through
+    // createMediaElementSource (for our visualization graph), the
+    // element's direct output is replaced by the graph — and if the
+    // context is suspended, that graph produces SILENCE even though
+    // `audio.play()` reports success and `<audio>.paused` is false.
+    //
+    // This must happen synchronously inside the click handler path
+    // (playStation is called from a user click), otherwise the
+    // user-gesture permission is lost before `resume()` completes.
+    if (audioContext && audioContext.state === "suspended") {
+      // Fire-and-forget — the resume is async but doesn't need to
+      // block the supervisor.start() call below; the audio element
+      // will start playing as soon as the context unsuspends.
+      void audioContext.resume();
+    }
+
+    // Persist last-station + add to history on user-initiated play.
+    const stationId = station.naddr || station.id;
+    if (stationId) {
+      saveLastStation(stationId);
+      import("./historyStore").then(({ useHistoryStore }) => {
+        useHistoryStore.getState().addToHistory(stationId);
+      });
+    }
+
+    void supervisor.start(station, stream);
+  },
+
+  pause: () => {
+    const { supervisor } = get();
+    supervisor?.pause();
+  },
+
+  resume: () => {
+    const { supervisor, state, audioElement, audioContext } = get();
+    if (!supervisor) return;
+
+    // Same rationale as playStation: resume the context on user gesture.
+    if (audioContext && audioContext.state === "suspended") {
+      void audioContext.resume();
+    }
+
+    if (state.kind === "paused") {
+      // Two sub-cases:
+      // 1. We were playing and the user paused — supervisor state is
+      //    also `paused`, just call supervisor.resume().
+      // 2. We just restored a station from localStorage on app load
+      //    and set the store state to `paused` without telling the
+      //    supervisor — supervisor state is `idle`. Kick off a fresh
+      //    start for the stored station.
+      const supervisorState = supervisor.getState();
+      if (supervisorState.kind === "paused") {
+        void supervisor.resume();
+      } else {
+        void supervisor.start(state.station, state.stream);
+      }
+      return;
+    }
+    if (state.kind === "idle") {
+      console.warn("playerStore.resume: no station to resume");
+      return;
+    }
+    // Defensive fallback: user tapped play during loading/reconnecting
+    // — nudge the audio element. Supervisor will handle error events
+    // normally.
+    if (audioElement && audioElement.paused) {
+      audioElement.play().catch(() => {
+        /* supervisor handles errors */
+      });
+    }
+  },
+
+  stop: () => {
+    const { supervisor } = get();
+    supervisor?.stop();
+  },
+
+  retry: () => {
+    const { supervisor } = get();
+    void supervisor?.retry();
+  },
+
+  // ─── Volume ─────────────────────────────────────────────────────────
+
+  setVolume: (volume) => {
+    const clamped = Math.max(0, Math.min(1, volume));
+    const { audioElement } = get();
+    if (audioElement) audioElement.volume = clamped;
+    set({ volume: clamped });
+  },
+
+  toggleMute: () => {
+    const { isMuted, audioElement } = get();
+    const next = !isMuted;
+    if (audioElement) audioElement.muted = next;
+    set({ isMuted: next });
+  },
+
+  // ─── Audio element lifecycle ───────────────────────────────────────
+
+  setAudioElement: (element) => {
+    const { supervisor: oldSupervisor, volume, isMuted } = get();
+
+    // Dispose any previous supervisor — only one per audio element.
+    if (oldSupervisor) {
+      oldSupervisor.dispose();
+    }
+
+    if (!element) {
       set({
-        error: "This stream must be opened from its source",
-        isLoading: false,
-        isPlaying: false,
+        audioElement: null,
+        supervisor: null,
+        audioContext: null,
+        analyser: null,
+        sourceNode: null,
       });
       return;
     }
 
-    if (candidates.length === 0) {
-      console.error("playerStore: No stream available!");
-      set({ error: "No in-app stream available for this station" });
-      return;
-    }
+    // Sync current volume/mute to the new element.
+    element.volume = volume;
+    element.muted = isMuted;
 
-    // Early return: resume if same station/stream already loaded
-    if (
-      currentStation?.id === station.id &&
-      currentStream?.url === candidates[0]?.url &&
-      audioElement
-    ) {
-      audioElement.play();
-      set({ isPlaying: true, error: null });
-      return;
-    }
-
-    // Guard: ensure audio element exists
-    if (!audioElement) {
-      console.error("playerStore: No audio element available!");
-      set({ error: "Audio player not initialized", isLoading: false });
-      return;
-    }
-
-    // Clean up existing metadata interval
-    const { metadataInterval: existingInterval } = get();
-    if (existingInterval) {
-      clearInterval(existingInterval);
-    }
-
-    // Begin loading state and clear old metadata
-    set({
-      currentStation: station,
-      currentStream: candidates[0],
-      isLoading: true,
-      error: null,
-      isPlaying: false,
-      currentMetadata: null,
-      metadataInterval: null,
-    });
-
-    // Clean up existing HLS instance if any
-    const { hlsInstance } = get();
-    if (hlsInstance) {
-      hlsInstance.destroy();
-      set({ hlsInstance: null });
-    }
-
-    // Try candidates sequentially until one plays
-    (async () => {
-      let played = false;
-      let lastError: Error | null = null;
-
-      // Resume audio context if suspended
-      const { audioContext } = get();
-      if (audioContext && audioContext.state === "suspended") {
-        await audioContext.resume();
-      }
-
-      for (const candidate of candidates) {
-        try {
-          // Update currentStream as we attempt
-          set({ currentStream: candidate });
-          const result = await playWithAdapter(candidate, audioElement);
-          if (result.hls) {
-            set({ hlsInstance: result.hls });
-          }
-          set({ isPlaying: true, isLoading: false, error: null });
-          played = true;
-
-          // Add to play history and save as last station
-          const stationId = station.naddr || station.id;
-          if (stationId) {
-            useHistoryStore.getState().addToHistory(stationId);
-            saveLastStation(stationId);
-          }
-
-          // Start metadata polling for the successful candidate
-          const { metadataInterval } = get();
-          if (metadataInterval) clearInterval(metadataInterval);
-
-          const pollMetadata = async () => {
-            try {
-              const { result: metadata } = await getMetadataClient().ExtractStreamMetadata(candidate.url);
-
-              // Normalize metadata: ensure 'song' field is set from 'title' if needed
-              const normalizedMetadata = {
-                ...metadata,
-                song: metadata.song || metadata.title,
-              };
-
-              if (normalizedMetadata.artist && normalizedMetadata.song) {
-                const { result: mbResults } = await getMetadataClient().SearchRecordings(
-                  normalizedMetadata.song,
-                  normalizedMetadata.artist
-                );
-                set({
-                  currentMetadata: {
-                    ...normalizedMetadata,
-                    musicBrainz: mbResults[0],
-                  },
-                });
-              } else {
-                set({ currentMetadata: normalizedMetadata });
-              }
-            } catch (err) {
-              console.error("Metadata polling error:", err);
-            }
-          };
-
-          // Poll immediately, then every 15 seconds
-          pollMetadata();
-          const interval = setInterval(pollMetadata, 15000);
-          set({ metadataInterval: interval });
-
-          break; // stop trying next candidates
-        } catch (err) {
-          lastError = err instanceof Error ? err : new Error("Failed to play");
-          // Try next candidate
-          continue;
-        }
-      }
-
-      if (!played) {
-        set({
-          error: `Failed to play any stream${lastError ? `: ${lastError.message}` : ""}`,
-          isLoading: false,
-          isPlaying: false,
-        });
-      }
-    })();
-  },
-
-  // Pause playback
-  pause: () => {
-    const { audioElement } = get();
-    if (audioElement) {
-      audioElement.pause();
-      set({ isPlaying: false });
-    }
-  },
-
-  // Resume playback
-  resume: () => {
-    const { audioElement, audioContext } = get();
-    if (audioElement) {
-      // Resume audio context if it's suspended
-      if (audioContext && audioContext.state === "suspended") {
-        audioContext.resume();
-      }
-      audioElement.play();
-      set({ isPlaying: true, error: null });
-    }
-  },
-
-  // Stop playback and clear current station
-  stop: () => {
-    const { audioElement, hlsInstance, metadataInterval } = get();
-
-    // Clean up HLS
-    if (hlsInstance) {
-      hlsInstance.destroy();
-    }
-
-    // Clean up metadata polling
-    if (metadataInterval) {
-      clearInterval(metadataInterval);
-    }
-
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.src = "";
-    }
-
-    set({
-      currentStation: null,
-      currentStream: null,
-      isPlaying: false,
-      isLoading: false,
-      error: null,
-      currentMetadata: null,
-      metadataInterval: null,
-      hlsInstance: null,
-    });
-  },
-
-  // Set volume (0-1)
-  setVolume: (volume: number) => {
-    const clampedVolume = Math.max(0, Math.min(1, volume));
-    const { audioElement } = get();
-    if (audioElement) {
-      audioElement.volume = clampedVolume;
-    }
-    set({ volume: clampedVolume });
-  },
-
-  // Toggle mute
-  toggleMute: () => {
-    const { isMuted, audioElement } = get();
-    if (audioElement) {
-      audioElement.muted = !isMuted;
-    }
-    set({ isMuted: !isMuted });
-  },
-
-  // Setters for external updates
-  setIsPlaying: (isPlaying: boolean) => set({ isPlaying }),
-  setIsLoading: (isLoading: boolean) => set({ isLoading }),
-  setError: (error: string | null) => set({ error }),
-  setAudioElement: (element: HTMLAudioElement | null) => {
-    const { volume, isMuted } = get();
-
-    if (element) {
-      element.volume = volume;
-      element.muted = isMuted;
-
-      // Check if this element already has Web Audio API connected
-      const existing = connectedAudioElements.get(element);
-
-      if (existing) {
-        // Reuse existing Web Audio setup (happens during HMR)
-        console.log("PlayerStore: Reusing existing Web Audio setup", existing);
-        set({
-          audioContext: existing.context,
-          analyser: existing.analyser,
-          sourceNode: existing.source
-        });
-      } else {
-        // Create new Web Audio API setup for this element
-        try {
-          const context = new AudioContext();
-          const analyser = context.createAnalyser();
-          analyser.fftSize = 64; // Small FFT for 8x16 grid
-          analyser.smoothingTimeConstant = 0.8;
-
-          const source = context.createMediaElementSource(element);
-          source.connect(analyser);
-          analyser.connect(context.destination);
-
-          // Store in WeakMap so we can reuse on HMR
-          connectedAudioElements.set(element, { context, analyser, source });
-
-          console.log("PlayerStore: Created Web Audio setup", { context, analyser, source, state: context.state });
-
-          set({ audioContext: context, analyser, sourceNode: source });
-        } catch (err) {
-          console.error("Failed to initialize Web Audio API:", err);
-        }
-      }
+    // Create (or reuse) the Web Audio graph for this element. Reused
+    // across HMR thanks to the WeakMap.
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let sourceNode: MediaElementAudioSourceNode | null = null;
+    const existing = connectedAudioElements.get(element);
+    if (existing) {
+      audioContext = existing.context;
+      analyser = existing.analyser;
+      sourceNode = existing.source;
     } else {
-      // Note: We don't close the audio context here because the element
-      // might still exist in the DOM (e.g., during HMR). The WeakMap will
-      // clean up automatically when the element is garbage collected.
-      set({ audioContext: null, analyser: null, sourceNode: null });
+      try {
+        const context = new AudioContext();
+        const an = context.createAnalyser();
+        an.fftSize = 64;
+        an.smoothingTimeConstant = 0.8;
+        const source = context.createMediaElementSource(element);
+        source.connect(an);
+        an.connect(context.destination);
+        connectedAudioElements.set(element, { context, analyser: an, source });
+        audioContext = context;
+        analyser = an;
+        sourceNode = source;
+      } catch (err) {
+        console.error("Failed to initialize Web Audio API:", err);
+      }
     }
 
-    set({ audioElement: element });
-  },
-  setHlsInstance: (hls: Hls | null) => set({ hlsInstance: hls }),
+    // Spin up a new supervisor. The listener updates both the state
+    // machine field and the derived compat fields in one shot.
+    const supervisor = new PlaybackSupervisor(element, (next) => {
+      set({ state: next, ...deriveCompat(next) });
+    });
 
-  // Restore last played station from localStorage
-  restoreLastStation: async (eventStore: EventStore) => {
+    set({
+      audioElement: element,
+      supervisor,
+      audioContext,
+      analyser,
+      sourceNode,
+    });
+  },
+
+  // ─── Last station persistence ──────────────────────────────────────
+
+  restoreLastStation: async (eventStore) => {
     const lastStationId = loadLastStation();
     if (!lastStationId) return;
 
@@ -430,19 +331,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       );
       if (event) {
         const station = parseStationEvent(event);
-        // Set the station but don't auto-play (leave in pause mode)
-        set({
-          currentStation: station,
-          currentStream: getDefaultSelectedStream(station.streams) || null,
-          isPlaying: false,
-          isLoading: false,
-        });
+        const stream = getDefaultSelectedStream(station.streams);
+        if (!stream) return;
+
+        // Put the store into `paused` state without actually starting
+        // playback. The user taps play to resume — we don't autoplay
+        // on app launch (browser policies would block it anyway).
+        const paused: PlayerState = {
+          kind: "paused",
+          station,
+          stream,
+        };
+        set({ state: paused, ...deriveCompat(paused) });
       }
     } catch (err) {
       console.error("Failed to restore last station:", err);
     }
   },
 
-  // Get the last station ID from localStorage
   getLastStationId: () => loadLastStation(),
 }));
