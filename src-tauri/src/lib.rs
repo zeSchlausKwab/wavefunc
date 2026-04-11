@@ -1,3 +1,5 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 use tauri::{Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -81,6 +83,13 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // CRITICAL: this closure runs from inside tao's
+            // `did_finish_launching` observer, which is declared
+            // `extern "C"` and cannot unwind. A panic here turns
+            // into `panic_cannot_unwind` → `abort()` before the
+            // window is ever shown. Every fallible step below is
+            // wrapped in catch_unwind with a logged fallback.
+
             // Dev tools on debug builds.
             #[cfg(debug_assertions)]
             {
@@ -93,11 +102,16 @@ pub fn run() {
             // registers the scheme; this forwards URL-open events
             // to the JS bridge, which parses and routes them.
             let handle_for_deep_link = app.handle().clone();
-            app.deep_link().on_open_url(move |event| {
-                let urls: Vec<String> =
-                    event.urls().iter().map(|u| u.to_string()).collect();
-                let _ = handle_for_deep_link.emit("deep-link-open", urls);
-            });
+            let deep_link_result = catch_unwind(AssertUnwindSafe(|| {
+                app.deep_link().on_open_url(move |event| {
+                    let urls: Vec<String> =
+                        event.urls().iter().map(|u| u.to_string()).collect();
+                    let _ = handle_for_deep_link.emit("deep-link-open", urls);
+                });
+            }));
+            if let Err(panic) = deep_link_result {
+                eprintln!("[wavefunc] deep_link setup PANICKED: {panic:?}");
+            }
 
             // --hidden flag handling. When the app is autolaunched
             // by the autostart plugin on login, it's launched with
@@ -115,8 +129,17 @@ pub fn run() {
             }
 
             // Desktop-specific native setup (tray + global shortcuts).
+            // `desktop::setup` itself is panic-safe — see its doc
+            // comment — but we double-wrap in case that contract is
+            // ever violated during refactoring.
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            desktop::setup(app)?;
+            {
+                if let Err(panic) =
+                    catch_unwind(AssertUnwindSafe(|| desktop::setup(app)))
+                {
+                    eprintln!("[wavefunc] desktop::setup PANICKED: {panic:?}");
+                }
+            }
 
             Ok(())
         })

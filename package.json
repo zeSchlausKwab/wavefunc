@@ -31,7 +31,12 @@
     "routes:watch": "bunx @tanstack/router-cli watch",
     "tauri": "tauri",
     "tauri:dev": "bun run relay & sleep 1 && bun run migrate && bun run contextvm & tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build",
+    "tauri:build:mac": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build --target universal-apple-darwin",
+    "tauri:build:mac:arm": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build --target aarch64-apple-darwin",
+    "tauri:build:mac:x64": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build --target x86_64-apple-darwin",
+    "tauri:build:win": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:linux": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri build --target x86_64-unknown-linux-gnu",
     "tauri:android:init": "tauri android init",
     "tauri:android": "adb reverse tcp:3000 tcp:3000; adb reverse tcp:3334 tcp:3334; RELAY_URL=ws://localhost:3334 bun run build && bun run relay & sleep 1 && bun run contextvm & RELAY_URL=ws://localhost:3334 TAURI_DEV_HOST=127.0.0.1 tauri android dev",
     "tauri:android:build": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri android build"
