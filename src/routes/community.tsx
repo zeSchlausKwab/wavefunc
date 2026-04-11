@@ -11,6 +11,7 @@ import { storeEvents } from "applesauce-relay/operators";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls } from "../config/nostr";
+import { shareOrCopy } from "../lib/share";
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import {
   buildCommunityReplyTemplate,
@@ -492,7 +493,11 @@ function CommunityMessageCard({
   };
 
   const handleShare = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/community#${message.id}`);
+    void shareOrCopy({
+      url: `${window.location.origin}/community#${message.id}`,
+      title: "WaveFunc community",
+      text: "Check out this post on WaveFunc",
+    });
   };
 
   const handleReplySubmit = async () => {
@@ -726,7 +731,11 @@ function ReplyCard({
   };
 
   const handleShare = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/community#${reply.id}`);
+    void shareOrCopy({
+      url: `${window.location.origin}/community#${reply.id}`,
+      title: "WaveFunc community",
+      text: "Check out this reply on WaveFunc",
+    });
   };
 
   const handleReplySubmit = async () => {

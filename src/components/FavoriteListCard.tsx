@@ -12,6 +12,7 @@ import {
 } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { shareOrCopy } from "../lib/share";
 
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -64,7 +65,11 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
   };
 
   const handleShare = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/favorites`);
+    void shareOrCopy({
+      url: `${window.location.origin}/favorites`,
+      title: list.name || "WaveFunc favorites",
+      text: "Check out this station list on WaveFunc",
+    });
   };
 
   if (isEditing) {

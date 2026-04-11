@@ -4,6 +4,7 @@ import { routeTree } from "./routeTree.gen";
 import { useWavefuncNostr } from "./lib/nostr/runtime";
 import { installMetadataSubscription } from "./stores/metadataStore";
 import { usePlayerStore } from "./stores/playerStore";
+import { useSleepTimerStore } from "./stores/sleepTimerStore";
 import "./index.css";
 
 // Create a new router instance
@@ -31,6 +32,14 @@ export function App() {
   // failures never affect audio.
   useEffect(() => {
     return installMetadataSubscription();
+  }, []);
+
+  // Rehydrate the sleep timer from localStorage. If the deadline is
+  // in the past (app was closed through it), this is a no-op. If it's
+  // in the future, a fresh setTimeout is scheduled with the remaining
+  // duration.
+  useEffect(() => {
+    useSleepTimerStore.getState().rehydrate();
   }, []);
 
   return <RouterProvider router={router} />;

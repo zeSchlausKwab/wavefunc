@@ -7,6 +7,9 @@ import { buildStationReactionTemplate, type ParsedStation } from "../lib/nostr/d
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { useMediaSession } from "../lib/hooks/useMediaSession";
+import { useWakeLock } from "../lib/hooks/useWakeLock";
+import { shareOrCopy } from "../lib/share";
+import { SleepTimerButton } from "./SleepTimerButton";
 import Hls from "hls.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HistorySheet } from "./HistorySheet";
@@ -46,7 +49,11 @@ function PlayerSocialBar({ station }: { station: ParsedStation }) {
   };
 
   const handleShare = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`);
+    void shareOrCopy({
+      url: `${window.location.origin}/station/${station.naddr}`,
+      title: station.name || "WaveFunc Radio",
+      text: `Listen to ${station.name || "this station"} on WaveFunc`,
+    });
   };
 
   return (
@@ -178,6 +185,14 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     setSheetSnap,
     clearCommentFocus,
   } = useUIStore();
+
+  // Keep the screen on while the user is actively looking at an
+  // expanded station sheet during playback. The hook releases the lock
+  // automatically when the tab is hidden, so we don't need to care
+  // about foreground/background transitions here. When the sheet
+  // collapses back to the peek bar we assume the user has moved on
+  // and drop the lock.
+  useWakeLock(isPlaying && sheetOpen && sheetSnap === "expanded");
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);
@@ -445,6 +460,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 <NavigationItems variant="mobile" onNavigate={closeSheet} />
               </nav>
 
+              {/* Sleep timer — full-width row below nav so users can
+                  set it without fishing for the desktop-only compact
+                  button. */}
+              <SleepTimerButton variant="full" />
+
               {/* Diagnostics at the bottom of the nav sheet, hidden
                   unless ?debug=player in the URL. */}
               {diagnosticsEnabled && <PlayerDiagnostics />}
@@ -592,6 +612,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
             <div className="text-on-background px-5 lg:px-8 flex items-center justify-center hover:bg-surface-variant transition-all">
               <HistorySheet />
             </div>
+            <SleepTimerButton variant="compact" />
           </div>
 
           {/* Volume — xl+ only */}

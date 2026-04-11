@@ -40,6 +40,7 @@ import {
   getDefaultSelectedStream,
   openStreamExternally,
 } from "../lib/player/adapters";
+import { shareOrCopy } from "../lib/share";
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
@@ -170,7 +171,11 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const handleShare = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`);
+    void shareOrCopy({
+      url: `${window.location.origin}/station/${station.naddr}`,
+      title: station.name || "WaveFunc Radio",
+      text: `Listen to ${station.name || "this station"} on WaveFunc`,
+    });
   };
 
   const handleLike = async (e?: React.MouseEvent) => {
