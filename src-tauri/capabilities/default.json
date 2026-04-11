@@ -1,11 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main WaveFunc window",
+  "description": "Default permissions for the main WaveFunc window, all platforms",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "os:default",
-    "shell:default"
+    "shell:default",
+    "deep-link:default"
   ]
 }

@@ -1,19 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { WalletsSettings } from "@/components/settings/WalletsSettings";
 import { MyStationsSettings } from "@/components/settings/MyStationsSettings";
 import { MyFavouritesSettings } from "@/components/settings/MyFavouritesSettings";
 import { RelaysSettings } from "@/components/settings/RelaysSettings";
+import { DesktopSettings } from "@/components/settings/DesktopSettings";
+import { isTauri } from "@/config/env";
 import { useCurrentAccount } from "@/lib/nostr/auth";
 
 export const Route = createFileRoute("/settings")({
   component: Settings,
 });
 
-type SettingsTab = "profile" | "wallets" | "stations" | "favourites" | "relays";
+type SettingsTab =
+  | "profile"
+  | "wallets"
+  | "stations"
+  | "favourites"
+  | "relays"
+  | "desktop";
 
-const TABS: { id: SettingsTab; label: string; icon: string }[] = [
+const BASE_TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "profile", label: "Profile", icon: "person" },
   { id: "wallets", label: "Wallets", icon: "currency_bitcoin" },
   { id: "stations", label: "Stations", icon: "radio" },
@@ -24,6 +32,18 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
 function Settings() {
   const currentUser = useCurrentAccount();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+
+  // Desktop tab is only shown inside Tauri. `isTauri()` is safe to
+  // call during render; it reads window globals synchronously.
+  const TABS = useMemo(() => {
+    if (isTauri()) {
+      return [
+        ...BASE_TABS,
+        { id: "desktop" as const, label: "Desktop", icon: "desktop_windows" },
+      ];
+    }
+    return BASE_TABS;
+  }, []);
 
   if (!currentUser) {
     return (
@@ -82,6 +102,7 @@ function Settings() {
         {activeTab === "stations" && <MyStationsSettings />}
         {activeTab === "favourites" && <MyFavouritesSettings />}
         {activeTab === "relays" && <RelaysSettings />}
+        {activeTab === "desktop" && <DesktopSettings />}
       </div>
     </div>
   );

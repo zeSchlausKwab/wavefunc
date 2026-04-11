@@ -2,6 +2,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { routeTree } from "./routeTree.gen";
 import { useWavefuncNostr } from "./lib/nostr/runtime";
+import { installTauriBridge } from "./lib/tauriBridge";
 import { installMetadataSubscription } from "./stores/metadataStore";
 import { usePlayerStore } from "./stores/playerStore";
 import { useSleepTimerStore } from "./stores/sleepTimerStore";
@@ -40,6 +41,31 @@ export function App() {
   // duration.
   useEffect(() => {
     useSleepTimerStore.getState().rehydrate();
+  }, []);
+
+  // Install the Tauri bridge. No-op in the web build. When running
+  // inside Tauri, this pushes player/metadata state to the native
+  // tray, listens for media-key events, and routes wavefunc://
+  // deep links. Cleanup is async because the listen() calls are.
+  useEffect(() => {
+    let cleanup: (() => void) | null = null;
+    let cancelled = false;
+    // The router type parameters are non-empty in the real app;
+    // `never, never` is fine for the bridge's purposes since it
+    // only uses `router.navigate()` which is type-erased enough.
+    installTauriBridge(router as unknown as Parameters<typeof installTauriBridge>[0]).then(
+      (fn) => {
+        if (cancelled) {
+          fn();
+          return;
+        }
+        cleanup = fn;
+      }
+    );
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
   }, []);
 
   return <RouterProvider router={router} />;
