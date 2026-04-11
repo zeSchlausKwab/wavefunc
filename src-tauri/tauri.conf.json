@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "identifier": "live.wavefunc.app",
   "build": {
-    "beforeDevCommand": "bun run build",
+    "beforeDevCommand": "bun run dev:frontend",
+    "devUrl": "http://localhost:3000",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },

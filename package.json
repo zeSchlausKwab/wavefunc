@@ -32,8 +32,9 @@
     "tauri": "tauri",
     "tauri:dev": "bun run relay & sleep 1 && bun run migrate && bun run contextvm & tauri dev",
     "tauri:build": "tauri build",
-    "tauri:android": "tauri android init && tauri android dev",
-    "tauri:android:build": "tauri android build"
+    "tauri:android:init": "tauri android init",
+    "tauri:android": "adb reverse tcp:3000 tcp:3000; adb reverse tcp:3334 tcp:3334; RELAY_URL=ws://localhost:3334 bun run build && bun run relay & sleep 1 && bun run contextvm & RELAY_URL=ws://localhost:3334 TAURI_DEV_HOST=127.0.0.1 tauri android dev",
+    "tauri:android:build": "RELAY_URL=wss://relay.wavefunc.live bun run build && RELAY_URL=wss://relay.wavefunc.live tauri android build"
   },
   "dependencies": {
     "@cashu/cashu-ts": "3.6.2",

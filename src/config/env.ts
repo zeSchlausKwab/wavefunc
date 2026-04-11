@@ -22,12 +22,11 @@ export function isTauri(): boolean {
  * Detect platform when running in Tauri
  */
 async function getPlatform(): Promise<string | null> {
-  if (!isTauri) return null;
+  if (!isTauri()) return null;
 
   try {
-    // @ts-ignore - Tauri API may not be typed yet
-    const { platform } = await import("@tauri-apps/api/os");
-    return await platform();
+    const { platform } = await import("@tauri-apps/plugin-os");
+    return platform();
   } catch {
     return null;
   }
@@ -49,13 +48,13 @@ async function getRelayUrl(): Promise<string> {
   }
 
   // If running in browser (not Tauri), construct from current location
-  if (typeof window !== "undefined" && !isTauri) {
+  if (typeof window !== "undefined" && !isTauri()) {
     // Determine WebSocket protocol based on page protocol
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname;
 
     // In development (localhost:3000), connect directly to relay on :3334
-    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    if (host.includes("localhost") || host.includes("127.0.0.172")) {
       return `${protocol}//${host}:3334`;
     }
 
@@ -72,12 +71,39 @@ async function getRelayUrl(): Promise<string> {
 
   const platformName = await getPlatform();
 
-  // Android emulator needs special IP to reach host machine
+  // Android: the WebView host depends on whether this is a dev or prod build.
+  // - Dev + adb reverse (our tauri:android script): hostname is 127.0.0.1 → use it
+  // - Dev on emulator without adb reverse: hostname is 10.0.2.2 → use it
+  // - Dev on a LAN IP (TAURI_DEV_HOST unset): hostname is 192.168.x.y → use it
+  // - Production APK: hostname is `tauri.localhost` (Tauri's bundled-asset URL)
+  //   which doesn't route anywhere — fall back to the public relay.
   if (platformName === "android") {
-    return "ws://10.0.2.2:3334";
+    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+    const isDevHost =
+      hostname === "127.0.0.1" ||
+      hostname === "localhost" ||
+      hostname === "10.0.2.2" ||
+      /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+    if (isDevHost) {
+      return `ws://${hostname}:3334`;
+    }
+    return "wss://relay.wavefunc.live";
   }
 
-  // All other platforms can use localhost
+  // iOS: same story — prod builds need a public relay, dev uses local.
+  if (platformName === "ios") {
+    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+    const isDevHost =
+      hostname === "127.0.0.1" ||
+      hostname === "localhost" ||
+      /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+    if (isDevHost) {
+      return `ws://${hostname}:3334`;
+    }
+    return "wss://relay.wavefunc.live";
+  }
+
+  // Desktop fallback
   return "ws://localhost:3334";
 }
 
