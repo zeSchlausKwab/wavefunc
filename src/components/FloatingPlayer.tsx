@@ -513,16 +513,16 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       </div>
 
       {/* ── Desktop footer (md+) ── */}
-      <footer className="hidden md:block fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+      <footer className="hidden md:block fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)] overflow-hidden">
         <div className="flex h-full items-stretch">
 
-          {/* Station info */}
-          <div className="flex items-center gap-4 px-4 flex-grow max-w-xs border-r-4 border-on-background overflow-hidden">
-            <div className="w-12 h-12 bg-on-background border-2 border-primary-fixed-dim flex items-center justify-center text-secondary-fixed-dim shrink-0">
+          {/* Station info — shrinks to fit, never overflows */}
+          <div className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 shrink min-w-0 w-[200px] lg:w-[250px] xl:w-[320px] border-r-4 border-on-background overflow-hidden">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-on-background border-2 border-primary-fixed-dim flex items-center justify-center text-secondary-fixed-dim shrink-0">
               {currentStation?.thumbnail ? (
                 <img src={currentStation.thumbnail} alt={currentStation.name || "Station"} className="w-full h-full object-cover" />
               ) : (
-                <span className="material-symbols-outlined text-3xl" style={{ animation: isPlaying ? "spin 3s linear infinite" : "none" }}>
+                <span className="material-symbols-outlined text-2xl lg:text-3xl" style={{ animation: isPlaying ? "spin 3s linear infinite" : "none" }}>
                   album
                 </span>
               )}
@@ -536,15 +536,15 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               )}>
                 {statusLabel}
               </p>
-              <h4 className="font-black text-base uppercase tracking-tighter truncate font-headline leading-tight">
+              <h4 className="font-black text-sm lg:text-base uppercase tracking-tighter truncate font-headline leading-tight">
                 {currentStation
                   ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
                   : "SELECT_A_STATION"}
               </h4>
               {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
                   <p
-                    className="truncate text-[11px] text-on-background/70 cursor-pointer hover:text-primary transition-colors leading-tight flex-1 min-w-0"
+                    className="truncate text-[10px] lg:text-[11px] text-on-background/70 cursor-pointer hover:text-primary transition-colors leading-tight flex-1 min-w-0"
                     onClick={handleSearchMetadata}
                     title="Search on MusicBrainz"
                   >
@@ -554,30 +554,30 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   <SongFavoriteButton size="sm" className="shrink-0" />
                 </div>
               )}
-              {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-28 mt-0.5" />}
+              {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-24 mt-0.5" />}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}
               {currentStation && (
-                <div className="mt-1">
+                <div className="mt-0.5">
                   <PlayerSocialBar station={currentStation} />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Transport controls */}
-          <div className="flex items-stretch flex-grow justify-center">
+          {/* Transport controls — flex-1 so they fill available space */}
+          <div className="flex items-stretch flex-1 justify-center min-w-0">
             <button
               onClick={stop}
               disabled={!currentStation}
-              className="text-on-background px-5 lg:px-8 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40"
+              className="text-on-background px-2 md:px-3 lg:px-4 xl:px-6 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
               title="Stop"
             >
-              <span className="material-symbols-outlined">stop_circle</span>
+              <span className="material-symbols-outlined text-[22px]">stop_circle</span>
             </button>
             <button
               onClick={state.kind === "failed" ? retry : resume}
               disabled={!currentStation || isPlaying || state.kind === "reconnecting"}
-              className="bg-secondary-fixed-dim text-on-background px-10 lg:px-16 flex flex-col justify-center items-center hover:translate-y-1 transition-all active:translate-y-2 border-x-4 border-on-background disabled:opacity-40"
+              className="bg-secondary-fixed-dim text-on-background px-3 md:px-5 lg:px-8 xl:px-14 flex flex-col justify-center items-center hover:translate-y-1 transition-all active:translate-y-2 border-x-4 border-on-background disabled:opacity-40 shrink-0"
               title={
                 state.kind === "failed" ? "Retry" :
                 state.kind === "reconnecting" ? "Reconnecting…" :
@@ -587,13 +587,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               }
             >
               {state.kind === "failed" ? (
-                <span className="material-symbols-outlined text-4xl">refresh</span>
+                <span className="material-symbols-outlined text-3xl lg:text-4xl">refresh</span>
               ) : isLoading ? (
-                <span className="material-symbols-outlined text-4xl" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
+                <span className="material-symbols-outlined text-3xl lg:text-4xl" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
               ) : (
-                <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                <span className="material-symbols-outlined text-3xl lg:text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
               )}
-              <span className="font-bold uppercase text-[9px]">
+              <span className="font-bold uppercase text-[8px] lg:text-[9px]">
                 {state.kind === "failed" ? "RETRY" :
                  state.kind === "reconnecting" ? "RECONNECT" :
                  state.kind === "buffering" ? "BUFFER" :
@@ -604,28 +604,28 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
             <button
               onClick={pause}
               disabled={!currentStation || isLoading || !isPlaying}
-              className="text-on-background px-5 lg:px-8 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40"
+              className="text-on-background px-2 md:px-3 lg:px-4 xl:px-6 flex items-center justify-center border-r-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
               title="Pause"
             >
-              <span className="material-symbols-outlined">pause</span>
+              <span className="material-symbols-outlined text-[22px]">pause</span>
             </button>
-            <div className="text-on-background px-5 lg:px-8 flex items-center justify-center hover:bg-surface-variant transition-all">
+            <div className="text-on-background px-2 md:px-3 lg:px-4 xl:px-6 flex items-center justify-center hover:bg-surface-variant transition-all shrink-0">
               <HistorySheet />
             </div>
             <SleepTimerButton variant="compact" />
           </div>
 
-          {/* Volume — xl+ only */}
-          <div className="hidden xl:flex items-center gap-4 px-8 border-l-4 border-on-background bg-surface-container-low">
+          {/* Volume */}
+          <div className="flex items-center gap-2 lg:gap-3 px-2 md:px-3 xl:px-4 border-l-4 border-on-background bg-surface-container-low shrink-0">
             <button
               onClick={toggleMute}
-              className="text-on-background hover:text-primary transition-colors"
+              className="text-on-background hover:text-primary transition-colors shrink-0"
               title={isMuted ? "Unmute" : "Mute"}
             >
               <span className="material-symbols-outlined">{isMuted ? "volume_off" : "volume_up"}</span>
             </button>
             <div
-              className="w-32 h-6 bg-on-background/10 border-2 border-on-background relative cursor-pointer"
+              className="w-16 lg:w-20 xl:w-24 h-6 bg-on-background/10 border-2 border-on-background relative cursor-pointer shrink-0"
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setVolume((e.clientX - rect.left) / rect.width);

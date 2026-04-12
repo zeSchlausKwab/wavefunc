@@ -51,18 +51,17 @@ export function StationView({ searchQuery }: StationViewProps) {
   } = useFilterStore();
 
   const filter = useMemo<Omit<Filter, "kinds">>(() => {
-    const baseFilter: Omit<Filter, "kinds"> = { limit: 500 };
-    if (searchQuery.trim()) baseFilter.search = searchQuery.trim();
-    return baseFilter;
+    return { limit: 500 };
   }, [searchQuery]);
 
   const clientSideFilters = useMemo(
     () => ({
+      searchQuery: searchQuery.trim() || undefined,
       genres: genres.length > 0 ? genres : undefined,
       languages: languages.length > 0 ? languages : undefined,
       countries: countries.length > 0 ? countries : undefined,
     }),
-    [genres, languages, countries]
+    [searchQuery, genres, languages, countries]
   );
 
   const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);

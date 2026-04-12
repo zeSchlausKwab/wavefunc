@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { isAdmin } from "../config/admins";
 import { useCurrentAccount } from "../lib/nostr/auth";
@@ -9,59 +10,65 @@ interface FloatingHeaderProps {
   onSearch: (query: string) => void;
 }
 
+const NAV_ITEMS: {
+  to: string;
+  label: string;
+  icon: string;
+  adminOnly?: boolean;
+}[] = [
+  { to: "/", label: "TRANSMIT", icon: "home" },
+  { to: "/browse/genres", label: "RECEPTION", icon: "music_note" },
+  { to: "/favorites", label: "ARCHIVE", icon: "star" },
+  { to: "/crate", label: "CRATE", icon: "album" },
+  { to: "/signals", label: "SIGNALS", icon: "graphic_eq" },
+  { to: "/community", label: "ASSEMBLY", icon: "forum" },
+  { to: "/admin", label: "CONTROL", icon: "admin_panel_settings", adminOnly: true },
+];
+
 const navLinkBase =
-  "font-bold tracking-tighter uppercase text-on-background px-4 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap";
+  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-2.5 lg:px-3 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap";
 const navLinkActive =
-  "font-bold tracking-tighter uppercase text-surface bg-primary px-4 py-1 -skew-x-12 transition-all whitespace-nowrap";
+  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-surface bg-primary px-2.5 lg:px-3 py-1 -skew-x-12 transition-all whitespace-nowrap";
 
 export function FloatingHeader({ searchInput, setSearchInput, onSearch }: FloatingHeaderProps) {
   const currentUser = useCurrentAccount();
   const adminUser = isAdmin(currentUser?.pubkey);
+  const navItems = useMemo(
+    () => NAV_ITEMS.filter((item) => !item.adminOnly || adminUser),
+    [adminUser]
+  );
 
   return (
-    <header className="hidden md:flex fixed top-0 left-0 right-0 z-[60] items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
+    <header className="hidden md:flex fixed top-0 left-0 right-0 z-[60] items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] overflow-hidden">
 
       {/* Logo + Nav */}
-      <div className="flex items-center gap-4 px-4 shrink-0 whitespace-nowrap border-r-4 border-on-background h-full overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-2 md:gap-3 xl:gap-4 px-3 xl:px-4 min-w-0 flex-1 border-r-4 border-on-background h-full">
         <Link to="/" search={{}}>
-          <div className="text-xl font-black text-on-background border-4 border-on-background px-2 py-1 rotate-[-2deg] font-headline uppercase tracking-tighter select-none shrink-0">
+          <div className="text-lg lg:text-xl font-black text-on-background border-4 border-on-background px-1.5 lg:px-2 py-1 rotate-[-2deg] font-headline uppercase tracking-tighter select-none shrink-0">
             WAVEFUNC
           </div>
         </Link>
 
-        <nav className="hidden md:flex gap-1 shrink-0">
-          <Link to="/" search={{}} className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            TRANSMIT
-          </Link>
-          <Link to="/browse/genres" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            RECEPTION
-          </Link>
-          <Link to="/favorites" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            ARCHIVE
-          </Link>
-          <Link to="/crate" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            CRATE
-          </Link>
-          <Link to="/signals" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            SIGNALS
-          </Link>
-          <Link to="/community" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-            ASSEMBLY
-          </Link>
-          {adminUser ? (
-            <Link to="/admin" className={navLinkBase} activeProps={{ className: navLinkActive }}>
-              CONTROL
-            </Link>
-          ) : (
-            <span className={`${navLinkBase} invisible`} aria-hidden="true">
-              CONTROL
-            </span>
-          )}
+        <nav className="flex gap-0.5 min-w-0">
+          {navItems.map((item) => {
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                search={item.to === "/" ? {} : undefined}
+                className={navLinkBase}
+                activeProps={{ className: navLinkActive }}
+              >
+                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                <span className="hidden xl:inline text-xs">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Search — hidden on mobile, handled by FloatingSearchButton */}
-      <div className="hidden md:flex flex-1 items-center gap-3 px-4 h-full">
+      {/* Search */}
+      <div className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 h-full min-w-0 basis-[9.5rem] lg:basis-[12rem] xl:basis-[16rem] 2xl:flex-1 border-r-4 border-on-background">
         <span className="material-symbols-outlined text-[20px] text-on-background/40 shrink-0">
           search
         </span>
@@ -85,7 +92,7 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
       </div>
 
       {/* Login */}
-      <div className="shrink-0 px-4 border-l-4 border-on-background h-full flex items-center">
+      <div className="shrink-0 px-2 lg:px-3 h-full flex items-center overflow-hidden">
         <LoginSessionButtons />
       </div>
 

@@ -82,7 +82,6 @@ If no `--relays` are specified, the utility uses all relays from `src/frontend.t
 - wss://relay.primal.net
 - wss://relay.damus.io
 - wss://purplepag.es
-- wss://relay.nostr.band
 - wss://nos.lol
 - wss://relay.minibits.cash
 - wss://relay.coinos.io/

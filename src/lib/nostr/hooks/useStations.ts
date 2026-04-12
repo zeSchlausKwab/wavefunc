@@ -21,10 +21,30 @@ type UseStationStreamResult = {
 };
 
 type StationClientFilters = {
+  searchQuery?: string;
   genres?: string[];
   languages?: string[];
   countries?: string[];
 };
+
+function matchesStationSearch(station: ParsedStation, searchQuery: string) {
+  const needle = searchQuery.trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+
+  const haystacks = [
+    station.name,
+    station.description,
+    station.location,
+    station.website,
+    station.countryCode,
+    ...station.genres,
+    ...station.languages,
+  ];
+
+  return haystacks.some((value) => value?.toLowerCase().includes(needle));
+}
 
 function useStationStream(filters: Filter[]): UseStationStreamResult {
   const { eventStore, relayPool } = useWavefuncNostr();
@@ -112,6 +132,13 @@ export function useStationsObserver(
   const events = useMemo(() => {
     if (!clientSideFilters) return allEvents;
     return allEvents.filter((station) => {
+      if (
+        clientSideFilters.searchQuery &&
+        !matchesStationSearch(station, clientSideFilters.searchQuery)
+      ) {
+        return false;
+      }
+
       if (clientSideFilters.genres && clientSideFilters.genres.length > 0) {
         const stationGenres = station.genres.map((genre) => genre.toLowerCase());
         const hasMatchingGenre = clientSideFilters.genres.some((genre) =>

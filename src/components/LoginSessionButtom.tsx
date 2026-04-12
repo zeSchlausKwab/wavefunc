@@ -59,7 +59,7 @@ export function LoginSessionButtons() {
 
   if (currentAccount) {
     return (
-      <div className="flex min-w-[176px] sm:min-w-[236px] justify-end">
+      <div className="flex justify-end">
         <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
           <WalletButton />
           <MiniProfile userOrPubkey={currentAccount} />
@@ -84,7 +84,7 @@ export function LoginSessionButtons() {
   }
 
   return (
-    <div className="flex min-w-[176px] sm:min-w-[236px] justify-end">
+    <div className="flex justify-end">
       <div
         className={cn(
           "flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all",

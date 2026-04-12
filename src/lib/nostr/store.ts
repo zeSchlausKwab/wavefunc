@@ -55,7 +55,6 @@ export const DEFAULT_RELAYS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
   "wss://nostr.wine",
-  "wss://relay.nostr.band",
   "wss://relay.minibits.cash",
   "wss://relay.coinos.io",
 ];

@@ -1,12 +1,22 @@
-import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createRootRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { FloatingHeader } from "../components/FloatingHeader";
 import { FloatingPlayer } from "../components/FloatingPlayer";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createRootRoute({
   component: () => {
     const [searchInput, setSearchInput] = useState("");
     const navigate = useNavigate();
+    const currentSearch = useRouterState({
+      select: (state) => {
+        const search = state.location.search as Record<string, unknown>;
+        return typeof search.search === "string" ? search.search : "";
+      },
+    });
+
+    useEffect(() => {
+      setSearchInput(currentSearch);
+    }, [currentSearch]);
 
     const handleSearch = (query: string) => {
       navigate({
