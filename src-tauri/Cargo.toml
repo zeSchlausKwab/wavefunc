@@ -2,7 +2,8 @@
 name = "wavefunc"
 version = "0.1.0"
 description = "Decentralized Radio Platform"
-authors = ["you"]
+authors = ["Schlaus Kwab"]
+license = "MIT"
 edition = "2021"
 
 [lib]
