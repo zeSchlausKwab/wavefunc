@@ -1,0 +1,7 @@
+repository: https://github.com/zeSchlausKwab/wavefunc
+description: A Nostr-based internet radio directory and player with full-text search capabilities.
+summary: Internet Radio on nostr
+license: MIT
+website: https://wavefunc.live
+metadata_sources:
+    - github
