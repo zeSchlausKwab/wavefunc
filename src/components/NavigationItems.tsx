@@ -64,7 +64,12 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
         ASSEMBLY
       </Link>
 
-      <div className="px-5 py-4 border-t-4 border-on-background mt-2">
+        <Link to="/apps" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
+        <span className="material-symbols-outlined text-[20px]">download</span>
+        DOWNLOAD
+      </Link>
+
+    <div className="px-5 py-4 border-t-4 border-on-background mt-2">
         <StationManagementSheet
           mode="add"
           trigger={

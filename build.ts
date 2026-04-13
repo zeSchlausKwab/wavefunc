@@ -160,6 +160,13 @@ if (existsSync(wellKnownSrc)) {
   await cp(wellKnownSrc, wellKnownDest, { recursive: true });
 }
 
+// Copy public/ assets to dist (manifest, icons, etc.)
+const publicSrc = path.join(process.cwd(), "public");
+if (existsSync(publicSrc)) {
+  console.log(`📋 Copying public/ assets to ${outdir}`);
+  await cp(publicSrc, outdir, { recursive: true });
+}
+
 const buildTime = (end - start).toFixed(2);
 
 console.log(`\n✅ Build completed in ${buildTime}ms\n`);

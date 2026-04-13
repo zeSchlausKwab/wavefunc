@@ -23,6 +23,7 @@ const NAV_ITEMS: {
   { to: "/signals", label: "SIGNALS", icon: "graphic_eq" },
   { to: "/community", label: "ASSEMBLY", icon: "forum" },
   { to: "/admin", label: "CONTROL", icon: "admin_panel_settings", adminOnly: true },
+  { to: "/apps", label: "DOWNLOAD", icon: "download" },
 ];
 
 const navLinkBase =

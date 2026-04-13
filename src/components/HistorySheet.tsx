@@ -3,18 +3,15 @@ import {
   decodeEventPointer,
 } from "applesauce-core/helpers/pointers";
 import { useObservableEagerMemo } from "applesauce-react/hooks";
-import { History, Radio, Trash2, X } from "lucide-react";
 import { combineLatest, map, of } from "rxjs";
 import { withImmediateValueOrDefault } from "applesauce-core";
 import { useHistoryStore } from "../stores/historyStore";
 import { parseStationEvent, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { usePlayerStore } from "../stores/playerStore";
-import { Button } from "./ui/button";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -29,17 +26,8 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
   const { history, clearHistory, removeFromHistory } = useHistoryStore();
   const { playStation } = usePlayerStore();
 
-  // Keyed by stationId so deps are stable as long as the set of ids doesn't change
   const historyKey = history.map((entry) => entry.stationId).join(",");
 
-  // Reactive map of stationId → ParsedStation, populated by per-entry
-  // observable subscriptions. The runtime's event loader auto-fetches
-  // missing events from the configured relays, so subscribers will receive
-  // the station as soon as it lands in the store.
-  // Reactive map of stationId → ParsedStation, populated by per-entry
-  // observable subscriptions. The runtime's event loader auto-fetches
-  // missing events from the configured relays, so subscribers will receive
-  // the station as soon as it lands in the store.
   const stations = useObservableEagerMemo<Map<string, ParsedStation>>(
     () => {
       if (history.length === 0) {
@@ -118,52 +106,54 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
     <Sheet>
       <SheetTrigger asChild>
         {trigger || (
-          <Button variant="ghost" size="icon" title="Play history">
-            <History className="w-4 h-4" />
-          </Button>
+          <button className="p-2 hover:bg-on-background/10 transition-colors" title="Play history">
+            <span className="material-symbols-outlined text-[20px]">history</span>
+          </button>
         )}
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <History className="w-5 h-5" />
-            Play History
+      <SheetContent className="w-full sm:max-w-md border-l-4 border-on-background bg-background p-0">
+        <SheetHeader className="p-5 pb-0">
+          <SheetTitle className="flex items-center gap-2 text-lg font-black uppercase tracking-tight font-headline">
+            <span className="material-symbols-outlined text-[22px]">history</span>
+            PLAY_HISTORY
           </SheetTitle>
-          <SheetDescription>
-            Recently played stations (last 50)
-          </SheetDescription>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/50">
+            RECENTLY_PLAYED_STATIONS (LAST_50)
+          </p>
         </SheetHeader>
 
-        <div className="mt-6">
+        <div className="flex-1 overflow-hidden flex flex-col px-5 pt-4 pb-5">
           {history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Radio className="w-16 h-16 text-muted-foreground/20 mb-4" />
-              <p className="text-muted-foreground">No play history yet</p>
-              <p className="text-sm text-muted-foreground/60 mt-2">
-                Start playing some stations to see them here
+              <span className="material-symbols-outlined text-6xl text-on-background/20 block mb-4">radio</span>
+              <p className="text-xl font-black uppercase tracking-tight font-headline">
+                NO_HISTORY_YET
+              </p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 mt-2">
+                START_PLAYING_STATIONS_TO_SEE_THEM_HERE
               </p>
             </div>
           ) : (
             <>
-              <div className="flex justify-between items-center mb-4">
-                <p className="text-sm text-muted-foreground">
-                  {history.length} {history.length === 1 ? "station" : "stations"}
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/50">
+                  {history.length} {history.length === 1 ? "STATION" : "STATIONS"}
                 </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={handleClearHistory}
-                  className="text-destructive hover:text-destructive"
+                  className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Clear All
-                </Button>
+                  <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+                  CLEAR_ALL
+                </button>
               </div>
 
-              <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+              <div className="flex-1 space-y-[-2px] overflow-y-auto">
                 {loading && stations.size === 0 ? (
-                  <div className="flex justify-center py-8">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <div className="space-y-[-2px]">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-16 border-2 border-on-background bg-surface-container-low animate-pulse" />
+                    ))}
                   </div>
                 ) : (
                   history.map((entry) => {
@@ -172,7 +162,7 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
                     return (
                       <div
                         key={entry.timestamp}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                        className="flex items-center gap-3 p-3 border-2 border-on-background bg-surface-container-high hover:bg-secondary-fixed-dim transition-colors group"
                       >
                         <button
                           onClick={() => handlePlayStation(entry.stationId)}
@@ -183,33 +173,31 @@ export function HistorySheet({ trigger }: HistorySheetProps) {
                             <img
                               src={station.thumbnail}
                               alt={station.name}
-                              className="w-12 h-12 rounded object-cover flex-shrink-0"
+                              className="w-10 h-10 object-cover flex-shrink-0 border-2 border-on-background"
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                              <Radio className="w-6 h-6 text-gray-400" />
+                            <div className="w-10 h-10 bg-on-background/10 flex items-center justify-center flex-shrink-0 border-2 border-on-background">
+                              <span className="material-symbols-outlined text-[18px] text-on-background/30">radio</span>
                             </div>
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">
-                              {station?.name || "Loading..."}
+                            <p className="font-black text-sm uppercase tracking-tight truncate">
+                              {station?.name || "LOADING..."}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/50">
                               {formatTimestamp(entry.timestamp)}
                             </p>
                           </div>
                         </button>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 hover:text-primary"
                           onClick={() => removeFromHistory(entry.timestamp)}
                           title="Remove from history"
                         >
-                          <X className="w-4 h-4" />
-                        </Button>
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
                       </div>
                     );
                   })

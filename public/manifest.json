@@ -1,0 +1,29 @@
+{
+  "name": "WaveFunc Radio",
+  "short_name": "WaveFunc",
+  "description": "Decentralized internet radio directory and player built on Nostr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fef9ea",
+  "theme_color": "#1d1c13",
+  "orientation": "any",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

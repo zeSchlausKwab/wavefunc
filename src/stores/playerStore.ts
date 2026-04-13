@@ -326,7 +326,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       const event = await firstValueFrom(
         eventStore.event(pointer).pipe(
           filter((value): value is NostrEvent => Boolean(value)),
-          timeout(5000)
+          timeout(15000)
         )
       );
       if (event) {
