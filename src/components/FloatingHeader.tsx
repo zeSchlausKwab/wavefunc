@@ -23,7 +23,6 @@ const NAV_ITEMS: {
   { to: "/signals", label: "SIGNALS", icon: "graphic_eq" },
   { to: "/community", label: "ASSEMBLY", icon: "forum" },
   { to: "/admin", label: "CONTROL", icon: "admin_panel_settings", adminOnly: true },
-  { to: "/apps", label: "DOWNLOAD", icon: "download" },
 ];
 
 const navLinkBase =
@@ -50,7 +49,7 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
           </div>
         </Link>
 
-        <nav className="flex gap-0.5 min-w-0">
+        <nav className="flex gap-0.5 min-w-0 overflow-hidden">
           {navItems.map((item) => {
             return (
               <Link
@@ -92,8 +91,16 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
         )}
       </div>
 
-      {/* Login */}
-      <div className="shrink-0 px-2 lg:px-3 h-full flex items-center overflow-hidden">
+      {/* Download + Login */}
+      <div className="shrink-0 px-2 lg:px-3 h-full flex items-center gap-1 overflow-hidden">
+        <Link
+          to="/apps"
+          className={navLinkBase}
+          activeProps={{ className: navLinkActive }}
+          title="Download apps"
+        >
+          <span className="material-symbols-outlined text-[18px]">download</span>
+        </Link>
         <LoginSessionButtons />
       </div>
 
