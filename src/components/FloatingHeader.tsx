@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { isAdmin } from "../config/admins";
 import { useCurrentAccount } from "../lib/nostr/auth";
+import { StationManagementSheet } from "./StationManagementSheet";
+import { AuthRequiredButton } from "./AuthRequiredButton";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -91,8 +93,20 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
         )}
       </div>
 
-      {/* Download + Login */}
+      {/* Actions + Login */}
       <div className="shrink-0 px-2 lg:px-3 h-full flex items-center gap-1 overflow-hidden">
+        <StationManagementSheet
+          mode="add"
+          trigger={
+            <AuthRequiredButton
+              loginTooltipMessage="Log in to add a station"
+              className={navLinkBase}
+              title="Add station"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+            </AuthRequiredButton>
+          }
+        />
         <Link
           to="/apps"
           className={navLinkBase}
