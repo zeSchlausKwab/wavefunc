@@ -156,42 +156,10 @@ jobs:
         run: |
           mkdir -p src-tauri/keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/keystore/wavefunc.keystore
-
-          # Write keystore.properties
           printf 'password=%s\nkeyAlias=wavefunc\nstoreFile=../../../keystore/wavefunc.keystore\n' \
             "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             > src-tauri/gen/android/keystore.properties
-
-          # Patch build.gradle.kts to add signing config (tauri android init generates without it)
-          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
-
-          # Add imports at the top
-          sed -i '1s/^/import java.util.Properties\nimport java.io.FileInputStream\n/' "$GRADLE_FILE"
-
-          # Add keystore properties loading after tauriProperties block
-          sed -i '/^android {/i \
-          val keystorePropertiesFile = rootProject.file("keystore.properties")\
-          val keystoreProperties = Properties()\
-          if (keystorePropertiesFile.exists()) {\
-              keystoreProperties.load(FileInputStream(keystorePropertiesFile))\
-          }\
-          ' "$GRADLE_FILE"
-
-          # Add signingConfigs block inside android {}
-          sed -i '/^android {/a \
-              signingConfigs {\
-                  create("release") {\
-                      if (rootProject.file("keystore.properties").exists()) {\
-                          keyAlias = keystoreProperties["keyAlias"] as String\
-                          keyPassword = keystoreProperties["password"] as String\
-                          storeFile = file(keystoreProperties["storeFile"] as String)\
-                          storePassword = keystoreProperties["password"] as String\
-                      }\
-                  }\
-              }' "$GRADLE_FILE"
-
-          # Wire release buildType to use the signing config
-          sed -i 's/getByName("release") {/getByName("release") {\n            signingConfig = signingConfigs.getByName("release")/' "$GRADLE_FILE"
+          cp src-tauri/android-template/build.gradle.kts src-tauri/gen/android/app/build.gradle.kts
 
       - name: Build Android APK
         env:
