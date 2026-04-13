@@ -146,16 +146,22 @@ jobs:
       - name: Build frontend
         run: bun run build
 
+      - name: Initialize Tauri Android project
+        run: bunx tauri android init
+
       - name: Decode keystore
         run: |
           mkdir -p src-tauri/keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/keystore/wavefunc.keystore
+          cat > src-tauri/gen/android/keystore.properties << EOF
+          password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=wavefunc
+          storeFile=../../../keystore/wavefunc.keystore
+          EOF
 
       - name: Build Android APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           bunx tauri android build --apk
 
