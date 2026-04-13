@@ -2,9 +2,12 @@ import type { Filter } from "applesauce-core/helpers/filter";
 import { useStationsObserver } from "../lib/nostr/hooks/useStations";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
+import { GenreCarousel } from "./GenreCarousel";
 import { useMemo } from "react";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+
+const GENRE_SECTIONS = ["rock", "jazz", "dance", "country", "classical", "folk", "punk"];
 
 interface StationViewProps {
   searchQuery: string;
@@ -67,6 +70,19 @@ export function StationView({ searchQuery }: StationViewProps) {
   const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);
 
   const isSearching = !!searchQuery.trim();
+
+  // Group stations by genre for the carousel sections
+  const genreStations = useMemo(() => {
+    if (isSearching || stations.length === 0) return null;
+    const map = new Map<string, typeof stations>();
+    for (const genre of GENRE_SECTIONS) {
+      const matching = stations.filter((s) =>
+        s.genres.some((g) => g.toLowerCase() === genre),
+      );
+      if (matching.length > 0) map.set(genre, matching);
+    }
+    return map.size > 0 ? map : null;
+  }, [stations, isSearching]);
 
   return (
     <div className="space-y-8">
@@ -153,6 +169,15 @@ export function StationView({ searchQuery }: StationViewProps) {
             </p>
           )}
         </section>
+      )}
+
+      {/* ── GENRE CAROUSELS ── */}
+      {!isSearching && genreStations && (
+        <div className="space-y-8">
+          {Array.from(genreStations.entries()).map(([genre, stns]) => (
+            <GenreCarousel key={genre} genre={genre} stations={stns} />
+          ))}
+        </div>
       )}
 
       {/* ── TILE GRID ── */}
