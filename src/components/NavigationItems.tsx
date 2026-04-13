@@ -3,6 +3,7 @@ import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { StationManagementSheet } from "./StationManagementSheet";
+import { SupportPopover } from "./SupportPopover";
 
 interface NavigationItemsProps {
   onNavigate?: () => void;
@@ -69,7 +70,7 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
         DOWNLOAD
       </Link>
 
-    <div className="px-5 py-4 border-t-4 border-on-background mt-2">
+    <div className="px-5 py-4 border-t-4 border-on-background mt-2 flex flex-col gap-3">
         <StationManagementSheet
           mode="add"
           trigger={
@@ -79,6 +80,7 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
             </AuthRequiredButton>
           }
         />
+        <SupportPopover />
       </div>
     </>
   );

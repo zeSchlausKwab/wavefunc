@@ -5,6 +5,7 @@ import { isAdmin } from "../config/admins";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { AuthRequiredButton } from "./AuthRequiredButton";
+import { SupportPopover } from "./SupportPopover";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -107,6 +108,7 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
             </AuthRequiredButton>
           }
         />
+        <SupportPopover />
         <Link
           to="/apps"
           className={navLinkBase}
