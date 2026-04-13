@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { openUrl } from "../lib/openUrl";
 import { QRCodeSVG } from "qrcode.react";
 import { NostrConnectSigner } from "applesauce-signers";
 import {
@@ -285,11 +286,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                     Scan with Amber or another remote signer
                   </p>
 
-                  <a
-                    href={connectionUri}
-                    className="block border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] p-3 bg-white"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => openUrl(connectionUri)}
+                    className="block w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] p-3 bg-white cursor-pointer"
                   >
                     <QRCodeSVG
                       value={connectionUri}
@@ -299,7 +298,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                       level="L"
                       className="w-full h-auto"
                     />
-                  </a>
+                  </button>
 
                   {state === "waiting" && (
                     <div className="flex items-center gap-2 border-2 border-on-background/30 px-3 py-2 bg-surface-container-low">

@@ -9,6 +9,7 @@ import { NutzapEvent } from "applesauce-wallet/actions";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useMemo, useState } from "react";
+import { openUrl } from "../lib/openUrl";
 import { getPublicContentRelayUrls } from "../config/nostr";
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
@@ -685,11 +686,10 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
                 variant="outline"
                 className="w-full"
                 onClick={() => {
-                  if (invoice.toLowerCase().startsWith("lightning:")) {
-                    window.open(invoice, "_blank");
-                  } else {
-                    window.open(`lightning:${invoice}`, "_blank");
-                  }
+                  const uri = invoice.toLowerCase().startsWith("lightning:")
+                    ? invoice
+                    : `lightning:${invoice}`;
+                  openUrl(uri);
                 }}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
