@@ -130,7 +130,7 @@ function Apps() {
             </div>
           </div>
           <a
-            href="https://zapstore.dev"
+            href="https://zapstore.dev/apps/live.wavefunc.app"
             target="_blank"
             rel="noopener noreferrer"
             className="border-2 border-on-background px-5 py-2.5 font-black uppercase tracking-tight text-sm hover:bg-on-background hover:text-surface transition-colors"
