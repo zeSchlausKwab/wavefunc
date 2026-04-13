@@ -148,6 +148,7 @@ jobs:
 
       - name: Decode keystore
         run: |
+          mkdir -p src-tauri/keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/keystore/wavefunc.keystore
 
       - name: Build Android APK
