@@ -17,8 +17,8 @@ const EXPECTED_PUBKEY = APP_PRIVATE_KEY
   ? getPublicKey(hexToBytes(APP_PRIVATE_KEY))
   : undefined;
 
-// Simple in-memory rate limiting for migration endpoint
-const migrationLock = { isRunning: false, lastRun: 0 };
+// Simple in-memory lock/rate limit for authenticated maintenance endpoints.
+const maintenanceLock = { isRunning: false, lastRun: 0 };
 
 // Define route handlers that work in both modes
 const apiRoutes: Record<string, any> = {
@@ -47,18 +47,18 @@ const apiRoutes: Record<string, any> = {
   "/api/migrate": {
     async POST(req: Request) {
       // Check if migration is already running (prevent concurrent migrations)
-      if (migrationLock.isRunning) {
+      if (maintenanceLock.isRunning) {
         return Response.json(
-          { error: "Migration already in progress" },
+          { error: "Another maintenance task is already in progress" },
           { status: 429 }
         );
       }
 
       // Rate limit: minimum 60 seconds between migrations
       const now = Date.now();
-      if (now - migrationLock.lastRun < 60000) {
+      if (now - maintenanceLock.lastRun < 60000) {
         return Response.json(
-          { error: "Please wait before starting another migration" },
+          { error: "Please wait before starting another maintenance task" },
           { status: 429 }
         );
       }
@@ -94,8 +94,8 @@ const apiRoutes: Record<string, any> = {
       }
 
       // Set migration lock
-      migrationLock.isRunning = true;
-      migrationLock.lastRun = now;
+      maintenanceLock.isRunning = true;
+      maintenanceLock.lastRun = now;
 
       // Parse request body for migration parameters
       let count = 500;
@@ -229,8 +229,107 @@ const apiRoutes: Record<string, any> = {
           );
           controller.close();
 
-          // Release migration lock
-          migrationLock.isRunning = false;
+          // Release maintenance lock
+          maintenanceLock.isRunning = false;
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Transfer-Encoding": "chunked",
+        },
+      });
+    },
+  },
+
+  "/api/reindex-search": {
+    async POST(req: Request) {
+      if (maintenanceLock.isRunning) {
+        return Response.json(
+          { error: "Another maintenance task is already in progress" },
+          { status: 429 }
+        );
+      }
+
+      const now = Date.now();
+      if (now - maintenanceLock.lastRun < 60000) {
+        return Response.json(
+          { error: "Please wait before starting another maintenance task" },
+          { status: 429 }
+        );
+      }
+
+      const authHeader = req.headers.get("Authorization");
+      const url = new URL(req.url);
+      const proto =
+        req.headers.get("X-Forwarded-Proto") || url.protocol.replace(":", "");
+      const host = req.headers.get("X-Forwarded-Host") || url.host;
+      const fullUrl = `${proto}://${host}${url.pathname}`;
+
+      const bodyText = await req.text();
+      const body = bodyText ? JSON.parse(bodyText) : undefined;
+
+      const authEvent = await verifyNIP98Auth(
+        authHeader,
+        fullUrl,
+        "POST",
+        EXPECTED_PUBKEY,
+        body
+      );
+
+      if (!authEvent) {
+        return Response.json(
+          { error: "Unauthorized - Invalid NIP-98 authentication" },
+          { status: 401 }
+        );
+      }
+
+      maintenanceLock.isRunning = true;
+      maintenanceLock.lastRun = now;
+
+      const reindexProc = Bun.spawn(
+        ["./scripts/reindex-search.sh"],
+        {
+          cwd: process.cwd(),
+          env: process.env,
+          stdout: "pipe",
+          stderr: "pipe",
+        }
+      );
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const stdoutReader = reindexProc.stdout.getReader();
+          const stderrReader = reindexProc.stderr.getReader();
+
+          const pipeReader = async (
+            reader: ReadableStreamDefaultReader<Uint8Array>
+          ) => {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(
+                encoder.encode(new TextDecoder().decode(value))
+              );
+            }
+          };
+
+          try {
+            await Promise.all([pipeReader(stdoutReader), pipeReader(stderrReader)]);
+          } catch (error) {
+            controller.enqueue(
+              encoder.encode(`\nError while streaming reindex output: ${error}\n`)
+            );
+          }
+
+          const exitCode = await reindexProc.exited;
+          controller.enqueue(
+            encoder.encode(`\nReindex completed with exit code: ${exitCode}\n`)
+          );
+          controller.close();
+          maintenanceLock.isRunning = false;
         },
       });
 
