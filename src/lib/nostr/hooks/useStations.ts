@@ -27,9 +27,19 @@ type StationClientFilters = {
   countries?: string[];
 };
 
+// Mirrors the relay's bleve tokenization (standard analyzer: split on non-word
+// chars, lowercase) so the local filter doesn't drop hits the server already
+// approved. For a query "flux fm" this tokenizes the station's text into words
+// and requires "flux" AND "fm" to appear as whole tokens or prefixes — which
+// matches bleve's (match OR prefix)-per-term behavior. Without this we'd fail
+// to include e.g. "FLUX FM-KlubRadio" (no literal "flux fm" substring).
+function tokenize(text: string): string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean);
+}
+
 function matchesStationSearch(station: ParsedStation, searchQuery: string) {
-  const needle = searchQuery.trim().toLowerCase();
-  if (!needle) {
+  const queryTerms = tokenize(searchQuery);
+  if (queryTerms.length === 0) {
     return true;
   }
 
@@ -41,9 +51,18 @@ function matchesStationSearch(station: ParsedStation, searchQuery: string) {
     station.countryCode,
     ...station.genres,
     ...station.languages,
-  ];
+  ].filter((v): v is string => typeof v === "string");
 
-  return haystacks.some((value) => value?.toLowerCase().includes(needle));
+  const stationTokens = new Set(haystacks.flatMap(tokenize));
+
+  // every query term must appear as a full token OR as a prefix of some token
+  return queryTerms.every((term) => {
+    if (stationTokens.has(term)) return true;
+    for (const t of stationTokens) {
+      if (t.startsWith(term)) return true;
+    }
+    return false;
+  });
 }
 
 function useStationStream(filters: Filter[]): UseStationStreamResult {
@@ -116,15 +135,21 @@ export function useStationsObserver(
   filterWithoutKinds: Omit<Filter, "kinds"> = { limit: 50 },
   clientSideFilters?: StationClientFilters,
 ): UseStationStreamResult {
+  // If the caller gave us a searchQuery, push it into the relay subscription as
+  // a NIP-50 `search` field. The relay's bleve index evaluates the query across
+  // the entire station corpus (~50k); without this we'd be grep-ing whatever
+  // arbitrary `limit` window the relay happened to return.
+  const searchQuery = clientSideFilters?.searchQuery?.trim();
   const filters = useMemo(
     () => [
       {
         ...filterWithoutKinds,
         kinds: [STATION_KIND],
+        ...(searchQuery ? { search: searchQuery } : {}),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(filterWithoutKinds)],
+    [JSON.stringify(filterWithoutKinds), searchQuery],
   );
 
   const { events: allEvents, eose } = useStationStream(filters);
@@ -132,6 +157,12 @@ export function useStationsObserver(
   const events = useMemo(() => {
     if (!clientSideFilters) return allEvents;
     return allEvents.filter((station) => {
+      // The relay has already done the NIP-50 search server-side, but
+      // applesauce's TimelineModel still feeds us every cached kind-31237
+      // event in the eventStore (it doesn't know how to honor `search`), so
+      // we re-filter here with the tokenized matcher that mirrors bleve's
+      // behavior. Without this pass a search would appear to "leak" older
+      // cached stations from previous browse sessions.
       if (
         clientSideFilters.searchQuery &&
         !matchesStationSearch(station, clientSideFilters.searchQuery)

@@ -97,6 +97,17 @@ if [ -f "relay/data/events.db" ] && [ ! -d "relay/data/events" ]; then
     NEEDS_MIGRATION=true
 fi
 
+# Detect bleve/LMDB drift: LMDB has events but search index is missing or was
+# wiped (e.g. bluge→bleve auto-reset). Without this rebuild the relay serves
+# empty NIP-50 results even though the stations are in storage.
+NEEDS_REINDEX=false
+if [ "$NEEDS_MIGRATION" = "false" ] && [ -d "relay/data/events" ]; then
+    if [ ! -d "relay/data/search" ] || [ ! -f "relay/data/search/index_meta.json" ]; then
+        echo "⚠️  LMDB present but bleve search index missing — will rebuild after relay starts."
+        NEEDS_REINDEX=true
+    fi
+fi
+
 # Restart PM2 processes
 echo "🔄 Restarting services..."
 pm2 delete all 2>/dev/null || true
@@ -162,6 +173,20 @@ if [ "$NEEDS_MIGRATION" = "true" ]; then
         echo "✅ Migration running in background (PID: $!)"
         echo "   Monitor: tail -f logs/migration.log"
     fi
+fi
+
+# Rebuild the bleve search index from LMDB if we detected drift earlier.
+# This is safe to run with pm2 managing the relay: the reindex script stops
+# the relay, runs `./relay/relay --reindex`, then restarts it via pm2.
+if [ "$NEEDS_REINDEX" = "true" ]; then
+    echo ""
+    echo "🔄 Rebuilding search index from LMDB (reindex on startup)..."
+    # Give pm2 a moment to finish registering the wavefunc-relay process so
+    # reindex-search.sh can cleanly stop/restart it.
+    sleep 3
+    nohup ./scripts/reindex-search.sh > logs/reindex.log 2>&1 &
+    echo "✅ Reindex running in background (PID: $!)"
+    echo "   Monitor: tail -f logs/reindex.log"
 fi
 
 echo ""
