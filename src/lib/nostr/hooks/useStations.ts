@@ -65,6 +65,17 @@ function matchesStationSearch(station: ParsedStation, searchQuery: string) {
   });
 }
 
+// Strip the NIP-50 `search` field from a filter. Required when feeding a filter
+// to applesauce's TimelineModel: the in-memory event store treats any filter
+// with `search` set as "search not supported, return empty" and refuses to
+// match cached events. The server-side subscription still gets the original
+// filter with `search` so the relay can do its bleve query.
+function stripSearch(filter: Filter): Filter {
+  if (filter.search === undefined) return filter;
+  const { search: _ignored, ...rest } = filter;
+  return rest as Filter;
+}
+
 function useStationStream(filters: Filter[]): UseStationStreamResult {
   const { eventStore, relayPool } = useWavefuncNostr();
 
@@ -86,8 +97,13 @@ function useStationStream(filters: Filter[]): UseStationStreamResult {
     return () => subscription.unsubscribe();
   }, [eventStore, relayPool, filters]);
 
+  // applesauce's in-memory store returns an empty set for any filter that has
+  // `search` set, so we must hand TimelineModel a search-stripped copy. The
+  // local matcher in useStationsObserver re-applies the search constraint.
+  const readFilters = useMemo(() => filters.map(stripSearch), [filters]);
+
   const rawEvents =
-    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
+    useEventModel(TimelineModel, readFilters.length > 0 ? [readFilters] : null) ?? [];
 
   const events = useMemo(
     () => rawEvents.map((event) => parseStationEvent(event)),
