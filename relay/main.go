@@ -135,61 +135,39 @@ func (s *stationSearch) DeleteEvent(id nostr.ID) error {
 	return s.index.Delete(id.Hex())
 }
 
-// ReplaceEvent updates the bleve index when a kind-31237 station is republished
-// under the same {pubkey, d-tag} coordinate. It indexes the new event and
-// sweeps stale bleve entries for the same coordinate so searches never return
-// dead IDs that LMDB has already replaced. For non-station kinds it's a no-op
-// (those kinds aren't indexed).
-func (s *stationSearch) ReplaceEvent(evt nostr.Event) error {
+// ReplaceEvent indexes the new event and optionally removes one specific stale
+// bleve doc. The caller supplies `priorID`, which is the LMDB-resident event
+// ID for this {kind, pubkey, d} coordinate captured *before* the LMDB replace
+// ran (so it points at the version about to be evicted). For non-station
+// kinds this is a no-op.
+//
+// We do NOT do a broad pubkey-wide bleve sweep here — that approach scaled
+// badly and the delete-on-missing-LMDB pattern was self-destructing the index
+// under any LMDB read hiccup. Drift across the whole author space is the
+// reindex's job.
+func (s *stationSearch) ReplaceEvent(evt nostr.Event, priorID nostr.ID) error {
 	if evt.Kind != indexedKind {
 		return nil
 	}
-
-	// Always (re-)index the new event first.
+	// Index the new event.
 	if err := s.index.Index(evt.ID.Hex(), buildSearchDoc(evt)); err != nil {
 		return err
 	}
-
-	// Find the current live event ID for this {pubkey, d} coordinate.
-	liveFilter := nostr.Filter{
-		Kinds:   []nostr.Kind{indexedKind},
-		Authors: []nostr.PubKey{evt.PubKey},
-		Tags:    nostr.TagMap{"d": []string{evt.Tags.GetD()}},
-	}
-	liveID := evt.ID
-	for live := range s.rawStore.QueryEvents(liveFilter, 1) {
-		liveID = live.ID
-		break
-	}
-
-	// Sweep any bleve entries for this author whose ID no longer matches the
-	// live one. Since only kind-31237 events are ever indexed, narrowing by
-	// pubkey is sufficient to find the zombies for this author's stations.
-	req := bleve.NewSearchRequest(newKeywordTermQuery("p", evt.PubKey.Hex()))
-	req.Size = 1000
-	res, err := s.index.Search(req)
-	if err != nil {
-		return nil // sweeping is best-effort
-	}
-	liveHex := liveID.Hex()
-	for _, hit := range res.Hits {
-		if hit.ID == liveHex {
-			continue
-		}
-		// Re-fetch from LMDB; if it's not there the ID is a zombie. If it is
-		// there it's a different station from the same author — leave it.
-		found := false
-		for prev := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{mustID(hit.ID)}}, 1) {
-			_ = prev
-			found = true
-			break
-		}
-		if found {
-			continue
-		}
-		_ = s.index.Delete(hit.ID)
+	// Drop the previous bleve doc for this coordinate, if there was one and it
+	// differs from what we just indexed. Anything wrong here is best-effort.
+	if priorID != evt.ID && !isZeroID(priorID) {
+		_ = s.index.Delete(priorID.Hex())
 	}
 	return nil
+}
+
+func isZeroID(id nostr.ID) bool {
+	for _, b := range id {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func newKeywordTermQuery(field, value string) bleveQuery.Query {
@@ -296,17 +274,15 @@ func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[
 			if err != nil {
 				continue
 			}
-			emitted := false
+			// Just skip if LMDB doesn't have this ID. We must NOT delete the
+			// bleve entry on the read path: a transient LMDB read miss (txn
+			// snapshot, races, anything) would permanently corrupt the index
+			// and the same query would return fewer results forever after.
+			// Drift cleanup is the reindex's job, not the query path's.
 			for evt := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{id}}, 1) {
-				emitted = true
 				if !yield(evt) {
 					return
 				}
-			}
-			if !emitted {
-				// bleve has a stale entry (event replaced/deleted in LMDB). Clean it up so
-				// subsequent searches don't waste a slot on a dead ID.
-				_ = s.index.Delete(hit.ID)
 			}
 		}
 	}
@@ -504,17 +480,35 @@ func main() {
 		return search.SaveEvent(event)
 	}
 
-	// Override ReplaceEvent to also update bleve index (and sweep stale IDs from
-	// prior versions of the same {kind,pubkey,d} coordinate).
+	// Override ReplaceEvent to also update bleve index. For station events we
+	// capture the prior LMDB-resident event ID for this {pubkey, d} coordinate
+	// *before* baseReplace runs (because baseReplace evicts the prior event
+	// from LMDB), then hand it to search.ReplaceEvent so it can drop exactly
+	// that one stale bleve doc. No broad sweep, no LMDB-miss-deletes.
 	baseReplace := relay.ReplaceEvent
 	relay.ReplaceEvent = func(ctx context.Context, event nostr.Event) error {
+		var priorID nostr.ID
+		if event.Kind == indexedKind {
+			d := event.Tags.GetD()
+			if d != "" {
+				prevFilter := nostr.Filter{
+					Kinds:   []nostr.Kind{indexedKind},
+					Authors: []nostr.PubKey{event.PubKey},
+					Tags:    nostr.TagMap{"d": []string{d}},
+				}
+				for prev := range db.QueryEvents(prevFilter, 1) {
+					priorID = prev.ID
+					break
+				}
+			}
+		}
 		if err := baseReplace(ctx, event); err != nil {
 			return err
 		}
-		return search.ReplaceEvent(event)
+		return search.ReplaceEvent(event, priorID)
 	}
 
-	// Override DeleteEvent to also remove from bleve
+	// Override DeleteEvent to also remove from bleve.
 	baseDelete := relay.DeleteEvent
 	relay.DeleteEvent = func(ctx context.Context, id nostr.ID) error {
 		if err := baseDelete(ctx, id); err != nil {
