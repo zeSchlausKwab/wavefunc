@@ -1,18 +1,72 @@
 import Hls from "hls.js";
 import type { Stream } from "../nostr/domain";
+import { isTauri } from "@/config/env";
 
 // Normalize URLs coming from events (trim spaces/backticks)
 export function normalizeUrl(url: string): string {
   return (url || "").trim().replace(/^`+|`+$/g, "");
 }
 
-export function requiresExternalPlayback(url: string): boolean {
+/**
+ * Returns true if this URL points at localhost (any port). Mixed-content rules
+ * generally allow localhost even from https origins, and we don't want to
+ * silently rewrite a developer's local dev server.
+ */
+function isLocalhost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".localhost")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns the URL we'd actually try to feed the <audio> element.
+ *
+ * On an https web page, browsers block any http:// audio resource as mixed
+ * content. JavaScript can't bypass that. The cheapest workaround that doesn't
+ * involve a proxy is to optimistically upgrade the scheme: a huge fraction of
+ * radio servers serve the same stream over both http and https on the same
+ * hostname (e.g. radioca.st, somafm.com, fluxfm.de, laut.fm, ...). For those,
+ * upgrading just works. For the rare upstream that genuinely has no TLS, the
+ * audio element fires an error and the supervisor's candidate-fallback / fail
+ * state handles it the same way it would have anyway.
+ *
+ * We skip the upgrade in three cases:
+ *   - we're inside Tauri (no mixed-content restriction; native http works)
+ *   - the page itself is http (e.g. localhost dev) — no upgrade needed
+ *   - the URL is localhost (preserve developer expectations)
+ */
+export function effectivePlayUrl(url: string): string {
   const normalized = normalizeUrl(url);
+  if (typeof window === "undefined") return normalized;
+  if (isTauri()) return normalized;
+  if (window.location.protocol !== "https:") return normalized;
+  if (!normalized.startsWith("http://")) return normalized;
+  if (isLocalhost(normalized)) return normalized;
+  return "https://" + normalized.slice("http://".length);
+}
 
+/**
+ * True only when even after the best-effort upgrade we still have a non-https
+ * URL on an https page (i.e. the upgrade was suppressed by the localhost
+ * exception). Everything else gets a chance to play in-app first; if that
+ * fails the supervisor surfaces a failed state and the user can still choose
+ * to open the original stream externally.
+ */
+export function requiresExternalPlayback(url: string): boolean {
   if (typeof window === "undefined") return false;
+  if (isTauri()) return false;
   if (window.location.protocol !== "https:") return false;
-
-  return normalized.startsWith("http://");
+  const effective = effectivePlayUrl(url);
+  return effective.startsWith("http://");
 }
 
 export function canPlayStreamInApp(stream: Stream): boolean {
@@ -54,7 +108,10 @@ export async function playWithAdapter(
   stream: Stream,
   audio: HTMLAudioElement
 ): Promise<{ hls?: Hls }> {
-  const url = normalizeUrl(stream.url);
+  // Use effectivePlayUrl so an http stream from an https page becomes an
+  // https request the browser will actually let through (best-effort upgrade;
+  // see comment on the function for why this is safe).
+  const url = effectivePlayUrl(stream.url);
   const mime = getMime(stream);
 
   if (requiresExternalPlayback(url)) {
@@ -135,15 +192,24 @@ const FORMAT_RANK: Record<string, number> = {
 
 export function sortStreamsByPreference(streams: Stream[]): Stream[] {
   return [...streams]
-    .map((s) => ({
-      stream: s,
-      url: normalizeUrl(s.url),
-      mime: getMime(s) || "",
-      rank:
-        (canPlayStreamInApp(s) ? 10_000 : 0) +
-        (s.primary ? 1000 : 0) +
-        (FORMAT_RANK[getMime(s) || ""] || 0),
-    }))
+    .map((s) => {
+      const url = normalizeUrl(s.url);
+      const playableInApp = canPlayStreamInApp(s);
+      // Prefer truly-https URLs over urls we'd merely *try* to upgrade. A
+      // station that already lists an https variant is more reliable than one
+      // that only has http (where the upgrade may or may not work upstream).
+      const nativeHttps = url.startsWith("https://") ? 500 : 0;
+      return {
+        stream: s,
+        url,
+        mime: getMime(s) || "",
+        rank:
+          (playableInApp ? 10_000 : 0) +
+          nativeHttps +
+          (s.primary ? 1000 : 0) +
+          (FORMAT_RANK[getMime(s) || ""] || 0),
+      };
+    })
     .filter((x) => x.url.length > 0)
     .sort((a, b) => b.rank - a.rank)
     .map((x) => ({ ...x.stream, url: x.url }));
