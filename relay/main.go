@@ -8,7 +8,6 @@ import (
 	"iter"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	bleve "github.com/blevesearch/bleve/v2"
@@ -79,96 +78,83 @@ func (s *stationSearch) Close() {
 	}
 }
 
-// buildSearchDoc produces the bleve document for an event. Returned doc fields:
-//   - "c": searchable text content (kind-aware; see below)
-//   - "k": kind as a string, for kind filtering at query time
-//   - "p": author pubkey (hex), for author filtering
-//   - "t": created_at as a string, for since/until filtering
+// indexedKind is the only event kind whose content we search via NIP-50.
+// Everything else (notes, zaps, gift wraps, etc.) is stored in LMDB but kept
+// out of bleve — it would only bloat the index and slow reindex without ever
+// being searched.
+const indexedKind = nostr.Kind(31237)
+
+// buildSearchDoc produces the bleve document for a kind-31237 (radio station)
+// event. Doc fields:
+//   - "c": searchable text content — name + description + genre tag values
+//   - "p": author pubkey (hex), for optional author filtering
+//   - "t": created_at as a float64, for optional since/until range filtering
+//
+// We no longer need a "k" field since only one kind is ever indexed.
 func buildSearchDoc(evt nostr.Event) map[string]any {
-	content := evt.Content
-	if evt.Kind == 31237 {
-		name := ""
-		if tag := evt.Tags.Find("name"); tag != nil {
-			name = tag[1]
-		}
-		var parsed struct {
-			Description string `json:"description"`
-		}
-		description := ""
-		if err := json.Unmarshal([]byte(evt.Content), &parsed); err == nil {
-			description = parsed.Description
-		}
-		// Also include genre tag values so searches like "ambient" or "drone" match
-		// stations where those words appear only in the "c" genre tags.
-		var genreParts []string
-		for tag := range evt.Tags.FindAll("c") {
-			if len(tag) >= 2 {
-				genreParts = append(genreParts, tag[1])
-			}
-		}
-		// Index "name description genres" so all three are searchable
-		content = strings.TrimSpace(name + " " + description + " " + strings.Join(genreParts, " "))
-	} else if evt.Kind == 31337 {
-		// Song event: index title, artist, album, and genre tags
-		var parts []string
-		if tag := evt.Tags.Find("title"); tag != nil {
-			parts = append(parts, tag[1])
-		}
-		for tag := range evt.Tags.FindAll("c") {
-			if len(tag) >= 3 && (tag[2] == "artist" || tag[2] == "album") {
-				parts = append(parts, tag[1])
-			}
-		}
-		for tag := range evt.Tags.FindAll("t") {
-			if len(tag) >= 2 {
-				parts = append(parts, tag[1])
-			}
-		}
-		content = strings.TrimSpace(strings.Join(parts, " "))
+	name := ""
+	if tag := evt.Tags.Find("name"); tag != nil {
+		name = tag[1]
 	}
+	var parsed struct {
+		Description string `json:"description"`
+	}
+	description := ""
+	if err := json.Unmarshal([]byte(evt.Content), &parsed); err == nil {
+		description = parsed.Description
+	}
+	// Include genre tag values so searches like "ambient" or "drone" match
+	// stations where those words appear only in the "c" genre tags.
+	var genreParts []string
+	for tag := range evt.Tags.FindAll("c") {
+		if len(tag) >= 2 {
+			genreParts = append(genreParts, tag[1])
+		}
+	}
+	content := strings.TrimSpace(name + " " + description + " " + strings.Join(genreParts, " "))
 
 	return map[string]any{
 		"c": content,
-		"k": strconv.Itoa(int(evt.Kind)),
 		"p": evt.PubKey.Hex(),
-		// stored as a float for NumericRangeQuery (created_at is uint32 seconds)
 		"t": float64(evt.CreatedAt),
 	}
 }
 
+// SaveEvent only indexes radio stations (kind 31237). All other kinds stay in
+// LMDB only — no bleve write, no search hit.
 func (s *stationSearch) SaveEvent(evt nostr.Event) error {
+	if evt.Kind != indexedKind {
+		return nil
+	}
 	return s.index.Index(evt.ID.Hex(), buildSearchDoc(evt))
 }
 
 func (s *stationSearch) DeleteEvent(id nostr.ID) error {
+	// Best-effort delete; if the ID isn't in the index (because it wasn't a
+	// station event) bleve returns nil anyway.
 	return s.index.Delete(id.Hex())
 }
 
-// ReplaceEvent updates the bleve index for an addressable/replaceable event.
-// It indexes the new event, then sweeps stale entries for the same
-// {kind, pubkey, d-tag} coordinate out of bleve so searches never return
-// dead IDs that LMDB has already replaced. Without this, bleve accumulates
-// zombie entries after every station re-publish.
+// ReplaceEvent updates the bleve index when a kind-31237 station is republished
+// under the same {pubkey, d-tag} coordinate. It indexes the new event and
+// sweeps stale bleve entries for the same coordinate so searches never return
+// dead IDs that LMDB has already replaced. For non-station kinds it's a no-op
+// (those kinds aren't indexed).
 func (s *stationSearch) ReplaceEvent(evt nostr.Event) error {
+	if evt.Kind != indexedKind {
+		return nil
+	}
+
 	// Always (re-)index the new event first.
 	if err := s.index.Index(evt.ID.Hex(), buildSearchDoc(evt)); err != nil {
 		return err
 	}
 
-	// Addressable (30000..39999) and replaceable (10000..19999) are the cases
-	// where the rawStore replaces prior versions. For plain replaceable, the
-	// coordinate is {kind, pubkey}; for addressable it's {kind, pubkey, d}.
-	if !(evt.Kind.IsAddressable() || evt.Kind.IsReplaceable()) {
-		return nil
-	}
-
-	// Find the current live event ID for this coordinate (post-replace).
+	// Find the current live event ID for this {pubkey, d} coordinate.
 	liveFilter := nostr.Filter{
-		Kinds:   []nostr.Kind{evt.Kind},
+		Kinds:   []nostr.Kind{indexedKind},
 		Authors: []nostr.PubKey{evt.PubKey},
-	}
-	if evt.Kind.IsAddressable() {
-		liveFilter.Tags = nostr.TagMap{"d": []string{evt.Tags.GetD()}}
+		Tags:    nostr.TagMap{"d": []string{evt.Tags.GetD()}},
 	}
 	liveID := evt.ID
 	for live := range s.rawStore.QueryEvents(liveFilter, 1) {
@@ -176,14 +162,11 @@ func (s *stationSearch) ReplaceEvent(evt nostr.Event) error {
 		break
 	}
 
-	// Sweep any bleve entries for this coordinate whose ID no longer matches
-	// the live one. These are zombies from prior replacements.
-	staleQuery := bleve.NewConjunctionQuery(
-		newKeywordTermQuery("k", strconv.Itoa(int(evt.Kind))),
-		newKeywordTermQuery("p", evt.PubKey.Hex()),
-	)
-	req := bleve.NewSearchRequest(staleQuery)
-	req.Size = 100
+	// Sweep any bleve entries for this author whose ID no longer matches the
+	// live one. Since only kind-31237 events are ever indexed, narrowing by
+	// pubkey is sufficient to find the zombies for this author's stations.
+	req := bleve.NewSearchRequest(newKeywordTermQuery("p", evt.PubKey.Hex()))
+	req.Size = 1000
 	res, err := s.index.Search(req)
 	if err != nil {
 		return nil // sweeping is best-effort
@@ -193,19 +176,16 @@ func (s *stationSearch) ReplaceEvent(evt nostr.Event) error {
 		if hit.ID == liveHex {
 			continue
 		}
-		// For addressable we must also match the d-tag. Re-fetch from LMDB to
-		// verify; if LMDB no longer has this ID it's definitely a zombie.
-		if evt.Kind.IsAddressable() {
-			found := false
-			for prev := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{mustID(hit.ID)}}, 1) {
-				_ = prev
-				found = true
-				break
-			}
-			if found {
-				// ID still exists — different d-tag, leave it.
-				continue
-			}
+		// Re-fetch from LMDB; if it's not there the ID is a zombie. If it is
+		// there it's a different station from the same author — leave it.
+		found := false
+		for prev := range s.rawStore.QueryEvents(nostr.Filter{IDs: []nostr.ID{mustID(hit.ID)}}, 1) {
+			_ = prev
+			found = true
+			break
+		}
+		if found {
+			continue
 		}
 		_ = s.index.Delete(hit.ID)
 	}
@@ -224,16 +204,33 @@ func mustID(hex string) nostr.ID {
 }
 
 // QueryEvents searches the index. For each whitespace-separated term it builds
-// a (MatchQuery OR PrefixQuery) so that partial words like "enall" match "enallax".
-// All terms must match (AND between terms). Kinds/Authors/Since/Until from the
-// nostr filter are pushed down into bleve as extra conjuncts so the client gets
-// back what it asked for (and so station hits don't get pushed out of the
-// maxLimit-sized result by unrelated kinds).
+// a (MatchQuery OR PrefixQuery) so that partial words like "enall" match
+// "enallax". All terms must match (AND between terms). The index only ever
+// holds kind-31237 events, so we don't need a kind conjunct — but we still
+// honor Authors and Since/Until from the nostr filter.
+//
+// If the caller's filter has Kinds set and *doesn't* include 31237, we early-
+// return: the search index has nothing for them.
 func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[nostr.Event] {
 	return func(yield func(nostr.Event) bool) {
 		terms := strings.Fields(strings.ToLower(strings.TrimSpace(filter.Search)))
 		if len(terms) == 0 {
 			return
+		}
+
+		// the search index is station-only. if the caller restricted to kinds
+		// that don't include 31237, there's nothing to return.
+		if len(filter.Kinds) > 0 {
+			wantsStations := false
+			for _, k := range filter.Kinds {
+				if k == indexedKind {
+					wantsStations = true
+					break
+				}
+			}
+			if !wantsStations {
+				return
+			}
 		}
 
 		var conjuncts []bleveQuery.Query
@@ -246,19 +243,6 @@ func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[
 
 			// term matches if either the word is present OR the term is a prefix of a word
 			conjuncts = append(conjuncts, bleve.NewDisjunctionQuery(matchQ, prefixQ))
-		}
-
-		// Kind filter → disjunction of term queries on "k"
-		if len(filter.Kinds) > 0 {
-			kindDisjuncts := make([]bleveQuery.Query, 0, len(filter.Kinds))
-			for _, k := range filter.Kinds {
-				kindDisjuncts = append(kindDisjuncts, newKeywordTermQuery("k", strconv.Itoa(int(k))))
-			}
-			if len(kindDisjuncts) == 1 {
-				conjuncts = append(conjuncts, kindDisjuncts[0])
-			} else {
-				conjuncts = append(conjuncts, bleve.NewDisjunctionQuery(kindDisjuncts...))
-			}
 		}
 
 		// Author filter → disjunction of term queries on "p"
@@ -419,52 +403,74 @@ func main() {
 			batchDocs = batchDocs[:0]
 		}
 
-		// Iterate LMDB per-kind instead of with an empty filter. Empty-filter
-		// iteration uses the createdAt index and slows to a crawl when many
-		// events share the same second (which happens after a bulk migration).
-		// Per-kind uses the kind index directly and stays O(n).
-		//
-		// We enumerate kinds from a curated list plus any others discovered in
-		// LMDB — anything the relay stores gets indexed.
-		kindsToIndex := []nostr.Kind{
-			0,      // Metadata
-			1,      // Note
-			3,      // Contacts
-			7,      // Reaction
-			10002,  // Relay List
-			10019,  // Mute List / NIP-51
-			30023,  // Long-form
-			30078,  // App Data (favorites lists, admin features, etc.)
-			31237,  // Radio Station
-			31337,  // Song
-			31989,  // Handler Recommendation
-			31990,  // Handler Info
-			1059,   // Gift wrap
-			1111,   // Comment
-			9735,   // Zap
-		}
-		for _, k := range kindsToIndex {
-			for evt := range db.QueryEvents(nostr.Filter{Kinds: []nostr.Kind{k}}, 1000000) {
-				id := evt.ID.Hex()
-				doc := buildSearchDoc(evt)
-				if err := batch.Index(id, doc); err != nil {
-					log.Printf("⚠️  Failed to add %s to batch: %v", id[:8], err)
-					failed++
-					continue
-				}
-				batchIDs = append(batchIDs, id)
-				batchDocs = append(batchDocs, doc)
-				count++
-				if batch.Size() >= batchSize {
-					commit()
-					log.Printf("   Indexed %d events (kind=%d, failed so far: %d)", count, k, failed)
-				}
+		// Track every LMDB station ID we tried to add, so we can audit after
+		// the kind-index pass and catch anything the iterator silently dropped.
+		seen := map[string]struct{}{}
+
+		processEvent := func(evt nostr.Event) {
+			id := evt.ID.Hex()
+			doc := buildSearchDoc(evt)
+			if err := batch.Index(id, doc); err != nil {
+				log.Printf("⚠️  Failed to add %s to batch: %v", id[:8], err)
+				failed++
+				return
 			}
-			// flush between kinds so progress is durable and scorch segments stay small
-			commit()
+			batchIDs = append(batchIDs, id)
+			batchDocs = append(batchDocs, doc)
+			count++
+			seen[id] = struct{}{}
+			if batch.Size() >= batchSize {
+				commit()
+				log.Printf("   Indexed %d stations (failed so far: %d)", count, failed)
+			}
 		}
 
-		log.Printf("✅ Reindex complete: %d indexed, %d skipped", count-failed, failed)
+		// Pass 1: kind-index walk. Fast path for the bulk of stations.
+		for evt := range db.QueryEvents(nostr.Filter{Kinds: []nostr.Kind{indexedKind}}, 1000000) {
+			processEvent(evt)
+		}
+		commit()
+
+		// Pass 2: paginated until/since walk. Different access pattern catches
+		// events the kind-index iterator missed when many stations share the
+		// same created_at second (which happens after a bulk migration). Any
+		// ID not seen in pass 1 gets indexed here.
+		log.Println("🔎 Verification pass: paginated rescan for missed IDs...")
+		recovered := 0
+		until := uint32(4294967295)
+		for {
+			gotInWindow := 0
+			oldestSeen := until
+			for evt := range db.QueryEvents(nostr.Filter{
+				Kinds: []nostr.Kind{indexedKind},
+				Until: nostr.Timestamp(until),
+				Limit: 5000,
+			}, 5000) {
+				gotInWindow++
+				ts := uint32(evt.CreatedAt)
+				if ts < oldestSeen {
+					oldestSeen = ts
+				}
+				id := evt.ID.Hex()
+				if _, ok := seen[id]; ok {
+					continue
+				}
+				processEvent(evt)
+				recovered++
+			}
+			if gotInWindow == 0 || oldestSeen == 0 || oldestSeen >= until {
+				break
+			}
+			// step `until` to one second before the oldest seen so the next
+			// page picks up older events
+			until = oldestSeen - 1
+		}
+		commit()
+		if recovered > 0 {
+			log.Printf("🩹 Recovered %d stations the kind-index iterator missed", recovered)
+		}
+
+		log.Printf("✅ Reindex complete: %d stations indexed, %d skipped", count-failed, failed)
 		// Close explicitly so scorch persists its last segments before we exit.
 		if err := search.index.Close(); err != nil {
 			log.Printf("⚠️  failed to close bleve index cleanly: %v", err)
@@ -556,19 +562,19 @@ func main() {
 		}
 	}
 
-	// Drift check: if LMDB has data but the search index has essentially none,
-	// log a loud warning. The deploy script will auto-reindex on a fresh deploy,
-	// but operators need to see this immediately if something gets out of sync
-	// at runtime.
+	// Drift check: if LMDB has stations but the search index has essentially
+	// none, log a loud warning. The deploy script will auto-reindex on a fresh
+	// deploy, but operators need to see this immediately if something gets out
+	// of sync at runtime.
 	{
 		lmdbCount := 0
-		for range db.QueryEvents(nostr.Filter{Kinds: []nostr.Kind{31237}}, 2) {
+		for range db.QueryEvents(nostr.Filter{Kinds: []nostr.Kind{indexedKind}}, 2) {
 			lmdbCount++
 		}
 		if lmdbCount > 0 {
 			if idxCount, err := search.index.DocCount(); err == nil && idxCount < 2 {
-				log.Printf("⚠️  Search index is essentially empty (%d docs) but LMDB has kind 31237 events.", idxCount)
-				log.Printf("    NIP-50 search will return no station results. Run `./relay/relay --reindex` to rebuild.")
+				log.Printf("⚠️  Search index is essentially empty (%d docs) but LMDB has stations.", idxCount)
+				log.Printf("    NIP-50 search will return no results. Run `./relay/relay --reindex` to rebuild.")
 			}
 		}
 	}
