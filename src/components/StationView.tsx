@@ -1,5 +1,5 @@
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useStationsObserver } from "../lib/nostr/hooks/useStations";
+import { useStationsObserver, useStationCount } from "../lib/nostr/hooks/useStations";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
 import { GenreCarousel } from "./GenreCarousel";
@@ -68,6 +68,13 @@ export function StationView({ searchQuery }: StationViewProps) {
   );
 
   const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);
+
+  // Authoritative total (NIP-45 COUNT against the relay's bleve index).
+  // The timeline subscription only loads up to 500 events, so we'd
+  // otherwise be claiming "N broadcasting" with N capped at 500 even
+  // though the corpus is ~50k. Falls back to the loaded count if the
+  // relay hasn't answered yet.
+  const totalStations = useStationCount();
 
   const isSearching = !!searchQuery.trim();
 
@@ -157,7 +164,10 @@ export function StationView({ searchQuery }: StationViewProps) {
             </div>
           )}
 
-          <div className="space-y-[-4px]">
+          {/* Mobile: real spacing between cards so they read as separate
+             units. Desktop keeps the original tight stacking that pairs
+             with the brutalist staggered offset cycle. */}
+          <div className="space-y-3 md:space-y-[-4px]">
             {stations.map((station, i) => (
               <RadioCard key={station.id} station={station} variant="search-result" index={i} />
             ))}
@@ -172,7 +182,11 @@ export function StationView({ searchQuery }: StationViewProps) {
       )}
 
       {/* ── GENRE CAROUSELS ── */}
-      {!isSearching && genreStations && (
+      {/* Only on the "default" landing — once the user has narrowed the
+         feed (via /reception → setGenres([…]) etc.) the hardcoded
+         genre rows would just duplicate the LIVE_STATIONS section
+         below, with the user's chip already applied. */}
+      {!isSearching && !hasActiveFilters() && genreStations && (
         <div className="space-y-8">
           {Array.from(genreStations.entries()).map(([genre, stns]) => (
             <GenreCarousel key={genre} genre={genre} stations={stns} />
@@ -185,7 +199,17 @@ export function StationView({ searchQuery }: StationViewProps) {
         <section>
           <SectionHeader
             className="mb-8"
-            label={eose && stations.length > 0 ? `${stations.length}_BROADCASTING` : undefined}
+            label={
+              // If the user has narrowed the feed (search/genre/etc.) the
+              // loaded list IS the answer — don't pretend the corpus total
+              // is the result count. Otherwise prefer the relay's NIP-45
+              // count over our 500-event window.
+              eose && stations.length > 0
+                ? hasActiveFilters() || isSearching
+                  ? `${stations.length}_BROADCASTING`
+                  : `${totalStations ?? stations.length}_BROADCASTING`
+                : undefined
+            }
           >
             LIVE_STATIONS
           </SectionHeader>

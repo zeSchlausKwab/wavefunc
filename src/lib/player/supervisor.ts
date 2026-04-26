@@ -34,6 +34,7 @@ import { probeStream } from "./probe";
 import {
   BUFFER_PATIENCE_MS,
   FAILED_STREAM_TTL_MS,
+  PLAY_ATTEMPT_TIMEOUT_MS,
   RECONNECT_BUDGET_MS,
   STALL_GRACE_MS,
   backoffFor,
@@ -156,6 +157,12 @@ export class PlaybackSupervisor {
     this.failures.clear();
     this.reconnectStartedAt = null;
     this.reconnectAttempt = 0;
+    // Reset so enterReconnectingOrFail can tell "we never reached
+    // playing on THIS start()" apart from "we played and the network
+    // dropped". Without this, switching from a healthy station to a
+    // dead one would still trigger the slow reconnect loop because
+    // currentStream was left set by the previous session.
+    this.currentStream = null;
 
     this.setState(loadingState(station, this.candidates.length));
     await this.runConnectLoop(this.generation);
@@ -297,15 +304,17 @@ export class PlaybackSupervisor {
     return sorted;
   }
 
-  private pickNextCandidate(): Stream | null {
+  private pickNextCandidate(skip: Set<string> = new Set()): Stream | null {
     this.pruneExpiredFailures();
 
+    const eligible = this.candidates.filter((s) => !skip.has(s.url));
+
     // Prefer candidates with no failure history
-    const clean = this.candidates.filter((s) => !this.failures.has(s.url));
+    const clean = eligible.filter((s) => !this.failures.has(s.url));
     if (clean.length > 0) return clean[0] ?? null;
 
     // Otherwise, candidates whose last failure was network (not fatal)
-    const retriable = this.candidates.filter((s) => {
+    const retriable = eligible.filter((s) => {
       const f = this.failures.get(s.url);
       return f && f.reason !== "fatal";
     });
@@ -375,8 +384,18 @@ export class PlaybackSupervisor {
   private async runConnectLoop(generation: number): Promise<void> {
     if (!this.station) return;
 
+    // Track candidates we've tried in THIS connect cycle so we never
+    // hand the same dead URL back to attemptStream within a single
+    // run. Without this, pickNextCandidate's "retriable" branch — which
+    // happily returns a network-failed candidate again under the
+    // expectation that some time has passed — turned a single click
+    // into an unbounded inner loop. Cycle-local skip set keeps the
+    // outer reconnect cycle's retriable semantics intact while making
+    // the inner loop terminate after one full pass.
+    const triedThisCycle = new Set<string>();
+
     while (!this.disposed && generation === this.generation) {
-      const candidate = this.pickNextCandidate();
+      const candidate = this.pickNextCandidate(triedThisCycle);
       if (!candidate) {
         this.enterReconnectingOrFail(generation);
         return;
@@ -394,6 +413,7 @@ export class PlaybackSupervisor {
       }
 
       this.recordFailure(candidate.url, result.reason, result.message);
+      triedThisCycle.add(candidate.url);
 
       // Update the loading state to reflect progress, so the UI can
       // show "Trying stream 2 of 4…" without us needing a separate
@@ -417,6 +437,30 @@ export class PlaybackSupervisor {
           this.station,
           "fatal",
           "All streams failed to start",
+          this.attemptedSummary()
+        )
+      );
+      return;
+    }
+
+    // Initial-connect failure: we exhausted candidates without ever
+    // reaching `playing` for this start() call. Don't enter the 60s
+    // reconnect cycle — that loop was designed for mid-stream drops
+    // (the user was happily listening, then the network blipped). For
+    // streams that never start (CORS blocks, dead http upstreams,
+    // etc.) the reconnect just re-probes the same dead URL every
+    // backoff tick, flooding the console with errors and starving the
+    // auto-link-out window.
+    //
+    // Going straight to `failed` lets playerStore's failed-transition
+    // listener pop the original URL externally inside the user's
+    // activation window.
+    if (this.currentStream === null) {
+      this.setState(
+        failedState(
+          this.station,
+          "network",
+          "Stream did not start",
           this.attemptedSummary()
         )
       );
@@ -512,7 +556,27 @@ export class PlaybackSupervisor {
     this.detachStreamFromAudio();
 
     try {
-      const result = await playWithAdapter(stream, this.audio);
+      // Hard ceiling on a single attempt. Without this an unreachable
+      // upstream (e.g. an http stream whose server has no TLS, after
+      // our optimistic https upgrade) can keep the audio element
+      // grinding for tens of seconds — and hls.js firing a steady
+      // stream of console errors — before audio.play() finally
+      // rejects. Six seconds is enough to start a healthy stream and
+      // short enough that the user can move on.
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const playPromise = playWithAdapter(stream, this.audio);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("play attempt timed out")),
+          PLAY_ATTEMPT_TIMEOUT_MS
+        );
+      });
+      let result;
+      try {
+        result = await Promise.race([playPromise, timeoutPromise]);
+      } finally {
+        if (timer !== null) clearTimeout(timer);
+      }
       if (result.hls) this.hls = result.hls;
 
       if (generation !== this.generation) {
@@ -523,6 +587,10 @@ export class PlaybackSupervisor {
 
       return { ok: true };
     } catch (err) {
+      // If we got here via the timeout, ensure no audio element / hls
+      // instance is left running in the background.
+      this.detachStreamFromAudio();
+
       const message = err instanceof Error ? err.message : String(err);
       // If the browser says the source isn't supported, mark fatal.
       // Otherwise assume transient.

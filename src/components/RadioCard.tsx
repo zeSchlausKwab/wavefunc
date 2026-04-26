@@ -756,72 +756,93 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   // ─── SEARCH-RESULT ────────────────────────────────────────────────────────────
   if (variant === "search-result") {
     const cycle = (index ?? 0) % 3;
-    const offsets    = ["md:translate-x-0",  "md:translate-x-12", "md:-translate-x-4"];
-    const bgs        = ["bg-surface-container-low", "bg-surface-container-high", "bg-surface-container-low"];
-    const hovers     = ["hover:bg-secondary-fixed-dim", "hover:bg-primary hover:text-white", "hover:bg-secondary-fixed-dim"];
-    const isFirst    = (index ?? 0) === 0;
-    const borderCls  = isFirst ? "border-4 border-on-background" : "border-x-4 border-b-4 border-on-background";
+    // Brutalist horizontal offset is desktop-only; on mobile every card
+    // sits flush in the column.
+    const offsets = ["md:translate-x-0", "md:translate-x-12", "md:-translate-x-4"];
+    const bgs     = ["bg-surface-container-low", "bg-surface-container-high", "bg-surface-container-low"];
+    const hovers  = ["hover:bg-secondary-fixed-dim", "hover:bg-primary hover:text-white", "hover:bg-secondary-fixed-dim"];
 
-    return (
-      <>
-        <div
-          className={cn(
-            "group relative flex flex-col md:flex-row items-stretch cursor-pointer overflow-hidden transition-colors",
-            borderCls, bgs[cycle], hovers[cycle], offsets[cycle],
-            className
-          )}
-          style={{ zIndex: Math.max(1, 30 - (index ?? 0)) }}
-        >
-          {ownerMenu}
+    const statusBadgeContent = (
+      <span className="flex items-center gap-1">
+        <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
+        {selectedStreamRequiresExternal && (
+          <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+        )}
+        {station.streams.length > 1 && (
+          <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+        )}
+      </span>
+    );
 
-          {/* Index + thumbnail */}
-          <div className="min-h-[6rem] bg-on-background text-surface flex items-center justify-center font-black text-4xl border-b-4 md:border-b-0 md:border-r-4 border-on-background px-4 shrink-0">
-            {station.thumbnail && (
-              <img
-                src={station.thumbnail}
-                alt={station.name || "Station"}
-                className="w-12 h-12 object-cover grayscale mix-blend-screen opacity-60 mr-4 border border-surface/20 shrink-0"
-              />
+    const statusBadgeClass = cn(
+      "px-3 py-1 font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap inline-flex items-center",
+      isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
+    );
+
+    const statusBadge = station.streams.length > 1 ? (
+      <StreamSelector
+        streams={station.streams}
+        selectedStreamUrl={selectedStream?.url}
+        onStreamSelect={setSelectedStream}
+        trigger={(
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            className={statusBadgeClass}
+            title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
+          >
+            {statusBadgeContent}
+          </button>
+        )}
+      />
+    ) : (
+      <span className={statusBadgeClass}>{statusBadgeContent}</span>
+    );
+
+    // ── Mobile layout: compact two-row card with fixed gap between cards.
+    //    A separate, simpler structure than desktop avoids the
+    //    horizontally-overflowing controls bar and gives every search
+    //    result a consistent thumb size + tap-friendly action row.
+    const mobileLayout = (
+      <div className="flex md:hidden flex-col">
+        <div className="flex items-stretch">
+          {/* Thumb + index */}
+          <div className="w-20 h-20 shrink-0 relative bg-on-background text-surface border-r-4 border-on-background flex items-center justify-center">
+            {station.thumbnail ? (
+              <>
+                <img
+                  src={station.thumbnail}
+                  alt={station.name || "Station"}
+                  className="absolute inset-0 w-full h-full object-cover grayscale mix-blend-screen opacity-50"
+                />
+                <span className="relative font-black text-2xl">{displayIndex ?? "—"}</span>
+              </>
+            ) : (
+              <span className="font-black text-2xl">{displayIndex ?? "—"}</span>
             )}
-            <span>{displayIndex ?? "—"}</span>
           </div>
 
-          {/* Station info */}
-          <div className="px-8 py-4 flex-grow flex flex-col justify-center min-w-0 overflow-hidden" onClick={() => openStationSheet(station)}>
-            <div ref={titleRef} className="overflow-hidden">
-              {isMarquee ? (
-                <div className="flex whitespace-nowrap animate-marquee">
-                  <h3 className="text-2xl font-black uppercase font-headline pr-12">{nameDisplay}</h3>
-                  <h3 className="text-2xl font-black uppercase font-headline pr-12" aria-hidden>{nameDisplay}</h3>
-                </div>
-              ) : (
-                <h3 className="text-2xl font-black uppercase font-headline whitespace-nowrap">{nameDisplay}</h3>
-              )}
-            </div>
-            <p className="text-xs font-bold text-tertiary uppercase tracking-widest opacity-70 whitespace-nowrap">
-              {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
-              {normalizeBitrate(selectedStream?.quality?.bitrate)
-                ? ` / ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
-                : ""}
-            </p>
-          </div>
-
-          {/* Quality bar */}
-          <div className="px-8 py-4 hidden md:flex items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 shrink-0">
-            {renderQualitySelector("w-36")}
-            <span
-              className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              graphic_eq
-            </span>
-          </div>
-
-          {/* Play + Social */}
-          <div className="flex items-stretch border-t-2 md:border-t-0 md:border-l-2 border-on-background/20 overflow-x-auto scrollbar-none">
+          {/* Title + meta + play */}
+          <div className="flex-1 min-w-0 flex items-center gap-2 px-3">
             <button
-              className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
+              type="button"
+              onClick={() => openStationSheet(station)}
+              className="flex-1 min-w-0 text-left"
+            >
+              <h3 className="text-sm font-black uppercase font-headline tracking-tighter truncate">
+                {nameDisplay}
+              </h3>
+              <p className="text-[10px] font-bold text-tertiary uppercase tracking-widest truncate mt-0.5">
+                {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
+                {normalizeBitrate(selectedStream?.quality?.bitrate)
+                  ? ` / ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
+                  : ""}
+              </p>
+            </button>
+            <button
+              type="button"
               onClick={handlePlayClick}
+              className="w-10 h-10 bg-primary text-white border-2 border-on-background flex items-center justify-center active:scale-90 transition-transform shrink-0"
               title={
                 selectedStreamRequiresExternal
                   ? "Open stream source"
@@ -830,7 +851,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                     : "Play"
               }
             >
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span
+                className="material-symbols-outlined text-xl"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
                 {selectedStreamRequiresExternal
                   ? "open_in_new"
                   : isCurrentlyPlaying
@@ -838,82 +862,240 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                     : "play_arrow"}
               </span>
             </button>
-            <button
-              className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
-              onClick={handleCommentClick} title="Comment"
-            >
-              <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>comment</span>
-            </button>
-            <button
-              className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
-              onClick={handleLike} title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
-            >
-              <span className={cn("material-symbols-outlined text-xl", userHasReacted && "text-primary")} style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                favorite
-              </span>
-            </button>
-            <button
-              className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
-              onClick={() => setShowZapDialog(true)} title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
-            >
-              <span className={cn("material-symbols-outlined text-xl", userHasZapped && "text-yellow-500")}>bolt</span>
-            </button>
-            <button
-              className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
-              onClick={handleShare} title="Share"
-            >
-              <span className="material-symbols-outlined text-xl">share</span>
-            </button>
-            <div className="flex items-stretch">
-              {isLoggedIn && station.pubkey && station.stationId ? (
-                <FavoritesDropdown
-                  station={station}
-                  onAddToList={handleAddToList}
-                  onRemoveFromList={handleRemoveFromList}
-                  triggerClassName="px-4 h-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
-                />
-              ) : (
-                <div className="px-4 flex items-center justify-center opacity-30">
-                  <span className="material-symbols-outlined text-xl">star</span>
-                </div>
-              )}
-            </div>
           </div>
+        </div>
 
-          {/* Status badge */}
-          <div className={cn(
-            "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap shrink-0",
-            isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
-          )}>
-            {station.streams.length > 1 ? (
-              <StreamSelector
-                streams={station.streams}
-                selectedStreamUrl={selectedStream?.url}
-                onStreamSelect={setSelectedStream}
-                trigger={(
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-widest"
-                    title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
-                  >
-                    <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
-                    {selectedStreamRequiresExternal && (
-                      <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                    )}
-                    <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
-                  </button>
-                )}
+        {/* Action row + status badge: single horizontal strip that
+           fills the card width without overflow. Five icon buttons +
+           a status pill, equal columns. */}
+        <div className="grid grid-cols-[repeat(5,1fr)_auto] items-stretch border-t-2 border-on-background/20">
+          <button
+            className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
+            onClick={handleCommentClick}
+            title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
+          >
+            <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}>
+              comment
+            </span>
+          </button>
+          <button
+            className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
+            onClick={handleLike}
+            title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
+          >
+            <span
+              className={cn("material-symbols-outlined text-[18px]", userHasReacted && "text-primary")}
+              style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}
+            >
+              favorite
+            </span>
+          </button>
+          <button
+            className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
+            onClick={() => setShowZapDialog(true)}
+            title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
+          >
+            <span className={cn("material-symbols-outlined text-[18px]", userHasZapped && "text-yellow-500")}>
+              bolt
+            </span>
+          </button>
+          <button
+            className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
+            onClick={handleShare}
+            title="Share"
+          >
+            <span className="material-symbols-outlined text-[18px]">share</span>
+          </button>
+          <div className="flex items-stretch border-r-2 border-on-background/10">
+            {isLoggedIn && station.pubkey && station.stationId ? (
+              <FavoritesDropdown
+                station={station}
+                onAddToList={handleAddToList}
+                onRemoveFromList={handleRemoveFromList}
+                triggerClassName="w-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
+                iconSize="text-[18px]"
               />
             ) : (
-              <span className="flex items-center gap-1">
-                <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
-                {selectedStreamRequiresExternal && (
-                  <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                )}
-              </span>
+              <div className="w-full flex items-center justify-center opacity-30">
+                <span className="material-symbols-outlined text-[18px]">star</span>
+              </div>
             )}
           </div>
+          <div className="flex items-center">{statusBadge}</div>
+        </div>
+      </div>
+    );
+
+    const desktopLayout = (
+      <div className="hidden md:flex items-stretch">
+        {ownerMenu}
+
+        {/* Index + thumbnail */}
+        <div className="min-h-[6rem] bg-on-background text-surface flex items-center justify-center font-black text-4xl border-r-4 border-on-background px-4 shrink-0">
+          {station.thumbnail && (
+            <img
+              src={station.thumbnail}
+              alt={station.name || "Station"}
+              className="w-12 h-12 object-cover grayscale mix-blend-screen opacity-60 mr-4 border border-surface/20 shrink-0"
+            />
+          )}
+          <span>{displayIndex ?? "—"}</span>
+        </div>
+
+        {/* Station info */}
+        <div
+          className="px-8 py-4 flex-grow flex flex-col justify-center min-w-0 overflow-hidden"
+          onClick={() => openStationSheet(station)}
+        >
+          <div ref={titleRef} className="overflow-hidden">
+            {isMarquee ? (
+              <div className="flex whitespace-nowrap animate-marquee">
+                <h3 className="text-2xl font-black uppercase font-headline pr-12">{nameDisplay}</h3>
+                <h3 className="text-2xl font-black uppercase font-headline pr-12" aria-hidden>{nameDisplay}</h3>
+              </div>
+            ) : (
+              <h3 className="text-2xl font-black uppercase font-headline whitespace-nowrap">{nameDisplay}</h3>
+            )}
+          </div>
+          <p className="text-xs font-bold text-tertiary uppercase tracking-widest opacity-70 whitespace-nowrap">
+            {station.genres?.slice(0, 2).map(g => g.toUpperCase()).join(" / ") || "UNKNOWN_GENRE"}
+            {normalizeBitrate(selectedStream?.quality?.bitrate)
+              ? ` / ${normalizeBitrate(selectedStream?.quality?.bitrate)}K`
+              : ""}
+          </p>
+        </div>
+
+        {/* Quality bar */}
+        <div className="px-8 py-4 flex items-center gap-4 border-l-2 border-on-background/20 shrink-0">
+          {renderQualitySelector("w-36")}
+          <span
+            className={cn("material-symbols-outlined", isCurrentlyPlaying ? "text-primary" : "text-secondary-fixed-dim")}
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            graphic_eq
+          </span>
+        </div>
+
+        {/* Play + Social */}
+        <div className="flex items-stretch border-l-2 border-on-background/20 overflow-x-auto scrollbar-none">
+          <button
+            className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
+            onClick={handlePlayClick}
+            title={
+              selectedStreamRequiresExternal
+                ? "Open stream source"
+                : isCurrentlyPlaying
+                  ? "Pause"
+                  : "Play"
+            }
+          >
+            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+              {selectedStreamRequiresExternal
+                ? "open_in_new"
+                : isCurrentlyPlaying
+                  ? "pause"
+                  : "play_arrow"}
+            </span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+            onClick={handleCommentClick} title="Comment"
+          >
+            <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>comment</span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
+            onClick={handleLike} title={`Like${reactions > 0 ? ` (${reactions})` : ""}`}
+          >
+            <span
+              className={cn("material-symbols-outlined text-xl", userHasReacted && "text-primary")}
+              style={userHasReacted ? { fontVariationSettings: "'FILL' 1" } : {}}
+            >
+              favorite
+            </span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
+            onClick={() => setShowZapDialog(true)} title={`Zap${zaps > 0 ? ` (${zaps})` : ""}`}
+          >
+            <span className={cn("material-symbols-outlined text-xl", userHasZapped && "text-yellow-500")}>bolt</span>
+          </button>
+          <button
+            className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
+            onClick={handleShare} title="Share"
+          >
+            <span className="material-symbols-outlined text-xl">share</span>
+          </button>
+          <div className="flex items-stretch">
+            {isLoggedIn && station.pubkey && station.stationId ? (
+              <FavoritesDropdown
+                station={station}
+                onAddToList={handleAddToList}
+                onRemoveFromList={handleRemoveFromList}
+                triggerClassName="px-4 h-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors"
+              />
+            ) : (
+              <div className="px-4 flex items-center justify-center opacity-30">
+                <span className="material-symbols-outlined text-xl">star</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Status badge — desktop only; mobile shows it inline in the action row */}
+        <div className={cn(
+          "p-4 flex items-center justify-center font-bold uppercase text-[10px] tracking-tighter whitespace-nowrap shrink-0",
+          isCurrentlyPlaying ? "bg-primary text-white" : "bg-on-background text-surface"
+        )}>
+          {station.streams.length > 1 ? (
+            <StreamSelector
+              streams={station.streams}
+              selectedStreamUrl={selectedStream?.url}
+              onStreamSelect={setSelectedStream}
+              trigger={(
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-widest"
+                  title={selectedStreamRequiresExternal ? "Open stream at source" : "Select stream source"}
+                >
+                  <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
+                  {selectedStreamRequiresExternal && (
+                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                  )}
+                  <span className="material-symbols-outlined text-[12px]">arrow_drop_down</span>
+                </button>
+              )}
+            />
+          ) : (
+            <span className="flex items-center gap-1">
+              <span>{selectedStreamRequiresExternal ? "OPEN_SOURCE" : statusLabel}</span>
+              {selectedStreamRequiresExternal && (
+                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+
+    return (
+      <>
+        {/* Mobile: each card is a clean rectangle with proper spacing
+           between cards (the parent uses space-y-2). Desktop preserves
+           the brutalist staggered offset (offsets[]) and wide-row
+           layout. */}
+        <div
+          className={cn(
+            "group relative cursor-pointer overflow-hidden transition-colors border-4 border-on-background",
+            bgs[cycle], hovers[cycle], offsets[cycle],
+            className
+          )}
+          style={{ zIndex: Math.max(1, 30 - (index ?? 0)) }}
+        >
+          {ownerMenu}
+          {mobileLayout}
+          {desktopLayout}
         </div>
 
         {zapDialog}

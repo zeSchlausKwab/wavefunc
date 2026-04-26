@@ -125,16 +125,21 @@ export async function playWithAdapter(
     // targets pointlessly and makes stalls more likely on jittery
     // connections. A larger buffer gives us headroom to survive
     // short network drops without a visible buffering state.
+    //
+    // Retry counts are kept low (1) — hls.js used to retry manifests
+    // and fragments four times each, which produced ~16 cascading
+    // console errors per failed stream on top of the supervisor's own
+    // reconnect loop. The supervisor handles retries with proper
+    // backoff and budget; hls.js only needs to surface the first
+    // fatal so we can escalate quickly.
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: false,
       maxBufferLength: 60,
       maxMaxBufferLength: 600,
-      // Let hls.js retry on its own for transient loader errors
-      // before we see a fatal event and escalate to the supervisor.
-      fragLoadingMaxRetry: 4,
-      manifestLoadingMaxRetry: 4,
-      levelLoadingMaxRetry: 4,
+      fragLoadingMaxRetry: 1,
+      manifestLoadingMaxRetry: 1,
+      levelLoadingMaxRetry: 1,
     });
     return new Promise((resolve, reject) => {
       hls.loadSource(url);

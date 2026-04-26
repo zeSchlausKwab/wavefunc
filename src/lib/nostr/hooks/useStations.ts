@@ -15,6 +15,42 @@ import {
 } from "../domain";
 import { useWavefuncNostr } from "../runtime";
 
+/**
+ * Total number of stations on the wavefunc relay, via NIP-45 COUNT.
+ *
+ * The relay answers `{kinds:[31237]}` from bleve's DocCount() in O(1) — no
+ * full scan, no relay-side allocation per event. The UI uses this for
+ * accurate "N total" labels even though the timeline subscription only
+ * holds a 500-event window. Returns null until the count arrives (or if
+ * the relay didn't respond / doesn't support NIP-45).
+ */
+export function useStationCount(): number | null {
+  const { relayPool } = useWavefuncNostr();
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const relays = getAppDataRelayUrls();
+    const sub = relayPool
+      .count(relays, [{ kinds: [STATION_KIND] }])
+      .subscribe({
+        next: (responses) => {
+          // Pick the largest count across relays (in case multiple
+          // wavefunc-style relays answer; takes the most authoritative).
+          let best: number | null = null;
+          for (const resp of Object.values(responses)) {
+            if (resp && typeof resp.count === "number") {
+              if (best === null || resp.count > best) best = resp.count;
+            }
+          }
+          if (best !== null) setCount(best);
+        },
+      });
+    return () => sub.unsubscribe();
+  }, [relayPool]);
+
+  return count;
+}
+
 type UseStationStreamResult = {
   events: ParsedStation[];
   eose: boolean;

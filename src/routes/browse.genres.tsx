@@ -1,7 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
-import { useStationsObserver } from "../lib/nostr/hooks/useStations";
+import {
+  useStationCount,
+  useStationsObserver,
+} from "../lib/nostr/hooks/useStations";
 import { useFilterStore } from "../stores/filterStore";
 
 export const Route = createFileRoute("/browse/genres")({
@@ -42,6 +45,7 @@ function BrowseGenres() {
   const navigate = useNavigate();
   const { setGenres, setLanguages, setCountries } = useFilterStore();
   const { events, eose } = useStationsObserver({ limit: 500 });
+  const totalStations = useStationCount();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<FilterType>("genres");
 
@@ -140,6 +144,18 @@ function BrowseGenres() {
       <SectionHeader label={eose && total > 0 ? `${filteredData.length}/${total}` : undefined}>
         {config.sectionTitle}
       </SectionHeader>
+
+      {/*
+        Sampling disclosure. Without this, the per-tag counts below
+        look authoritative — but they're computed from a 500-event
+        window of the ~50k-station corpus. Showing the real total
+        next to the loaded sample makes the discrepancy honest.
+      */}
+      {eose && totalStations !== null && events.length < totalStations && (
+        <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/40 -mt-3">
+          COUNTS_FROM_{events.length.toLocaleString()}_OF_{totalStations.toLocaleString()}_SAMPLED
+        </p>
+      )}
 
       {/* Search */}
       {eose && total > 0 && (

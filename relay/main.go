@@ -181,6 +181,29 @@ func mustID(hex string) nostr.ID {
 	return id
 }
 
+// isStationOnlyCountFilter detects the cheap fast-path: a filter whose
+// only effective constraint is "kind = 31237". For that exact shape we
+// answer NIP-45 COUNT in O(1) from bleve's DocCount(). Any extra
+// authors/ids/tags/since/until/search forces the LMDB iteration path.
+func isStationOnlyCountFilter(f nostr.Filter) bool {
+	if len(f.Kinds) != 1 || f.Kinds[0] != indexedKind {
+		return false
+	}
+	if len(f.IDs) != 0 || len(f.Authors) != 0 {
+		return false
+	}
+	if len(f.Tags) != 0 {
+		return false
+	}
+	if f.Since != 0 || f.Until != 0 {
+		return false
+	}
+	if f.Search != "" {
+		return false
+	}
+	return true
+}
+
 // QueryEvents searches the index. For each whitespace-separated term it builds
 // a (MatchQuery OR PrefixQuery) so that partial words like "enall" match
 // "enallax". All terms must match (AND between terms). The index only ever
@@ -464,7 +487,7 @@ func main() {
 		PubKey:        &relayPubKey,
 		Icon:          "https://wavefunc.live/icons/logo.png",
 		Contact:       "https://github.com/schlaus/wavefunc-rewrite",
-		SupportedNIPs: []any{1, 9, 11, 12, 15, 16, 20, 22, 33, 40, 50},
+		SupportedNIPs: []any{1, 9, 11, 12, 15, 16, 20, 22, 33, 40, 45, 50},
 	}
 
 	// Wire up LMDB as primary storage (also starts expiration manager)
@@ -554,6 +577,31 @@ func main() {
 				yield(phantom)
 			}
 		}
+	}
+
+	// NIP-45 COUNT support. The fast path is `{"kinds":[31237]}` with no
+	// other constraints — that's the "how many stations are there?"
+	// question the UI asks on every page load, and bleve's DocCount() is
+	// O(1) since the index only ever holds station events.
+	//
+	// For any other filter shape we fall back to iterating LMDB, which is
+	// still cheap because the kind/pubkey indexes are pre-built. We cap the
+	// fallback at 200k so a malformed empty-filter request can't pin the
+	// relay scanning forever.
+	relay.Count = func(_ context.Context, filter nostr.Filter) (uint32, error) {
+		if isStationOnlyCountFilter(filter) {
+			docCount, err := search.index.DocCount()
+			if err == nil {
+				return uint32(docCount), nil
+			}
+			// fall through to LMDB if bleve hiccups
+		}
+		const fallbackCap = 200_000
+		var n uint32
+		for range db.QueryEvents(filter, fallbackCap) {
+			n++
+		}
+		return n, nil
 	}
 
 	// Drift check: if LMDB has stations but the search index has essentially

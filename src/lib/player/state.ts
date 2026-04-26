@@ -12,9 +12,21 @@ import type { ParsedStation, Stream } from "../nostr/domain";
 
 // ─── Timing constants ──────────────────────────────────────────────────────
 
-export const PROBE_TIMEOUT_MS = 3000;
+export const PROBE_TIMEOUT_MS = 2000;
 export const STALL_GRACE_MS = 3000;
 export const BUFFER_PATIENCE_MS = 10000;
+// Per-candidate hard ceiling. If `audio.play()` (or hls.js manifest retries)
+// hasn't reached the playing state inside this window, bail out and move to
+// the next candidate (or to the failed state).
+//
+// Why 4s: browser user-activation windows for popup blockers are typically
+// ~5s. The auto-link-out in playerStore.ts opens the original URL in a new
+// tab when the supervisor transitions to `failed` — to actually beat the
+// popup blocker, the whole click→failed chain needs to happen inside that
+// window. A 4s play timeout (with the probe step skipped for initial
+// connect) lands us at ~4-4.5s end-to-end on a dead upstream, leaving
+// enough margin for window.open() to still carry user activation.
+export const PLAY_ATTEMPT_TIMEOUT_MS = 4000;
 export const RECONNECT_BUDGET_MS = 60000;
 export const RECONNECT_BACKOFF_MS = [2000, 4000, 8000, 16000, 30000];
 export const FAILED_STREAM_TTL_MS = 60000;
