@@ -34,47 +34,57 @@ export function FeatureGroupCard({
 }: FeatureGroupCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { signAndPublish } = useWavefuncNostr();
 
   const refs = feature.refs;
   const resolved = useMemo(() => resolveRefs(refs, allLists), [allLists, refs]);
 
-  const handleAdd = async (list: ParsedFavoritesList) => {
+  // Centralised error reporting so silent rejections from signAndPublish
+  // (signer denied, no write relays, relay rejected the event, network
+  // failure, etc.) show up to the user instead of looking like "nothing
+  // happened". The error string is rendered above the action buttons and
+  // also logged so it's visible in devtools.
+  const wrapPublish = async (op: () => Promise<unknown>, opName: string) => {
     setBusy(true);
+    setError(null);
     try {
-      await signAndPublish(
-        buildAdminFeatureAddRefTemplate(feature.event, getFavoritesListAddress(list)),
-        feature.relays
-      );
+      await op();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[admin] ${opName} failed:`, e);
+      setError(`${opName} failed: ${msg}`);
     } finally {
       setBusy(false);
     }
   };
 
-  const handleRemove = async (address: string) => {
-    setBusy(true);
-    try {
-      await signAndPublish(
-        buildAdminFeatureRemoveRefTemplate(feature.event, address),
-        feature.relays
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
+  const handleAdd = (list: ParsedFavoritesList) =>
+    wrapPublish(
+      () =>
+        signAndPublish(
+          buildAdminFeatureAddRefTemplate(feature.event, getFavoritesListAddress(list))
+        ),
+      "Add list"
+    );
+
+  const handleRemove = (address: string) =>
+    wrapPublish(
+      () =>
+        signAndPublish(
+          buildAdminFeatureRemoveRefTemplate(feature.event, address)
+        ),
+      "Remove list"
+    );
 
   const handleDelete = async () => {
     if (!confirm("Delete this feature group?")) return;
-    setBusy(true);
-    try {
+    await wrapPublish(async () => {
       await signAndPublish(
-        buildAdminFeatureDeletionTemplate(feature.event),
-        feature.relays
+        buildAdminFeatureDeletionTemplate(feature.event)
       );
       onDeleted();
-    } finally {
-      setBusy(false);
-    }
+    }, "Delete group");
   };
 
   const shortId = (feature.featureId ?? "--------").slice(0, 8).toUpperCase();
@@ -146,15 +156,41 @@ export function FeatureGroupCard({
         ))}
       </div>
 
+      {/* Error banner — surfaces signer rejections, relay errors, etc. */}
+      {error && (
+        <div className="border-t-4 border-destructive bg-destructive/10 px-4 py-3 flex items-start gap-3">
+          <span className="material-symbols-outlined text-destructive text-sm shrink-0 mt-0.5">
+            error
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-destructive">
+              PUBLISH_FAILED
+            </p>
+            <p className="text-xs font-bold text-destructive/80 break-words">
+              {error}
+            </p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="shrink-0 text-destructive/60 hover:text-destructive"
+            title="Dismiss"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Add button */}
-      <div className="border-t-4 border-on-background/20 px-4 py-3">
+      <div className="border-t-4 border-on-background/20 px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => setPickerOpen(true)}
           disabled={busy}
           className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-primary hover:text-primary/70 transition-colors disabled:opacity-30"
         >
-          <span className="material-symbols-outlined text-sm">add</span>
-          ADD_LIST
+          <span className="material-symbols-outlined text-sm">
+            {busy ? "sync" : "add"}
+          </span>
+          {busy ? "PUBLISHING..." : "ADD_LIST"}
         </button>
       </div>
 

@@ -21,16 +21,25 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
   const { features, isLoading } = useAdminFeatures(type);
   const { events: allLists, eose: listsEose } = useFavoritesLists();
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Track locally deleted IDs until relay confirms removal
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   const visible = features.filter((f) => !deletedIds.has(f.id ?? ""));
 
   const handleCreate = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setError("You must be logged in to create a feature group.");
+      return;
+    }
     setCreating(true);
+    setError(null);
     try {
       await signAndPublish(buildAdminFeatureTemplate({ type }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[admin] create feature group failed:", e);
+      setError(`Create failed: ${msg}`);
     } finally {
       setCreating(false);
     }
@@ -82,6 +91,29 @@ function FeatureTab({ type }: { type: AdminFeatureType }) {
         </span>
         {creating ? "PUBLISHING..." : "NEW_FEATURE_GROUP"}
       </button>
+
+      {error && (
+        <div className="mt-2 border-4 border-destructive bg-destructive/10 px-4 py-3 flex items-start gap-3">
+          <span className="material-symbols-outlined text-destructive text-sm shrink-0 mt-0.5">
+            error
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-destructive">
+              PUBLISH_FAILED
+            </p>
+            <p className="text-xs font-bold text-destructive/80 break-words">
+              {error}
+            </p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="shrink-0 text-destructive/60 hover:text-destructive"
+            title="Dismiss"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
