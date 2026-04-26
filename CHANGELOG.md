@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-25
+
+### Added
+- Toast notifications for stream playback failures, with an action button to
+  open the stream externally. Replaces silent auto-link-out with visible
+  feedback the user can dismiss.
+- NIP-45 COUNT support for accurate station totals and sampling disclosure.
+- Carousel navigation arrows for desktop genre browsing.
+- Admin: user-friendly error messages and in-progress status indicators when
+  publishing feature group operations (signer denial, network failures, etc.).
+
+### Changed
+- Player auto-upgrades `http://` streams to `https://` on https pages to
+  avoid browser mixed-content blocking. Localhost and Tauri environments are
+  exempted; native `https` streams are sorted ahead of upgraded ones.
+- Search input is responsive on narrow screens (popover fallback); mobile
+  search result cards redesigned for better touch targets.
+- Featured content visibility now syncs with active filter state.
+- `hls.js` retry budget reduced and a play-attempt timeout added so dead
+  streams fail fast without console spam.
+- Bleve search index is now restricted to kind 31237 (radio stations),
+  reducing index size by ~90% and speeding reindexing. The reindex job runs
+  a verification pass to catch missed stations and a focused drift check.
+
+### Fixed
+- Auto-link-out for failed streams now fires inside the user-activation
+  window so browsers don't block the popup.
+- Reconnect loop bug that prevented recovery from initial connection
+  failures.
+- In-memory event store no longer returns empty results for filters carrying
+  a NIP-50 `search` field: the field is stripped for local cache reads while
+  preserved for the relay subscription.
+- `ReplaceEvent` performs targeted deletion of the prior event ID instead of
+  a pubkey-wide bleve sweep, preventing index corruption from transient LMDB
+  read misses. Stale entries are no longer deleted opportunistically at
+  query time — drift cleanup is left to the reindex job.
+
 ## [0.1.2] - 2026-04-18
 
 ### Fixed
