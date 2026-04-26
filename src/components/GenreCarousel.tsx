@@ -90,13 +90,17 @@ export function GenreCarousel({ genre, stations }: GenreCarouselProps) {
       </div>
 
       {/*
-        items-stretch (default) makes every flex child match the tallest
-        card's height, but each card itself was free to grow vertically —
-        cards with three genre chips were 12-16px taller than cards with
-        one. Locking the wrapper to a fixed height + flex column makes
-        the rendered card area consistent across the row. Inside, the
-        RadioCard's tile variant uses `flex flex-col flex-1` so its
-        action bar pins to the bottom.
+        Desktop (md+) locks each slide to a fixed 360px height so the
+        vertical tile cards line up across the row regardless of how
+        many genre chips each card carries. RadioCard's tile variant
+        uses `flex flex-col flex-1` so its action bar pins to the
+        bottom of that 360px box.
+
+        Mobile uses the horizontal compact card layout (~80px tall) and
+        was being forced into the 360px box too — leaving a ~280px
+        empty rectangle under each card. On mobile we let each card
+        use its natural height; items-stretch on the flex row still
+        keeps siblings aligned to the tallest of the row.
       */}
       <div
         ref={scrollerRef}
@@ -105,7 +109,7 @@ export function GenreCarousel({ genre, stations }: GenreCarouselProps) {
         {shuffledStations.map((station) => (
           <div
             key={station.id}
-            className="shrink-0 w-[220px] h-[360px] snap-start flex"
+            className="shrink-0 w-[220px] md:h-[360px] snap-start flex"
           >
             <RadioCard station={station} className="flex-1" />
           </div>

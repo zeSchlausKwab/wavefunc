@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { FloatingHeader } from "../components/FloatingHeader";
 import { FloatingPlayer } from "../components/FloatingPlayer";
+import { Toaster } from "../components/Toaster";
 import { useEffect, useState } from "react";
 
 export const Route = createRootRoute({
@@ -42,6 +43,7 @@ export const Route = createRootRoute({
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
         />
+        <Toaster />
       </>
     );
   },

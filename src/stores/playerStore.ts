@@ -23,8 +23,8 @@ import {
   getDefaultSelectedStream,
   openStreamExternally,
 } from "../lib/player/adapters";
-import { isTauri } from "../config/env";
 import { PlaybackSupervisor } from "../lib/player/supervisor";
+import { showToast } from "./toastStore";
 import {
   idleState,
   selectCurrentStation,
@@ -123,21 +123,6 @@ function deriveCompat(state: PlayerState): Pick<
   };
 }
 
-// User-gesture watermark for auto-link-out. When the user clicks play,
-// we stamp this with the click time. If the supervisor later transitions
-// to `failed` for that same station within the user-activation window,
-// we automatically open the original stream URL in a new tab — saves the
-// user the second click on the failed-state OPEN_SOURCE affordance.
-//
-// Browsers gate window.open() on a recent user activation; engines vary
-// (~5s typical). We allow a generous 8s here — a popup blocker just
-// means the user falls back to the manual OPEN_SOURCE button, no harm
-// done. Tauri is excluded entirely: it plays http natively and spawning
-// the OS browser from the WebView is hostile UX.
-const AUTO_LINKOUT_WINDOW_MS = 8000;
-let lastUserPlayAt = 0;
-let lastUserPlayStationId: string | null = null;
-
 export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   // Initial state
   state: idleState(),
@@ -187,11 +172,6 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
         useHistoryStore.getState().addToHistory(stationId);
       });
     }
-
-    // Watermark for auto-link-out: if all in-app candidates fail within
-    // ~8s of this click, we'll pop the original stream open externally.
-    lastUserPlayAt = Date.now();
-    lastUserPlayStationId = station.id;
 
     void supervisor.start(station, stream);
   },
@@ -321,37 +301,42 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
 
     // Spin up a new supervisor. The listener updates both the state
     // machine field and the derived compat fields in one shot, and
-    // owns the auto-link-out side effect for `failed` transitions.
+    // surfaces a toast on `failed` transitions so the user knows the
+    // stream couldn't play in the browser (and gets a one-click escape
+    // hatch to open it externally). The play icon flipping to a failed
+    // glyph is handled by the UI reading `state.kind` directly.
     const supervisor = new PlaybackSupervisor(element, (next) => {
       const prev = get().state;
       set({ state: next, ...deriveCompat(next) });
 
-      // Auto-link-out: if we just transitioned into `failed` for the
-      // station the user actively asked to play, open the most-preferred
-      // stream URL in a new tab. The URL we open is the *original*
-      // (pre-https-upgrade) one, since that's what the failure summary
-      // carries — and it's also what the user's browser will actually
-      // route correctly when opened in a fresh tab (no mixed-content
-      // blocking on a same-protocol page load).
-      if (
-        next.kind === "failed" &&
-        prev.kind !== "failed" &&
-        !isTauri() &&
-        lastUserPlayStationId === next.station.id &&
-        Date.now() - lastUserPlayAt < AUTO_LINKOUT_WINDOW_MS
-      ) {
-        // Prefer the supervisor's first attempt (which is the candidate
-        // we ranked highest). Fall back to the station's preferred
-        // stream if the failed-state record is somehow empty.
+      if (next.kind === "failed" && prev.kind !== "failed") {
+        // Prefer the first attempted URL (the highest-ranked
+        // candidate's *original* — pre-https-upgrade — URL, since
+        // that's what attemptedStreams records). Falls back to the
+        // station's first stream if the summary is somehow empty.
         const firstAttempt = next.attemptedStreams[0];
         const fallback = next.station.streams[0];
         const url = firstAttempt?.url ?? fallback?.url;
-        if (url) {
-          // Clear the watermark so a manual retry doesn't auto-open
-          // again on the same failure.
-          lastUserPlayStationId = null;
-          openStreamExternally(url);
-        }
+        const stationLabel = next.station.name || "this station";
+
+        showToast({
+          // Same key for repeats so a user mashing play doesn't stack
+          // duplicate toasts.
+          key: `play-failed:${next.station.id}`,
+          tone: "error",
+          title: "CONNECTION_FAILED",
+          message: `${stationLabel} couldn't play in the browser.`,
+          ...(url
+            ? {
+                action: {
+                  label: "OPEN_SOURCE",
+                  onClick: () => openStreamExternally(url),
+                },
+              }
+            : {}),
+          // Stay until dismissed — the user needs the action button.
+          durationMs: 0,
+        });
       }
     });
 

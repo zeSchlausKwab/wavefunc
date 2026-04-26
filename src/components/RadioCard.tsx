@@ -97,6 +97,14 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   index,
 }) => {
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
+  // Read the raw state too so we can render a "failed" affordance on
+  // the play button when this is the station the supervisor just gave
+  // up on. We compare via a memo-friendly selector to avoid pulling
+  // the whole state object.
+  const playerStateKind = usePlayerStore((s) => s.state.kind);
+  const playerStateStationId = usePlayerStore((s) =>
+    "station" in s.state ? s.state.station.id : null
+  );
   const { toggleGenre } = useFilterStore();
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
@@ -125,12 +133,45 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const isCurrentStation = currentStation?.id === station.id;
   const isCurrentlyPlaying = isCurrentStation && isPlaying;
+  // The supervisor parked on `failed` for THIS station means the in-app
+  // attempt(s) ran out — we tell the user via toast, and the play icon
+  // here flips into an "open in source" affordance.
+  const isCurrentStationFailed =
+    playerStateKind === "failed" && playerStateStationId === station.id;
   const isOwner = currentUser?.pubkey === station.pubkey;
   const selectedStreamRequiresExternal =
     selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
+  // The icon glyph and tooltip surface different intents in priority:
+  //   1. failed → open externally
+  //   2. stream requires external (e.g. http on https origin) → open externally
+  //   3. currently playing → pause
+  //   4. default → play
+  const playIconGlyph = isCurrentStationFailed
+    ? "open_in_new"
+    : selectedStreamRequiresExternal
+      ? "open_in_new"
+      : isCurrentlyPlaying
+        ? "pause"
+        : "play_arrow";
+  const playIconTitle = isCurrentStationFailed
+    ? "Stream failed in browser — open in source"
+    : selectedStreamRequiresExternal
+      ? "Open stream source"
+      : isCurrentlyPlaying
+        ? "Pause"
+        : "Play";
+
   const handlePlayClick = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    // Failed: open the *original* (pre-https-upgrade) URL the
+    // supervisor tried first. No second in-app attempt — that path
+    // already exhausted candidates; trying again would just reproduce
+    // the failure.
+    if (isCurrentStationFailed && selectedStream?.url) {
+      openStreamExternally(selectedStream.url);
+      return;
+    }
     if (selectedStream?.url && selectedStreamRequiresExternal) {
       openStreamExternally(selectedStream.url);
       return;
@@ -184,11 +225,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     await signAndPublish(buildStationReactionTemplate(station.event));
   };
 
-  const statusLabel = isCurrentlyPlaying
-    ? "SIGNAL_ACTIVE"
-    : isCurrentStation
-      ? "LOW_VOLTAGE"
-      : (selectedStream ? streamFormatLabel(selectedStream.format, selectedStream.quality?.bitrate) : "STDBY");
+  const statusLabel = isCurrentStationFailed
+    ? "CONNECTION_FAILED"
+    : isCurrentlyPlaying
+      ? "SIGNAL_ACTIVE"
+      : isCurrentStation
+        ? "LOW_VOLTAGE"
+        : (selectedStream ? streamFormatLabel(selectedStream.format, selectedStream.quality?.bitrate) : "STDBY");
 
   const renderStreamBadge = (className?: string) => {
     const badge = (
@@ -376,20 +419,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               <button
                 className="w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shrink-0"
                 onClick={handlePlayClick}
-                title={
-                  selectedStreamRequiresExternal
-                    ? "Open stream source"
-                    : isCurrentlyPlaying
-                      ? "Pause"
-                      : "Play"
-                }
+                title={playIconTitle}
               >
                 <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {selectedStreamRequiresExternal
-                    ? "open_in_new"
-                    : isCurrentlyPlaying
-                      ? "pause"
-                      : "play_arrow"}
+                  {playIconGlyph}
                 </span>
               </button>
             </div>
@@ -407,20 +440,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <button
               className="absolute bottom-2 right-2 w-10 h-10 bg-primary text-white border-2 border-on-surface flex items-center justify-center active:scale-90 transition-transform shadow-[3px_3px_0px_0px_rgba(29,28,19,1)]"
               onClick={handlePlayClick}
-              title={
-                selectedStreamRequiresExternal
-                  ? "Open stream source"
-                  : isCurrentlyPlaying
-                    ? "Pause"
-                    : "Play"
-              }
+              title={playIconTitle}
             >
               <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                {selectedStreamRequiresExternal
-                  ? "open_in_new"
-                  : isCurrentlyPlaying
-                    ? "pause"
-                    : "play_arrow"}
+                {playIconGlyph}
               </span>
             </button>
           </div>
@@ -642,20 +665,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               <button
                 className="w-16 h-16 bg-primary text-white flex items-center justify-center border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all shrink-0"
                 onClick={handlePlayClick}
-                title={
-                  selectedStreamRequiresExternal
-                    ? "Open stream source"
-                    : isCurrentlyPlaying
-                      ? "Pause"
-                      : "Play"
-                }
+                title={playIconTitle}
               >
                 <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {selectedStreamRequiresExternal
-                    ? "open_in_new"
-                    : isCurrentlyPlaying
-                      ? "pause"
-                      : "play_arrow"}
+                  {playIconGlyph}
                 </span>
               </button>
               <div className="min-w-0 flex-grow space-y-3">
@@ -843,23 +856,13 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               type="button"
               onClick={handlePlayClick}
               className="w-10 h-10 bg-primary text-white border-2 border-on-background flex items-center justify-center active:scale-90 transition-transform shrink-0"
-              title={
-                selectedStreamRequiresExternal
-                  ? "Open stream source"
-                  : isCurrentlyPlaying
-                    ? "Pause"
-                    : "Play"
-              }
+              title={playIconTitle}
             >
               <span
                 className="material-symbols-outlined text-xl"
                 style={{ fontVariationSettings: "'FILL' 1" }}
               >
-                {selectedStreamRequiresExternal
-                  ? "open_in_new"
-                  : isCurrentlyPlaying
-                    ? "pause"
-                    : "play_arrow"}
+                {playIconGlyph}
               </span>
             </button>
           </div>
@@ -981,20 +984,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           <button
             className="px-5 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-r-2 border-on-background/20"
             onClick={handlePlayClick}
-            title={
-              selectedStreamRequiresExternal
-                ? "Open stream source"
-                : isCurrentlyPlaying
-                  ? "Pause"
-                  : "Play"
-            }
+            title={playIconTitle}
           >
             <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-              {selectedStreamRequiresExternal
-                ? "open_in_new"
-                : isCurrentlyPlaying
-                  ? "pause"
-                  : "play_arrow"}
+              {playIconGlyph}
             </span>
           </button>
           <button
@@ -1145,20 +1138,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         <button
           className="px-6 flex items-center justify-center bg-on-background text-surface hover:bg-primary transition-colors border-l-4 border-on-background"
           onClick={handlePlayClick}
-          title={
-            selectedStreamRequiresExternal
-              ? "Open stream source"
-              : isCurrentlyPlaying
-                ? "Pause"
-                : "Play"
-          }
+          title={playIconTitle}
         >
           <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            {selectedStreamRequiresExternal
-              ? "open_in_new"
-              : isCurrentlyPlaying
-                ? "pause"
-                : "play_arrow"}
+            {playIconGlyph}
           </span>
         </button>
 
