@@ -45,6 +45,7 @@ fn update_now_playing(app: tauri::AppHandle, np: NowPlaying) -> Result<(), Strin
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_wavefunc_player::init())
+        .plugin(tauri_plugin_wavefunc_media::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())

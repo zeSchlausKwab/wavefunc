@@ -81,6 +81,17 @@ describe("Android playback release contract", () => {
     expect(environment).toContain('return "wss://relay.wavefunc.live"');
   });
 
+  test("keeps tappable web content outside Android system bars", () => {
+    const androidBuild = read("src-tauri/android-template/build.gradle.kts");
+    const activity = read("src-tauri/android-template/MainActivity.kt");
+
+    expect(androidBuild).toContain("syncWavefuncMainActivity");
+    expect(activity).toContain("WindowInsetsCompat.Type.systemBars()");
+    expect(activity).toContain("WindowInsetsCompat.Type.displayCutout()");
+    expect(activity).toContain("ViewCompat.setOnApplyWindowInsetsListener");
+    expect(activity).toContain("WindowInsetsCompat.CONSUMED");
+  });
+
   test("routes Android playback and live metadata through the native backend", () => {
     const bridge = read("src/lib/nativePlayback.ts");
     const store = read("src/stores/playerStore.ts");

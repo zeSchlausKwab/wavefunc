@@ -96,6 +96,55 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      - name: Prepare desktop media engine (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno-arm /tmp/wavefunc-deno-x64
+          curl --fail --location --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
+            --output src-tauri/resources/bin/yt-dlp
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-aarch64-apple-darwin.zip \
+            --output /tmp/deno-arm.zip
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-apple-darwin.zip \
+            --output /tmp/deno-x64.zip
+          unzip -q /tmp/deno-arm.zip -d /tmp/wavefunc-deno-arm
+          unzip -q /tmp/deno-x64.zip -d /tmp/wavefunc-deno-x64
+          mv /tmp/wavefunc-deno-arm/deno src-tauri/resources/bin/deno-aarch64
+          mv /tmp/wavefunc-deno-x64/deno src-tauri/resources/bin/deno-x86_64
+          chmod +x src-tauri/resources/bin/yt-dlp \
+            src-tauri/resources/bin/deno-aarch64 \
+            src-tauri/resources/bin/deno-x86_64
+
+      - name: Prepare desktop media engine (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno
+          curl --fail --location --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+            --output src-tauri/resources/bin/yt-dlp
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-unknown-linux-gnu.zip \
+            --output /tmp/deno.zip
+          unzip -q /tmp/deno.zip -d /tmp/wavefunc-deno
+          mv /tmp/wavefunc-deno/deno src-tauri/resources/bin/deno
+          chmod +x src-tauri/resources/bin/yt-dlp src-tauri/resources/bin/deno
+
+      - name: Prepare desktop media engine (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force src-tauri/resources/bin | Out-Null
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile src-tauri/resources/bin/yt-dlp.exe
+          Invoke-WebRequest https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip -OutFile $env:RUNNER_TEMP/deno.zip
+          Expand-Archive -Force $env:RUNNER_TEMP/deno.zip $env:RUNNER_TEMP/wavefunc-deno
+          Move-Item $env:RUNNER_TEMP/wavefunc-deno/deno.exe src-tauri/resources/bin/deno.exe
+
       - name: Build frontend
         run: bun run build
 

@@ -55,6 +55,25 @@ describe("reload data regressions", () => {
     expect(favoriteStations).not.toContain('message === "EOSE"');
   });
 
+  test("song lists and their tracks finish initial loads from finite requests", () => {
+    const songFavorites = readFileSync(
+      join(root, "src/lib/hooks/useSongFavorites.ts"),
+      "utf8",
+    );
+    const crate = readFileSync(join(root, "src/routes/crate.tsx"), "utf8");
+    const songResolution = crate.slice(
+      crate.indexOf("function useSongsFromList"),
+      crate.indexOf("// ─── Helpers"),
+    );
+
+    expect(songFavorites).toContain("requestEventsIntoStore(");
+    expect(songFavorites).not.toContain('message === "EOSE"');
+    expect(songResolution).toContain("requestEventsIntoStore(");
+    expect(songResolution).not.toContain(
+      "songs.length < addresses.length",
+    );
+  });
+
   test("station cards render retrieved social counts instead of tooltip-only values", () => {
     expect(renderToStaticMarkup(<SocialCount count={1} />)).toContain(">1<");
     expect(renderToStaticMarkup(<SocialCount count={1_200} />)).toContain(

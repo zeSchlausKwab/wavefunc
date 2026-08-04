@@ -35,6 +35,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "resources/bin/*": "bin/"
+    },
     "publisher": "WaveFunc",
     "copyright": "",
     "category": "Music",

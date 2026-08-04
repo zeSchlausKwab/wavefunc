@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { buildShareSongNoteTemplate, type ParsedSong } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { mediaErrorMessage } from "../lib/mediaAcquisition";
 import { cn } from "@/lib/utils";
 
 interface ShareSongDialogProps {
@@ -122,19 +124,21 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
       });
       await signAndPublish(template);
       setPhase("done");
-    } catch (err: any) {
-      setErrorMsg(err.message ?? "Publish failed");
+    } catch (error) {
+      setErrorMsg(mediaErrorMessage(error, "Publish failed."));
       setPhase("error");
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg border-4 border-on-background bg-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)]">
+      <div className="relative max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto border-4 border-on-background bg-background shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] sm:max-h-[calc(100dvh-2rem)]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-on-background text-surface">
           <span className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5">
@@ -292,7 +296,7 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
           {phase === "error" && (
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[14px] text-destructive shrink-0">error</span>
-              <p className="text-[10px] font-bold uppercase tracking-tight text-destructive truncate flex-1">{errorMsg}</p>
+              <p className="flex-1 whitespace-pre-wrap break-words text-[10px] font-bold uppercase tracking-tight text-destructive">{errorMsg}</p>
               <button
                 type="button"
                 onClick={() => { setPhase("compose"); setErrorMsg(null); }}
@@ -304,6 +308,7 @@ export function ShareSongDialog({ song, onClose }: ShareSongDialogProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

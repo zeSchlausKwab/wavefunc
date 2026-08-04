@@ -23,6 +23,7 @@
       ]
     },
     "deep-link:default",
-    "wavefunc-player:default"
+    "wavefunc-player:default",
+    "wavefunc-media:default"
   ]
 }
