@@ -22,11 +22,12 @@ import { NavigationItems } from "./NavigationItems";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { SongFavoriteButton } from "./SongFavoriteButton";
+import { SongMagicButton } from "./SongMagicButton";
 import { useCurrentAccount } from "../lib/nostr/auth";
 
 // ─── Snap levels ──────────────────────────────────────────────────────────────
 
-const PEEK_VH = 45;
+const PEEK_VH = 60;
 const EXPANDED_VH = 82;
 const SNAP_THRESHOLD_VH = (PEEK_VH + EXPANDED_VH) / 2;
 
@@ -243,9 +244,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     if (sheetSnap === "expanded") {
       setSheetSnap("peek");
     } else {
-      closeSheet();
-      setDragHeightVh(null);
-      dragHeightRef.current = null;
+      setSheetSnap("expanded");
     }
   };
 
@@ -303,14 +302,16 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
             onPointerDown={handleDragStart}
             onClick={handleGrabberClick}
             onKeyDown={handleGrabberKeyDown}
-            className="w-full shrink-0 flex items-center justify-center py-2.5 touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
+            className="w-full h-12 shrink-0 flex items-center justify-center touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
             aria-label="Resize panel"
+            title={sheetSnap === "expanded" ? "Collapse panel" : "Expand panel"}
           >
             <div className="flex items-center justify-between w-full px-4">
               <div className="w-6" />
               <div className="h-1 w-12 bg-on-background/30 rounded-full" />
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); closeSheet(); setDragHeightVh(null); dragHeightRef.current = null; }}
                 className="w-6 h-6 flex items-center justify-center text-on-background/40 hover:text-on-background transition-colors"
                 aria-label="Close"
@@ -375,6 +376,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
                 </p>
                 <SongFavoriteButton size="sm" className="shrink-0" />
+                <SongMagicButton size="sm" className="shrink-0" />
               </div>
             )}
           </div>
@@ -552,6 +554,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                     {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
                   </p>
                   <SongFavoriteButton size="sm" className="shrink-0" />
+                  <SongMagicButton size="sm" className="shrink-0" />
                 </div>
               )}
               {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-24 mt-0.5" />}

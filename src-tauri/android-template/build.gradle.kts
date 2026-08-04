@@ -24,6 +24,11 @@ if (keystorePropertiesFile.exists()) {
 android {
     compileSdk = 36
     namespace = "live.wavefunc.app"
+    packaging {
+        // youtubedl-android loads its embedded Python/QuickJS archives from
+        // applicationInfo.nativeLibraryDir and therefore requires extraction.
+        jniLibs.useLegacyPackaging = true
+    }
     defaultConfig {
         // WaveFunc is a radio directory and many legitimate community
         // stations only expose an HTTP stream. The native player validates
@@ -107,8 +112,14 @@ val syncWavefuncIcons by tasks.registering(Copy::class) {
     into(layout.projectDirectory.dir("src/main/res"))
 }
 
+val syncWavefuncMainActivity by tasks.registering(Copy::class) {
+    from(file("../../../android-template/MainActivity.kt"))
+    into(layout.projectDirectory.dir("src/main/java/live/wavefunc/app"))
+}
+
 tasks.named("preBuild") {
     dependsOn(syncWavefuncIcons)
+    dependsOn(syncWavefuncMainActivity)
 }
 
 dependencies {

@@ -1,0 +1,26 @@
+[package]
+name = "tauri-plugin-wavefunc-media"
+version = "0.1.0"
+authors = ["WaveFunc"]
+description = "Local media acquisition and Blossom upload for WaveFunc"
+edition = "2021"
+rust-version = "1.77.2"
+links = "tauri-plugin-wavefunc-media"
+
+[dependencies]
+base64 = "0.22"
+hex = "0.4"
+mime_guess = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2" }
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util", "process", "sync"] }
+tokio-util = { version = "0.7", features = ["io"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

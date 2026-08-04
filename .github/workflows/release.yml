@@ -41,6 +41,28 @@ jobs:
           ## What's Changed
           HEREDOC
           echo "$CHANGES" >> RELEASE_NOTES.md
+          cat >> RELEASE_NOTES.md << 'HEREDOC'
+
+          ## Android downloader licensing
+
+          WaveFunc source remains MIT licensed. The Android APK also contains
+          youtubedl-android 0.18.1 under GPL-3.0. Its exact upstream source and
+          GPL license are attached to this release; WaveFunc corresponding
+          source is the source archive for this release tag.
+          HEREDOC
+
+      - name: Prepare Android GPL source and license
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/yausername/youtubedl-android/archive/refs/tags/0.18.1.tar.gz \
+            --output youtubedl-android-0.18.1-source.tar.gz
+          echo "08833449d671142c34325203cbfcca31c4fa668a0c4b8c0c31a2e4354ce11b98  youtubedl-android-0.18.1-source.tar.gz" | sha256sum --check
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/yausername/youtubedl-android/0.18.1/LICENSE \
+            --output GPL-3.0-youtubedl-android.txt
+          echo "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986  GPL-3.0-youtubedl-android.txt" | sha256sum --check
 
       - name: Create GitHub Release
         id: create
@@ -51,6 +73,9 @@ jobs:
           body_path: RELEASE_NOTES.md
           draft: true
           prerelease: false
+          files: |
+            youtubedl-android-0.18.1-source.tar.gz
+            GPL-3.0-youtubedl-android.txt
 
   build-desktop:
     needs: create-release
@@ -95,6 +120,55 @@ jobs:
 
       - name: Install frontend dependencies
         run: bun install
+
+      - name: Prepare desktop media engine (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno-arm /tmp/wavefunc-deno-x64
+          curl --fail --location --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
+            --output src-tauri/resources/bin/yt-dlp
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-aarch64-apple-darwin.zip \
+            --output /tmp/deno-arm.zip
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-apple-darwin.zip \
+            --output /tmp/deno-x64.zip
+          unzip -q /tmp/deno-arm.zip -d /tmp/wavefunc-deno-arm
+          unzip -q /tmp/deno-x64.zip -d /tmp/wavefunc-deno-x64
+          mv /tmp/wavefunc-deno-arm/deno src-tauri/resources/bin/deno-aarch64
+          mv /tmp/wavefunc-deno-x64/deno src-tauri/resources/bin/deno-x86_64
+          chmod +x src-tauri/resources/bin/yt-dlp \
+            src-tauri/resources/bin/deno-aarch64 \
+            src-tauri/resources/bin/deno-x86_64
+
+      - name: Prepare desktop media engine (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno
+          curl --fail --location --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+            --output src-tauri/resources/bin/yt-dlp
+          curl --fail --location --retry 3 \
+            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-unknown-linux-gnu.zip \
+            --output /tmp/deno.zip
+          unzip -q /tmp/deno.zip -d /tmp/wavefunc-deno
+          mv /tmp/wavefunc-deno/deno src-tauri/resources/bin/deno
+          chmod +x src-tauri/resources/bin/yt-dlp src-tauri/resources/bin/deno
+
+      - name: Prepare desktop media engine (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force src-tauri/resources/bin | Out-Null
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile src-tauri/resources/bin/yt-dlp.exe
+          Invoke-WebRequest https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip -OutFile $env:RUNNER_TEMP/deno.zip
+          Expand-Archive -Force $env:RUNNER_TEMP/deno.zip $env:RUNNER_TEMP/wavefunc-deno
+          Move-Item $env:RUNNER_TEMP/wavefunc-deno/deno.exe src-tauri/resources/bin/deno.exe
 
       - name: Build frontend
         run: bun run build

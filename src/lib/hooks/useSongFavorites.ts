@@ -27,6 +27,7 @@ import {
   WF_SONG_LIST_KIND,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
+import { requestEventsIntoStore } from "../nostr/requestEvents";
 
 const DEFAULT_LIST_NAME = "Liked Songs";
 
@@ -45,25 +46,34 @@ export function useSongFavorites() {
     ];
   }, [currentUser?.pubkey]);
 
-  // Keep an active relay subscription so song list events get loaded into
-  // the store and stay fresh. Events flow into the store via storeEvents,
-  // which triggers insert$/remove$ → the TimelineModel below picks them up.
-  const [eose, setEose] = useState(false);
+  // A finite request owns the initial loading lifecycle. The live subscription
+  // intentionally has no EOSE value, so it cannot be used to release skeletons.
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
     if (!filters) {
-      setEose(true);
+      setInitialLoadComplete(true);
       return;
     }
-    setEose(false);
-    const subscription = relayPool
+
+    setInitialLoadComplete(false);
+    const requestSubscription = requestEventsIntoStore(
+      relayPool,
+      eventStore,
+      getAppDataRelayUrls(),
+      filters,
+    ).subscribe({
+      complete: () => setInitialLoadComplete(true),
+      error: () => setInitialLoadComplete(true),
+    });
+    const liveSubscription = relayPool
       .subscription(getAppDataRelayUrls(), filters)
       .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
+      .subscribe();
+
+    return () => {
+      requestSubscription.unsubscribe();
+      liveSubscription.unsubscribe();
+    };
   }, [eventStore, relayPool, filters]);
 
   // useEventModel subscribes to a shared TimelineModel on the EventStore via
@@ -76,7 +86,7 @@ export function useSongFavorites() {
     [events],
   );
 
-  const isLoading = !eose;
+  const isLoading = !initialLoadComplete;
 
   const isInAnyList = useCallback(
     (songAddress: string) =>
@@ -110,7 +120,7 @@ export function useSongFavorites() {
         return true;
       } catch (err) {
         console.error("Failed to add song to list:", err);
-        return false;
+        throw err;
       }
     },
     [findOrCreateDefaultList, signAndPublish],

@@ -1,0 +1,11 @@
+[default]
+description = "Allow WaveFunc to acquire media locally and upload it to Blossom"
+permissions = [
+  "allow-prepare",
+  "allow-status",
+  "allow-upload",
+  "allow-discard",
+  "allow-cancel",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

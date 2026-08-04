@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getAppDataRelayUrls } from "../config/nostr";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import {
-  buildSongAudioUpdateTemplate,
   getSongListSongCount,
   parseSongEvent,
   SONG_KIND,
@@ -17,27 +16,10 @@ import {
 } from "../lib/nostr/domain";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import {
-  getMetadataClient,
-  type DownloadFormat,
-  type YouTubeResult,
-} from "../ctxcn/WavefuncMetadataServerClient";
+import { requestEventsIntoStore } from "../lib/nostr/requestEvents";
 import { ShareSongDialog } from "../components/ShareSongDialog";
-import { YoutubeEmbed } from "../components/YoutubeEmbed";
-import { useUIStore } from "../stores/uiStore";
+import { SongMediaDialog } from "../components/SongMediaDialog";
 import { cn } from "@/lib/utils";
-
-const VIDEO_FORMATS: { label: string; format: DownloadFormat; icon: string; hint: string }[] = [
-  { label: "360p", format: "360p", icon: "video_file", hint: "WebM ≈10–30 MB" },
-  { label: "480p", format: "480p", icon: "video_file", hint: "WebM ≈20–60 MB" },
-  { label: "720p", format: "720p", icon: "video_file", hint: "MP4 ≈80–200 MB" },
-];
-
-const BLOSSOM_SERVERS = [
-  { label: "blossom.band", url: "https://blossom.band" },
-  { label: "cdn.hzrd149.com", url: "https://cdn.hzrd149.com" },
-  { label: "files.v0l.io", url: "https://files.v0l.io" },
-];
 
 export const Route = createFileRoute("/crate")({
   component: Crate,
@@ -70,14 +52,35 @@ function useSongsFromList(list: ParsedSongList): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(addresses)]);
 
-  // Active relay subscription so song events stream into the store.
+  // A bounded historical request releases the loading state at completion,
+  // even if a referenced song was deleted or is temporarily unavailable.
+  // The separate live subscription keeps resolved songs fresh afterwards.
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
-    if (filters.length === 0) return;
-    const subscription = relayPool
+    if (filters.length === 0) {
+      setInitialLoadComplete(true);
+      return;
+    }
+
+    setInitialLoadComplete(false);
+    const requestSubscription = requestEventsIntoStore(
+      relayPool,
+      eventStore,
+      getAppDataRelayUrls(),
+      filters,
+    ).subscribe({
+      complete: () => setInitialLoadComplete(true),
+      error: () => setInitialLoadComplete(true),
+    });
+    const liveSubscription = relayPool
       .subscription(getAppDataRelayUrls(), filters)
       .pipe(storeEvents(eventStore))
       .subscribe();
-    return () => subscription.unsubscribe();
+
+    return () => {
+      requestSubscription.unsubscribe();
+      liveSubscription.unsubscribe();
+    };
   }, [eventStore, relayPool, filters]);
 
   // Reactive timeline read from the canonical model.
@@ -94,7 +97,7 @@ function useSongsFromList(list: ParsedSongList): {
 
   return {
     songs,
-    isLoading: addresses.length > 0 && songs.length < addresses.length,
+    isLoading: addresses.length > 0 && !initialLoadComplete,
   };
 }
 
@@ -104,270 +107,6 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-// ─── YouTube audio panel ─────────────────────────────────────────────────────
-
-interface YouTubeAudioPanelProps {
-  song: ParsedSong;
-  onClose: () => void;
-}
-
-function YouTubeAudioPanel({ song, onClose }: YouTubeAudioPanelProps) {
-  const { isLoggedIn } = useSongFavorites();
-  const pulseLogin = useUIStore((s) => s.pulseLogin);
-  const { signer, signAndPublish } = useWavefuncNostr();
-  const [phase, setPhase] = useState<"searching" | "results" | "downloading" | "uploading" | "error">("searching");
-  const [results, setResults] = useState<YouTubeResult[]>([]);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [progressMsg, setProgressMsg] = useState<string | null>(null);
-  const [watchingId, setWatchingId] = useState<string | null>(null);
-  const [blossomUrl, setBlossomUrl] = useState(BLOSSOM_SERVERS[0]!.url);
-  const [customBlossom, setCustomBlossom] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
-
-  const effectiveBlossomUrl = showCustom ? customBlossom : blossomUrl;
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      pulseLogin();
-      onClose();
-      return;
-    }
-    const query = [song.title, song.artist].filter(Boolean).join(" ");
-    getMetadataClient()
-      .SearchYouTube(query, 5)
-      .then((out) => {
-        setResults(out.results);
-        setPhase("results");
-      })
-      .catch((err) => {
-        setErrorMsg(err.message ?? "Search failed");
-        setPhase("error");
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleDownload = async (result: YouTubeResult, format: DownloadFormat) => {
-    if (!isLoggedIn) {
-      pulseLogin();
-      return;
-    }
-    if (!signer) {
-      setErrorMsg("No signer available — connect your account first");
-      setPhase("error");
-      return;
-    }
-
-    setDownloadingId(result.videoId);
-    setProgressMsg(null);
-    setPhase("downloading");
-
-    try {
-      // Step 1: server downloads the file and returns hash
-      const { tempId, sha256 } = await getMetadataClient().PrepareDownload(
-        result.videoId,
-        format,
-        (p) => setProgressMsg(p.message ?? null),
-      );
-
-      // Step 2: client signs BUD-01 kind 24242 auth event
-      setPhase("uploading");
-      setProgressMsg("Waiting for signature...");
-      const now = Math.floor(Date.now() / 1000);
-      const authTemplate = {
-        kind: 24242,
-        content: `Upload ${format}`,
-        created_at: now,
-        tags: [
-          ["t", "upload"],
-          ["x", sha256],
-          ["expiration", String(now + 600)],
-        ] as string[][],
-      };
-      const authEvent = await signer.signEvent(authTemplate);
-      const signedEventJson = JSON.stringify(authEvent);
-
-      // Step 3: server uploads using our signed auth
-      setProgressMsg("Uploading to Blossom...");
-      const { url } = await getMetadataClient().UploadToBlossom(
-        tempId,
-        effectiveBlossomUrl,
-        signedEventJson,
-        (p) => setProgressMsg(p.message ?? null),
-      );
-
-      // Step 4: publish updated song event with the new audio URL attached
-      const updateTemplate = buildSongAudioUpdateTemplate(
-        song.event,
-        url,
-        result.videoId,
-      );
-      await signAndPublish(updateTemplate);
-
-      onClose();
-    } catch (err: any) {
-      setErrorMsg(err.message ?? "Download failed");
-      setPhase("error");
-      setDownloadingId(null);
-    }
-  };
-
-  if (watchingId) {
-    return <YoutubeEmbed videoId={watchingId} onClose={() => setWatchingId(null)} />;
-  }
-
-  return (
-    <div className="border-t-2 border-on-background/10 bg-surface-container-high px-4 py-3 space-y-2">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] font-black uppercase tracking-widest text-on-background/50 flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[12px]">smart_display</span>
-          {phase === "searching" && "SEARCHING..."}
-          {phase === "results" && `RESULTS_FOR: ${[song.title, song.artist].filter(Boolean).join(" — ")}`}
-          {(phase === "downloading" || phase === "uploading") && "SAVING_TO_BLOSSOM..."}
-          {phase === "error" && "ERROR"}
-        </span>
-        <button onClick={onClose} className="text-on-background/30 hover:text-on-background transition-colors">
-          <span className="material-symbols-outlined text-[14px]">close</span>
-        </button>
-      </div>
-
-      {/* Blossom server picker (only in results phase) */}
-      {phase === "results" && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-on-background/40 shrink-0">BLOSSOM:</span>
-          {BLOSSOM_SERVERS.map((s) => (
-            <button
-              key={s.url}
-              onClick={() => { setBlossomUrl(s.url); setShowCustom(false); }}
-              className={cn(
-                "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
-                !showCustom && blossomUrl === s.url
-                  ? "border-on-background bg-on-background text-surface"
-                  : "border-on-background/20 hover:border-on-background/60",
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setShowCustom((v) => !v)}
-            className={cn(
-              "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border transition-colors",
-              showCustom
-                ? "border-on-background bg-on-background text-surface"
-                : "border-on-background/20 hover:border-on-background/60",
-            )}
-          >
-            CUSTOM
-          </button>
-          {showCustom && (
-            <input
-              type="url"
-              value={customBlossom}
-              onChange={(e) => setCustomBlossom(e.target.value)}
-              placeholder="https://your-blossom-server.com"
-              className="flex-1 min-w-[200px] bg-transparent text-[9px] font-mono border-b border-on-background/40 outline-none py-0.5 placeholder:text-on-background/25"
-            />
-          )}
-        </div>
-      )}
-
-      {phase === "searching" && (
-        <div className="flex items-center gap-2 py-3 text-on-background/40">
-          <span className="material-symbols-outlined text-[16px]" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-          <span className="text-[10px] font-bold uppercase tracking-widest">FETCHING_RESULTS...</span>
-        </div>
-      )}
-
-      {phase === "results" && results.length === 0 && (
-        <p className="text-[10px] text-on-background/40 uppercase tracking-widest py-3">NO_RESULTS_FOUND</p>
-      )}
-
-      {phase === "results" && results.length > 0 && (
-        <div className="space-y-1">
-          {results.map((r) => {
-            const isDownloading = downloadingId === r.videoId;
-            return (
-              <div key={r.videoId} className="flex items-center gap-2.5 px-2 py-1.5 border border-transparent hover:border-on-background/20">
-                {r.thumbnailUrl && (
-                  <img src={r.thumbnailUrl} alt="" className="w-12 h-9 object-cover shrink-0 bg-on-background/10"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-tight truncate">{r.title}</p>
-                  <p className="text-[9px] text-on-background/50 truncate">
-                    {r.channel}
-                    {r.duration && <span className="ml-2 tabular-nums">{formatDuration(r.duration)}</span>}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setWatchingId(r.videoId)}
-                  disabled={downloadingId !== null}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
-                  title="Preview"
-                >
-                  <span className="material-symbols-outlined text-[12px]">play_arrow</span>
-                  PREVIEW
-                </button>
-                <button
-                  onClick={() => handleDownload(r, "audio")}
-                  disabled={downloadingId !== null}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
-                  title="Save audio to Blossom"
-                >
-                  <span className="material-symbols-outlined text-[12px]"
-                    style={isDownloading ? { animation: "spin 0.8s linear infinite" } : {}}>
-                    {isDownloading ? "sync" : "audio_file"}
-                  </span>
-                  AUDIO
-                </button>
-                {VIDEO_FORMATS.map(({ label, format, hint }) => (
-                  <button
-                    key={format}
-                    onClick={() => handleDownload(r, format)}
-                    disabled={downloadingId !== null}
-                    className="shrink-0 flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest border border-on-background/20 hover:bg-on-background hover:text-surface hover:border-on-background transition-colors disabled:opacity-40"
-                    title={hint}
-                  >
-                    <span className="material-symbols-outlined text-[12px]">video_file</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {(phase === "downloading" || phase === "uploading") && (
-        <div className="flex items-start gap-2 py-3 text-on-background/60">
-          <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest">
-              {phase === "uploading" ? "UPLOADING_TO_BLOSSOM..." : "DOWNLOADING..."}
-            </p>
-            <p className="text-[9px] text-on-background/50 mt-0.5 truncate font-mono">{progressMsg ?? "Starting..."}</p>
-          </div>
-        </div>
-      )}
-
-      {phase === "error" && (
-        <div className="flex items-center gap-2 py-2 text-destructive">
-          <span className="material-symbols-outlined text-[14px]">error</span>
-          <p className="text-[10px] font-bold uppercase tracking-tight truncate">{errorMsg}</p>
-          <button
-            onClick={() => { setPhase("results"); setErrorMsg(null); setDownloadingId(null); }}
-            className="ml-auto shrink-0 text-[9px] font-black uppercase tracking-widest border border-current px-2 py-0.5 hover:bg-destructive hover:text-white transition-colors"
-          >
-            RETRY
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Song row ─────────────────────────────────────────────────────────────────
@@ -383,7 +122,7 @@ interface SongRowProps {
 function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [ytPanelOpen, setYtPanelOpen] = useState(false);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -475,18 +214,16 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </button>
       )}
 
-      {/* Get audio */}
+      {/* Save audio or video */}
       <button
-        onClick={(e) => { e.stopPropagation(); setYtPanelOpen((v) => !v); }}
+        onClick={(e) => { e.stopPropagation(); setMediaDialogOpen(true); }}
         className={cn(
           "shrink-0 transition-colors",
           song.audioUrl ? "text-primary/60 hover:text-primary" : "text-on-background/30 hover:text-on-background",
         )}
-        title={song.audioUrl ? "Audio attached — replace?" : "Get audio"}
+        title={song.audioUrl ? "Save another copy to Blossom" : "Save audio or video to Blossom"}
       >
-        <span className="material-symbols-outlined text-[16px]">
-          {song.audioUrl ? "audio_file" : "download"}
-        </span>
+        <span className="material-symbols-outlined text-[16px]">auto_fix_high</span>
       </button>
 
       {/* Share */}
@@ -546,8 +283,8 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </div>
       )}
     </div>
-    {ytPanelOpen && (
-      <YouTubeAudioPanel song={song} onClose={() => setYtPanelOpen(false)} />
+    {mediaDialogOpen && (
+      <SongMediaDialog song={song} onClose={() => setMediaDialogOpen(false)} />
     )}
     {shareOpen && (
       <ShareSongDialog song={song} onClose={() => setShareOpen(false)} />
@@ -628,7 +365,7 @@ function SongListPanel({ list, allLists, onMove, onRemove }: SongListPanelProps)
         </div>
       ) : (
         <div className="px-4 py-4 text-[10px] text-on-background/40 uppercase tracking-widest text-center">
-          LOADING_TRACKS...
+          TRACKS_CURRENTLY_UNAVAILABLE
         </div>
       )}
     </div>
