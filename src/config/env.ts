@@ -11,8 +11,15 @@
 export function isTauri(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as any;
-  // v1/v2: __TAURI_INTERNAL__ ist ein guter Indikator, __TAURI__ optional je nach Config
-  return !!w.__TAURI__ || !!w.__TAURI_INTERNAL__;
+  // Tauri v2 exposes __TAURI_INTERNALS__ even when withGlobalTauri is off.
+  // The asset host/protocol checks cover the brief period before the bridge is
+  // initialized and keep packaged apps out of the ordinary-browser branch.
+  return (
+    !!w.__TAURI__ ||
+    !!w.__TAURI_INTERNALS__ ||
+    w.location?.hostname === "tauri.localhost" ||
+    w.location?.protocol === "tauri:"
+  );
 }
 // Bun's bundler inlines process.env.VAR at build time, but only with dot notation
 // and a literal string key — never with bracket notation or a variable key.

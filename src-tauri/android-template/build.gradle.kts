@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -24,7 +25,10 @@ android {
     compileSdk = 36
     namespace = "live.wavefunc.app"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        // WaveFunc is a radio directory and many legitimate community
+        // stations only expose an HTTP stream. The native player validates
+        // that playback URLs are HTTP(S) before handing them to Media3.
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "live.wavefunc.app"
         minSdk = 24
         targetSdk = 36
@@ -43,6 +47,10 @@ android {
     }
     buildTypes {
         getByName("debug") {
+            // Keep debug builds installable alongside the release-signed app.
+            // This avoids deleting a tester's production data when signatures
+            // differ, which is the normal case outside CI.
+            versionNameSuffix = "-debug"
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
             isJniDebuggable = true
@@ -64,11 +72,26 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         buildConfig = true
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        // Tauri rewrites the default applicationId before each build, so use
+        // the modern variant API to keep the debug package distinct.
+        variant.applicationId.set("live.wavefunc.app.debug")
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
@@ -76,10 +99,22 @@ rust {
     rootDirRel = "../../../"
 }
 
+val syncWavefuncIcons by tasks.registering(Copy::class) {
+    from(file("../../../icons/android")) {
+        include("mipmap-*/**")
+        include("values/ic_launcher_background.xml")
+    }
+    into(layout.projectDirectory.dir("src/main/res"))
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncWavefuncIcons)
+}
+
 dependencies {
-    implementation("androidx.webkit:webkit:1.14.0")
+    implementation("androidx.webkit:webkit:1.16.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("androidx.activity:activity-ktx:1.10.1")
+    implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("com.google.android.material:material:1.12.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")

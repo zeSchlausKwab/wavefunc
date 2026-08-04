@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-update-metadata"
+description = "Enables the update_metadata command without any pre-configured scope."
+commands.allow = ["update_metadata"]
+
+[[permission]]
+identifier = "deny-update-metadata"
+description = "Denies the update_metadata command without any pre-configured scope."
+commands.deny = ["update_metadata"]

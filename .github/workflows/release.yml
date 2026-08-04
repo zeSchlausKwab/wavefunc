@@ -160,6 +160,7 @@ jobs:
             "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             > src-tauri/gen/android/keystore.properties
           cp src-tauri/android-template/build.gradle.kts src-tauri/gen/android/app/build.gradle.kts
+          cp src-tauri/android-template/root-build.gradle.kts src-tauri/gen/android/build.gradle.kts
 
       - name: Build Android APK
         env:

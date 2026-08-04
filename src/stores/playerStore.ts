@@ -21,12 +21,22 @@ import { firstValueFrom, filter, timeout } from "rxjs";
 
 import {
   getDefaultSelectedStream,
+  normalizeUrl,
   openStreamExternally,
 } from "../lib/player/adapters";
+import type {
+  NativePlaybackAdapter,
+  NativePlaybackEvent,
+} from "../lib/nativePlayback";
 import { PlaybackSupervisor } from "../lib/player/supervisor";
 import { showToast } from "./toastStore";
 import {
+  bufferingState,
+  failedState,
   idleState,
+  loadingState,
+  pausedState,
+  playingState,
   selectCurrentStation,
   selectCurrentStream,
   selectError,
@@ -92,6 +102,11 @@ interface PlayerStoreState {
   audioElement: HTMLAudioElement | null;
   supervisor: PlaybackSupervisor | null;
 
+  // Android-only Media3 backend. When present it owns playback in a
+  // foreground MediaSessionService and the HTML supervisor is disabled.
+  nativePlayback: NativePlaybackAdapter | null;
+  nativePlaybackStream: Stream | null;
+
   // Web Audio API visualization graph
   audioContext: AudioContext | null;
   analyser: AnalyserNode | null;
@@ -106,6 +121,8 @@ interface PlayerStoreState {
   setVolume: (volume: number) => void;
   toggleMute: () => void;
   setAudioElement: (element: HTMLAudioElement | null) => void;
+  setNativePlayback: (adapter: NativePlaybackAdapter | null) => void;
+  handleNativePlaybackEvent: (event: NativePlaybackEvent) => void;
   restoreLastStation: (eventStore: EventStore) => Promise<void>;
   getLastStationId: () => string | null;
 }
@@ -123,6 +140,29 @@ function deriveCompat(state: PlayerState): Pick<
   };
 }
 
+function showPlaybackFailure(state: Extract<PlayerState, { kind: "failed" }>) {
+  const firstAttempt = state.attemptedStreams[0];
+  const fallback = state.station.streams[0];
+  const url = firstAttempt?.url ?? fallback?.url;
+  const stationLabel = state.station.name || "this station";
+
+  showToast({
+    key: `play-failed:${state.station.id}`,
+    tone: "error",
+    title: "CONNECTION_FAILED",
+    message: `${stationLabel} couldn't play in the app.`,
+    ...(url
+      ? {
+          action: {
+            label: "OPEN_SOURCE",
+            onClick: () => openStreamExternally(url),
+          },
+        }
+      : {}),
+    durationMs: 0,
+  });
+}
+
 export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   // Initial state
   state: idleState(),
@@ -131,6 +171,8 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   isMuted: false,
   audioElement: null,
   supervisor: null,
+  nativePlayback: null,
+  nativePlaybackStream: null,
   audioContext: null,
   analyser: null,
   sourceNode: null,
@@ -138,10 +180,23 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   // ─── Playback actions ───────────────────────────────────────────────
 
   playStation: (station, stream) => {
-    const { supervisor, audioContext } = get();
-    if (!supervisor) {
+    const { supervisor, audioContext, nativePlayback } = get();
+    const selectedStream = stream ?? getDefaultSelectedStream(station.streams);
+    if (!selectedStream) {
+      const next = failedState(
+        station,
+        "fatal",
+        "No in-app stream available for this station",
+        []
+      );
+      set({ state: next, ...deriveCompat(next) });
+      showPlaybackFailure(next as Extract<PlayerState, { kind: "failed" }>);
+      return;
+    }
+
+    if (!supervisor && !nativePlayback) {
       console.error(
-        "playerStore.playStation: no supervisor (audio element not mounted)"
+        "playerStore.playStation: no playback backend is ready"
       );
       return;
     }
@@ -173,16 +228,53 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       });
     }
 
-    void supervisor.start(station, stream);
+    if (nativePlayback) {
+      const next = loadingState(station, station.streams.length || 1);
+      set({
+        state: next,
+        ...deriveCompat(next),
+        nativePlaybackStream: selectedStream,
+      });
+      void nativePlayback.play(station, selectedStream).catch((error) => {
+        // Ignore a late rejection for a station the user has already left.
+        if (get().currentStation?.id !== station.id) return;
+        get().handleNativePlaybackEvent({
+          state: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+      return;
+    }
+
+    void supervisor?.start(station, selectedStream);
   },
 
   pause: () => {
-    const { supervisor } = get();
+    const { supervisor, nativePlayback, currentStation, nativePlaybackStream } = get();
+    if (nativePlayback) {
+      if (currentStation && nativePlaybackStream) {
+        const next = pausedState(currentStation, nativePlaybackStream);
+        set({ state: next, ...deriveCompat(next) });
+      }
+      void nativePlayback.pause().catch((error) => {
+        console.warn("playerStore: native pause failed", error);
+      });
+      return;
+    }
     supervisor?.pause();
   },
 
   resume: () => {
-    const { supervisor, state, audioElement, audioContext } = get();
+    const { supervisor, state, audioElement, audioContext, nativePlayback } = get();
+    if (nativePlayback) {
+      void nativePlayback.resume().catch((error) => {
+        get().handleNativePlaybackEvent({
+          state: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+      return;
+    }
     if (!supervisor) return;
 
     // Same rationale as playStation: resume the context on user gesture.
@@ -221,35 +313,112 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   },
 
   stop: () => {
-    const { supervisor } = get();
+    const { supervisor, nativePlayback } = get();
+    if (nativePlayback) {
+      const next = idleState();
+      set({
+        state: next,
+        ...deriveCompat(next),
+        nativePlaybackStream: null,
+      });
+      void nativePlayback.stop().catch((error) => {
+        console.warn("playerStore: native stop failed", error);
+      });
+      return;
+    }
     supervisor?.stop();
   },
 
   retry: () => {
-    const { supervisor } = get();
+    const { supervisor, nativePlayback, state, nativePlaybackStream } = get();
+    if (nativePlayback && state.kind === "failed" && nativePlaybackStream) {
+      get().playStation(state.station, nativePlaybackStream);
+      return;
+    }
     void supervisor?.retry();
+  },
+
+  handleNativePlaybackEvent: (event) => {
+    const { currentStation, nativePlaybackStream, state } = get();
+    if (event.state === "idle") {
+      const next = idleState();
+      set({ state: next, ...deriveCompat(next), nativePlaybackStream: null });
+      return;
+    }
+    if (!currentStation || !nativePlaybackStream) return;
+
+    const stream = event.url
+      ? currentStation.streams.find(
+          (candidate) => normalizeUrl(candidate.url) === normalizeUrl(event.url!)
+        ) ?? nativePlaybackStream
+      : nativePlaybackStream;
+    let next: PlayerState;
+    switch (event.state) {
+      case "loading":
+        next = loadingState(currentStation, currentStation.streams.length || 1);
+        break;
+      case "playing":
+        next = playingState(currentStation, stream);
+        break;
+      case "buffering":
+        next = bufferingState(currentStation, stream);
+        break;
+      case "paused":
+        next = pausedState(currentStation, stream);
+        break;
+      case "failed":
+        next = failedState(
+          currentStation,
+          "network",
+          event.error || "Android playback failed",
+          [
+            {
+              url: stream.url,
+              at: Date.now(),
+              reason: "network",
+              message: event.error || "Android playback failed",
+            },
+          ]
+        );
+        break;
+    }
+
+    set({ state: next, ...deriveCompat(next), nativePlaybackStream: stream });
+    if (next.kind === "failed" && state.kind !== "failed") {
+      showPlaybackFailure(next);
+    }
   },
 
   // ─── Volume ─────────────────────────────────────────────────────────
 
   setVolume: (volume) => {
     const clamped = Math.max(0, Math.min(1, volume));
-    const { audioElement } = get();
+    const { audioElement, nativePlayback, isMuted } = get();
     if (audioElement) audioElement.volume = clamped;
+    if (nativePlayback) {
+      void nativePlayback.setVolume(clamped, isMuted).catch((error) => {
+        console.warn("playerStore: native volume update failed", error);
+      });
+    }
     set({ volume: clamped });
   },
 
   toggleMute: () => {
-    const { isMuted, audioElement } = get();
+    const { isMuted, audioElement, nativePlayback, volume } = get();
     const next = !isMuted;
     if (audioElement) audioElement.muted = next;
+    if (nativePlayback) {
+      void nativePlayback.setVolume(volume, next).catch((error) => {
+        console.warn("playerStore: native mute update failed", error);
+      });
+    }
     set({ isMuted: next });
   },
 
   // ─── Audio element lifecycle ───────────────────────────────────────
 
   setAudioElement: (element) => {
-    const { supervisor: oldSupervisor, volume, isMuted } = get();
+    const { supervisor: oldSupervisor, volume, isMuted, nativePlayback } = get();
 
     // Dispose any previous supervisor — only one per audio element.
     if (oldSupervisor) {
@@ -270,6 +439,17 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
     // Sync current volume/mute to the new element.
     element.volume = volume;
     element.muted = isMuted;
+
+    if (nativePlayback) {
+      set({
+        audioElement: element,
+        supervisor: null,
+        audioContext: null,
+        analyser: null,
+        sourceNode: null,
+      });
+      return;
+    }
 
     // Create (or reuse) the Web Audio graph for this element. Reused
     // across HMR thanks to the WeakMap.
@@ -310,33 +490,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       set({ state: next, ...deriveCompat(next) });
 
       if (next.kind === "failed" && prev.kind !== "failed") {
-        // Prefer the first attempted URL (the highest-ranked
-        // candidate's *original* — pre-https-upgrade — URL, since
-        // that's what attemptedStreams records). Falls back to the
-        // station's first stream if the summary is somehow empty.
-        const firstAttempt = next.attemptedStreams[0];
-        const fallback = next.station.streams[0];
-        const url = firstAttempt?.url ?? fallback?.url;
-        const stationLabel = next.station.name || "this station";
-
-        showToast({
-          // Same key for repeats so a user mashing play doesn't stack
-          // duplicate toasts.
-          key: `play-failed:${next.station.id}`,
-          tone: "error",
-          title: "CONNECTION_FAILED",
-          message: `${stationLabel} couldn't play in the browser.`,
-          ...(url
-            ? {
-                action: {
-                  label: "OPEN_SOURCE",
-                  onClick: () => openStreamExternally(url),
-                },
-              }
-            : {}),
-          // Stay until dismissed — the user needs the action button.
-          durationMs: 0,
-        });
+        showPlaybackFailure(next);
       }
     });
 
@@ -347,6 +501,26 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       analyser,
       sourceNode,
     });
+  },
+
+  setNativePlayback: (adapter) => {
+    const { supervisor, audioElement, audioContext } = get();
+    if (adapter) {
+      supervisor?.dispose();
+      audioElement?.pause();
+      if (audioContext?.state === "running") {
+        void audioContext.suspend();
+      }
+      set({
+        nativePlayback: adapter,
+        supervisor: null,
+        audioContext: null,
+        analyser: null,
+        sourceNode: null,
+      });
+      return;
+    }
+    set({ nativePlayback: null });
   },
 
   // ─── Last station persistence ──────────────────────────────────────

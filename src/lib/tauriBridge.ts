@@ -17,6 +17,7 @@
 import type { Router } from "@tanstack/react-router";
 
 import { isTauri } from "../config/env";
+import { installNativePlayback } from "./nativePlayback";
 import { useMetadataStore } from "../stores/metadataStore";
 import { usePlayerStore } from "../stores/playerStore";
 
@@ -48,6 +49,10 @@ export async function installTauriBridge(
   router: Router<never, never>
 ): Promise<() => void> {
   if (!isTauri()) return () => {};
+
+  // Install the service-owned Media3 backend before wiring the remaining
+  // desktop/mobile bridge features. This is a no-op on non-Android targets.
+  const cleanupNativePlayback = await installNativePlayback();
 
   // Dynamic imports. Bun's bundler sees these as dynamic chunks and
   // doesn't resolve @tauri-apps/* for web builds that never call
@@ -191,6 +196,7 @@ export async function installTauriBridge(
   }
 
   return () => {
+    cleanupNativePlayback();
     unsubPlayer();
     unsubMeta();
     unlistenMedia();

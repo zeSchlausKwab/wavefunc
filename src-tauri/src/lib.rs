@@ -26,10 +26,7 @@ pub struct NowPlaying {
 /// a no-op — the JS bridge still calls it blindly, but the call is
 /// cheap and simpler than gating on platform in JS.
 #[tauri::command]
-fn update_now_playing(
-    app: tauri::AppHandle,
-    np: NowPlaying,
-) -> Result<(), String> {
+fn update_now_playing(app: tauri::AppHandle, np: NowPlaying) -> Result<(), String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         desktop::tray::update(&app, np).map_err(|e| e.to_string())?;
@@ -47,6 +44,7 @@ fn update_now_playing(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_wavefunc_player::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init());
@@ -78,8 +76,8 @@ pub fn run() {
             // Silence unused-parameter warnings on mobile builds.
             #[cfg(any(target_os = "android", target_os = "ios"))]
             {
-                drop(window);
-                drop(event);
+                let _ = window;
+                let _ = event;
             }
         })
         .setup(|app| {
@@ -104,8 +102,7 @@ pub fn run() {
             let handle_for_deep_link = app.handle().clone();
             let deep_link_result = catch_unwind(AssertUnwindSafe(|| {
                 app.deep_link().on_open_url(move |event| {
-                    let urls: Vec<String> =
-                        event.urls().iter().map(|u| u.to_string()).collect();
+                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
                     let _ = handle_for_deep_link.emit("deep-link-open", urls);
                 });
             }));
@@ -134,9 +131,7 @@ pub fn run() {
             // ever violated during refactoring.
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
-                if let Err(panic) =
-                    catch_unwind(AssertUnwindSafe(|| desktop::setup(app)))
-                {
+                if let Err(panic) = catch_unwind(AssertUnwindSafe(|| desktop::setup(app))) {
                     eprintln!("[wavefunc] desktop::setup PANICKED: {panic:?}");
                 }
             }

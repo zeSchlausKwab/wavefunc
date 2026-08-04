@@ -1,0 +1,1 @@
+-keep class live.wavefunc.player.** { *; }

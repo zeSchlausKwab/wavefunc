@@ -1,0 +1,12 @@
+[default]
+description = "Allow WaveFunc to control its native Android radio player"
+permissions = [
+  "allow-play",
+  "allow-pause",
+  "allow-resume",
+  "allow-stop",
+  "allow-update-metadata",
+  "allow-set-volume",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

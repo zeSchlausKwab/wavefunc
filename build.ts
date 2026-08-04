@@ -117,6 +117,22 @@ if (existsSync(outdir)) {
 
 const start = performance.now();
 
+// Bun loads the developer's local .env automatically. Do not bake a loopback
+// relay from that file into portable application assets: on a physical phone,
+// localhost is the phone itself. Leaving it undefined lets the runtime choose
+// the correct relay for the platform while still honoring explicit public
+// relay overrides used by release builds and CI.
+const configuredRelayUrl = process.env.RELAY_URL?.trim();
+const isLoopbackRelayUrl = configuredRelayUrl
+  ? /^ws:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::|\/|$)/i.test(
+      configuredRelayUrl
+    )
+  : false;
+const definedRelayUrl =
+  configuredRelayUrl && !isLoopbackRelayUrl
+    ? JSON.stringify(configuredRelayUrl)
+    : "undefined";
+
 const entrypoints = [...new Bun.Glob("**.html").scanSync("src")]
   .map(a => path.resolve("src", a))
   .filter(dir => !dir.includes("node_modules"));
@@ -131,8 +147,8 @@ const result = await Bun.build({
   sourcemap: "linked",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
-    // Inject RELAY_URL from environment (defaults to localhost for local builds)
-    "process.env.RELAY_URL": JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334"),
+    // Only inject an explicit override; platform fallback happens at runtime.
+    "process.env.RELAY_URL": definedRelayUrl,
     // Inject metadata server configuration (defaults to devUser1 from fixtures for local builds)
     "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(process.env.METADATA_SERVER_PUBKEY || "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0"),
     "process.env.METADATA_CLIENT_KEY": JSON.stringify(process.env.METADATA_CLIENT_KEY || "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0"),
