@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-04
+
+### Added
+- Native Android playback backed by Media3, including background playback,
+  lock-screen controls, live metadata, and support for HTTP radio streams.
+- Visible comment, reaction, and zap counts on station cards.
+- A root-owned support center for donations and following the developer.
+
+### Changed
+- Migrated Applesauce packages and wallet handling to the v6 APIs.
+- Android signer and Lightning links now open through native intents instead
+  of navigating the embedded web view.
+- Featured collections render available stations immediately while relay
+  refreshes continue in the background.
+
+### Fixed
+- Featured collections and station rows no longer remain stuck as skeletons
+  after relay end-of-stream handling changed in Applesauce v6.
+- Existing station reactions load after reload, including reactions mirrored
+  through their event tag, while duplicate reactions from one pubkey count once.
+- The donation flow no longer opens behind the mobile navigation sheet.
+
 ## [0.1.3] - 2026-04-25
 
 ### Added
