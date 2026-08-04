@@ -1,5 +1,6 @@
 import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import {
   getAddressableReferences,
   getFirstTagValue,
@@ -214,4 +215,3 @@ export function buildSongAudioUpdateTemplate(
     tags,
   };
 }
-

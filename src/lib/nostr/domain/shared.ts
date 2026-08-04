@@ -1,9 +1,8 @@
 import {
   createReplaceableAddress,
-  type EventTemplate,
-  getTagValue,
   type NostrEvent,
 } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import {
   getAddressPointerForEvent,
   naddrEncode,
@@ -19,10 +18,10 @@ export function getMatchingTags(event: Pick<NostrEvent, "tags">, name: string) {
 }
 
 export function getFirstTagValue(
-  event: Pick<NostrEvent, "kind" | "tags" | "content">,
+  event: Pick<NostrEvent, "tags">,
   name: string
 ) {
-  return getTagValue(event, name);
+  return event.tags.find((tag) => tag[0] === name)?.[1];
 }
 
 export function removeTags(
@@ -82,4 +81,3 @@ export function parseJsonContent<T>(content: string): T | undefined {
     return undefined;
   }
 }
-

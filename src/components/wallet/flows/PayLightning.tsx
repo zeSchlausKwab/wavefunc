@@ -1,8 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
 import { useState, useCallback, useMemo, useEffect } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import { TokensOperation } from "applesauce-wallet/actions";
-import { actions, couch } from "../../../lib/nostr/store";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../../lib/nostr/auth";
 import {
   usePreferredMint,
@@ -18,12 +16,13 @@ function normalizeInvoice(raw: string): string {
     value = value.slice("lightning:".length);
   }
   const bitcoinMatch = value.match(/[?&]lightning=([^&]+)/i);
-  if (bitcoinMatch) value = decodeURIComponent(bitcoinMatch[1]);
+  if (bitcoinMatch?.[1]) value = decodeURIComponent(bitcoinMatch[1]);
   return value;
 }
 
-export function PayLightning({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
+export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
   const balance = use$(wallet.balance$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   const [invoice, setInvoice] = useState("");
@@ -53,7 +52,7 @@ export function PayLightning({ wallet, onDone }: { wallet: Wallet; onDone: () =>
     : 0;
 
   const handlePay = useCallback(async () => {
-    if (!wallet.unlocked) return setError("Wallet must be unlocked");
+    if (!unlocked) return setError("Wallet must be unlocked");
     if (!invoice.trim()) return setError("Paste a lightning invoice");
 
     setPaying(true);
@@ -61,42 +60,15 @@ export function PayLightning({ wallet, onDone }: { wallet: Wallet; onDone: () =>
     setSuccess(null);
 
     try {
-      const bolt11 = invoice.trim().toLowerCase();
-      let paidAmount = 0;
-
-      // If a specific mint is selected (preferred or user-picked), constrain
-      // TokensOperation to it. Otherwise let it auto-pick.
-      const mintConstraint =
+      const bolt11 = normalizeInvoice(invoice);
+      const mint =
         selectedMint && (balance?.[selectedMint] ?? 0) > 0
           ? selectedMint
-          : undefined;
+          : pickEffectiveMint(preferredMint, balance);
+      if (!mint) throw new Error("No mint with a balance to pay from");
 
-      const availableForMelt = mintConstraint
-        ? balance?.[mintConstraint] ?? 0
-        : totalBalance;
-
-      await actions.run(
-        TokensOperation,
-        Math.max(100, Math.ceil(availableForMelt * 0.1)),
-        async ({ selectedProofs, cashuWallet }) => {
-          const meltQuote = await cashuWallet.createMeltQuoteBolt11(bolt11);
-          paidAmount = meltQuote.amount;
-          const totalNeeded = meltQuote.amount + meltQuote.fee_reserve;
-          if (totalNeeded > availableForMelt) {
-            throw new Error(
-              `Need ${totalNeeded} sats (${meltQuote.amount} + ${meltQuote.fee_reserve} fee), have ${availableForMelt}${mintConstraint ? ` in selected mint` : ""}`
-            );
-          }
-          const { keep, send } = await cashuWallet.send(
-            totalNeeded,
-            selectedProofs,
-            { includeFees: true }
-          );
-          const meltResponse = await cashuWallet.meltProofs(meltQuote, send);
-          return { change: [...keep, ...(meltResponse.change || [])] };
-        },
-        { mint: mintConstraint, couch }
-      );
+      const response = await wallet.payInvoice(mint, bolt11);
+      const paidAmount = response.quote.amount.toNumber();
 
       setSuccess({ amount: paidAmount });
       setInvoice("");
@@ -106,7 +78,7 @@ export function PayLightning({ wallet, onDone }: { wallet: Wallet; onDone: () =>
     } finally {
       setPaying(false);
     }
-  }, [wallet.unlocked, invoice, totalBalance, selectedMint, balance]);
+  }, [wallet, unlocked, invoice, selectedMint, balance, preferredMint]);
 
   if (success) {
     return (

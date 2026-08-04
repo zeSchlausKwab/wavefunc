@@ -2,12 +2,11 @@
 // Publishes user profiles, radio stations, favorites lists, and admin
 
 import { faker } from "@faker-js/faker";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { ProfileBlueprint } from "applesauce-common/blueprints";
-import { EventFactory } from "applesauce-core";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import { ProfileFactory } from "applesauce-core/factories";
 import { RelayPool } from "applesauce-relay";
 import { PrivateKeySigner } from "applesauce-signers";
-import { hexToBytes } from "@noble/hashes/utils.js";
+import { hexToBytes } from "nostr-tools/utils";
 import { getPublicKey } from "nostr-tools/pure";
 
 import {
@@ -23,6 +22,7 @@ import {
   devUser5,
 } from "../src/lib/fixtures";
 import { generateUserProfileData } from "./gen_user";
+import type { EventTemplate } from "../src/lib/nostr/types";
 import {
   generateStationData,
   stationOrganizations,
@@ -51,11 +51,10 @@ async function signAndPublish(
   signer: PrivateKeySigner,
   template: EventTemplate,
 ): Promise<NostrEvent> {
-  const factory = new EventFactory({ signer });
-  // factory.build() applies common operations (created_at, strip stamps,
-  // include replaceable d-tag) that the bare sign() pipeline doesn't.
-  const draft = await factory.build(template);
-  const event = await factory.sign(draft);
+  const event = await signer.signEvent({
+    ...template,
+    created_at: template.created_at ?? Math.floor(Date.now() / 1000),
+  });
   await publish(event);
   return event;
 }
@@ -102,9 +101,7 @@ async function seedUserProfiles(): Promise<void> {
 
     console.log(`Creating profile for user ${pubkey.substring(0, 8)}...`);
     const profile = generateUserProfileData(i);
-    const factory = new EventFactory({ signer });
-    const draft = await factory.create(ProfileBlueprint, profile);
-    const event = await factory.sign(draft);
+    const event = await ProfileFactory.create().override(profile).sign(signer);
     await publish(event);
   }
 }

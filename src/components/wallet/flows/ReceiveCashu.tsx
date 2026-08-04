@@ -1,8 +1,6 @@
 import { useState, useCallback } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import { ReceiveToken } from "applesauce-wallet/actions";
-import { getDecodedToken } from "@cashu/cashu-ts";
-import { actions, couch } from "../../../lib/nostr/store";
+import { use$ } from "applesauce-react/hooks";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { Button } from "../../ui/button";
 import { Textarea } from "../../ui/textarea";
 import { QRScanner } from "../../QRScanner";
@@ -15,7 +13,8 @@ function normalizeCashuToken(raw: string): string {
   return value;
 }
 
-export function ReceiveCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
+export function ReceiveCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
+  const unlocked = use$(wallet.unlocked$) ?? false;
   const [tokenString, setTokenString] = useState("");
   const [receiving, setReceiving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +22,7 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: Wallet; onDone: () =>
   const [scanning, setScanning] = useState(false);
 
   const handleReceive = useCallback(async () => {
-    if (!wallet.unlocked) return setError("Wallet must be unlocked");
+    if (!unlocked) return setError("Wallet must be unlocked");
     if (!tokenString.trim()) return setError("Paste a cashu token");
 
     setReceiving(true);
@@ -31,9 +30,7 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: Wallet; onDone: () =>
     setSuccess(false);
 
     try {
-      const token = getDecodedToken(tokenString.trim());
-      if (!token) throw new Error("Failed to decode token");
-      await actions.run(ReceiveToken, token, { couch });
+      await wallet.receiveToken(normalizeCashuToken(tokenString));
       setTokenString("");
       setSuccess(true);
     } catch (err: any) {
@@ -42,7 +39,7 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: Wallet; onDone: () =>
     } finally {
       setReceiving(false);
     }
-  }, [wallet.unlocked, tokenString]);
+  }, [wallet, unlocked, tokenString]);
 
   if (success) {
     return (

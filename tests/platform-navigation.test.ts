@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { openUrl, toLightningUri } from "../src/lib/openUrl";
 import { platformInfo } from "../src/lib/platform";
+import { platformFetch } from "../src/lib/platformFetch";
 
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
@@ -104,5 +105,26 @@ describe("platform-aware external navigation", () => {
 
     expect(read("src-tauri/src/lib.rs")).toContain("tauri_plugin_opener::init()");
     expect(read("src/lib/openUrl.ts")).not.toContain("plugin-shell");
+  });
+
+  test("uses the scoped native HTTP client for secure LNURL requests", async () => {
+    const capability = JSON.parse(
+      read("src-tauri/capabilities/default.json"),
+    ) as { permissions: Array<string | { identifier: string; allow: Array<{ url: string }> }> };
+    const http = capability.permissions.find(
+      (permission) =>
+        typeof permission !== "string" && permission.identifier === "http:default",
+    );
+
+    expect(http).toEqual({
+      identifier: "http:default",
+      allow: [{ url: "https://*" }],
+    });
+    expect(read("src-tauri/src/lib.rs")).toContain("tauri_plugin_http::init()");
+    expect(read("src/components/SupportPopover.tsx")).toContain("platformFetch(");
+    expect(read("src/components/ZapDialog.tsx")).toContain("platformFetch(");
+    expect(platformFetch("http://insecure.example.com")).rejects.toThrow(
+      "Only secure HTTPS requests are allowed",
+    );
   });
 });

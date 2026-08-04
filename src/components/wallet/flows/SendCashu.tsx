@@ -1,14 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import { TokensOperation } from "applesauce-wallet/actions";
-import {
-  getEncodedToken,
-  Wallet as CashuWallet,
-  CheckStateEnum,
-  type Proof,
-} from "@cashu/cashu-ts";
-import { actions, couch } from "../../../lib/nostr/store";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../../lib/nostr/auth";
 import {
   usePreferredMint,
@@ -18,8 +10,9 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { CopyableQR } from "../../QRCode";
 
-export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
+export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
   const balance = use$(wallet.balance$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   const [amount, setAmount] = useState("");
@@ -27,11 +20,8 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{
     token: string;
-    mint: string;
-    proofs: Proof[];
     amount: number;
   } | null>(null);
-  const [claimed, setClaimed] = useState(false);
   // Default to the preferred mint when it has a positive balance, otherwise
   // leave on "auto" so TokensOperation picks the highest-balance mint.
   const [selectedMint, setSelectedMint] = useState<string | undefined>(() =>
@@ -47,7 +37,6 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
     // user's manual selection is never overwritten.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preferredMint, balance]);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const availableMints = useMemo(() => {
     if (!balance) return [];
@@ -58,46 +47,8 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
     ? Object.values(balance).reduce((s, a) => s + a, 0)
     : 0;
 
-  // Poll the mint for proof state - when all proofs become SPENT the token
-  // has been claimed by the recipient.
-  useEffect(() => {
-    if (!created || claimed) return;
-
-    const cashuWallet = new CashuWallet(created.mint);
-    let cancelled = false;
-
-    const poll = async () => {
-      try {
-        const states = await cashuWallet.checkProofsStates(created.proofs);
-        if (cancelled) return;
-        const allSpent = states.every((s) => s.state === CheckStateEnum.SPENT);
-        if (allSpent) {
-          setClaimed(true);
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        }
-      } catch (err) {
-        console.error("Poll proofs failed:", err);
-      }
-    };
-
-    // Check immediately, then every 3s
-    poll();
-    pollRef.current = setInterval(poll, 3000);
-
-    return () => {
-      cancelled = true;
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [created, claimed]);
-
   const handleSend = useCallback(async () => {
-    if (!wallet.unlocked) return setError("Wallet must be unlocked");
+    if (!unlocked) return setError("Wallet must be unlocked");
     const sendAmount = parseInt(amount.trim(), 10);
     if (isNaN(sendAmount) || sendAmount <= 0)
       return setError("Enter a valid amount");
@@ -110,27 +61,10 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
     setSending(true);
     setError(null);
     setCreated(null);
-    setClaimed(false);
 
     try {
-      await actions.run(
-        TokensOperation,
-        sendAmount,
-        async ({ selectedProofs, mint, cashuWallet }) => {
-          const { keep, send } = await cashuWallet.ops
-            .send(sendAmount, selectedProofs)
-            .run();
-          const encodedToken = getEncodedToken({ mint, proofs: send, unit: "sat" });
-          setCreated({
-            token: encodedToken,
-            mint,
-            proofs: send,
-            amount: sendAmount,
-          });
-          return { change: keep.length > 0 ? keep : undefined };
-        },
-        { mint: selectedMint, couch }
-      );
+      const token = await wallet.sendToken(sendAmount, { mint: selectedMint });
+      setCreated({ token, amount: sendAmount });
       setAmount("");
     } catch (err: any) {
       console.error("Send failed:", err);
@@ -139,27 +73,13 @@ export function SendCashu({ wallet, onDone }: { wallet: Wallet; onDone: () => vo
     } finally {
       setSending(false);
     }
-  }, [wallet.unlocked, amount, selectedMint, totalBalance, balance]);
-
-  if (claimed) {
-    return (
-      <div className="text-center space-y-3 py-2">
-        <div className="text-3xl">✓</div>
-        <div className="font-semibold text-green-600">
-          {created?.amount} sats claimed
-        </div>
-        <Button variant="outline" onClick={onDone} size="sm" className="w-full">
-          Done
-        </Button>
-      </div>
-    );
-  }
+  }, [wallet, unlocked, amount, selectedMint, totalBalance, balance]);
 
   if (created) {
     return (
       <div className="space-y-3">
         <div className="text-xs text-center text-muted-foreground">
-          Share to send {created.amount} sats · waiting for claim
+          Share this {created.amount} sat token. It can only be claimed once.
         </div>
         <CopyableQR value={created.token} size={200} />
         <Button variant="ghost" onClick={onDone} className="w-full" size="sm">

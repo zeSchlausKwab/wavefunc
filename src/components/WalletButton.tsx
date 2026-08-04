@@ -1,6 +1,5 @@
-import { useMemo } from "react";
-import { castUser } from "applesauce-common/casts";
 import { use$ } from "applesauce-react/hooks";
+import { WalletStatus } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import {
@@ -22,23 +21,17 @@ import { WalletView } from "./wallet/WalletManager";
  */
 export function WalletButton() {
   const currentUser = useCurrentAccount();
-  const { eventStore } = useWavefuncNostr();
-
-  const user = useMemo(
-    () => (currentUser ? castUser(currentUser.pubkey, eventStore) : null),
-    [currentUser?.pubkey, eventStore]
-  );
-
-  const wallet = use$(user?.wallet$);
+  const { wallet } = useWavefuncNostr();
+  const status = use$(wallet?.status$) ?? WalletStatus.Idle;
   const balance = use$(wallet?.balance$);
 
-  if (!currentUser || !user) return null;
+  if (!currentUser) return null;
 
   const totalBalance = balance
     ? Object.values(balance).reduce((sum, amount) => sum + amount, 0)
     : 0;
 
-  const trigger = wallet ? (
+  const trigger = status === WalletStatus.Ready ? (
     <button
       className="h-full px-3 flex items-center gap-1.5 hover:bg-surface-container-high transition-colors border-r-4 border-on-background"
       title="Wallet"
@@ -71,7 +64,7 @@ export function WalletButton() {
     <Popover>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className="w-[360px] sm:w-[400px] p-0">
-        <WalletView user={user} compact />
+        <WalletView compact />
       </PopoverContent>
     </Popover>
   );

@@ -1,4 +1,5 @@
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import {
   getAddressableReferences,
   getFirstTagValue,

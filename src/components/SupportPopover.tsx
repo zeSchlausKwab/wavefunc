@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { ProfileModel } from "applesauce-core/models";
+import { ContactsModel, ProfileModel } from "applesauce-core/models";
+import { FollowUser } from "applesauce-actions/actions";
 import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { getPublicContentRelayUrls } from "../config/nostr";
@@ -10,6 +10,7 @@ import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
 import { openUrl, toLightningUri } from "../lib/openUrl";
+import { platformFetch } from "../lib/platformFetch";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { QRCode } from "./QRCode";
 
@@ -34,11 +35,17 @@ type SupportState = "input" | "processing" | "invoice" | "success" | "error";
 
 export function SupportPopover() {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, accounts, readRelays } = useWavefuncNostr();
+  const { eventStore, relayPool, accounts, actions, readRelays } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const signer = accounts.active?.signer ?? null;
 
   const profile = useEventModel(ProfileModel, [SUPPORT_PUBKEY]);
+  const contacts = useEventModel(
+    ContactsModel,
+    currentUser ? [currentUser.pubkey] : null,
+  );
+  const followsDeveloper =
+    contacts?.some((contact) => contact.pubkey === SUPPORT_PUBKEY) ?? false;
   const [amount, setAmount] = useState(5000);
   const [comment, setComment] = useState("");
   const [invoice, setInvoice] = useState<string | null>(null);
@@ -48,6 +55,10 @@ export function SupportPopover() {
   const [state, setState] = useState<SupportState>("input");
   const [zapStartTime, setZapStartTime] = useState(0);
   const [open, setOpen] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [contactsReadyFor, setContactsReadyFor] = useState<string | null>(null);
+  const contactsReady =
+    !currentUser || contactsReadyFor === currentUser.pubkey;
 
   const lud16 = profile?.lud16;
   const zapReceiptRelays = useMemo(() => getPublicContentRelayUrls().slice(0, 5), []);
@@ -55,14 +66,62 @@ export function SupportPopover() {
   // Fetch profile on open
   useEffect(() => {
     if (!open) return;
+    let active = true;
+    setContactsReadyFor(null);
+    setError(null);
+    const filters = [
+      { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
+      ...(currentUser
+        ? [{ kinds: [3], authors: [currentUser.pubkey], limit: 1 }]
+        : []),
+    ];
     const sub = relayPool
-      .subscription(readRelays, [
-        { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
-      ])
+      .request(readRelays, filters)
       .pipe(storeEvents(eventStore))
-      .subscribe();
-    return () => sub.unsubscribe();
-  }, [open, relayPool, eventStore, readRelays]);
+      .subscribe({
+        complete: () => {
+          if (active && currentUser) setContactsReadyFor(currentUser.pubkey);
+        },
+        error: (requestError) => {
+          if (!active) return;
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Failed to load your current follows",
+          );
+        },
+      });
+    return () => {
+      active = false;
+      sub.unsubscribe();
+    };
+  }, [open, relayPool, eventStore, readRelays, currentUser?.pubkey]);
+
+  const handleFollowDeveloper = async () => {
+    if (!currentUser || !contactsReady || followsDeveloper || following) return;
+    setFollowing(true);
+    setError(null);
+    try {
+      await actions.run(FollowUser, {
+        pubkey: SUPPORT_PUBKEY,
+        relays: getPublicContentRelayUrls(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to follow developer");
+    } finally {
+      setFollowing(false);
+    }
+  };
+
+  const followButtonLabel = !currentUser
+    ? "LOG_IN_TO_FOLLOW_THE_DEV"
+    : !contactsReady
+      ? "LOADING_FOLLOWS..."
+      : followsDeveloper
+        ? "FOLLOWING_THE_DEV"
+        : following
+          ? "FOLLOWING..."
+          : "FOLLOW_THE_DEV";
 
   // Monitor for zap receipt (kind 9735)
   useEffect(() => {
@@ -73,8 +132,7 @@ export function SupportPopover() {
       ])
       .subscribe({
         next: (message) => {
-          if (message === "EOSE") return;
-          const event = message as NostrEvent;
+          const event = message;
           const bolt11 = event.tags.find((t) => t[0] === "bolt11")?.[1];
           if (bolt11 === invoice) {
             setState("success");
@@ -100,9 +158,7 @@ export function SupportPopover() {
         ["p", SUPPORT_PUBKEY],
       ],
     };
-    const factory = new EventFactory({ signer });
-    const draft = await factory.build(template);
-    return await factory.sign(draft);
+    return await signer.signEvent(template);
   }, [signer, comment, zapReceiptRelays]);
 
   // Fetch invoice via LNURL (with optional zap request)
@@ -113,7 +169,8 @@ export function SupportPopover() {
 
     const amountMsat = sats * 1000;
     const endpoint = `https://${domain}/.well-known/lnurlp/${username}`;
-    const res = await fetch(endpoint);
+    const res = await platformFetch(endpoint);
+    if (!res.ok) throw new Error(`Lightning service returned ${res.status}`);
     const data = await res.json();
     if (data.status === "ERROR") throw new Error(data.reason);
 
@@ -128,7 +185,8 @@ export function SupportPopover() {
     if (comment) callbackUrl.searchParams.set("comment", comment);
     if (zapRequest) callbackUrl.searchParams.set("nostr", JSON.stringify(zapRequest));
 
-    const invoiceRes = await fetch(callbackUrl.toString());
+    const invoiceRes = await platformFetch(callbackUrl);
+    if (!invoiceRes.ok) throw new Error(`Invoice service returned ${invoiceRes.status}`);
     const invoiceData = await invoiceRes.json();
     if (!invoiceData.pr) throw new Error("No invoice returned");
     return invoiceData.pr;
@@ -245,6 +303,20 @@ export function SupportPopover() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-4 py-3 border-b-2 border-on-background">
+          <button
+            type="button"
+            onClick={handleFollowDeveloper}
+            disabled={!currentUser || !contactsReady || followsDeveloper || following}
+            className="w-full border-2 border-on-background py-2 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-[14px]">
+              {followsDeveloper ? "person_check" : "person_add"}
+            </span>
+            {followButtonLabel}
+          </button>
         </div>
 
         {/* Success */}

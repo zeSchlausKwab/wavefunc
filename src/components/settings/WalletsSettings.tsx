@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { castUser } from "applesauce-common/casts";
+import { useState } from "react";
 import { useCurrentAccount } from "../../lib/nostr/auth";
 import { useWavefuncNostr } from "../../lib/nostr/runtime";
 import { useNWCConnectionStore } from "../../stores/nwcConnectionStore";
@@ -8,17 +7,9 @@ import { NWCConnectionDialog } from "../wallet/NWCConnectionDialog";
 
 export function WalletsSettings() {
   const currentUser = useCurrentAccount();
-  const { eventStore } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const disconnectNwc = useNWCConnectionStore((s) => s.disconnect);
   const [nwcDialogOpen, setNwcDialogOpen] = useState(false);
-
-  // The NIP-60 wallet UI binds to the User cast, which exposes `wallet$`
-  // (added by the side-effect import in lib/nostr/store.ts).
-  const user = useMemo(
-    () => (currentUser ? castUser(currentUser.pubkey, eventStore) : null),
-    [currentUser?.pubkey, eventStore]
-  );
 
   return (
     <div className="space-y-6">
@@ -47,8 +38,8 @@ export function WalletsSettings() {
             NIP-60 Cashu Wallet
           </h4>
         </div>
-        {user ? (
-          <WalletView user={user} />
+        {currentUser ? (
+          <WalletView />
         ) : (
           <p className="text-sm text-on-background/60">
             Log in to create or manage your NIP-60 wallet.

@@ -1,4 +1,3 @@
-import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import { castUser } from "applesauce-common/casts";
 import { ProfileModel } from "applesauce-core/models";
@@ -10,6 +9,7 @@ import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useMemo, useState } from "react";
 import { openUrl, toLightningUri } from "../lib/openUrl";
+import { platformFetch } from "../lib/platformFetch";
 import { getPublicContentRelayUrls } from "../config/nostr";
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
@@ -67,18 +67,14 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   onZap,
 }) => {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, accounts, readRelays } = useWavefuncNostr();
+  const { eventStore, relayPool, accounts, readRelays, wallet } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   const signer = accounts.active?.signer ?? null;
 
   // ── Wallet (sender) + nutzap info (recipient) for the NIP-61 zap path ──
-  const ourUser = useMemo(
-    () => (currentUser ? castUser(currentUser.pubkey, eventStore) : null),
-    [currentUser?.pubkey, eventStore]
-  );
-  const wallet = use$(ourUser?.wallet$);
   const balance = use$(wallet?.balance$);
+  const walletUnlocked = use$(wallet?.unlocked$) ?? false;
 
   const recipientUser = useMemo(
     () => castUser(station.pubkey, eventStore),
@@ -166,9 +162,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       ],
     };
 
-    const factory = new EventFactory({ signer });
-    const draft = await factory.build(template);
-    return await factory.sign(draft);
+    return await signer.signEvent(template);
   };
 
   // Generate invoice via LNURL
@@ -187,7 +181,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       throw new Error("No Lightning address available");
     }
 
-    const lnurlResponse = await fetch(lnurlEndpoint);
+    const lnurlResponse = await platformFetch(lnurlEndpoint);
     if (!lnurlResponse.ok) {
       throw new Error(`LNURL endpoint returned ${lnurlResponse.status}`);
     }
@@ -218,7 +212,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       callbackUrl.searchParams.set("nostr", JSON.stringify(zapRequest));
     }
 
-    const invoiceResponse = await fetch(callbackUrl.toString());
+    const invoiceResponse = await platformFetch(callbackUrl);
     if (!invoiceResponse.ok) {
       throw new Error(`Invoice callback returned ${invoiceResponse.status}`);
     }
@@ -290,7 +284,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const canNutzap = Boolean(
     currentUser &&
-      wallet?.unlocked &&
+      walletUnlocked &&
       recipientNutzapInfo?.p2pk &&
       acceptedMints.length > 0 &&
       nutzapMint
@@ -298,7 +292,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const zapWithNutzap = async (amountSats: number): Promise<boolean> => {
     if (!currentUser) throw new Error("Not logged in");
-    if (!wallet?.unlocked) throw new Error("Cashu wallet is locked");
+    if (!wallet || !walletUnlocked) throw new Error("Cashu wallet is locked");
     if (!recipientNutzapInfo?.p2pk) {
       throw new Error("Recipient has not published a nutzap p2pk key");
     }
@@ -369,14 +363,14 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
 
   const canCashuLightningZap = Boolean(
     currentUser &&
-      wallet?.unlocked &&
+      walletUnlocked &&
       cashuLightningZapMint &&
       (ownerProfile?.lud16 || ownerProfile?.lud06),
   );
 
   const zapWithCashuLightning = async (amountSats: number): Promise<boolean> => {
     if (!currentUser) throw new Error("Not logged in");
-    if (!wallet?.unlocked) throw new Error("Cashu wallet is locked");
+    if (!wallet || !walletUnlocked) throw new Error("Cashu wallet is locked");
     if (!cashuLightningZapMint) {
       throw new Error("No mint with positive balance");
     }
@@ -395,34 +389,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     setInvoice(inv);
     setZapStartTime(Math.floor(Date.now() / 1000));
 
-    // 2. Melt tokens to pay the invoice. We over-budget the token selection
-    //    by ~5% (with a 20-sat floor) because TokensOperation needs an
-    //    upper bound on selected proofs *before* createMeltQuoteBolt11
-    //    tells us the actual fee_reserve. The inner check verifies the
-    //    real fee fits in the mint's balance and throws cleanly if not.
-    const feeBuffer = Math.max(20, Math.ceil(amountSats * 0.05));
-
-    await actions.run(
-      TokensOperation,
-      amountSats + feeBuffer,
-      async ({ selectedProofs, cashuWallet }) => {
-        const meltQuote = await cashuWallet.createMeltQuoteBolt11(inv);
-        const totalNeeded = meltQuote.amount + meltQuote.fee_reserve;
-        if (totalNeeded > mintBalance) {
-          throw new Error(
-            `Need ${totalNeeded} sats (${meltQuote.amount} + ${meltQuote.fee_reserve} fee), have ${mintBalance} in ${new URL(cashuLightningZapMint).hostname}`,
-          );
-        }
-        const { keep, send } = await cashuWallet.send(
-          totalNeeded,
-          selectedProofs,
-          { includeFees: true },
-        );
-        const meltResponse = await cashuWallet.meltProofs(meltQuote, send);
-        return { change: [...keep, ...(meltResponse.change || [])] };
-      },
-      { mint: cashuLightningZapMint, couch },
-    );
+    await wallet.payInvoice(cashuLightningZapMint, inv);
 
     return true;
   };
@@ -454,8 +421,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       ])
       .subscribe({
         next: (message) => {
-          if (!isActive || message === "EOSE") return;
-          const zapEvent = message as NostrEvent;
+          if (!isActive) return;
+          const zapEvent = message;
           const bolt11 = zapEvent.tags.find((t) => t[0] === "bolt11")?.[1];
           if (!bolt11 || bolt11 === invoice) {
             isActive = false;

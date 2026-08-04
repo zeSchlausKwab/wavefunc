@@ -4,18 +4,17 @@
  * Reads from the singletons in `./store` and exposes them via context for
  * components that prefer hook-based access. The provider also pushes the
  * env-derived read/write relay lists into the singleton pool, attaches the
- * applesauce event loader exactly once, and runs the wallet kinds bootstrap
- * subscription whenever the active account changes.
+ * Applesauce event loader exactly once, and owns the active account wallet's
+ * start/stop lifecycle.
  */
-import {
-  EventStoreProvider,
-  FactoryProvider,
-} from "applesauce-react/providers";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import { EventStoreProvider } from "applesauce-react/providers";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventSigner } from "applesauce-core/factories";
 import type { PublishResponse } from "applesauce-relay/types";
 import type { AccountManager } from "applesauce-accounts";
 import type { ActionRunner } from "applesauce-actions";
-import type { LocalStorageCouch } from "applesauce-wallet/helpers";
+import type { Couch } from "applesauce-wallet/helpers";
+import { NutWallet } from "applesauce-wallet/wallet";
 import { createEventLoaderForStore } from "applesauce-loaders/loaders";
 import { NostrConnectSigner } from "applesauce-signers";
 import {
@@ -31,13 +30,12 @@ import { nip19 } from "nostr-tools";
 import {
   eventStore,
   relayPool,
-  eventFactory,
   accounts as accountManager,
   actions as actionRunner,
   couch as walletCouch,
+  migrateLegacyCouch,
+  resetActionRunner,
   setPublishRelays,
-  subscribeToWalletKinds,
-  subscribeAutoUnlockWallet,
   markEventLoaderAttached,
   loginWithExtension as storeLoginWithExtension,
   loginWithPrivateKey as storeLoginWithPrivateKey,
@@ -46,6 +44,7 @@ import {
   logout as storeLogout,
   type AccountMetadata,
 } from "./store";
+import type { EventTemplate } from "./types";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
@@ -66,10 +65,11 @@ function accountFromPubkey(pubkey: string): WavefuncAccount {
 export type WavefuncNostrContextValue = {
   eventStore: typeof eventStore;
   relayPool: typeof relayPool;
-  eventFactory: typeof eventFactory;
+  signer: EventSigner | null;
   accounts: AccountManager<AccountMetadata>;
   actions: ActionRunner;
-  couch: LocalStorageCouch;
+  couch: Couch;
+  wallet: NutWallet | null;
   readRelays: string[];
   writeRelays: string[];
   currentPubkey: string | null;
@@ -151,6 +151,7 @@ export function WavefuncNostrProvider({
   );
   useEffect(() => {
     const sub = accountManager.active$.subscribe((a) => {
+      resetActionRunner();
       setCurrentPubkey(a?.pubkey ?? null);
     });
     return () => sub.unsubscribe();
@@ -161,21 +162,45 @@ export function WavefuncNostrProvider({
     [currentPubkey]
   );
 
-  // Wallet bootstrap — load wallet kinds whenever the active account changes.
+  // Applesauce v6 wallet lifecycle. NutWallet owns the initial request,
+  // negentropy reconciliation, live subscription, automatic decryption, and
+  // operation state. Recreate it only when the active signer changes and stop
+  // it during cleanup so account switches never leak wallet subscriptions.
+  const [wallet, setWallet] = useState<NutWallet | null>(null);
   useEffect(() => {
-    if (!currentPubkey) return;
-    const sub = subscribeToWalletKinds(currentPubkey, readRelayList);
-    return () => sub.unsubscribe();
-  }, [currentPubkey, readRelayList]);
+    const signer = accountManager.active?.signer;
+    if (!currentPubkey || !signer) {
+      setWallet(null);
+      return;
+    }
 
-  // Auto-unlock — decrypt the wallet/tokens/history as soon as they arrive
-  // so the header balance pill renders the correct value on first paint
-  // instead of "0 SATS" until the popover is opened.
-  useEffect(() => {
-    if (!currentPubkey) return;
-    const sub = subscribeAutoUnlockWallet(currentPubkey);
-    return () => sub.unsubscribe();
-  }, [currentPubkey]);
+    const instance = new NutWallet({
+      pubkey: currentPubkey,
+      signer,
+      pool: relayPool,
+      eventStore,
+      couch: walletCouch,
+      relays: readRelayList,
+      autoUnlock: true,
+    });
+    let cancelled = false;
+    setWallet(instance);
+
+    void (async () => {
+      try {
+        await migrateLegacyCouch();
+        if (!cancelled) await instance.start();
+      } catch (error) {
+        console.error("Failed to start wallet:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      instance.stop();
+      setWallet((active) => (active === instance ? null : active));
+    };
+  }, [currentPubkey, readRelayList]);
 
   // ── Login wrappers (return WavefuncAccount instead of raw Account) ──────
   const loginWithExtension = useCallback(async () => {
@@ -259,10 +284,10 @@ export function WavefuncNostrProvider({
         throw new Error("No account active");
       }
 
-      // factory.build() applies the common operations (created_at, strip
-      // stamps, replaceable d-tag) that the bare sign() pipeline doesn't.
-      const stamped = await eventFactory.build(draft);
-      const event = await eventFactory.sign(stamped);
+      const event = await accountManager.signer.signEvent({
+        ...draft,
+        created_at: draft.created_at ?? Math.floor(Date.now() / 1000),
+      });
       await publishEvent(event, relays);
       return event;
     },
@@ -273,10 +298,11 @@ export function WavefuncNostrProvider({
     () => ({
       eventStore,
       relayPool,
-      eventFactory,
+      signer: accountManager.active?.signer ?? null,
       accounts: accountManager,
       actions: actionRunner,
       couch: walletCouch,
+      wallet,
       readRelays: readRelayList,
       writeRelays: writeRelayList,
       currentPubkey,
@@ -294,6 +320,7 @@ export function WavefuncNostrProvider({
     [
       readRelayList,
       writeRelayList,
+      wallet,
       currentPubkey,
       currentAccount,
       loginWithExtension,
@@ -309,9 +336,7 @@ export function WavefuncNostrProvider({
 
   return (
     <WavefuncNostrContext.Provider value={value}>
-      <EventStoreProvider eventStore={eventStore}>
-        <FactoryProvider factory={eventFactory}>{children}</FactoryProvider>
-      </EventStoreProvider>
+      <EventStoreProvider eventStore={eventStore}>{children}</EventStoreProvider>
     </WavefuncNostrContext.Provider>
   );
 }
