@@ -1,4 +1,5 @@
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import { z } from "zod";
 import {
   getAddressableReferences,
@@ -54,7 +55,7 @@ export function getFavoriteStationAddresses(event: NostrEvent) {
     .map((tag) => tag[1])
     .filter(
       (address): address is string =>
-        Boolean(address) && address.startsWith("31237:")
+        typeof address === "string" && address.startsWith("31237:")
     );
 }
 

@@ -46,7 +46,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_wavefunc_player::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init());
 
     // Desktop-only plugins. Gated at compile time because

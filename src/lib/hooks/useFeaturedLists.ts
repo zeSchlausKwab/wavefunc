@@ -3,7 +3,6 @@
 
 import { TimelineModel } from "applesauce-core/models";
 import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
 import { useEffect, useMemo, useState } from "react";
 import { useAdminFeatures } from "./useAdminFeatures";
 import {
@@ -16,6 +15,7 @@ import {
   type ParsedFavoritesList,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
+import { requestEventsIntoStore } from "../nostr/requestEvents";
 
 /**
  * Resolves the admin's featured-lists feature events into parsed favorites lists.
@@ -54,7 +54,7 @@ export function useFeaturedLists() {
     [JSON.stringify(listAddresses)],
   );
 
-  // Active relay subscription so referenced lists land in the store.
+  // Finite initial request so EOSE completion can release the loading state.
   const [listsEose, setListsEose] = useState(false);
   useEffect(() => {
     if (listAddresses.length === 0) {
@@ -62,15 +62,16 @@ export function useFeaturedLists() {
       return;
     }
     setListsEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setListsEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
+    const requestSubscription = requestEventsIntoStore(
+      relayPool,
+      eventStore,
+      getAppDataRelayUrls(),
+      filters,
+    ).subscribe({
+      complete: () => setListsEose(true),
+      error: () => setListsEose(true),
+    });
+    return () => requestSubscription.unsubscribe();
   }, [eventStore, relayPool, filters, listAddresses.length]);
 
   // Reactive read from the store via the canonical TimelineModel.

@@ -5,11 +5,10 @@
 //   2. Build a kind 23194 request with NIP-04 encrypted JSON-RPC content
 //   3. Publish the request to the NWC relay via the runtime RelayPool
 //   4. Subscribe to the matching kind 23195 response and decrypt the result
-import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
 import type { RelayPool } from "applesauce-relay";
 import { PrivateKeySigner } from "applesauce-signers";
-import { filter as rxFilter, firstValueFrom, take, timeout } from "rxjs";
+import { firstValueFrom, take, timeout } from "rxjs";
 
 export type NWCConnection = {
   walletPubkey: string;
@@ -79,7 +78,6 @@ export async function nwcPayInvoice(
     payload,
   );
 
-  const factory = new EventFactory({ signer });
   const draft: EventTemplate = {
     kind: 23194,
     content: encryptedContent,
@@ -87,8 +85,7 @@ export async function nwcPayInvoice(
     created_at: Math.floor(Date.now() / 1000),
   };
 
-  const stamped = await factory.build(draft);
-  const requestEvent = await factory.sign(stamped);
+  const requestEvent = await signer.signEvent(draft);
 
   // Set up the response subscription BEFORE publishing so there's no race
   // between the wallet service responding and our subscriber attaching.
@@ -107,7 +104,6 @@ export async function nwcPayInvoice(
         ],
       )
       .pipe(
-        rxFilter((msg): msg is NostrEvent => typeof msg !== "string"),
         take(1),
         timeout({
           first: timeoutMs,

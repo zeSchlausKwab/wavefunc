@@ -1,20 +1,17 @@
 import { use$ } from "applesauce-react/hooks";
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import { AddToken } from "applesauce-wallet/actions";
-import {
-  Wallet as CashuWallet,
-  MintQuoteState,
-} from "@cashu/cashu-ts";
-import { actions } from "../../../lib/nostr/store";
+import type { MintQuoteBolt11Response } from "@cashu/cashu-ts";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../../lib/nostr/auth";
 import { usePreferredMint } from "../../../stores/preferredMintStore";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { CopyableQR } from "../../QRCode";
+import { toLightningUri } from "../../../lib/openUrl";
 
-export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
-  const mints = use$(wallet.mints$);
+export function ReceiveLightning({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
+  const mints = use$(wallet.mintUrls$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   // Default to the preferred mint when it's still in the wallet's mint list,
@@ -27,15 +24,14 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
   const [amount, setAmount] = useState("");
   const [quote, setQuote] = useState<{
     mint: string;
-    quote: string;
-    request: string;
+    response: MintQuoteBolt11Response;
     amount: number;
   } | null>(null);
   const [status, setStatus] = useState<
     "idle" | "generating" | "waiting" | "paid" | "error"
   >("idle");
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (selectedMint) return;
@@ -48,12 +44,12 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      abortRef.current?.abort();
     };
   }, []);
 
   const handleCreate = useCallback(async () => {
-    if (!wallet.unlocked) return setError("Wallet must be unlocked");
+    if (!unlocked) return setError("Wallet must be unlocked");
     const sats = parseInt(amount.trim(), 10);
     if (isNaN(sats) || sats <= 0) return setError("Enter a valid amount");
     if (!selectedMint) return setError("Select a mint");
@@ -62,50 +58,32 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
     setStatus("generating");
 
     try {
-      const cashuWallet = new CashuWallet(selectedMint);
-      await cashuWallet.loadMint();
-      const mintQuote = await cashuWallet.createMintQuote(sats);
+      const mintQuote = await wallet.createMintQuote(selectedMint, sats);
       setQuote({
         mint: selectedMint,
-        quote: mintQuote.quote,
-        request: mintQuote.request,
+        response: mintQuote,
         amount: sats,
       });
       setStatus("waiting");
 
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const check = await cashuWallet.checkMintQuote(mintQuote.quote);
-          if (check.state === MintQuoteState.PAID) {
-            if (pollRef.current) {
-              clearInterval(pollRef.current);
-              pollRef.current = null;
-            }
-            const proofs = await cashuWallet.mintProofs(sats, mintQuote.quote);
-            const token = { mint: selectedMint, proofs, unit: "sat" as const };
-            await actions.run(AddToken, token, { addHistory: true });
-            setStatus("paid");
-          } else if (check.state === MintQuoteState.ISSUED) {
-            if (pollRef.current) {
-              clearInterval(pollRef.current);
-              pollRef.current = null;
-            }
-            setStatus("paid");
-          }
-        } catch (err) {
-          console.error("Poll error:", err);
-        }
-      }, 3000);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      await wallet.waitForMintQuote(selectedMint, mintQuote.quote, {
+        signal: controller.signal,
+      });
+      await wallet.redeemMintQuote(selectedMint, sats, mintQuote);
+      abortRef.current = null;
+      setStatus("paid");
     } catch (err: any) {
       console.error("Create quote failed:", err);
       setError(err?.message || "Failed to create invoice");
       setStatus("error");
     }
-  }, [wallet.unlocked, amount, selectedMint]);
+  }, [wallet, unlocked, amount, selectedMint]);
 
   const reset = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    abortRef.current?.abort();
+    abortRef.current = null;
     setQuote(null);
     setAmount("");
     setStatus("idle");
@@ -132,7 +110,13 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
         <div className="text-center text-xs text-muted-foreground">
           Waiting for payment of {quote.amount} sats
         </div>
-        <CopyableQR value={quote.request} label="Lightning invoice" size={200} />
+        <CopyableQR
+          value={quote.response.request}
+          qrValue={toLightningUri(quote.response.request)}
+          actionUri={toLightningUri(quote.response.request)}
+          label="Lightning invoice"
+          size={200}
+        />
         <Button onClick={reset} variant="outline" size="sm" className="w-full">
           Cancel
         </Button>

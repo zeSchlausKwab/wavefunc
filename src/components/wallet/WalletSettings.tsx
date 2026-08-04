@@ -1,20 +1,13 @@
 import { use$ } from "applesauce-react/hooks";
 import { useState, useCallback } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import {
-  SetWalletMints,
-  SetWalletRelays,
-  ConsolidateTokens,
-  RecoverFromCouch,
-} from "applesauce-wallet/actions";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { nip19 } from "nostr-tools";
 import { bytesToHex } from "nostr-tools/utils";
-import { actions, couch } from "../../lib/nostr/store";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
-function MintManager({ wallet }: { wallet: Wallet }) {
-  const mints = use$(wallet.mints$);
+function MintManager({ wallet }: { wallet: NutWallet }) {
+  const mints = use$(wallet.mintUrls$);
   const balance = use$(wallet.balance$);
   const [newMint, setNewMint] = useState("");
   const [saving, setSaving] = useState(false);
@@ -27,7 +20,7 @@ function MintManager({ wallet }: { wallet: Wallet }) {
     setSaving(true);
     setError(null);
     try {
-      await actions.run(SetWalletMints, [...(mints || []), url]);
+      await wallet.setMints([...(mints || []), url]);
       setNewMint("");
     } catch (err: any) {
       setError(err?.message || "Failed to add mint");
@@ -41,7 +34,7 @@ function MintManager({ wallet }: { wallet: Wallet }) {
     if (mintBalance > 0 && !confirm(`This mint has ${mintBalance} sats. Remove anyway?`)) return;
     setSaving(true);
     try {
-      await actions.run(SetWalletMints, (mints || []).filter((m) => m !== mintUrl));
+      await wallet.setMints((mints || []).filter((m) => m !== mintUrl));
     } catch (err: any) {
       setError(err?.message || "Failed");
     } finally {
@@ -91,8 +84,8 @@ function MintManager({ wallet }: { wallet: Wallet }) {
   );
 }
 
-function RelayManager({ wallet }: { wallet: Wallet }) {
-  const relays = use$(wallet.relays$);
+function RelayManager({ wallet }: { wallet: NutWallet }) {
+  const relays = use$(wallet.walletRelays$);
   const [newRelay, setNewRelay] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +97,7 @@ function RelayManager({ wallet }: { wallet: Wallet }) {
     setSaving(true);
     setError(null);
     try {
-      await actions.run(SetWalletRelays, [...(relays || []), url]);
+      await wallet.setRelays([...(relays || []), url]);
       setNewRelay("");
     } catch (err: any) {
       setError(err?.message || "Failed");
@@ -116,7 +109,7 @@ function RelayManager({ wallet }: { wallet: Wallet }) {
   const handleRemove = useCallback(async (relayUrl: string) => {
     setSaving(true);
     try {
-      await actions.run(SetWalletRelays, (relays || []).filter((r) => r !== relayUrl));
+      await wallet.setRelays((relays || []).filter((r) => r !== relayUrl));
     } catch (err: any) {
       setError(err?.message || "Failed");
     } finally {
@@ -161,10 +154,11 @@ function RelayManager({ wallet }: { wallet: Wallet }) {
   );
 }
 
-function BackupTool({ wallet }: { wallet: Wallet }) {
-  const mints = use$(wallet.mints$);
-  const relays = use$(wallet.relays$);
-  const privateKey = use$(wallet.privateKey$);
+function BackupTool({ wallet }: { wallet: NutWallet }) {
+  const mints = use$(wallet.mintUrls$);
+  const relays = use$(wallet.walletRelays$);
+  const walletEvent = use$(wallet.wallet$);
+  const privateKey = use$(walletEvent?.privateKey$);
   const [show, setShow] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -268,7 +262,7 @@ function BackupTool({ wallet }: { wallet: Wallet }) {
   );
 }
 
-function ToolsSection() {
+function ToolsSection({ wallet }: { wallet: NutWallet }) {
   const [consolidating, setConsolidating] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -288,7 +282,7 @@ function ToolsSection() {
             setConsolidating(true);
             setError(null);
             try {
-              await actions.run(ConsolidateTokens, { unlockTokens: true });
+              await wallet.consolidateTokens();
             } catch (err: any) {
               console.error("Consolidate failed:", err);
               setError(err?.message || "Consolidate failed");
@@ -314,7 +308,7 @@ function ToolsSection() {
             setRecovering(true);
             setError(null);
             try {
-              await actions.run(RecoverFromCouch, couch);
+              await wallet.recoverFromCouch();
             } catch (err: any) {
               console.error("Recover failed:", err);
               setError(err?.message || "Recover failed");
@@ -338,8 +332,10 @@ function ToolsSection() {
   );
 }
 
-export function WalletSettings({ wallet }: { wallet: Wallet }) {
-  if (!wallet.unlocked) {
+export function WalletSettings({ wallet }: { wallet: NutWallet }) {
+  const unlocked = use$(wallet.unlocked$) ?? false;
+
+  if (!unlocked) {
     return (
       <p className="text-muted-foreground text-center py-4">
         Unlock your wallet to access settings
@@ -352,7 +348,7 @@ export function WalletSettings({ wallet }: { wallet: Wallet }) {
       <MintManager wallet={wallet} />
       <RelayManager wallet={wallet} />
       <BackupTool wallet={wallet} />
-      <ToolsSection />
+      <ToolsSection wallet={wallet} />
     </div>
   );
 }

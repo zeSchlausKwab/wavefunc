@@ -5,22 +5,10 @@
  * which differ between desktop, Android, and iOS platforms.
  */
 
-/**
- * Detect if running in Tauri (desktop or mobile)
- */
-export function isTauri(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as any;
-  // Tauri v2 exposes __TAURI_INTERNALS__ even when withGlobalTauri is off.
-  // The asset host/protocol checks cover the brief period before the bridge is
-  // initialized and keep packaged apps out of the ordinary-browser branch.
-  return (
-    !!w.__TAURI__ ||
-    !!w.__TAURI_INTERNALS__ ||
-    w.location?.hostname === "tauri.localhost" ||
-    w.location?.protocol === "tauri:"
-  );
-}
+import { detectPlatform, isNativeApp } from "../lib/platform";
+
+/** Backwards-compatible name for callers that only need app-vs-web. */
+export const isTauri = isNativeApp;
 // Bun's bundler inlines process.env.VAR at build time, but only with dot notation
 // and a literal string key — never with bracket notation or a variable key.
 // These constants are replaced with their values (or undefined) when bundled.
@@ -28,17 +16,6 @@ export function isTauri(): boolean {
 /**
  * Detect platform when running in Tauri
  */
-async function getPlatform(): Promise<string | null> {
-  if (!isTauri()) return null;
-
-  try {
-    const { platform } = await import("@tauri-apps/plugin-os");
-    return platform();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Get the appropriate relay URL based on platform
  *
@@ -76,7 +53,7 @@ async function getRelayUrl(): Promise<string> {
     return `${protocol}//relay.${host}`;
   }
 
-  const platformName = await getPlatform();
+  const platformName = await detectPlatform();
 
   // Android: the WebView host depends on whether this is a dev or prod build.
   // - Dev + adb reverse (our tauri:android script): hostname is 127.0.0.1 → use it

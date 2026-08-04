@@ -1,6 +1,6 @@
 // show_app_pubkey.ts - Display the pubkey for APP_PRIVATE_KEY
 import { getPublicKey } from "nostr-tools/pure";
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes } from "nostr-tools/utils";
 
 const APP_PRIVATE_KEY = process.env.APP_PRIVATE_KEY;
 

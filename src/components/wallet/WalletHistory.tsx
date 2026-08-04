@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
 import { useMemo } from "react";
-import type { Wallet, WalletHistory as HistoryCast } from "applesauce-wallet/casts";
+import type { NutWallet, WalletHistory as HistoryCast } from "applesauce-wallet/wallet";
 
 function formatTime(date: Date) {
   const diff = (Date.now() - date.getTime()) / 1000;
@@ -75,8 +75,9 @@ function HistoryRow({ entry }: { entry: HistoryCast }) {
   );
 }
 
-export function WalletHistory({ wallet }: { wallet: Wallet }) {
+export function WalletHistory({ wallet }: { wallet: NutWallet }) {
   const history = use$(wallet.history$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
 
   const { entries, stats } = useMemo(() => {
     if (!history) return { entries: [], stats: null };
@@ -113,7 +114,7 @@ export function WalletHistory({ wallet }: { wallet: Wallet }) {
     };
   }, [history]);
 
-  if (!wallet.unlocked) {
+  if (!unlocked) {
     return (
       <p className="text-muted-foreground text-center py-4">
         Unlock your wallet to view history

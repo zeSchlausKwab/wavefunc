@@ -91,7 +91,7 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
 
         {/* Station rows */}
         <div className="flex-grow overflow-y-auto mb-6 scrollbar-none min-h-0">
-          {stationsLoading && (
+          {stationsLoading && stations.length === 0 && (
             <div className="space-y-2 py-2">
               {Array.from({ length: 4 }).map((_, skeletonIndex) => (
                 <div
@@ -106,7 +106,7 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
               NO_STATIONS_LOADED
             </div>
           )}
-          {!stationsLoading && stations.map((station, i) => (
+          {stations.map((station, i) => (
             <RadioCard
               key={station.id}
               station={station}

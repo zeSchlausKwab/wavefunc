@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { EventFactory } from "applesauce-core";
 import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { ProfileModel } from "applesauce-core/models";
+import { ContactsModel, ProfileModel } from "applesauce-core/models";
+import { FollowUser } from "applesauce-actions/actions";
 import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { getPublicContentRelayUrls } from "../config/nostr";
@@ -9,7 +9,15 @@ import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { openUrl, toLightningUri } from "../lib/openUrl";
+import { platformFetch } from "../lib/platformFetch";
+import { useUIStore } from "../stores/uiStore";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog";
 import { QRCode } from "./QRCode";
 
 const SUPPORT_PUBKEY = "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3";
@@ -31,13 +39,55 @@ function formatSats(n: number): string {
 
 type SupportState = "input" | "processing" | "invoice" | "success" | "error";
 
-export function SupportPopover() {
+export function SupportTrigger({
+  variant = "icon",
+  onOpen,
+}: {
+  variant?: "icon" | "menu";
+  onOpen?: () => void;
+}) {
+  const openSupport = useUIStore((state) => state.openSupport);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onOpen?.();
+        openSupport();
+      }}
+      className={
+        variant === "menu"
+          ? "flex w-full items-center justify-center gap-2 border-2 border-on-background bg-secondary-fixed-dim px-4 py-3 text-sm font-black uppercase tracking-tight text-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+          : "flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 font-bold uppercase tracking-tighter text-on-background transition-transform hover:skew-x-6 hover:bg-secondary-fixed-dim lg:px-3"
+      }
+      title="Support WaveFunc"
+      aria-label={variant === "menu" ? undefined : "Support WaveFunc"}
+      aria-haspopup="dialog"
+      data-support-trigger={variant}
+    >
+      <span className="material-symbols-outlined text-[18px]">
+        volunteer_activism
+      </span>
+      {variant === "menu" && <span>SUPPORT_WAVEFUNC</span>}
+    </button>
+  );
+}
+
+export function SupportDialog() {
+  const open = useUIStore((state) => state.supportOpen);
+  const closeSupport = useUIStore((state) => state.closeSupport);
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, accounts, readRelays } = useWavefuncNostr();
+  const { eventStore, relayPool, accounts, actions, readRelays } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const signer = accounts.active?.signer ?? null;
 
   const profile = useEventModel(ProfileModel, [SUPPORT_PUBKEY]);
+  const contacts = useEventModel(
+    ContactsModel,
+    currentUser ? [currentUser.pubkey] : null,
+  );
+  const followsDeveloper =
+    contacts?.some((contact) => contact.pubkey === SUPPORT_PUBKEY) ?? false;
   const [amount, setAmount] = useState(5000);
   const [comment, setComment] = useState("");
   const [invoice, setInvoice] = useState<string | null>(null);
@@ -46,7 +96,10 @@ export function SupportPopover() {
   const [copied, setCopied] = useState(false);
   const [state, setState] = useState<SupportState>("input");
   const [zapStartTime, setZapStartTime] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [contactsReadyFor, setContactsReadyFor] = useState<string | null>(null);
+  const contactsReady =
+    !currentUser || contactsReadyFor === currentUser.pubkey;
 
   const lud16 = profile?.lud16;
   const zapReceiptRelays = useMemo(() => getPublicContentRelayUrls().slice(0, 5), []);
@@ -54,14 +107,62 @@ export function SupportPopover() {
   // Fetch profile on open
   useEffect(() => {
     if (!open) return;
+    let active = true;
+    setContactsReadyFor(null);
+    setError(null);
+    const filters = [
+      { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
+      ...(currentUser
+        ? [{ kinds: [3], authors: [currentUser.pubkey], limit: 1 }]
+        : []),
+    ];
     const sub = relayPool
-      .subscription(readRelays, [
-        { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
-      ])
+      .request(readRelays, filters)
       .pipe(storeEvents(eventStore))
-      .subscribe();
-    return () => sub.unsubscribe();
-  }, [open, relayPool, eventStore, readRelays]);
+      .subscribe({
+        complete: () => {
+          if (active && currentUser) setContactsReadyFor(currentUser.pubkey);
+        },
+        error: (requestError) => {
+          if (!active) return;
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Failed to load your current follows",
+          );
+        },
+      });
+    return () => {
+      active = false;
+      sub.unsubscribe();
+    };
+  }, [open, relayPool, eventStore, readRelays, currentUser?.pubkey]);
+
+  const handleFollowDeveloper = async () => {
+    if (!currentUser || !contactsReady || followsDeveloper || following) return;
+    setFollowing(true);
+    setError(null);
+    try {
+      await actions.run(FollowUser, {
+        pubkey: SUPPORT_PUBKEY,
+        relays: getPublicContentRelayUrls(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to follow developer");
+    } finally {
+      setFollowing(false);
+    }
+  };
+
+  const followButtonLabel = !currentUser
+    ? "LOG_IN_TO_FOLLOW_THE_DEV"
+    : !contactsReady
+      ? "LOADING_FOLLOWS..."
+      : followsDeveloper
+        ? "FOLLOWING_THE_DEV"
+        : following
+          ? "FOLLOWING..."
+          : "FOLLOW_THE_DEV";
 
   // Monitor for zap receipt (kind 9735)
   useEffect(() => {
@@ -72,8 +173,7 @@ export function SupportPopover() {
       ])
       .subscribe({
         next: (message) => {
-          if (message === "EOSE") return;
-          const event = message as NostrEvent;
+          const event = message;
           const bolt11 = event.tags.find((t) => t[0] === "bolt11")?.[1];
           if (bolt11 === invoice) {
             setState("success");
@@ -99,9 +199,7 @@ export function SupportPopover() {
         ["p", SUPPORT_PUBKEY],
       ],
     };
-    const factory = new EventFactory({ signer });
-    const draft = await factory.build(template);
-    return await factory.sign(draft);
+    return await signer.signEvent(template);
   }, [signer, comment, zapReceiptRelays]);
 
   // Fetch invoice via LNURL (with optional zap request)
@@ -112,7 +210,8 @@ export function SupportPopover() {
 
     const amountMsat = sats * 1000;
     const endpoint = `https://${domain}/.well-known/lnurlp/${username}`;
-    const res = await fetch(endpoint);
+    const res = await platformFetch(endpoint);
+    if (!res.ok) throw new Error(`Lightning service returned ${res.status}`);
     const data = await res.json();
     if (data.status === "ERROR") throw new Error(data.reason);
 
@@ -127,7 +226,8 @@ export function SupportPopover() {
     if (comment) callbackUrl.searchParams.set("comment", comment);
     if (zapRequest) callbackUrl.searchParams.set("nostr", JSON.stringify(zapRequest));
 
-    const invoiceRes = await fetch(callbackUrl.toString());
+    const invoiceRes = await platformFetch(callbackUrl);
+    if (!invoiceRes.ok) throw new Error(`Invoice service returned ${invoiceRes.status}`);
     const invoiceData = await invoiceRes.json();
     if (!invoiceData.pr) throw new Error("No invoice returned");
     return invoiceData.pr;
@@ -200,20 +300,65 @@ export function SupportPopover() {
     setLoading(false);
   };
 
+  const handleOpenInvoice = async () => {
+    if (!invoice) return;
+    setError(null);
+    try {
+      await openUrl(toLightningUri(invoice));
+    } catch (err) {
+      console.error("Failed to open Lightning wallet:", err);
+      setError("No compatible Lightning wallet could open this invoice.");
+    }
+  };
+
   const hasWebLN = typeof window !== "undefined" && !!window.webln;
   const hasNWC = !!nwcConnection?.connectionString;
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-2.5 lg:px-3 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap"
-          title="Support WaveFunc"
-        >
-          <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          closeSupport();
+          reset();
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="inset-0 top-0 left-0 z-[310] flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-surface p-0 shadow-none md:inset-auto md:top-1/2 md:left-1/2 md:h-auto md:max-h-[calc(100dvh-3rem)] md:w-[28rem] md:max-w-[calc(100%-3rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:border-4 md:border-on-background md:shadow-[10px_10px_0px_0px_rgba(29,28,19,1)]"
+      >
+        <DialogTitle className="sr-only">Support WaveFunc</DialogTitle>
+        <DialogDescription className="sr-only">
+          Follow the developer or donate sats to support the project.
+        </DialogDescription>
+
+        <div className="shrink-0 bg-surface pt-[env(safe-area-inset-top)]">
+          <div className="flex items-stretch border-b-4 border-on-background bg-on-background text-surface">
+            <div className="min-w-0 flex-1 px-4 py-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.24em] text-surface/55">
+                SUPPORT_CHANNEL // 001
+              </div>
+              <div className="truncate font-headline text-xl font-black uppercase tracking-tighter">
+                KEEP_THE_SIGNAL_ALIVE
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                closeSupport();
+                reset();
+              }}
+              className="flex w-14 shrink-0 items-center justify-center border-l-2 border-surface/25 transition-colors hover:bg-primary"
+              aria-label="Close support"
+            >
+              <span className="material-symbols-outlined text-[24px]">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto w-full max-w-md">
         {/* Header */}
         <div className="p-4 border-b-2 border-on-background">
           <div className="flex items-center gap-3">
@@ -233,6 +378,20 @@ export function SupportPopover() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-4 py-3 border-b-2 border-on-background">
+          <button
+            type="button"
+            onClick={handleFollowDeveloper}
+            disabled={!currentUser || !contactsReady || followsDeveloper || following}
+            className="w-full border-2 border-on-background py-2 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-[14px]">
+              {followsDeveloper ? "person_check" : "person_add"}
+            </span>
+            {followButtonLabel}
+          </button>
         </div>
 
         {/* Success */}
@@ -364,9 +523,14 @@ export function SupportPopover() {
               SCAN_OR_COPY_INVOICE
             </div>
 
-            <div className="flex justify-center bg-white p-2 border-2 border-on-background">
-              <QRCode value={invoice} size={200} />
-            </div>
+            <button
+              type="button"
+              onClick={handleOpenInvoice}
+              aria-label="Open this invoice in a Lightning wallet"
+              className="flex justify-center w-full bg-white p-2 border-2 border-on-background cursor-pointer"
+            >
+              <QRCode value={toLightningUri(invoice)} size={200} />
+            </button>
 
             <div className="text-center text-lg font-black uppercase tracking-tight font-headline">
               {formatSats(amount)} SATS
@@ -383,6 +547,15 @@ export function SupportPopover() {
                 PAY_WITH_{hasWebLN ? "WEBLN" : "NWC"}
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleOpenInvoice}
+              className="w-full border-2 border-on-background py-2 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+              OPEN_WALLET
+            </button>
 
             <div className="flex gap-2">
               <button
@@ -411,7 +584,9 @@ export function SupportPopover() {
             )}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

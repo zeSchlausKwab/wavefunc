@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCodeGenerator from "qrcode";
+import { openUrl } from "../lib/openUrl";
 
 interface QRCodeProps {
   value: string;
@@ -72,18 +73,46 @@ export function QRCode({ value, size = 256, className }: QRCodeProps) {
 
 interface CopyableQRProps {
   value: string;
+  qrValue?: string;
+  actionUri?: string;
   label?: string;
   size?: number;
 }
 
-export function CopyableQR({ value, label, size = 240 }: CopyableQRProps) {
+export function CopyableQR({
+  value,
+  qrValue,
+  actionUri,
+  label,
+  size = 240,
+}: CopyableQRProps) {
   const [copied, setCopied] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  const code = <QRCode value={qrValue ?? value} size={size} />;
 
   return (
     <div className="flex flex-col items-center space-y-3">
-      <div className="bg-white p-2 rounded-lg border">
-        <QRCode value={value} size={size} />
-      </div>
+      {actionUri ? (
+        <button
+          type="button"
+          onClick={async () => {
+            setOpenError(null);
+            try {
+              await openUrl(actionUri);
+            } catch (err) {
+              console.error("Failed to open QR action:", err);
+              setOpenError("No compatible app could open this code.");
+            }
+          }}
+          aria-label="Open QR code in a compatible app"
+          className="bg-white p-2 rounded-lg border cursor-pointer"
+        >
+          {code}
+        </button>
+      ) : (
+        <div className="bg-white p-2 rounded-lg border">{code}</div>
+      )}
       <button
         onClick={() => {
           navigator.clipboard.writeText(value);
@@ -99,6 +128,9 @@ export function CopyableQR({ value, label, size = 240 }: CopyableQRProps) {
           {copied ? "copied!" : "click to copy"}
         </span>
       </button>
+      {openError && (
+        <p className="text-xs text-destructive text-center">{openError}</p>
+      )}
     </div>
   );
 }

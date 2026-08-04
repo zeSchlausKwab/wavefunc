@@ -1,7 +1,7 @@
 import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState, useCallback } from "react";
-import type { Wallet, WalletToken } from "applesauce-wallet/casts";
-import { getEncodedToken } from "@cashu/cashu-ts";
+import type { NutWallet, WalletToken } from "applesauce-wallet/wallet";
+import { getEncodedToken, normalizeProofAmounts } from "@cashu/cashu-ts";
 import { Button } from "../ui/button";
 
 function TokenEntry({ token }: { token: WalletToken }) {
@@ -11,7 +11,11 @@ function TokenEntry({ token }: { token: WalletToken }) {
 
   const encodedToken = useMemo(() => {
     if (!token.mint || !token.proofs) return undefined;
-    return getEncodedToken({ mint: token.mint, proofs: token.proofs, unit: "sat" });
+    return getEncodedToken({
+      mint: token.mint,
+      proofs: normalizeProofAmounts(token.proofs),
+      unit: "sat",
+    });
   }, [token.mint, token.proofs]);
 
   const handleCopy = useCallback(() => {
@@ -48,10 +52,11 @@ function TokenEntry({ token }: { token: WalletToken }) {
   );
 }
 
-export function WalletTokens({ wallet }: { wallet: Wallet }) {
+export function WalletTokens({ wallet }: { wallet: NutWallet }) {
   const tokens = use$(wallet.tokens$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
 
-  if (!wallet.unlocked) {
+  if (!unlocked) {
     return (
       <p className="text-muted-foreground text-center py-4">
         Unlock your wallet to view tokens

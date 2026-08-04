@@ -2,7 +2,8 @@
 // tagged with the `wavefunc` topic. Simple flat threading via `e`-tags.
 
 import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import { getMatchingTags } from "./shared";
 
 export const COMMUNITY_TOPIC = "wavefunc";

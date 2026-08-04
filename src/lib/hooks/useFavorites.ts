@@ -18,6 +18,7 @@ import {
   type ParsedFavoritesList,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
+import { requestEventsIntoStore } from "../nostr/requestEvents";
 
 type StationLike = {
   pubkey?: string | null;
@@ -377,15 +378,16 @@ export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
       return;
     }
     setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
+    const requestSubscription = requestEventsIntoStore(
+      relayPool,
+      eventStore,
+      getAppDataRelayUrls(),
+      filters,
+    ).subscribe({
+      complete: () => setEose(true),
+      error: () => setEose(true),
+    });
+    return () => requestSubscription.unsubscribe();
   }, [eventStore, relayPool, filters, stationAddresses.length]);
 
   const rawEvents =

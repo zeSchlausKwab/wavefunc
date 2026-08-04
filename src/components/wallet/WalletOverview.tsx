@@ -1,8 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
 import { useState } from "react";
-import type { Wallet } from "applesauce-wallet/casts";
-import { UnlockWallet } from "applesauce-wallet/actions";
-import { actions } from "../../lib/nostr/store";
+import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../lib/nostr/auth";
 import {
   usePreferredMint,
@@ -33,15 +31,17 @@ const ACTIONS: Array<{
   { id: "receive-ln", label: "Deposit Lightning", icon: "⚡", kind: "deposit" },
 ];
 
-export function WalletOverview({ wallet }: { wallet: Wallet }) {
+export function WalletOverview({ wallet }: { wallet: NutWallet }) {
   const balance = use$(wallet.balance$);
+  const unlocked = use$(wallet.unlocked$) ?? false;
+  const operations = use$(wallet.operationsState$) ?? {};
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   const setPreferredMint = useSetPreferredMint(currentUser?.pubkey);
   const [unlocking, setUnlocking] = useState(false);
   const [action, setAction] = useState<Action>("none");
 
-  if (!wallet.unlocked) {
+  if (!unlocked) {
     return (
       <div className="text-center space-y-3 py-6">
         <h2 className="text-lg font-semibold">Wallet Locked</h2>
@@ -49,14 +49,14 @@ export function WalletOverview({ wallet }: { wallet: Wallet }) {
           onClick={async () => {
             setUnlocking(true);
             try {
-              await actions.run(UnlockWallet, { history: true, tokens: true });
+              await wallet.unlock();
             } catch (err) {
               console.error("Failed to unlock:", err);
             } finally {
               setUnlocking(false);
             }
           }}
-          disabled={unlocking}
+          disabled={unlocking || operations.unlock}
           size="sm"
         >
           {unlocking ? "Unlocking..." : "Unlock Wallet"}

@@ -1,25 +1,27 @@
 /**
  * Wavefunc nostr singletons.
  *
- * Owns the EventStore, RelayPool, EventFactory, AccountManager, ActionRunner,
- * and the cashu LocalStorageCouch. All instances live on `globalThis` so they
+ * Owns the EventStore, RelayPool, AccountManager, ActionRunner, and the Cashu
+ * operation couch. All instances live on `globalThis` so they
  * survive Bun's HMR (otherwise we'd leak WebSocket connections on every save).
  *
  * The React layer in `runtime.tsx` reads from these singletons and exposes
- * them via context for components that prefer hook-based access. Wallet UI
- * imports `actions` and `couch` directly from this module — matches the
- * apple-test reference layout exactly.
+ * them via context for components that prefer hook-based access.
  */
 
 // Side-effect: registers the wallet$ getter on the User cast so
 // `castUser(pubkey, eventStore).wallet$` resolves to the NIP-60 wallet.
 import "applesauce-wallet/casts";
 
-import { EventStore, EventFactory } from "applesauce-core";
+import { EventStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { castUser } from "applesauce-common/casts";
 import { RelayPool } from "applesauce-relay";
 import { storeEvents } from "applesauce-relay/operators";
+import {
+  createReactionsLoader,
+  createTagValueLoader,
+  createZapsLoader,
+} from "applesauce-loaders/loaders";
 import { NostrConnectSigner } from "applesauce-signers";
 import { AccountManager } from "applesauce-accounts";
 import {
@@ -29,16 +31,16 @@ import {
   NostrConnectAccount,
 } from "applesauce-accounts/accounts";
 import { ActionRunner } from "applesauce-actions";
-import { UnlockWallet } from "applesauce-wallet/actions";
 import {
+  IndexedDBCouch,
   LocalStorageCouch,
   WALLET_KIND,
-  WALLET_TOKEN_KIND,
-  WALLET_HISTORY_KIND,
   getWalletRelays,
 } from "applesauce-wallet/helpers";
-import { kinds as nostrKinds } from "nostr-tools";
-import { merge, Subject, Subscription } from "rxjs";
+import type { Couch } from "applesauce-wallet/helpers";
+import { merge, Subject } from "rxjs";
+import { getReadRelayUrls } from "../../config/nostr";
+import { SOCIAL_EVENT_KINDS } from "./social";
 
 const ACCOUNTS_STORAGE_KEY = "wavefunc:accounts:v1";
 const ACTIVE_ACCOUNT_STORAGE_KEY = "wavefunc:active-account:v1";
@@ -67,8 +69,9 @@ export type AccountMetadata = {
 interface NostrGlobals {
   eventStore?: EventStore;
   relayPool?: RelayPool;
-  eventFactory?: EventFactory;
-  couch?: LocalStorageCouch;
+  couch?: Couch;
+  indexedDbCouch?: IndexedDBCouch;
+  couchMigration?: Promise<void>;
   accounts?: AccountManager<AccountMetadata>;
   actions?: ActionRunner;
   accountListenersAttached?: boolean;
@@ -90,15 +93,54 @@ export const relayPool: RelayPool = (g.__wavefuncNostr.relayPool ??= (() => {
   return pool;
 })());
 
-// EventFactory — signer is wired below from the AccountManager proxy
-export const eventFactory: EventFactory = (g.__wavefuncNostr.eventFactory ??=
-  new EventFactory());
+// Shared, batched social loaders. A loader instance buffers tag lookups from
+// all visible station cards into a small number of relay requests instead of
+// opening one subscription per card. Public relays are required here because
+// the WaveFunc station mirror does not mirror every reaction/zap event.
+const socialLoaderOptions = {
+  bufferTime: 100,
+  bufferSize: 200,
+  extraRelays: getReadRelayUrls(),
+  eventStore,
+};
 
-// Cashu LocalStorageCouch — backup store for in-flight token operations
-// (used by the wallet flows so we don't lose change tokens on a refresh
-// mid-mint or mid-melt).
-export const couch: LocalStorageCouch = (g.__wavefuncNostr.couch ??=
-  new LocalStorageCouch(COUCH_STORAGE_KEY));
+export const loadReactions = createReactionsLoader(
+  relayPool,
+  socialLoaderOptions,
+);
+export const loadLightningZaps = createZapsLoader(
+  relayPool,
+  socialLoaderOptions,
+);
+export const loadSocialByEvent = createTagValueLoader(relayPool, "e", {
+  ...socialLoaderOptions,
+  kinds: [...SOCIAL_EVENT_KINDS],
+});
+export const loadNutzapsByAddress = createTagValueLoader(relayPool, "a", {
+  ...socialLoaderOptions,
+  kinds: [9321],
+});
+export const loadCommentsByAddress = createTagValueLoader(relayPool, "A", {
+  ...socialLoaderOptions,
+  kinds: [1111],
+});
+
+// Cashu couch — IndexedDB is the v6 wallet's durable backup for in-flight
+// operations. Migrate any stranded tokens from the previous localStorage
+// couch before the NutWallet starts so an upgrade cannot orphan funds.
+export const couch: IndexedDBCouch = (g.__wavefuncNostr.indexedDbCouch ??=
+  new IndexedDBCouch("wavefunc-cashu", "operation-couch"));
+
+export function migrateLegacyCouch(): Promise<void> {
+  return (g.__wavefuncNostr!.couchMigration ??= (async () => {
+    const legacy = new LocalStorageCouch(COUCH_STORAGE_KEY);
+    const tokens = await legacy.getAll();
+    if (tokens.length === 0) return;
+
+    for (const token of tokens) await couch.store(token);
+    await legacy.clear();
+  })());
+}
 
 // Default fallback publish relays (used when wallet relays are unavailable).
 // React layer pushes the user-configured write relays in via setPublishRelays.
@@ -137,11 +179,6 @@ export const accounts: AccountManager<AccountMetadata> = (g.__wavefuncNostr.acco
     return m;
   })());
 
-// Wire factory signer to the AccountManager proxy. The proxy delegates to
-// whichever account is currently active and throws if no account is set, so
-// `eventFactory.sign(...)` will fail loudly when the user is logged out.
-eventFactory.setSigner(accounts.signer);
-
 // Persist accounts on change. Attached exactly once across HMR via the
 // globalThis guard so we don't end up with duplicate listeners hammering
 // localStorage on every save.
@@ -176,8 +213,8 @@ if (!g.__wavefuncNostr.accountListenersAttached) {
 //
 // Optimistic add to the EventStore happens before the network publish so the
 // UI updates immediately; we roll back if the publish throws.
-export const actions: ActionRunner = (g.__wavefuncNostr.actions ??=
-  new ActionRunner(eventStore, eventFactory, async (event: NostrEvent, relays?: string[]) => {
+function createActionRunner() {
+  return new ActionRunner(eventStore, accounts.signer, async (event: NostrEvent, relays?: string[]) => {
     const pubkey = accounts.active?.pubkey;
     if (!pubkey) return;
 
@@ -203,7 +240,18 @@ export const actions: ActionRunner = (g.__wavefuncNostr.actions ??=
       eventStore.remove(event);
       throw err;
     }
-  }));
+  });
+}
+
+export let actions: ActionRunner = (g.__wavefuncNostr.actions ??=
+  createActionRunner());
+
+/** Rebuild the action context when the active account changes. */
+export function resetActionRunner(): ActionRunner {
+  actions = createActionRunner();
+  g.__wavefuncNostr!.actions = actions;
+  return actions;
+}
 
 // ── Login helpers ────────────────────────────────────────────────────────────
 
@@ -273,105 +321,10 @@ export function logout() {
   if (active) accounts.removeAccount(active);
 }
 
-// ── Wallet bootstrap ─────────────────────────────────────────────────────────
-//
-// Subscribes to the NIP-60 wallet kinds (config, tokens, history) plus the
-// matching deletion events for the given pubkey. The React layer calls this
-// when an account becomes active and unsubscribes when it changes.
-export function subscribeToWalletKinds(
-  pubkey: string,
-  readRelays: string[]
-): Subscription {
-  return relayPool
-    .subscription(readRelays, [
-      {
-        kinds: [WALLET_KIND, WALLET_TOKEN_KIND, WALLET_HISTORY_KIND],
-        authors: [pubkey],
-      },
-      {
-        kinds: [nostrKinds.EventDeletion],
-        "#k": [String(WALLET_TOKEN_KIND)],
-        authors: [pubkey],
-      },
-    ])
-    .pipe(storeEvents(eventStore))
-    .subscribe();
-}
-
 // Marks the event-loader as attached (called by the React provider exactly
 // once). Tracked here so HMR doesn't double-attach.
 export function markEventLoaderAttached(): boolean {
   if (g.__wavefuncNostr!.eventLoaderAttached) return false;
   g.__wavefuncNostr!.eventLoaderAttached = true;
   return true;
-}
-
-// ── Auto-unlock ──────────────────────────────────────────────────────────────
-//
-// NIP-60 wallet content (the wallet config, every kind 7375 token, every
-// kind 7376 history entry) is encrypted with the user's signer. Until each
-// of those is decrypted, `wallet.balance$` reports 0 — which is why a fresh
-// reload would render the header pill at "0 SATS" until the user opened the
-// popover and `WalletManager` ran its own auto-unlock effect.
-//
-// This subscription hoists that auto-unlock to the runtime layer so it fires
-// as soon as the wallet event arrives, regardless of whether any wallet UI
-// is mounted. It also re-fires whenever new locked tokens or history entries
-// land in the store (e.g., after receiving a payment), so the header balance
-// stays current without any UI being open.
-//
-// `WalletManager` keeps its own local auto-unlock as a defense in depth — the
-// extra calls are harmless because the action only does work when something
-// is actually locked.
-export function subscribeAutoUnlockWallet(pubkey: string): Subscription {
-  const user = castUser(pubkey, eventStore);
-  const composite = new Subscription();
-  let inFlight = false;
-
-  const runUnlock = () => {
-    if (inFlight) return;
-    inFlight = true;
-    actions
-      .run(UnlockWallet, { history: true, tokens: true })
-      .catch((err) => console.error("Auto-unlock failed:", err))
-      .finally(() => {
-        inFlight = false;
-      });
-  };
-
-  let childSub: Subscription | undefined;
-
-  composite.add(
-    user.wallet$.subscribe((wallet) => {
-      // Tear down child subscriptions whenever the wallet reference changes
-      // (rare — only on logout or wallet event replacement). Without this we
-      // would leak per-wallet token/history subscriptions on every emission.
-      childSub?.unsubscribe();
-      childSub = undefined;
-
-      if (!wallet) return;
-
-      // Initial unlock attempt: handles the page-reload case where the
-      // wallet event has just arrived and everything is still encrypted.
-      if (wallet.unlocked === false) runUnlock();
-
-      // Watch for newly-arrived locked tokens / history entries (post-load
-      // payments, sends, melts, etc.). The action is idempotent so we can
-      // call it freely whenever something locked appears.
-      childSub = new Subscription();
-      childSub.add(
-        wallet.tokens$.subscribe((tokens) => {
-          if (tokens?.some((t) => t.unlocked === false)) runUnlock();
-        })
-      );
-      childSub.add(
-        wallet.history$.subscribe((history) => {
-          if (history?.some((h) => h.unlocked === false)) runUnlock();
-        })
-      );
-      composite.add(childSub);
-    })
-  );
-
-  return composite;
 }

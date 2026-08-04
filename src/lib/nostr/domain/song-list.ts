@@ -1,5 +1,6 @@
 import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "../types";
 import {
   getAddressableReferences,
   getFirstTagValue,
@@ -35,7 +36,8 @@ export function getSongAddresses(event: NostrEvent) {
   return getMatchingTags(event, "a")
     .map((tag) => tag[1])
     .filter(
-      (address): address is string => Boolean(address) && address.startsWith("31337:")
+      (address): address is string =>
+        typeof address === "string" && address.startsWith("31337:")
     );
 }
 
@@ -136,4 +138,3 @@ export function buildSongListRemoveSongTemplate(
     tags: removeTags(event.tags, "a", (tag) => tag[1] === songAddress),
   };
 }
-

@@ -6,7 +6,22 @@
   "permissions": [
     "core:default",
     "os:default",
-    "shell:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*" }]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "http://*" },
+        { "url": "https://*" },
+        { "url": "mailto:*" },
+        { "url": "tel:*" },
+        { "url": "lightning:*" },
+        { "url": "nostrconnect:*" },
+        { "url": "bunker:*" }
+      ]
+    },
     "deep-link:default",
     "wavefunc-player:default"
   ]

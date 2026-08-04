@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useFavorites } from "../lib/hooks/useFavorites";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
+import { getSongListSongCount } from "../lib/nostr/domain/song-list";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { SupportPopover } from "./SupportPopover";
+import { SupportTrigger } from "./SupportPopover";
 
 interface NavigationItemsProps {
   onNavigate?: () => void;
@@ -14,7 +15,10 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
   const { getFavoriteCount } = useFavorites();
   const favCount = getFavoriteCount();
   const { songLists } = useSongFavorites();
-  const songCount = songLists.reduce((n, l) => n + l.getSongCount(), 0);
+  const songCount = songLists.reduce(
+    (count, list) => count + getSongListSongCount(list),
+    0,
+  );
 
   // Desktop nav is in FloatingHeader
   if (variant === "desktop") return null;
@@ -80,7 +84,7 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
             </AuthRequiredButton>
           }
         />
-        <SupportPopover />
+        <SupportTrigger variant="menu" onOpen={onNavigate} />
       </div>
     </>
   );

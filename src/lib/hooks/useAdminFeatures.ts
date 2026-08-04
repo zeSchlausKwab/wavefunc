@@ -3,7 +3,6 @@
 import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
 import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
 import { useEffect, useMemo, useState } from "react";
 import { ADMIN_PUBKEYS } from "../../config/admins";
 import { getAppDataRelayUrls } from "../../config/nostr";
@@ -13,6 +12,7 @@ import {
   type AdminFeatureType,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
+import { requestEventsIntoStore } from "../nostr/requestEvents";
 
 /**
  * Subscribe to admin feature events of a given type.
@@ -35,15 +35,16 @@ export function useAdminFeatures(type: AdminFeatureType) {
   const [eose, setEose] = useState(false);
   useEffect(() => {
     setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
+    const requestSubscription = requestEventsIntoStore(
+      relayPool,
+      eventStore,
+      getAppDataRelayUrls(),
+      filters,
+    ).subscribe({
+      complete: () => setEose(true),
+      error: () => setEose(true),
+    });
+    return () => requestSubscription.unsubscribe();
   }, [eventStore, relayPool, filters]);
 
   const rawEvents = useEventModel(TimelineModel, [filters]) ?? [];

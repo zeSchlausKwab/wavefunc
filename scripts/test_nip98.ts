@@ -1,5 +1,5 @@
 // test_nip98.ts - Test NIP-98 authentication
-import { hexToBytes } from "@noble/hashes/utils";
+import { hexToBytes } from "nostr-tools/utils";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 import { getToken } from "nostr-tools/nip98";
 

@@ -6,11 +6,10 @@
 // references, and app-signed featured lists.
 
 import { faker } from "@faker-js/faker";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
-import { EventFactory } from "applesauce-core";
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import { RelayPool } from "applesauce-relay";
 import { PrivateKeySigner } from "applesauce-signers";
-import { hexToBytes } from "@noble/hashes/utils.js";
+import { hexToBytes } from "nostr-tools/utils";
 import { readFileSync } from "fs";
 import { getPublicKey } from "nostr-tools/pure";
 import path from "path";
@@ -38,6 +37,7 @@ import {
   getCleanStationName,
   normalizeStationNameForGrouping,
 } from "./lib/station-normalizer";
+import type { EventTemplate } from "../src/lib/nostr/types";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -126,12 +126,11 @@ async function signAndPublish(
   template: EventTemplate,
   extraTags: string[][] = [],
 ): Promise<NostrEvent> {
-  const factory = new EventFactory({ signer });
-  const draft = await factory.build({
+  const event = await signer.signEvent({
     ...template,
+    created_at: template.created_at ?? Math.floor(Date.now() / 1000),
     tags: [...template.tags, ...extraTags],
   });
-  const event = await factory.sign(draft);
   await publish(event);
   return event;
 }
