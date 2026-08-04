@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { openUrl } from "../lib/openUrl";
 import { QRCodeSVG } from "qrcode.react";
 import { NostrConnectSigner } from "applesauce-signers";
+import { detectPlatform } from "../lib/platform";
+import { nip46ClientName } from "../lib/nostr/nip46";
 import {
   Dialog,
   DialogContent,
@@ -31,11 +33,6 @@ type ConnectionState =
   | "waiting"
   | "connected"
   | "error";
-
-const CONNECTION_APP_NAME =
-  process.env.NODE_ENV === "production"
-    ? "Wavefunc Radio"
-    : "Wavefunc Radio DEV";
 
 export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
   const { createNostrConnectSigner, loginWithConnectSigner } =
@@ -117,13 +114,14 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
       setState("generating");
       setError(null);
       try {
+        const platform = await detectPlatform();
         const signer = createNostrConnectSigner({
           relays: [selectedRelay],
         });
         signerRef.current = signer;
 
         const uri = signer.getNostrConnectURI({
-          name: CONNECTION_APP_NAME,
+          name: nip46ClientName(platform),
           url: window.location.origin,
         });
 
