@@ -12,6 +12,7 @@ import { usePreferredMint } from "../../../stores/preferredMintStore";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { CopyableQR } from "../../QRCode";
+import { toLightningUri } from "../../../lib/openUrl";
 
 export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
   const mints = use$(wallet.mints$);
@@ -132,7 +133,13 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: Wallet; onDone: (
         <div className="text-center text-xs text-muted-foreground">
           Waiting for payment of {quote.amount} sats
         </div>
-        <CopyableQR value={quote.request} label="Lightning invoice" size={200} />
+        <CopyableQR
+          value={quote.request}
+          qrValue={toLightningUri(quote.request)}
+          actionUri={toLightningUri(quote.request)}
+          label="Lightning invoice"
+          size={200}
+        />
         <Button onClick={reset} variant="outline" size="sm" className="w-full">
           Cancel
         </Button>

@@ -9,6 +9,7 @@ import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
+import { openUrl, toLightningUri } from "../lib/openUrl";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { QRCode } from "./QRCode";
 
@@ -200,6 +201,17 @@ export function SupportPopover() {
     setLoading(false);
   };
 
+  const handleOpenInvoice = async () => {
+    if (!invoice) return;
+    setError(null);
+    try {
+      await openUrl(toLightningUri(invoice));
+    } catch (err) {
+      console.error("Failed to open Lightning wallet:", err);
+      setError("No compatible Lightning wallet could open this invoice.");
+    }
+  };
+
   const hasWebLN = typeof window !== "undefined" && !!window.webln;
   const hasNWC = !!nwcConnection?.connectionString;
 
@@ -364,9 +376,14 @@ export function SupportPopover() {
               SCAN_OR_COPY_INVOICE
             </div>
 
-            <div className="flex justify-center bg-white p-2 border-2 border-on-background">
-              <QRCode value={invoice} size={200} />
-            </div>
+            <button
+              type="button"
+              onClick={handleOpenInvoice}
+              aria-label="Open this invoice in a Lightning wallet"
+              className="flex justify-center w-full bg-white p-2 border-2 border-on-background cursor-pointer"
+            >
+              <QRCode value={toLightningUri(invoice)} size={200} />
+            </button>
 
             <div className="text-center text-lg font-black uppercase tracking-tight font-headline">
               {formatSats(amount)} SATS
@@ -383,6 +400,15 @@ export function SupportPopover() {
                 PAY_WITH_{hasWebLN ? "WEBLN" : "NWC"}
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleOpenInvoice}
+              className="w-full border-2 border-on-background py-2 text-[10px] font-black uppercase tracking-widest hover:bg-on-background hover:text-surface transition-colors flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+              OPEN_WALLET
+            </button>
 
             <div className="flex gap-2">
               <button

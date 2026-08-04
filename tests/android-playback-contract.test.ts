@@ -65,6 +65,7 @@ describe("Android playback release contract", () => {
     const androidBuild = read("src-tauri/android-template/build.gradle.kts");
     const frontendBuild = read("build.ts");
     const environment = read("src/config/env.ts");
+    const platform = read("src/lib/platform.ts");
 
     expect(androidBuild).toContain("syncWavefuncIcons");
     expect(androidBuild).toContain('from(file("../../../icons/android"))');
@@ -75,8 +76,8 @@ describe("Android playback release contract", () => {
     expect(frontendBuild).not.toContain(
       'JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334")'
     );
-    expect(environment).toContain("__TAURI_INTERNALS__");
-    expect(environment).toContain('hostname === "tauri.localhost"');
+    expect(platform).toContain("__TAURI_INTERNALS__");
+    expect(platform).toContain('runtime.location.hostname === "tauri.localhost"');
     expect(environment).toContain('return "wss://relay.wavefunc.live"');
   });
 

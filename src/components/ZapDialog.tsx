@@ -9,7 +9,7 @@ import { NutzapEvent } from "applesauce-wallet/actions";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useMemo, useState } from "react";
-import { openUrl } from "../lib/openUrl";
+import { openUrl, toLightningUri } from "../lib/openUrl";
 import { getPublicContentRelayUrls } from "../config/nostr";
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
@@ -556,6 +556,17 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     handleZapSuccess(parseInt(amount, 10));
   };
 
+  const handleOpenInvoice = async () => {
+    if (!invoice) return;
+    setError(null);
+    try {
+      await openUrl(toLightningUri(invoice));
+    } catch (err) {
+      console.error("Failed to open Lightning wallet:", err);
+      setError("No compatible Lightning wallet could open this invoice.");
+    }
+  };
+
   const isProcessing = zapState === "processing";
 
   return (
@@ -644,11 +655,16 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
         {zapState === "invoice" && invoice && (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center">
-              <div className="bg-white p-4 rounded-lg border">
-                <QRCodeSVG value={invoice} size={200} />
-              </div>
+              <button
+                type="button"
+                onClick={handleOpenInvoice}
+                aria-label="Open this invoice in a Lightning wallet"
+                className="bg-white p-4 rounded-lg border cursor-pointer"
+              >
+                <QRCodeSVG value={toLightningUri(invoice)} size={200} />
+              </button>
               <p className="mt-2 text-sm text-muted-foreground">
-                Scan with your Lightning wallet
+                Scan or tap to open your Lightning wallet
               </p>
 
               {waitingForPayment && !paymentDetected && (
@@ -685,16 +701,15 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => {
-                  const uri = invoice.toLowerCase().startsWith("lightning:")
-                    ? invoice
-                    : `lightning:${invoice}`;
-                  openUrl(uri);
-                }}
+                onClick={handleOpenInvoice}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open in Wallet
               </Button>
+
+              {error && (
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              )}
 
               <Button className="w-full" onClick={handleManualPaymentConfirm}>
                 <Check className="w-4 h-4 mr-2" />

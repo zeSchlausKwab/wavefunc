@@ -45,7 +45,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
 
   const [state, setState] = useState<ConnectionState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [selectedRelay, setSelectedRelay] = useState(DEFAULT_RELAYS[0].value);
+  const [selectedRelay, setSelectedRelay] = useState(DEFAULT_RELAYS[0]!.value);
 
   const [connectionUri, setConnectionUri] = useState("");
   const [bunkerUrl, setBunkerUrl] = useState("");
@@ -191,6 +191,17 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     setScanError(null);
   };
 
+  const handleOpenSigner = async () => {
+    if (!connectionUri) return;
+    setError(null);
+    try {
+      await openUrl(connectionUri);
+    } catch (err) {
+      console.error("Failed to open remote signer:", err);
+      setError("No compatible remote signer could open this connection.");
+    }
+  };
+
   const handleScan = useCallback((data: string) => {
     if (data && data.startsWith("bunker://")) {
       setBunkerUrl(data);
@@ -287,7 +298,9 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
                   </p>
 
                   <button
-                    onClick={() => openUrl(connectionUri)}
+                    type="button"
+                    onClick={handleOpenSigner}
+                    aria-label="Open this connection in a remote signer"
                     className="block w-full border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] p-3 bg-white cursor-pointer"
                   >
                     <QRCodeSVG
