@@ -7,6 +7,12 @@ interface UIState {
   pulseLogin: () => void;
   clearLoginPulse: () => void;
 
+  // Root-owned support flow. Keeping this outside navigation sheets prevents
+  // nested overlays and lets mobile navigation close before support opens.
+  supportOpen: boolean;
+  openSupport: () => void;
+  closeSupport: () => void;
+
   // Bottom sheet
   sheetOpen: boolean;
   sheetMode: "nav" | "station";
@@ -31,6 +37,14 @@ export const useUIStore = create<UIState>((set) => ({
   },
 
   clearLoginPulse: () => set({ shouldPulseLogin: false }),
+
+  supportOpen: false,
+  openSupport: () =>
+    set({
+      supportOpen: true,
+      sheetOpen: false,
+    }),
+  closeSupport: () => set({ supportOpen: false }),
 
   sheetOpen: false,
   sheetMode: "nav",

@@ -4,7 +4,7 @@ import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { getSongListSongCount } from "../lib/nostr/domain/song-list";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { StationManagementSheet } from "./StationManagementSheet";
-import { SupportPopover } from "./SupportPopover";
+import { SupportTrigger } from "./SupportPopover";
 
 interface NavigationItemsProps {
   onNavigate?: () => void;
@@ -84,7 +84,7 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
             </AuthRequiredButton>
           }
         />
-        <SupportPopover />
+        <SupportTrigger variant="menu" onOpen={onNavigate} />
       </div>
     </>
   );

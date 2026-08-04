@@ -11,7 +11,13 @@ import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
 import { openUrl, toLightningUri } from "../lib/openUrl";
 import { platformFetch } from "../lib/platformFetch";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { useUIStore } from "../stores/uiStore";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog";
 import { QRCode } from "./QRCode";
 
 const SUPPORT_PUBKEY = "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3";
@@ -33,7 +39,43 @@ function formatSats(n: number): string {
 
 type SupportState = "input" | "processing" | "invoice" | "success" | "error";
 
-export function SupportPopover() {
+export function SupportTrigger({
+  variant = "icon",
+  onOpen,
+}: {
+  variant?: "icon" | "menu";
+  onOpen?: () => void;
+}) {
+  const openSupport = useUIStore((state) => state.openSupport);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onOpen?.();
+        openSupport();
+      }}
+      className={
+        variant === "menu"
+          ? "flex w-full items-center justify-center gap-2 border-2 border-on-background bg-secondary-fixed-dim px-4 py-3 text-sm font-black uppercase tracking-tight text-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+          : "flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 font-bold uppercase tracking-tighter text-on-background transition-transform hover:skew-x-6 hover:bg-secondary-fixed-dim lg:px-3"
+      }
+      title="Support WaveFunc"
+      aria-label={variant === "menu" ? undefined : "Support WaveFunc"}
+      aria-haspopup="dialog"
+      data-support-trigger={variant}
+    >
+      <span className="material-symbols-outlined text-[18px]">
+        volunteer_activism
+      </span>
+      {variant === "menu" && <span>SUPPORT_WAVEFUNC</span>}
+    </button>
+  );
+}
+
+export function SupportDialog() {
+  const open = useUIStore((state) => state.supportOpen);
+  const closeSupport = useUIStore((state) => state.closeSupport);
   const currentUser = useCurrentAccount();
   const { eventStore, relayPool, accounts, actions, readRelays } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
@@ -54,7 +96,6 @@ export function SupportPopover() {
   const [copied, setCopied] = useState(false);
   const [state, setState] = useState<SupportState>("input");
   const [zapStartTime, setZapStartTime] = useState(0);
-  const [open, setOpen] = useState(false);
   const [following, setFollowing] = useState(false);
   const [contactsReadyFor, setContactsReadyFor] = useState<string | null>(null);
   const contactsReady =
@@ -274,16 +315,50 @@ export function SupportPopover() {
   const hasNWC = !!nwcConnection?.connectionString;
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-2.5 lg:px-3 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap"
-          title="Support WaveFunc"
-        >
-          <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          closeSupport();
+          reset();
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="inset-0 top-0 left-0 z-[310] flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-surface p-0 shadow-none md:inset-auto md:top-1/2 md:left-1/2 md:h-auto md:max-h-[calc(100dvh-3rem)] md:w-[28rem] md:max-w-[calc(100%-3rem)] md:-translate-x-1/2 md:-translate-y-1/2 md:border-4 md:border-on-background md:shadow-[10px_10px_0px_0px_rgba(29,28,19,1)]"
+      >
+        <DialogTitle className="sr-only">Support WaveFunc</DialogTitle>
+        <DialogDescription className="sr-only">
+          Follow the developer or donate sats to support the project.
+        </DialogDescription>
+
+        <div className="shrink-0 bg-surface pt-[env(safe-area-inset-top)]">
+          <div className="flex items-stretch border-b-4 border-on-background bg-on-background text-surface">
+            <div className="min-w-0 flex-1 px-4 py-3">
+              <div className="text-[9px] font-black uppercase tracking-[0.24em] text-surface/55">
+                SUPPORT_CHANNEL // 001
+              </div>
+              <div className="truncate font-headline text-xl font-black uppercase tracking-tighter">
+                KEEP_THE_SIGNAL_ALIVE
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                closeSupport();
+                reset();
+              }}
+              className="flex w-14 shrink-0 items-center justify-center border-l-2 border-surface/25 transition-colors hover:bg-primary"
+              aria-label="Close support"
+            >
+              <span className="material-symbols-outlined text-[24px]">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto w-full max-w-md">
         {/* Header */}
         <div className="p-4 border-b-2 border-on-background">
           <div className="flex items-center gap-3">
@@ -509,7 +584,9 @@ export function SupportPopover() {
             )}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

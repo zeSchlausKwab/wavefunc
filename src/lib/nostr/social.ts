@@ -1,5 +1,9 @@
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
+// Event kinds fetched through the direct `e`-tag fallback. Addressable-event
+// loaders prefer `a` tags, but mirrors may only index the accompanying `e` tag.
+export const SOCIAL_EVENT_KINDS = [7, 9735, 9321, 1111] as const;
+
 export type SocialInteractionSummary = {
   reactions: number;
   zaps: number;

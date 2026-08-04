@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { summarizeSocialInteractions } from "../src/lib/nostr/social";
+import {
+  SOCIAL_EVENT_KINDS,
+  summarizeSocialInteractions,
+} from "../src/lib/nostr/social";
 
 function event(
   id: string,
@@ -20,6 +23,10 @@ function event(
 }
 
 describe("station social interaction summaries", () => {
+  test("loads reactions through the direct event-tag fallback", () => {
+    expect(SOCIAL_EVENT_KINDS).toContain(7);
+  });
+
   test("deduplicates likes by pubkey and counts both zap standards", () => {
     const current = "a".repeat(64);
     const other = "b".repeat(64);

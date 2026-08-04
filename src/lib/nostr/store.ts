@@ -40,6 +40,7 @@ import {
 import type { Couch } from "applesauce-wallet/helpers";
 import { merge, Subject } from "rxjs";
 import { getReadRelayUrls } from "../../config/nostr";
+import { SOCIAL_EVENT_KINDS } from "./social";
 
 const ACCOUNTS_STORAGE_KEY = "wavefunc:accounts:v1";
 const ACTIVE_ACCOUNT_STORAGE_KEY = "wavefunc:active-account:v1";
@@ -113,7 +114,7 @@ export const loadLightningZaps = createZapsLoader(
 );
 export const loadSocialByEvent = createTagValueLoader(relayPool, "e", {
   ...socialLoaderOptions,
-  kinds: [9735, 9321, 1111],
+  kinds: [...SOCIAL_EVENT_KINDS],
 });
 export const loadNutzapsByAddress = createTagValueLoader(relayPool, "a", {
   ...socialLoaderOptions,
