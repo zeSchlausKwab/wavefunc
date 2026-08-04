@@ -67,6 +67,10 @@ describe("installed-app media acquisition contract", () => {
       'bundledYtDlpSha256 = "495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd"',
     );
     expect(build).toContain("prepareBundledYtDlp");
+    expect(build).toContain("prepareYoutubedlAndroidLicense");
+    expect(build).toContain(
+      "raw.githubusercontent.com/yausername/youtubedl-android/0.18.1/LICENSE",
+    );
     expect(manifest).toContain("android.permission.FOREGROUND_SERVICE_DATA_SYNC");
     expect(manifest).toContain('android:foregroundServiceType="dataSync"');
     expect(manifest).toContain('android:extractNativeLibs="true"');
@@ -84,6 +88,16 @@ describe("installed-app media acquisition contract", () => {
     );
     expect(plugin).toContain("X-SHA-256");
     expect(plugin).toContain("Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING");
+  });
+
+  test("publishes the Android downloader license and corresponding source", () => {
+    const workflow = read(".github/workflows/release.yml");
+
+    expect(workflow).toContain("youtubedl-android-0.18.1-source.tar.gz");
+    expect(workflow).toContain("GPL-3.0-youtubedl-android.txt");
+    expect(workflow).toContain(
+      "08833449d671142c34325203cbfcca31c4fa668a0c4b8c0c31a2e4354ce11b98",
+    );
   });
 
   test("desktop video downloads use the same split-stream fallback", () => {

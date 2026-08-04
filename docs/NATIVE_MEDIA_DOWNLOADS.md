@@ -33,10 +33,14 @@ runtime. Development builds may set `WAVEFUNC_YTDLP_PATH` and
 Android uses `io.github.junkfood02.youtubedl-android` 0.18.1, which embeds
 yt-dlp, Python, QuickJS, and ffmpeg.
 
-## Android licensing release gate
+## Android licensing distribution
 
-`youtubedl-android` is GPL-3.0 licensed. Before publishing an APK containing
-this dependency, confirm the distribution approach, notices, corresponding
-source availability, and compatibility with WaveFunc's current MIT licensing.
-This implementation is suitable for development testing, but Android release
-must not be treated as license-cleared merely because it builds successfully.
+WaveFunc source remains MIT licensed. The Android APK also contains
+`youtubedl-android` 0.18.1 under GPL-3.0. The APK packages that dependency's
+license text, while the release workflow attaches its checksum-pinned upstream
+source archive and license alongside the APK. The WaveFunc source archive for
+the exact release tag supplies the corresponding application source and build
+scripts.
+
+These release inputs must be updated and reviewed whenever the Android
+downloader version changes.
