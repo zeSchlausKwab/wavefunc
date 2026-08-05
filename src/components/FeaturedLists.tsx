@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useFeaturedLists } from "../lib/hooks/useFeaturedLists";
 import { useFavoriteStations } from "../lib/hooks/useFavorites";
 import { RadioCard } from "./RadioCard";
@@ -16,6 +16,7 @@ import {
   type ParsedFavoritesList,
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,11 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
   const { stations, isLoading: stationsLoading } = useFavoriteStations(list);
+  const stationAddresses = useMemo(
+    () => stations.flatMap((station) => (station.address ? [station.address] : [])),
+    [stations],
+  );
+  const { byAddress: healthByAddress } = useStationHealth(stationAddresses);
 
   const handleResonate = async () => {
     if (!currentUser) return;
@@ -90,7 +96,11 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
         </div>
 
         {/* Station rows */}
-        <div className="flex-grow overflow-y-auto mb-6 scrollbar-none min-h-0">
+        <div
+          className="mb-6 min-h-0 max-h-[330px] flex-grow overflow-y-scroll overscroll-contain [scrollbar-color:rgba(29,28,19,0.45)_transparent] [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] md:max-h-none"
+          aria-label={`${list.name || "Featured collection"} stations`}
+          tabIndex={0}
+        >
           {stationsLoading && stations.length === 0 && (
             <div className="space-y-2 py-2">
               {Array.from({ length: 4 }).map((_, skeletonIndex) => (
@@ -112,6 +122,7 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
               station={station}
               variant="featured-item"
               index={i}
+              health={station.address ? healthByAddress.get(station.address) : undefined}
             />
           ))}
         </div>

@@ -13,6 +13,9 @@ Extracts "now playing" information from Icecast/Shoutcast radio streams.
 **Input:**
 
 - `url`: Radio stream URL
+- `stationAddress` (optional): Kind `31237` address for the station
+- `sessionId` (optional): Ephemeral playback-session ID used to derive anonymous listener-minutes
+- `observedAt` (optional): Client observation time; bounded against server time
 
 **Output:**
 
@@ -69,6 +72,23 @@ bun run contextvm
 
 - `METADATA_SERVER_KEY`: Nostr private key for the server (hex format)
 - `RELAY_URL`: Relay URL (default: ws://localhost:3334)
+- `CATALOG_PUBKEY`: Public key for the canonical WaveFunc station catalog
+- `OBSERVER_DB_PATH`: Persistent observer SQLite path (default: `data/observer.sqlite`)
+- `HEALTH_BATCH_SIZE`: Maximum stations claimed by each minute tick
+- `HEALTH_CONCURRENCY`: Maximum simultaneous stream probes
+- `STATION_AUTO_UPDATE`: Opt in to confirmed permanent-redirect catalog updates
+
+## Station observer
+
+The metadata server also maintains WaveFunc's Nostr-native station observer. It
+materializes canonical kind `31237` stations into a rebuildable local index,
+probes their streams, records anonymous listening heartbeats, and publishes
+signed replaceable health (`31238`), current-track (`31239`), and ranking
+(`31240`) events. User reports remain user-signed NIP-32 kind `1985` events.
+
+The observer never imports an external station directory. Development app data
+stays on the local relay; production app data stays on the configured public app
+relay. See `CONFIGURATION.md` for the deployment variables and key separation.
 
 ## Client Usage
 

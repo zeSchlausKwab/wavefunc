@@ -44,6 +44,7 @@ contextvm/bin/
 
 # database
 legacy-db/*
+data/observer.sqlite*
 
 # cookie files
 scripts/youtube_cookies*.txt

@@ -13,6 +13,12 @@ export interface ExtractStreamMetadataInput {
    * The URL of the Icecast/Shoutcast stream
    */
   url: string;
+  /** Optional station address used for anonymous listening telemetry. */
+  stationAddress?: string;
+  /** Ephemeral playback session ID; never a Nostr account key. */
+  sessionId?: string;
+  /** Client observation time as Unix seconds. */
+  observedAt?: number;
 }
 
 export interface ExtractStreamMetadataOutput {
@@ -260,7 +266,7 @@ export interface DownloadAudioOutput {
 }
 
 export type WavefuncMetadataServer = {
-  ExtractStreamMetadata: (url: string) => Promise<ExtractStreamMetadataOutput>;
+  ExtractStreamMetadata: (url: string, context?: Omit<ExtractStreamMetadataInput, "url">) => Promise<ExtractStreamMetadataOutput>;
   SearchArtists: (query: string, limit?: number) => Promise<SearchArtistsOutput>;
   SearchReleases: (query: string, artist?: string, limit?: number) => Promise<SearchReleasesOutput>;
   SearchRecordings: (query: string, artist?: string, limit?: number) => Promise<SearchRecordingsOutput>;
@@ -330,7 +336,8 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
       // Server returns { error: "..." } in content[0].text when isError: true
       let msg = `Tool "${name}" failed`;
       try {
-        const parsed = JSON.parse((result.content?.[0] as any)?.text ?? "{}");
+        const content = (result as { content?: Array<{ text?: string }> }).content;
+        const parsed = JSON.parse(content?.[0]?.text ?? "{}");
         if (parsed.error) msg = parsed.error;
       } catch { /* ignore parse errors */ }
       throw new Error(msg);
@@ -344,9 +351,10 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
    * @returns {Promise<ExtractStreamMetadataOutput>} The result of the extract_stream_metadata operation
    */
   async ExtractStreamMetadata(
-    url: string
+    url: string,
+    context: Omit<ExtractStreamMetadataInput, "url"> = {},
   ): Promise<ExtractStreamMetadataOutput> {
-    return this.call("extract_stream_metadata", { url });
+    return this.call("extract_stream_metadata", { url, ...context });
   }
 
     /**
@@ -468,6 +476,7 @@ export function getMetadataClient(): WavefuncMetadataServerClient {
     _instance = new WavefuncMetadataServerClient({
       privateKey: config.metadataClientKey,
       relays: [config.relayUrl],
+      serverPubkey: config.metadataServerPubkey,
     });
   }
   return _instance;

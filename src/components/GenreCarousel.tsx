@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ParsedStation } from "../lib/nostr/domain";
+import type { ParsedStation, StationHealthSummary } from "../lib/nostr/domain";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface GenreCarouselProps {
   genre: string;
   stations: ParsedStation[];
+  healthByAddress?: Map<string, StationHealthSummary>;
 }
 
 /** Deterministic-ish shuffle seeded by the current hour so it changes
@@ -16,14 +17,14 @@ function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = ((seed * (i + 1) * 2654435761) >>> 0) % (i + 1);
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
   }
   return copy;
 }
 
 const CARD_WIDTH_PX = 220;
 
-export function GenreCarousel({ genre, stations }: GenreCarouselProps) {
+export function GenreCarousel({ genre, stations, healthByAddress }: GenreCarouselProps) {
   const shuffledStations = useMemo(
     () => shuffled(stations).slice(0, 10),
     [stations],
@@ -111,7 +112,11 @@ export function GenreCarousel({ genre, stations }: GenreCarouselProps) {
             key={station.id}
             className="shrink-0 w-[220px] md:h-[360px] snap-start flex"
           >
-            <RadioCard station={station} className="flex-1" />
+            <RadioCard
+              station={station}
+              className="flex-1"
+              health={station.address ? healthByAddress?.get(station.address) : undefined}
+            />
           </div>
         ))}
       </div>

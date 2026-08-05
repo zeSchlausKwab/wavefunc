@@ -25,8 +25,8 @@ const WALLET_RELAYS = [
   "wss://relay.coinos.io",
 ] as const;
 
-const APP_DATA_KINDS = new Set([31237, 31337]);
-const SOCIAL_KINDS = new Set([1, 7, 1111, 9321]);
+const APP_DATA_KINDS = new Set([31237, 31238, 31239, 31240, 31337]);
+const SOCIAL_KINDS = new Set([1, 7, 1111, 1985, 9321]);
 
 function unique(relays: readonly string[]): string[] {
   return Array.from(new Set(relays.map(normalizeRelayUrl).filter(Boolean)));
@@ -108,7 +108,12 @@ function isWavefuncList(event: NostrEvent): boolean {
 
 function isWavefuncSocialEvent(event: NostrEvent): boolean {
   if (!SOCIAL_KINDS.has(event.kind)) return false;
-  if (event.kind === 7 || event.kind === 1111 || event.kind === 9321) {
+  if (
+    event.kind === 7 ||
+    event.kind === 1111 ||
+    event.kind === 1985 ||
+    event.kind === 9321
+  ) {
     return true;
   }
   return event.tags.some(

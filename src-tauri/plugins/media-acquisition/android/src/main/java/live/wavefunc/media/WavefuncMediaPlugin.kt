@@ -143,7 +143,11 @@ class WavefuncMediaPlugin(private val activity: Activity) : Plugin(activity) {
                 // the short-lived Blossom token in an external signer.
                 keepAliveForUpload = true
                 invoke.resolve(response)
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
+                // Third-party Python/archive initialization can surface
+                // LinkageError (including ExceptionInInitializerError). An
+                // uncaught Error on this worker kills the whole Android app.
+                if (error is VirtualMachineError || error is ThreadDeath) throw error
                 Log.e(TAG, "Local media preparation failed", error)
                 directory.deleteRecursively()
                 val message = usefulMessage(error, "Local media download failed")
@@ -426,7 +430,7 @@ class WavefuncMediaPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    private fun usefulMessage(error: Exception, fallback: String): String {
+    private fun usefulMessage(error: Throwable, fallback: String): String {
         val details = generateSequence<Throwable>(error) { it.cause }
             .mapNotNull { it.message }
             .flatMap { it.lineSequence() }

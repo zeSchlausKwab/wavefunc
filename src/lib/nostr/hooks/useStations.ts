@@ -2,7 +2,10 @@
 
 import type { Filter } from "applesauce-core/helpers/filter";
 import { useEffect, useMemo, useState } from "react";
-import { getAppDataRelayUrls } from "../../../config/nostr";
+import {
+  addressesToParameterizedFilters,
+  getAppDataRelayUrls,
+} from "../../../config/nostr";
 import {
   parseStationEvent,
   STATION_KIND,
@@ -250,4 +253,29 @@ export function useMyStations(pubkey?: string | null): UseStationStreamResult {
     [pubkey],
   );
   return useStationStream(filters);
+}
+
+export function useStationsByAddresses(addresses: string[]) {
+  const stableAddresses = useMemo(
+    () => Array.from(new Set(addresses.filter(Boolean))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(addresses)],
+  );
+  const filters = useMemo(
+    () => addressesToParameterizedFilters(STATION_KIND, stableAddresses),
+    [stableAddresses],
+  );
+  const { events, eose } = useStationStream(
+    stableAddresses.length > 0 ? filters : [],
+  );
+  const byAddress = useMemo(
+    () =>
+      new Map(
+        events.flatMap((station) =>
+          station.address ? ([[station.address, station]] as const) : [],
+        ),
+      ),
+    [events],
+  );
+  return { stations: events, byAddress, isLoading: !eose };
 }

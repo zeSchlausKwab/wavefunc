@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { StationView } from "../components/StationView";
 import { FeaturedLists } from "../components/FeaturedLists";
 import { useFilterStore } from "../stores/filterStore";
+import { SignalCharts } from "../components/SignalCharts";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => {
@@ -23,6 +24,7 @@ function Index() {
   return (
     <>
       {showFeatured && <FeaturedLists />}
+      {showFeatured && <SignalCharts />}
       <StationView searchQuery={search || ""} />
     </>
   );

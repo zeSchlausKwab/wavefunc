@@ -6,6 +6,7 @@ import { GenreCarousel } from "./GenreCarousel";
 import { useMemo } from "react";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 
 const GENRE_SECTIONS = ["rock", "jazz", "dance", "country", "classical", "folk", "punk"];
 
@@ -68,6 +69,11 @@ export function StationView({ searchQuery }: StationViewProps) {
   );
 
   const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);
+  const stationAddresses = useMemo(
+    () => stations.flatMap((station) => (station.address ? [station.address] : [])),
+    [stations],
+  );
+  const { byAddress: healthByAddress } = useStationHealth(stationAddresses);
 
   // Authoritative total (NIP-45 COUNT against the relay's bleve index).
   // The timeline subscription only loads up to 500 events, so we'd
@@ -169,7 +175,13 @@ export function StationView({ searchQuery }: StationViewProps) {
              with the brutalist staggered offset cycle. */}
           <div className="space-y-3 md:space-y-[-4px]">
             {stations.map((station, i) => (
-              <RadioCard key={station.id} station={station} variant="search-result" index={i} />
+              <RadioCard
+                key={station.id}
+                station={station}
+                variant="search-result"
+                index={i}
+                health={station.address ? healthByAddress.get(station.address) : undefined}
+              />
             ))}
           </div>
 
@@ -189,7 +201,12 @@ export function StationView({ searchQuery }: StationViewProps) {
       {!isSearching && !hasActiveFilters() && genreStations && (
         <div className="space-y-8">
           {Array.from(genreStations.entries()).map(([genre, stns]) => (
-            <GenreCarousel key={genre} genre={genre} stations={stns} />
+            <GenreCarousel
+              key={genre}
+              genre={genre}
+              stations={stns}
+              healthByAddress={healthByAddress}
+            />
           ))}
         </div>
       )}
@@ -227,7 +244,11 @@ export function StationView({ searchQuery }: StationViewProps) {
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
           >
             {stations.map((station) => (
-              <RadioCard key={station.id} station={station} />
+              <RadioCard
+                key={station.id}
+                station={station}
+                health={station.address ? healthByAddress.get(station.address) : undefined}
+              />
             ))}
           </div>
         </section>

@@ -22,6 +22,9 @@ import {
   getDefaultSelectedStream,
   openStreamExternally,
 } from "../lib/player/adapters";
+import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
+import { StationHealthBadge } from "./StationHealthBadge";
+import { StationReportDialog } from "./StationReportDialog";
 
 interface StationDetailProps {
   station: ParsedStation;
@@ -102,6 +105,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
   const { comments, totalCount } = useComments(station.event);
+  const { byAddress: healthByAddress } = useStationHealth(
+    station.address ? [station.address] : [],
+  );
+  const health = station.address ? healthByAddress.get(station.address) : undefined;
 
   useEffect(() => {
     if (focusCommentForm && commentFormRef.current) {
@@ -185,6 +192,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 ON_AIR
               </div>
             )}
+            {!isCurrentlyPlaying && health && (
+              <StationHealthBadge health={health} className="absolute left-4 top-4" />
+            )}
             <button
               onClick={handlePlayClick}
               className={cn(
@@ -257,6 +267,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                     iconSize="text-[18px]"
                   />
                 )}
+                <StationReportDialog station={station} />
               </div>
               <button
                 onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`)}
