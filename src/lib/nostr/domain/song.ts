@@ -174,6 +174,11 @@ export function buildShareSongNoteTemplate(
   input: ShareSongNoteInput,
 ): EventTemplate {
   const tags: string[][] = [];
+  const trimmedContent = input.content.trim();
+  const content =
+    input.audioUrl && !trimmedContent.includes(input.audioUrl)
+      ? [trimmedContent, input.audioUrl].filter(Boolean).join("\n\n")
+      : trimmedContent;
 
   for (const tag of input.hashtags ?? []) {
     tags.push(["t", tag]);
@@ -183,13 +188,9 @@ export function buildShareSongNoteTemplate(
     tags.push(["r", input.audioUrl]);
   }
 
-  if (input.song.songId && input.song.address) {
-    tags.push(["a", input.song.address]);
-  }
-
   return {
     kind: 1,
-    content: input.content,
+    content,
     tags,
   };
 }
