@@ -1,6 +1,6 @@
 [package]
 name = "wavefunc"
-version = "0.1.8"
+version = "0.1.9"
 description = "Decentralized Radio Platform"
 authors = ["Schlaus Kwab"]
 license = "MIT"
