@@ -14,13 +14,30 @@ const store = readFileSync(
   join(import.meta.dir, "../src/stores/uiStore.ts"),
   "utf8",
 );
+const rootRoute = readFileSync(
+  join(import.meta.dir, "../src/routes/__root.tsx"),
+  "utf8",
+);
 
 describe("mobile player chrome", () => {
   test("keeps the player mounted below contextual station detail", () => {
     expect(player).toContain("Persistent mobile player");
-    expect(player).toContain("bottom-0 z-[90] h-16");
-    expect(player).toContain("bottom-16 z-[70]");
+    expect(player).toContain("bottom-0 z-[90] h-20");
+    expect(player).toContain("bottom-20 z-[70]");
+    expect(rootRoute).toContain("pb-20 md:pb-[100px]");
+    expect(player).toContain(
+      "flex h-full flex-1 min-w-0 flex-col justify-center",
+    );
+    expect(player).toContain("isPlaying && currentMetadata?.song");
     expect(player).toContain("stationSheetOpen");
+  });
+
+  test("keeps delayed now-playing feedback and track actions legible", () => {
+    expect(player).toContain('aria-label="Loading now playing"');
+    expect(player).toContain("animate-pulse");
+    expect(player).toContain('aria-label="Track actions"');
+    expect(player).toContain("flex h-full w-10 shrink-0 flex-col");
+    expect(player).toContain("min-h-10 min-w-10");
   });
 
   test("uses the station grabber to toggle size without closing it", () => {

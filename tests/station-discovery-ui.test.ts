@@ -60,4 +60,22 @@ describe("station discovery UI contracts", () => {
     expect(card).toContain("health?: StationHealthSummary");
     expect(card).not.toContain("useStationHealth(");
   });
+
+  test("keeps signal chart rails viewport-bound and touch-scrollable on mobile", () => {
+    const charts = read("src/components/SignalCharts.tsx");
+
+    expect(charts).toContain("min-w-0 max-w-full");
+    expect(charts).toContain("[touch-action:pan-x_pan-y]");
+    expect(charts).toContain("[-webkit-overflow-scrolling:touch]");
+    expect(charts).toContain("w-[min(24rem,calc(100vw-4.5rem))]");
+  });
+
+  test("keeps observer skeletons visible when downloads resolve first", () => {
+    const charts = read("src/components/SignalCharts.tsx");
+
+    expect(charts).toContain("showRankingSkeletons");
+    expect(charts).toContain('aria-label="Loading station rankings"');
+    expect(charts).toContain("rankings.size === 0 && isLoading");
+    expect(charts).toContain("rankings.size > 0 && stationsLoading");
+  });
 });

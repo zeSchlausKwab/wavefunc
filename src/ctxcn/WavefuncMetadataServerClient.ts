@@ -278,7 +278,7 @@ export type WavefuncMetadataServer = {
 };
 
 export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
-  static readonly SERVER_PUBKEY = "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2";
+  static readonly SERVER_PUBKEY = config.metadataServerPubkey;
   static readonly DEFAULT_RELAYS = ["ws://localhost:3334"];
   private client: Client;
   private transport: Transport;

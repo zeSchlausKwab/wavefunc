@@ -6,6 +6,7 @@
  */
 
 import { detectPlatform, isNativeApp } from "../lib/platform";
+import { defaultMetadataServerPubkey } from "./serverIdentity";
 
 /** Backwards-compatible name for callers that only need app-vs-web. */
 export const isTauri = isNativeApp;
@@ -117,7 +118,7 @@ export const config = {
       : "ws://localhost:3334"),
   metadataServerPubkey:
     process.env.METADATA_SERVER_PUBKEY ||
-    "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0",
+    defaultMetadataServerPubkey(getAppStage()),
   metadataClientKey:
     process.env.METADATA_CLIENT_KEY ||
     "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0",
