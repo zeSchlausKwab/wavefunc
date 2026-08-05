@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import { rm, cp, mkdir } from "fs/promises";
 import path from "path";
 import { isLocalRelayUrl } from "./src/config/relayPolicy";
+import { defaultMetadataServerPubkey } from "./src/config/serverIdentity";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   console.log(`
@@ -153,8 +154,12 @@ const result = await Bun.build({
     "process.env.APP_STAGE": JSON.stringify(appStage),
     // Only inject an explicit override; platform fallback happens at runtime.
     "process.env.RELAY_URL": definedRelayUrl,
-    // Inject metadata server configuration (defaults to devUser1 from fixtures for local builds)
-    "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(process.env.METADATA_SERVER_PUBKEY || "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0"),
+    // Public observer identity has a stage-aware checked-in default so release
+    // builds remain functional even when CI provides no optional override.
+    "process.env.METADATA_SERVER_PUBKEY": JSON.stringify(
+      process.env.METADATA_SERVER_PUBKEY ||
+        defaultMetadataServerPubkey(appStage),
+    ),
     "process.env.METADATA_CLIENT_KEY": JSON.stringify(process.env.METADATA_CLIENT_KEY || "5c81bffa8303bbd7726d6a5a1170f3ee46de2addabefd6a735845166af01f5c0"),
   },
   ...cliConfig,

@@ -137,6 +137,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
 
   // Metadata comes from its own store now (decoupled from playback).
   const currentMetadata = useMetadataStore((s) => s.currentMetadata);
+  const hasCurrentSong = Boolean(
+    currentMetadata?.song?.trim() &&
+      currentMetadata.song !== "No metadata available",
+  );
+  const showTrackActions = isPlaying || hasCurrentSong;
   const healthAddresses = useMemo(
     () => (currentStation?.address ? [currentStation.address] : []),
     [currentStation?.address],
@@ -301,7 +306,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       {/* ── Mobile station detail sheet ── */}
       <div
         className={cn(
-          "md:hidden fixed left-0 right-0 bottom-16 z-[70] bg-background border-t-4 border-on-background overflow-hidden flex flex-col",
+          "md:hidden fixed left-0 right-0 bottom-20 z-[70] bg-background border-t-4 border-on-background overflow-hidden flex flex-col",
           !stationSheetOpen && "pointer-events-none"
         )}
         style={{
@@ -358,23 +363,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       </div>
 
       {/* ── Persistent mobile player ── */}
-      <div className="md:hidden fixed left-0 right-0 bottom-0 z-[90] h-16 flex items-center overflow-hidden bg-background border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
-        {/*
-          Station info uses role="button" rather than a button because the
-          favorite and magic controls are interactive descendants.
-        */}
-        <div
-          role="button"
-          tabIndex={0}
-          className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors cursor-pointer"
+      <div className="md:hidden fixed left-0 right-0 bottom-0 z-[90] h-20 flex items-center overflow-hidden bg-background border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+        <button
+          type="button"
+          disabled={!currentStation}
+          className="flex h-full flex-1 min-w-0 flex-col justify-center px-3 py-1.5 text-left active:bg-surface-container-low transition-colors cursor-pointer"
           onClick={() => {
             if (!currentStation) return;
-            if (stationSheetOpen) closeSheet();
-            else openStationSheet(currentStation);
-          }}
-          onKeyDown={(event) => {
-            if (!currentStation || (event.key !== "Enter" && event.key !== " ")) return;
-            event.preventDefault();
             if (stationSheetOpen) closeSheet();
             else openStationSheet(currentStation);
           }}
@@ -403,17 +398,54 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
               : "SELECT_A_STATION"}
           </h4>
-          {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-            <div className="flex items-center gap-1 min-w-0">
-              <p className="text-[10px] text-on-background/55 truncate leading-none flex-1 min-w-0">
-                {currentMetadata.song}
-                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
+          <div className="flex min-h-3 min-w-0 items-center">
+            {hasCurrentSong ? (
+              <p className="min-w-0 flex-1 truncate text-[10px] leading-none text-on-background/55">
+                {currentMetadata?.song}
+                {currentMetadata?.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
               </p>
-              <SongFavoriteButton size="sm" className="shrink-0" />
-              <SongMagicButton size="sm" className="shrink-0" />
-            </div>
-          )}
-        </div>
+            ) : isPlaying ? (
+              <div
+                role="status"
+                aria-label="Loading now playing"
+                className="flex min-w-0 flex-1 animate-pulse items-center gap-1.5"
+              >
+                <Skeleton className="h-2.5 w-20" />
+                <Skeleton className="h-2.5 w-10 opacity-60" />
+              </div>
+            ) : null}
+          </div>
+        </button>
+
+        {showTrackActions && (
+          <div
+            role="group"
+            aria-label="Track actions"
+            className="flex h-full w-10 shrink-0 flex-col border-l-2 border-on-background/20"
+          >
+            {hasCurrentSong ? (
+              <>
+                <SongFavoriteButton
+                  size="md"
+                  className="min-h-10 min-w-10 flex-1 hover:bg-surface-variant"
+                />
+                <SongMagicButton
+                  size="md"
+                  className="min-h-10 min-w-10 flex-1 border-t-2 border-on-background/20 hover:bg-surface-variant"
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex min-h-10 min-w-10 flex-1 items-center justify-center" aria-hidden="true">
+                  <Skeleton className="h-4 w-4" />
+                </div>
+                <div className="flex min-h-10 min-w-10 flex-1 items-center justify-center border-t-2 border-on-background/20" aria-hidden="true">
+                  <Skeleton className="h-4 w-4" />
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <button
           onClick={state.kind === "failed" ? retry : isPlaying ? pause : resume}

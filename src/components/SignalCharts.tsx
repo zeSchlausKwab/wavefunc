@@ -19,6 +19,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { useUIStore } from "../stores/uiStore";
 import { SectionHeader } from "./SectionHeader";
 import { CrateSaveButton } from "./CrateSaveButton";
+import { Skeleton } from "./ui/skeleton";
 import { StationHealthBadge } from "./StationHealthBadge";
 
 const CHARTS: Array<{
@@ -33,6 +34,42 @@ const CHARTS: Array<{
   { metric: "most-zapped", title: "MOST_ZAPPED", signal: "7D_VOLTAGE" },
   { metric: "on-air-now", title: "ON_AIR_NOW", signal: "LIVE_METADATA" },
 ];
+
+const CHART_PANEL_CLASS =
+  "self-start w-full min-w-0 max-w-full overflow-hidden border-4 border-on-background bg-surface-container-low shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]";
+
+const CHART_RAIL_CLASS =
+  "flex min-w-0 max-w-full snap-x snap-proximity gap-2 overflow-x-scroll overscroll-x-contain p-3 scroll-px-3 scrollbar-none [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] md:grid md:grid-cols-1 md:overflow-visible";
+
+const MOBILE_CHART_ITEM_CLASS =
+  "w-[min(24rem,calc(100vw-4.5rem))] shrink-0 snap-start md:w-auto md:min-w-0 md:shrink";
+
+function RankingChartSkeleton({ index }: { index: number }) {
+  return (
+    <section
+      aria-label="Loading station rankings"
+      className={cn(CHART_PANEL_CLASS, "animate-pulse")}
+    >
+      <div className="flex items-center justify-between border-b-4 border-on-background px-4 py-3">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-2 w-16" />
+      </div>
+      <div className="p-3">
+        <div className="flex h-[68px] items-stretch border-2 border-on-background bg-surface">
+          <div className="flex w-10 shrink-0 items-center justify-center bg-on-background text-sm font-black text-surface/40">
+            {String(index + 1).padStart(2, "0")}
+          </div>
+          <Skeleton className="size-16 shrink-0 rounded-none border-r-2 border-on-background" />
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-3">
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-2 w-1/2" />
+          </div>
+          <Skeleton className="w-12 shrink-0 rounded-none border-l-2 border-on-background" />
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function metricLabel(metric: StationRankingMetric, entry: StationRankingEntry) {
   if (metric === "best-signal") return `${entry.value.toLocaleString()} SIGNAL_SCORE`;
@@ -84,7 +121,7 @@ function ChartItem({
   const active = currentStation?.id === station.id && isPlaying;
 
   return (
-    <article className="group flex min-w-[250px] snap-start items-stretch border-2 border-on-background bg-surface md:min-w-0">
+    <article className={cn("group flex items-stretch border-2 border-on-background bg-surface", MOBILE_CHART_ITEM_CLASS)}>
       <div className="flex w-10 shrink-0 items-center justify-center bg-on-background text-sm font-black text-surface">
         {String(rank).padStart(2, "0")}
       </div>
@@ -143,12 +180,12 @@ function SignalChart({
   if (rows.length === 0) return null;
 
   return (
-    <section className={cn("self-start border-4 border-on-background bg-surface-container-low shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]", className)}>
+    <section className={cn(CHART_PANEL_CLASS, className)}>
       <div className="flex items-center justify-between border-b-4 border-on-background px-4 py-2">
         <h3 className="font-headline text-base font-black uppercase tracking-tight">{config.title}</h3>
         <span className="text-[9px] font-black uppercase tracking-widest text-primary">{config.signal}</span>
       </div>
-      <div className="flex snap-x gap-2 overflow-x-auto p-3 scrollbar-none overscroll-x-contain md:grid md:grid-cols-1 md:overflow-visible">
+      <div className={CHART_RAIL_CLASS} aria-label={`${config.title} stations`}>
         {rows.map(({ entry, station }, index) => (
           <ChartItem
             key={entry.stationAddress}
@@ -184,8 +221,8 @@ function RecentDownloadItem({ song, rank }: { song: ParsedSong; rank: number }) 
   const [playerOpen, setPlayerOpen] = useState(false);
 
   return (
-    <article className="border-2 border-on-background bg-surface">
-      <div className="group flex min-w-[250px] items-stretch md:min-w-0">
+    <article className={cn("border-2 border-on-background bg-surface", MOBILE_CHART_ITEM_CLASS)}>
+      <div className="group flex min-w-0 items-stretch">
         <div className="flex w-10 shrink-0 items-center justify-center bg-on-background text-sm font-black text-surface">
           {String(rank).padStart(2, "0")}
         </div>
@@ -230,12 +267,12 @@ function RecentDownloadsChart({ songs, className }: { songs: ParsedSong[]; class
   if (songs.length === 0) return null;
 
   return (
-    <section className={cn("self-start border-4 border-on-background bg-surface-container-low shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]", className)}>
+    <section className={cn(CHART_PANEL_CLASS, className)}>
       <div className="flex items-center justify-between border-b-4 border-on-background px-4 py-2">
         <h3 className="font-headline text-base font-black uppercase tracking-tight">RECENT_DOWNLOADS</h3>
         <span className="text-[9px] font-black uppercase tracking-widest text-primary">BLOSSOM_ARCHIVE</span>
       </div>
-      <div className="flex snap-x gap-2 overflow-x-auto p-3 scrollbar-none overscroll-x-contain md:grid md:grid-cols-1 md:overflow-visible">
+      <div className={CHART_RAIL_CLASS} aria-label="Recent downloaded songs">
         {songs.map((song, index) => (
           <RecentDownloadItem key={song.address || song.id} song={song} rank={index + 1} />
         ))}
@@ -277,26 +314,25 @@ export function SignalCharts() {
     const snapshot = rankings.get(chart.metric);
     return snapshot?.entries.some((entry) => byAddress.has(entry.stationAddress));
   });
-  const panelCount = visible.length + (recentDownloads.length > 0 ? 1 : 0);
+  const showRankingSkeletons =
+    (rankings.size === 0 && isLoading) ||
+    (rankings.size > 0 && stationsLoading && visible.length === 0);
+  const showInitialSkeletons =
+    showRankingSkeletons ||
+    (songsLoading && visible.length === 0 && recentDownloads.length === 0);
+  const skeletonCount = showInitialSkeletons ? 2 : 0;
+  const panelCount =
+    skeletonCount + visible.length + (recentDownloads.length > 0 ? 1 : 0);
 
-  if ((isLoading || stationsLoading || songsLoading) && rankings.size === 0 && recentDownloads.length === 0) {
-    return (
-      <section className="mb-16 space-y-6" aria-label="Loading signal charts">
-        <SectionHeader label="OBSERVER_FEED">SIGNAL_CHARTS</SectionHeader>
-        <div className="grid gap-6 md:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, index) => (
-            <div key={index} className="h-48 animate-pulse border-4 border-on-background bg-on-background/5" />
-          ))}
-        </div>
-      </section>
-    );
-  }
   if (panelCount === 0) return null;
 
   return (
     <section className="mb-16 space-y-6">
       <SectionHeader label="SIGNED_NETWORK_FEED">SIGNAL_CHARTS</SectionHeader>
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid min-w-0 gap-6 md:grid-cols-2">
+        {Array.from({ length: skeletonCount }).map((_, index) => (
+          <RankingChartSkeleton key={`ranking-skeleton-${index}`} index={index} />
+        ))}
         {visible.map((chart, index) => (
           <SignalChart
             key={chart.metric}
