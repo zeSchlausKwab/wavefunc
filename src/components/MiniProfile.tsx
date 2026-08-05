@@ -4,14 +4,16 @@ import { useProfile } from "../lib/nostr/auth";
 
 export function MiniProfile({
   userOrPubkey,
+  onNavigate,
 }: {
   userOrPubkey?: string | WavefuncAccount | null | undefined;
+  onNavigate?: () => void;
 }) {
   const profile = useProfile(userOrPubkey);
   const pubkey = typeof userOrPubkey === "string" ? userOrPubkey : userOrPubkey?.pubkey;
 
   return (
-    <Link to={`/profile/${pubkey}`}>
+    <Link to={`/profile/${pubkey}`} onClick={onNavigate}>
       <div className="w-9 h-full border-r-4 border-on-background overflow-hidden bg-on-background flex items-center justify-center hover:opacity-80 transition-opacity group shrink-0">
         {profile?.picture ? (
           <img

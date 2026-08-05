@@ -11,7 +11,11 @@ import { useUIStore } from "../stores/uiStore";
 import { usePlatform } from "../lib/hooks/usePlatform";
 import { cn } from "../lib/utils";
 
-export function LoginSessionButtons() {
+export function LoginSessionButtons({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+} = {}) {
   const {
     currentAccount,
     loginWithBunker,
@@ -62,8 +66,8 @@ export function LoginSessionButtons() {
       <div className="flex justify-end">
         <div className="flex h-9 border-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)]">
           <WalletButton />
-          <MiniProfile userOrPubkey={currentAccount} />
-          <Link to="/settings">
+          <MiniProfile userOrPubkey={currentAccount} onNavigate={onNavigate} />
+          <Link to="/settings" onClick={onNavigate}>
             <button
               className="h-full px-3 border-r-4 border-on-background flex items-center hover:bg-surface-container-high transition-colors"
               title="Settings"

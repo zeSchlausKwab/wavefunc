@@ -1,19 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { TimelineModel } from "applesauce-core/models";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CrateSaveButton } from "../components/CrateSaveButton";
 import { ShareSongDialog } from "../components/ShareSongDialog";
-import { getAppDataRelayUrls } from "../config/nostr";
 import { useProfile } from "../lib/nostr/auth";
 import {
   parseSongEvent,
   SONG_KIND,
   type ParsedSong,
 } from "../lib/nostr/domain";
-import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -158,28 +154,12 @@ function SignalRow({ song }: SignalRowProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function Signals() {
-  const { eventStore, relayPool } = useWavefuncNostr();
-
   const filters: Filter[] = useMemo(
     () => [{ kinds: [SONG_KIND], limit: 100 }],
     [],
   );
 
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
-
-  const events = useEventModel(TimelineModel, [filters]) ?? [];
+  const { events, isLoading } = useAppDataTimeline(filters);
 
   const songs: ParsedSong[] = useMemo(
     () =>
@@ -206,7 +186,7 @@ function Signals() {
       </div>
 
       {/* Content */}
-      {!eose && songs.length === 0 ? (
+      {isLoading && songs.length === 0 ? (
         <div className="border-4 border-on-background shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] animate-pulse">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b-2 border-on-background/10">

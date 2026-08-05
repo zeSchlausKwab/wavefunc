@@ -39,8 +39,14 @@ import {
 } from "applesauce-wallet/helpers";
 import type { Couch } from "applesauce-wallet/helpers";
 import { merge, Subject } from "rxjs";
-import { getReadRelayUrls } from "../../config/nostr";
+import {
+  getNostrCacheScope,
+  getSocialRelayUrls,
+  getWalletRelayUrls,
+} from "../../config/nostr";
 import { SOCIAL_EVENT_KINDS } from "./social";
+import { IndexedDBEventCache } from "./eventCache";
+import { RelayQueryRegistry } from "./queryRegistry";
 
 const ACCOUNTS_STORAGE_KEY = "wavefunc:accounts:v1";
 const ACTIVE_ACCOUNT_STORAGE_KEY = "wavefunc:active-account:v1";
@@ -77,6 +83,9 @@ interface NostrGlobals {
   accountListenersAttached?: boolean;
   publishRelaysRef?: { current: string[] };
   eventLoaderAttached?: boolean;
+  eventCache?: IndexedDBEventCache;
+  eventCacheAttached?: boolean;
+  queryRegistry?: RelayQueryRegistry;
 }
 const g = globalThis as typeof globalThis & { __wavefuncNostr?: NostrGlobals };
 g.__wavefuncNostr ??= {};
@@ -93,6 +102,33 @@ export const relayPool: RelayPool = (g.__wavefuncNostr.relayPool ??= (() => {
   return pool;
 })());
 
+export const eventCache: IndexedDBEventCache = (g.__wavefuncNostr.eventCache ??=
+  new IndexedDBEventCache());
+
+// Every verified event that enters Applesauce's canonical store becomes
+// available to the next route immediately, including after an app restart.
+if (!g.__wavefuncNostr.eventCacheAttached) {
+  g.__wavefuncNostr.eventCacheAttached = true;
+  eventStore.insert$.subscribe((event) => {
+    void eventCache.put(event, getNostrCacheScope()).catch(() => {
+      // IndexedDB can be unavailable in privacy modes; relay reads continue.
+    });
+  });
+  eventStore.remove$.subscribe((event) => {
+    void eventCache.remove(event, getNostrCacheScope()).catch(() => {
+      // Cache invalidation is best-effort; the relay remains authoritative.
+    });
+  });
+}
+
+export const relayQueries: RelayQueryRegistry = (g.__wavefuncNostr.queryRegistry ??=
+  new RelayQueryRegistry({
+    eventStore,
+    cache: eventCache,
+    request: (relays, filters) => relayPool.request(relays, filters),
+    subscription: (relays, filters) => relayPool.subscription(relays, filters),
+  }));
+
 // Shared, batched social loaders. A loader instance buffers tag lookups from
 // all visible station cards into a small number of relay requests instead of
 // opening one subscription per card. Public relays are required here because
@@ -100,8 +136,16 @@ export const relayPool: RelayPool = (g.__wavefuncNostr.relayPool ??= (() => {
 const socialLoaderOptions = {
   bufferTime: 100,
   bufferSize: 200,
-  extraRelays: getReadRelayUrls(),
+  extraRelays: getSocialRelayUrls(),
   eventStore,
+  cacheRequest: (filters: Parameters<IndexedDBEventCache["query"]>[1]) =>
+    eventCache.query(getNostrCacheScope(), filters),
+};
+const walletSocialLoaderOptions = {
+  ...socialLoaderOptions,
+  // This loader only ever requests kind 9321, which is appropriate for the
+  // wallet-specialist relays. Likes and comments never use these relays.
+  extraRelays: getWalletRelayUrls(),
 };
 
 export const loadReactions = createReactionsLoader(
@@ -117,7 +161,7 @@ export const loadSocialByEvent = createTagValueLoader(relayPool, "e", {
   kinds: [...SOCIAL_EVENT_KINDS],
 });
 export const loadNutzapsByAddress = createTagValueLoader(relayPool, "a", {
-  ...socialLoaderOptions,
+  ...walletSocialLoaderOptions,
   kinds: [9321],
 });
 export const loadCommentsByAddress = createTagValueLoader(relayPool, "A", {
@@ -211,8 +255,8 @@ if (!g.__wavefuncNostr.accountListenersAttached) {
 //   2. The wallet's own configured relays (from the kind 17375 wallet event)
 //   3. The runtime's default publish relay list (set by the React provider)
 //
-// Optimistic add to the EventStore happens before the network publish so the
-// UI updates immediately; we roll back if the publish throws.
+// Only accepted events enter the EventStore. This prevents rejected wallet or
+// follow events from being written into the durable query cache.
 function createActionRunner() {
   return new ActionRunner(eventStore, accounts.signer, async (event: NostrEvent, relays?: string[]) => {
     const pubkey = accounts.active?.pubkey;
@@ -233,11 +277,18 @@ function createActionRunner() {
 
     if (targetRelays.length === 0) return;
 
-    eventStore.add(event, targetRelays[0]);
     try {
-      await relayPool.publish(targetRelays, event);
+      const responses = await relayPool.publish(targetRelays, event);
+      if (responses.some((response) => response.ok)) {
+        eventStore.add(event, responses.find((response) => response.ok)?.from);
+      } else {
+        throw new Error(
+          responses
+            .map((response) => `${response.from}: ${response.message ?? "rejected"}`)
+            .join("; ") || "Every wallet relay rejected the event",
+        );
+      }
     } catch (err) {
-      eventStore.remove(event);
       throw err;
     }
   });

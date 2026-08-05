@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { TimelineModel } from "applesauce-core/models";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getAppDataRelayUrls } from "../config/nostr";
+import { useMemo, useRef, useState } from "react";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import {
   getSongListSongCount,
@@ -15,8 +11,7 @@ import {
   type ParsedSongList,
 } from "../lib/nostr/domain";
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
-import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { requestEventsIntoStore } from "../lib/nostr/requestEvents";
+import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
 import { ShareSongDialog } from "../components/ShareSongDialog";
 import { SongMediaDialog } from "../components/SongMediaDialog";
 import { cn } from "@/lib/utils";
@@ -27,13 +22,14 @@ export const Route = createFileRoute("/crate")({
 
 // ─── Song resolution ──────────────────────────────────────────────────────────
 
-function useSongsFromList(list: ParsedSongList): {
-  songs: ParsedSong[];
+function useSongsFromLists(lists: ParsedSongList[]): {
+  songsByAddress: Map<string, ParsedSong>;
   isLoading: boolean;
 } {
-  const { eventStore, relayPool } = useWavefuncNostr();
-
-  const addresses = list.songAddresses;
+  const addresses = useMemo(
+    () => Array.from(new Set(lists.flatMap((list) => list.songAddresses))),
+    [lists],
+  );
   const filters: Filter[] = useMemo(() => {
     if (addresses.length === 0) return [];
     const authors = Array.from(
@@ -52,52 +48,27 @@ function useSongsFromList(list: ParsedSongList): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(addresses)]);
 
-  // A bounded historical request releases the loading state at completion,
-  // even if a referenced song was deleted or is temporarily unavailable.
-  // The separate live subscription keeps resolved songs fresh afterwards.
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  useEffect(() => {
-    if (filters.length === 0) {
-      setInitialLoadComplete(true);
-      return;
-    }
+  const { events, isLoading } = useAppDataTimeline(
+    filters.length > 0 ? filters : null,
+  );
 
-    setInitialLoadComplete(false);
-    const requestSubscription = requestEventsIntoStore(
-      relayPool,
-      eventStore,
-      getAppDataRelayUrls(),
-      filters,
-    ).subscribe({
-      complete: () => setInitialLoadComplete(true),
-      error: () => setInitialLoadComplete(true),
-    });
-    const liveSubscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe();
-
-    return () => {
-      requestSubscription.unsubscribe();
-      liveSubscription.unsubscribe();
-    };
-  }, [eventStore, relayPool, filters]);
-
-  // Reactive timeline read from the canonical model.
-  const events =
-    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
-
-  const songs: ParsedSong[] = useMemo(
-    () =>
-      events
-        .map((event) => parseSongEvent(event))
-        .filter((song) => song.address && addresses.includes(song.address)),
+  const songsByAddress = useMemo(
+    () => {
+      const songs = events.map((event) => parseSongEvent(event));
+      return new Map(
+        songs
+          .filter((song): song is ParsedSong & { address: string } =>
+            Boolean(song.address && addresses.includes(song.address)),
+          )
+          .map((song) => [song.address, song]),
+      );
+    },
     [events, addresses],
   );
 
   return {
-    songs,
-    isLoading: addresses.length > 0 && !initialLoadComplete,
+    songsByAddress,
+    isLoading,
   };
 }
 
@@ -309,12 +280,20 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
 interface SongListPanelProps {
   list: ParsedSongList;
   allLists: ParsedSongList[];
+  songs: ParsedSong[];
+  isLoading: boolean;
   onMove: (songAddress: string, fromListId: string, toListId: string) => Promise<void>;
   onRemove: (songAddress: string, listId: string) => Promise<void>;
 }
 
-function SongListPanel({ list, allLists, onMove, onRemove }: SongListPanelProps) {
-  const { songs, isLoading } = useSongsFromList(list);
+function SongListPanel({
+  list,
+  allLists,
+  songs,
+  isLoading,
+  onMove,
+  onRemove,
+}: SongListPanelProps) {
   const count = getSongListSongCount(list);
   const otherLists = allLists.filter((l) => l.listId !== list.listId);
 
@@ -424,6 +403,8 @@ function Crate() {
   const isLoggedIn = !!currentUser;
   const { songLists, isLoading, createList, moveSong, removeSongFromList } =
     useSongFavorites();
+  const { songsByAddress, isLoading: songsLoading } =
+    useSongsFromLists(songLists);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const totalTracks = useMemo(
@@ -497,6 +478,10 @@ function Crate() {
             key={list.listId || list.pubkey}
             list={list}
             allLists={songLists}
+            songs={list.songAddresses
+              .map((address) => songsByAddress.get(address))
+              .filter((song): song is ParsedSong => Boolean(song))}
+            isLoading={songsLoading}
             onMove={moveSong}
             onRemove={removeSongFromList}
           />

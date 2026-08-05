@@ -1,18 +1,11 @@
-// Canonical applesauce-react reactivity for NIP-22 station comments.
-// Builds a threaded tree from kind 1111 events on a station, using
-// useEventModel + TimelineModel for the read path and a relay subscription
-// side-effect to keep the store populated.
+// Builds a threaded NIP-22 comment tree on the shared cached query layer.
 
-import { TimelineModel } from "applesauce-core/models";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
-import { useEffect, useMemo, useState } from "react";
-import { getAppDataRelayUrls } from "../../config/nostr";
+import { useMemo } from "react";
 import { useCurrentAccount } from "../nostr/auth";
 import { getFirstTagValue } from "../nostr/domain";
-import { useWavefuncNostr } from "../nostr/runtime";
+import { useAppDataTimeline } from "../nostr/hooks/useRelayTimeline";
 
 export interface CommentNode {
   event: NostrEvent;
@@ -24,7 +17,6 @@ type CommentTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">;
 
 export function useComments(rootEvent: CommentTarget) {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool } = useWavefuncNostr();
 
   const dTag = getFirstTagValue(rootEvent, "d");
   const address = dTag ? `${rootEvent.kind}:${rootEvent.pubkey}:${dTag}` : null;
@@ -37,27 +29,9 @@ export function useComments(rootEvent: CommentTarget) {
     ];
   }, [address]);
 
-  // Active relay subscription so comments stream into the store.
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    if (filters.length === 0) {
-      setEose(true);
-      return;
-    }
-    setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
-
-  const events =
-    useEventModel(TimelineModel, filters.length > 0 ? [filters] : null) ?? [];
+  const { events, isLoading } = useAppDataTimeline(
+    filters.length > 0 ? filters : null,
+  );
 
   const commentTree = useMemo(
     () => buildCommentTree(events, rootEvent.id),
@@ -74,7 +48,7 @@ export function useComments(rootEvent: CommentTarget) {
     allComments: events,
     totalCount: events.length,
     userHasCommented,
-    isLoading: !eose,
+    isLoading,
   };
 }
 

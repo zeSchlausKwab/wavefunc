@@ -1,15 +1,7 @@
-// Canonical applesauce-react pattern: useEventModel + TimelineModel.
-// Reactive subscription to the user's song lists; the parsed list array is
-// derived directly from the timeline observable so any insert/remove on the
-// shared model immediately propagates here. A separate effect keeps a relay
-// subscription open so the store stays populated with the latest events.
+// Reactive song-list state backed by the shared, persistent relay query.
 
-import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAppDataRelayUrls } from "../../config/nostr";
+import { useCallback, useMemo } from "react";
 import { useCurrentAccount } from "../nostr/auth";
 import {
   buildSongAudioUpdateTemplate,
@@ -27,13 +19,13 @@ import {
   WF_SONG_LIST_KIND,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
-import { requestEventsIntoStore } from "../nostr/requestEvents";
+import { useAppDataTimeline } from "../nostr/hooks/useRelayTimeline";
 
 const DEFAULT_LIST_NAME = "Liked Songs";
 
 export function useSongFavorites() {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, signAndPublish } = useWavefuncNostr();
+  const { signAndPublish } = useWavefuncNostr();
 
   const filters: Filter[] | null = useMemo(() => {
     if (!currentUser?.pubkey) return null;
@@ -46,47 +38,12 @@ export function useSongFavorites() {
     ];
   }, [currentUser?.pubkey]);
 
-  // A finite request owns the initial loading lifecycle. The live subscription
-  // intentionally has no EOSE value, so it cannot be used to release skeletons.
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  useEffect(() => {
-    if (!filters) {
-      setInitialLoadComplete(true);
-      return;
-    }
-
-    setInitialLoadComplete(false);
-    const requestSubscription = requestEventsIntoStore(
-      relayPool,
-      eventStore,
-      getAppDataRelayUrls(),
-      filters,
-    ).subscribe({
-      complete: () => setInitialLoadComplete(true),
-      error: () => setInitialLoadComplete(true),
-    });
-    const liveSubscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe();
-
-    return () => {
-      requestSubscription.unsubscribe();
-      liveSubscription.unsubscribe();
-    };
-  }, [eventStore, relayPool, filters]);
-
-  // useEventModel subscribes to a shared TimelineModel on the EventStore via
-  // the EventStoreProvider. The model emits a fresh array whenever an event
-  // matching `filters` is added or removed from the store.
-  const events = useEventModel(TimelineModel, filters ? [filters] : null) ?? [];
+  const { events, isLoading } = useAppDataTimeline(filters);
 
   const songLists: ParsedSongList[] = useMemo(
     () => events.map((event) => parseSongListEvent(event)),
     [events],
   );
-
-  const isLoading = !initialLoadComplete;
 
   const isInAnyList = useCallback(
     (songAddress: string) =>

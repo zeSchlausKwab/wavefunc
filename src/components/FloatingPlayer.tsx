@@ -18,9 +18,7 @@ import { PlayerDiagnostics, useDiagnosticsEnabled } from "./PlayerDiagnostics";
 import { StationDetail } from "./StationDetail";
 import { cn } from "@/lib/utils";
 import { SmallLogo } from "./SmallLogo";
-import { NavigationItems } from "./NavigationItems";
-import { UnifiedSearchInput } from "./UnifiedSearchInput";
-import { LoginSessionButtons } from "./LoginSessionButtom";
+import { MobileNavigationSidebar } from "./MobileNavigationSidebar";
 import { SongFavoriteButton } from "./SongFavoriteButton";
 import { SongMagicButton } from "./SongMagicButton";
 import { useCurrentAccount } from "../lib/nostr/auth";
@@ -173,14 +171,14 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  // ── Sheet state (global) ──
+  // ── Mobile chrome state (global) ──
   const {
-    sheetOpen,
-    sheetMode,
+    sidebarOpen,
+    stationSheetOpen,
     sheetStation,
     sheetSnap,
     sheetFocusComment,
-    openNavSheet,
+    openSidebar,
     openStationSheet,
     closeSheet,
     setSheetSnap,
@@ -193,7 +191,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
   // about foreground/background transitions here. When the sheet
   // collapses back to the peek bar we assume the user has moved on
   // and drop the lock.
-  useWakeLock(isPlaying && sheetOpen && sheetSnap === "expanded");
+  useWakeLock(isPlaying && stationSheetOpen && sheetSnap === "expanded");
 
   // ── Drag state (local, transient) ──
   const [dragHeightVh, setDragHeightVh] = useState<number | null>(null);
@@ -283,196 +281,159 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
     <>
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
-      {/* ── Unified mobile panel ── */}
+      {/* ── Mobile navigation sidebar ── */}
+      <MobileNavigationSidebar
+        searchInput={searchInput}
+        setSearchInput={setSearchInput}
+        onSearch={onSearch}
+      />
+
+      {/* ── Mobile station detail sheet ── */}
       <div
         className={cn(
-          "md:hidden fixed left-0 right-0 bottom-0 z-[70] bg-background border-t-4 border-on-background overflow-hidden flex flex-col",
-          !sheetOpen && "shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]"
+          "md:hidden fixed left-0 right-0 bottom-16 z-[70] bg-background border-t-4 border-on-background overflow-hidden flex flex-col",
+          !stationSheetOpen && "pointer-events-none"
         )}
         style={{
-          height: sheetOpen ? `${panelHeightVh}vh` : "4rem",
-          transition: dragHeightVh !== null ? "none" : "height 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
+          height: `${panelHeightVh}vh`,
+          transform: stationSheetOpen ? "translateY(0)" : "translateY(100%)",
+          transition: dragHeightVh !== null
+            ? "none"
+            : "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), height 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
         }}
+        aria-hidden={!stationSheetOpen}
+        inert={!stationSheetOpen}
       >
-        {/* Drag handle — only rendered when open; its presence pushes player bar down */}
-        {sheetOpen && (
-          <div
-            role="button"
-            tabIndex={0}
-            onPointerDown={handleDragStart}
-            onClick={handleGrabberClick}
-            onKeyDown={handleGrabberKeyDown}
-            className="w-full h-12 shrink-0 flex items-center justify-center touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
-            aria-label="Resize panel"
-            title={sheetSnap === "expanded" ? "Collapse panel" : "Expand panel"}
-          >
-            <div className="flex items-center justify-between w-full px-4">
-              <div className="w-6" />
-              <div className="h-1 w-12 bg-on-background/30 rounded-full" />
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); closeSheet(); setDragHeightVh(null); dragHeightRef.current = null; }}
-                className="w-6 h-6 flex items-center justify-center text-on-background/40 hover:text-on-background transition-colors"
-                aria-label="Close"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Player bar — always in DOM; sits at BOTTOM when closed, slides to TOP when open */}
-        <div className={cn(
-          "h-16 shrink-0 flex items-center overflow-hidden bg-background",
-          sheetOpen && "border-b-4 border-on-background"
-        )}>
-          {/*
-            Station info block. Uses role="button" on a <div> rather than a
-            real <button>, because we render <SongFavoriteButton> inside it
-            when now-playing metadata lands — and nested interactive
-            elements (button-in-button) are invalid HTML, which React 19
-            flags as a hydration error.
-          */}
-          <div
-            role="button"
-            tabIndex={0}
-            className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors cursor-pointer"
-            onClick={() => {
-              if (sheetOpen) {
-                closeSheet();
-              } else if (currentStation) {
-                openStationSheet(currentStation);
-              } else {
-                openNavSheet();
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                if (sheetOpen) closeSheet();
-                else if (currentStation) openStationSheet(currentStation);
-                else openNavSheet();
-              }
-            }}
-          >
-            <p className={cn(
-              "text-[8px] font-bold uppercase tracking-widest leading-none",
-              state.kind === "failed" ? "text-destructive" :
-              state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
-              "text-primary"
-            )}>
-              {statusLabel}
-            </p>
-            <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
-              {currentStation
-                ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
-                : "SELECT_A_STATION"}
-            </h4>
-            {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
-              <div className="flex items-center gap-1 min-w-0">
-                <p className="text-[10px] text-on-background/55 truncate leading-none flex-1 min-w-0">
-                  {currentMetadata.song}
-                  {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
-                </p>
-                <SongFavoriteButton size="sm" className="shrink-0" />
-                <SongMagicButton size="sm" className="shrink-0" />
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={
-              state.kind === "failed" ? retry :
-              isPlaying ? pause :
-              resume
-            }
-            disabled={!currentStation}
-            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-            title={
-              state.kind === "failed" ? "Retry" :
-              state.kind === "reconnecting" ? "Reconnecting…" :
-              state.kind === "buffering" ? "Buffering…" :
-              isPlaying ? "Pause" : "Play"
-            }
-          >
-            {state.kind === "failed" ? (
-              <span className="material-symbols-outlined">refresh</span>
-            ) : isLoading ? (
-              <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
-            ) : (
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
-            )}
-          </button>
-
-          <button
-            onClick={stop}
-            disabled={!currentStation}
-            className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
-          >
-            <span className="material-symbols-outlined">stop_circle</span>
-          </button>
-
-          {/* SmallLogo — only in closed state */}
-          {!sheetOpen && (
+        <div
+          role="button"
+          tabIndex={stationSheetOpen ? 0 : -1}
+          onPointerDown={handleDragStart}
+          onClick={handleGrabberClick}
+          onKeyDown={handleGrabberKeyDown}
+          className="w-full h-12 shrink-0 flex items-center justify-center touch-none cursor-ns-resize hover:bg-surface-container-high transition-colors"
+          aria-label="Resize station details"
+          title={sheetSnap === "expanded" ? "Collapse station details" : "Expand station details"}
+        >
+          <div className="flex items-center justify-between w-full px-4">
+            <div className="w-6" />
+            <div className="h-1 w-12 bg-on-background/30 rounded-full" />
             <button
-              onClick={openNavSheet}
-              className="h-full px-3 flex items-center justify-center border-l-4 border-on-background hover:bg-surface-variant transition-colors shrink-0"
-              title="Menu"
+              type="button"
+              tabIndex={stationSheetOpen ? 0 : -1}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                closeSheet();
+                setDragHeightVh(null);
+                dragHeightRef.current = null;
+              }}
+              className="w-6 h-6 flex items-center justify-center text-on-background/40 hover:text-on-background transition-colors"
+              aria-label="Close station details"
             >
-              <SmallLogo size="sm" />
+              <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          {diagnosticsEnabled && <PlayerDiagnostics />}
+          {sheetStation && (
+            <StationDetail
+              station={sheetStation}
+              focusCommentForm={sheetFocusComment}
+              onCommentFormFocused={clearCommentFocus}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ── Persistent mobile player ── */}
+      <div className="md:hidden fixed left-0 right-0 bottom-0 z-[90] h-16 flex items-center overflow-hidden bg-background border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+        {/*
+          Station info uses role="button" rather than a button because the
+          favorite and magic controls are interactive descendants.
+        */}
+        <div
+          role="button"
+          tabIndex={0}
+          className="flex-1 min-w-0 px-3 py-1 text-left active:bg-surface-container-low transition-colors cursor-pointer"
+          onClick={() => {
+            if (!currentStation) return;
+            if (stationSheetOpen) closeSheet();
+            else openStationSheet(currentStation);
+          }}
+          onKeyDown={(event) => {
+            if (!currentStation || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault();
+            if (stationSheetOpen) closeSheet();
+            else openStationSheet(currentStation);
+          }}
+          aria-label={currentStation ? "Open station details" : "No station selected"}
+        >
+          <p className={cn(
+            "text-[8px] font-bold uppercase tracking-widest leading-none",
+            state.kind === "failed" ? "text-destructive" :
+            state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
+            "text-primary"
+          )}>
+            {statusLabel}
+          </p>
+          <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
+            {currentStation
+              ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
+              : "SELECT_A_STATION"}
+          </h4>
+          {isPlaying && currentMetadata?.song && currentMetadata.song !== "No metadata available" && (
+            <div className="flex items-center gap-1 min-w-0">
+              <p className="text-[10px] text-on-background/55 truncate leading-none flex-1 min-w-0">
+                {currentMetadata.song}
+                {currentMetadata.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
+              </p>
+              <SongFavoriteButton size="sm" className="shrink-0" />
+              <SongMagicButton size="sm" className="shrink-0" />
+            </div>
           )}
         </div>
 
-        {/* Sheet content — only rendered when open */}
-        {sheetOpen && (
-          sheetMode === "station" && sheetStation ? (
-            <div className="flex-1 overflow-y-auto">
-              {diagnosticsEnabled && <PlayerDiagnostics />}
-              {sheetStation && (
-                <StationDetail
-                  station={sheetStation}
-                  focusCommentForm={sheetFocusComment}
-                  onCommentFormFocused={clearCommentFocus}
-                />
-              )}
-            </div>
+        <button
+          onClick={state.kind === "failed" ? retry : isPlaying ? pause : resume}
+          disabled={!currentStation}
+          className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+          title={
+            state.kind === "failed" ? "Retry" :
+            state.kind === "reconnecting" ? "Reconnecting…" :
+            state.kind === "buffering" ? "Buffering…" :
+            isPlaying ? "Pause" : "Play"
+          }
+        >
+          {state.kind === "failed" ? (
+            <span className="material-symbols-outlined">refresh</span>
+          ) : isLoading ? (
+            <span className="material-symbols-outlined" style={{ animation: "spin 0.8s linear infinite" }}>sync</span>
           ) : (
-            <div className="flex-1 overflow-y-auto">
-              {/* Branding + session */}
-              <div className="flex items-center justify-between px-4 py-3 border-b-4 border-on-background">
-                <span className="text-xl font-black text-on-background border-4 border-on-background px-2 py-0.5 rotate-[-2deg] font-headline uppercase tracking-tighter select-none">
-                  WAVEFUNC
-                </span>
-                <LoginSessionButtons />
-              </div>
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isPlaying ? "pause" : "play_arrow"}</span>
+          )}
+        </button>
 
-              {/* Search */}
-              <div className="px-4 pt-3 pb-2 border-b-2 border-on-background/10">
-                <UnifiedSearchInput
-                  searchInput={searchInput}
-                  setSearchInput={setSearchInput}
-                  onStationSearch={(q) => { onSearch(q); closeSheet(); }}
-                />
-              </div>
+        <button
+          onClick={stop}
+          disabled={!currentStation}
+          className="w-12 h-full flex items-center justify-center border-l-2 border-on-background/20 hover:bg-surface-variant transition-all disabled:opacity-40 shrink-0"
+          title="Stop"
+        >
+          <span className="material-symbols-outlined">stop_circle</span>
+        </button>
 
-              {/* Nav links */}
-              <nav className="flex flex-col">
-                <NavigationItems variant="mobile" onNavigate={closeSheet} />
-              </nav>
-
-              {/* Sleep timer — full-width row below nav so users can
-                  set it without fishing for the desktop-only compact
-                  button. */}
-              <SleepTimerButton variant="full" />
-
-              {/* Diagnostics at the bottom of the nav sheet, hidden
-                  unless ?debug=player in the URL. */}
-              {diagnosticsEnabled && <PlayerDiagnostics />}
-            </div>
-          )
-        )}
+        <button
+          onClick={openSidebar}
+          className="h-full px-3 flex items-center justify-center border-l-4 border-on-background hover:bg-surface-variant transition-colors shrink-0"
+          title="Open navigation"
+          aria-label="Open navigation"
+          aria-expanded={sidebarOpen}
+          aria-controls="mobile-navigation-sidebar"
+        >
+          <SmallLogo size="sm" />
+        </button>
       </div>
 
       {/* ── Desktop station detail panel ── */}
@@ -480,7 +441,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
         className="hidden md:block fixed left-0 right-0 bottom-0 z-[65] overflow-hidden"
         style={{
           height: "60vh",
-          transform: sheetOpen && sheetMode === "station" && sheetStation
+          transform: stationSheetOpen && sheetStation
             ? "translateY(0)"
             : "translateY(100%)",
           transition: "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",

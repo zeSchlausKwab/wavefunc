@@ -20,12 +20,13 @@ describe("support center overlay", () => {
     expect(support).not.toContain("PopoverContent");
   });
 
-  test("opens support while atomically dismissing the player sheet", () => {
+  test("opens support while atomically dismissing mobile overlays", () => {
     const store = read("src/stores/uiStore.ts");
 
     expect(store).toContain("supportOpen: boolean");
     expect(store).toContain("supportOpen: true");
-    expect(store).toContain("sheetOpen: false");
+    expect(store).toContain("sidebarOpen: false");
+    expect(store).toContain("stationSheetOpen: false");
     expect(store).toContain("closeSupport: () => set({ supportOpen: false })");
   });
 });

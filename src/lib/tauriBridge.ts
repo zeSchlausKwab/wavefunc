@@ -18,6 +18,7 @@ import type { Router } from "@tanstack/react-router";
 
 import { isTauri } from "../config/env";
 import { installNativePlayback } from "./nativePlayback";
+import { normalizeStationRouteParam } from "./share";
 import { useMetadataStore } from "../stores/metadataStore";
 import { usePlayerStore } from "../stores/playerStore";
 
@@ -122,7 +123,9 @@ export async function installTauriBridge(
         if (url.protocol !== "wavefunc:") continue;
         // wavefunc://station/<naddr>
         if (url.host === "station") {
-          const naddr = url.pathname.replace(/^\//, "");
+          const naddr = normalizeStationRouteParam(
+            url.pathname.replace(/^\//, ""),
+          );
           if (naddr) {
             void router.navigate({
               to: "/station/$naddr",

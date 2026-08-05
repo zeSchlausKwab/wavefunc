@@ -1,8 +1,5 @@
-import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { addressesToParameterizedFilters, getAppDataRelayUrls } from "../../config/nostr";
 import { useCurrentAccount } from "../nostr/auth";
 import {
@@ -18,7 +15,7 @@ import {
   type ParsedFavoritesList,
 } from "../nostr/domain";
 import { useWavefuncNostr } from "../nostr/runtime";
-import { requestEventsIntoStore } from "../nostr/requestEvents";
+import { useAppDataTimeline } from "../nostr/hooks/useRelayTimeline";
 
 type StationLike = {
   pubkey?: string | null;
@@ -36,38 +33,14 @@ function getStationAddress(station: StationLike) {
 }
 
 function useFavoritesListStream(filters: Filter[] | false) {
-  const { eventStore, relayPool } = useWavefuncNostr();
-
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    if (!filters || filters.length === 0) {
-      setEose(true);
-      return;
-    }
-    setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
-
-  const rawEvents =
-    useEventModel(
-      TimelineModel,
-      filters && filters.length > 0 ? [filters] : null,
-    ) ?? [];
+  const { events: rawEvents, isLoading } = useAppDataTimeline(filters);
 
   const events = useMemo(
     () => rawEvents.map((event) => parseFavoritesListEvent(event)),
     [rawEvents],
   );
 
-  return { events, eose };
+  return { events, eose: !isLoading };
 }
 
 export function useFavorites() {
@@ -362,7 +335,6 @@ export function useFavoritesLists(
 }
 
 export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
-  const { eventStore, relayPool } = useWavefuncNostr();
   const stationAddresses = favoritesList?.stationAddresses ?? [];
 
   const filters = useMemo(
@@ -371,30 +343,11 @@ export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
     [JSON.stringify(stationAddresses)],
   );
 
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    if (stationAddresses.length === 0) {
-      setEose(true);
-      return;
-    }
-    setEose(false);
-    const requestSubscription = requestEventsIntoStore(
-      relayPool,
-      eventStore,
-      getAppDataRelayUrls(),
-      filters,
-    ).subscribe({
-      complete: () => setEose(true),
-      error: () => setEose(true),
-    });
-    return () => requestSubscription.unsubscribe();
-  }, [eventStore, relayPool, filters, stationAddresses.length]);
-
-  const rawEvents =
-    useEventModel(
-      TimelineModel,
-      stationAddresses.length > 0 ? [filters] : null,
-    ) ?? [];
+  const {
+    events: rawEvents,
+    isLoading,
+    error,
+  } = useAppDataTimeline(stationAddresses.length > 0 ? filters : null);
 
   const stations = useMemo(() => {
     if (stationAddresses.length === 0) return [];
@@ -411,7 +364,7 @@ export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
 
   return {
     stations,
-    isLoading: !eose,
-    error: null,
+    isLoading,
+    error,
   };
 }

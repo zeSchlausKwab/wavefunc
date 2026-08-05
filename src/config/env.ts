@@ -9,6 +9,16 @@ import { detectPlatform, isNativeApp } from "../lib/platform";
 
 /** Backwards-compatible name for callers that only need app-vs-web. */
 export const isTauri = isNativeApp;
+
+export type AppStage = "development" | "production";
+
+export function getAppStage(): AppStage {
+  const configured = process.env.APP_STAGE;
+  if (configured === "development" || configured === "production") {
+    return configured;
+  }
+  return process.env.NODE_ENV === "production" ? "production" : "development";
+}
 // Bun's bundler inlines process.env.VAR at build time, but only with dot notation
 // and a literal string key — never with bracket notation or a variable key.
 // These constants are replaced with their values (or undefined) when bundled.
@@ -38,7 +48,7 @@ async function getRelayUrl(): Promise<string> {
     const host = window.location.hostname;
 
     // In development (localhost:3000), connect directly to relay on :3334
-    if (host.includes("localhost") || host.includes("127.0.0.172")) {
+    if (host === "localhost" || host === "127.0.0.1") {
       return `${protocol}//${host}:3334`;
     }
 
@@ -87,8 +97,12 @@ async function getRelayUrl(): Promise<string> {
     return "wss://relay.wavefunc.live";
   }
 
-  // Desktop fallback
-  return "ws://localhost:3334";
+  // Desktop release assets run on a synthetic Tauri origin and must never
+  // connect to the user's own machine. Desktop development still uses the
+  // local relay.
+  return getAppStage() === "production"
+    ? "wss://relay.wavefunc.live"
+    : "ws://localhost:3334";
 }
 
 /**
@@ -96,7 +110,11 @@ async function getRelayUrl(): Promise<string> {
  * Initialize this at app startup
  */
 export const config = {
-  relayUrl: process.env.RELAY_URL || "ws://localhost:3334",
+  relayUrl:
+    process.env.RELAY_URL ||
+    (getAppStage() === "production"
+      ? "wss://relay.wavefunc.live"
+      : "ws://localhost:3334"),
   metadataServerPubkey:
     process.env.METADATA_SERVER_PUBKEY ||
     "86a82cab18b293f53cbaaae8cdcbee3f7ec427fdf9f9c933db77800bb5ef38a0",

@@ -8,9 +8,14 @@ import { NutzapEvent } from "applesauce-wallet/actions";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useMemo, useState } from "react";
+import { merge } from "rxjs";
 import { openUrl, toLightningUri } from "../lib/openUrl";
 import { platformFetch } from "../lib/platformFetch";
-import { getPublicContentRelayUrls } from "../config/nostr";
+import {
+  getIdentityRelayUrls,
+  getPublicContentRelayUrls,
+  getWalletRelayUrls,
+} from "../config/nostr";
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
@@ -67,7 +72,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   onZap,
 }) => {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, accounts, readRelays, wallet } = useWavefuncNostr();
+  const { eventStore, relayPool, accounts, wallet } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const preferredMint = usePreferredMint(currentUser?.pubkey);
   const signer = accounts.active?.signer ?? null;
@@ -109,14 +114,18 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   // can be reopened after the profile arrived but before nutzap info did.
   useEffect(() => {
     if (!open) return;
-    const sub = relayPool
-      .subscription(readRelays, [
-        { kinds: [0, 10019], authors: [station.pubkey], limit: 1 },
-      ])
+    const sub = merge(
+      relayPool.subscription(getIdentityRelayUrls(), [
+        { kinds: [0], authors: [station.pubkey], limit: 1 },
+      ]),
+      relayPool.subscription(getWalletRelayUrls(), [
+        { kinds: [10019], authors: [station.pubkey], limit: 1 },
+      ]),
+    )
       .pipe(storeEvents(eventStore))
       .subscribe();
     return () => sub.unsubscribe();
-  }, [open, relayPool, eventStore, readRelays, station.pubkey]);
+  }, [open, relayPool, eventStore, station.pubkey]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -407,9 +416,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     // (our configured read relays). The LNURL endpoint will publish the
     // receipt to the advertised relays; including readRelays gives us a
     // little extra coverage in case the wallet republishes elsewhere.
-    const receiptRelays = Array.from(
-      new Set([...zapReceiptRelays, ...readRelays]),
-    );
+    const receiptRelays = zapReceiptRelays;
 
     const sub = relayPool
       .subscription(receiptRelays, [
