@@ -13,13 +13,18 @@ interface UIState {
   openSupport: () => void;
   closeSupport: () => void;
 
-  // Bottom sheet
-  sheetOpen: boolean;
-  sheetMode: "nav" | "station";
+  // Mobile navigation sidebar. This is deliberately separate from the
+  // contextual station sheet so global navigation and station inspection do
+  // not compete for the same overlay state.
+  sidebarOpen: boolean;
+  openSidebar: () => void;
+  closeSidebar: () => void;
+
+  // Station detail bottom sheet
+  stationSheetOpen: boolean;
   sheetStation: ParsedStation | null;
   sheetSnap: "peek" | "expanded";
   sheetFocusComment: boolean;
-  openNavSheet: () => void;
   openStationSheet: (station: ParsedStation, focusComment?: boolean) => void;
   closeSheet: () => void;
   setSheetSnap: (snap: "peek" | "expanded") => void;
@@ -42,29 +47,34 @@ export const useUIStore = create<UIState>((set) => ({
   openSupport: () =>
     set({
       supportOpen: true,
-      sheetOpen: false,
+      sidebarOpen: false,
+      stationSheetOpen: false,
     }),
   closeSupport: () => set({ supportOpen: false }),
 
-  sheetOpen: false,
-  sheetMode: "nav",
+  sidebarOpen: false,
+  openSidebar: () =>
+    set({
+      sidebarOpen: true,
+      stationSheetOpen: false,
+    }),
+  closeSidebar: () => set({ sidebarOpen: false }),
+
+  stationSheetOpen: false,
   sheetStation: null,
   sheetSnap: "peek",
   sheetFocusComment: false,
 
-  openNavSheet: () =>
-    set({ sheetOpen: true, sheetMode: "nav", sheetSnap: "peek" }),
-
   openStationSheet: (station, focusComment = false) =>
     set({
-      sheetOpen: true,
-      sheetMode: "station",
+      sidebarOpen: false,
+      stationSheetOpen: true,
       sheetStation: station,
       sheetSnap: "expanded",
       sheetFocusComment: focusComment,
     }),
 
-  closeSheet: () => set({ sheetOpen: false }),
+  closeSheet: () => set({ stationSheetOpen: false }),
 
   setSheetSnap: (snap) => set({ sheetSnap: snap }),
 

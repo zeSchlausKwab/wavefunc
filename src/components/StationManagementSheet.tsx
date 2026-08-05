@@ -276,7 +276,7 @@ export const StationManagementSheet: React.FC<StationManagementSheetProps> = ({
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-4">
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto p-4 pb-24 md:pb-4">
         <SheetHeader>
           <div className="flex items-center justify-between">
             <div>
