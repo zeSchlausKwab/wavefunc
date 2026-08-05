@@ -90,6 +90,25 @@ describe("relay policy", () => {
     );
     expect(appEventRelays).toEqual(["wss://relay.wavefunc.live"]);
 
+    const observerEventRelays = selectPublishRelays(
+      policy,
+      { ...cachedEvent, kind: 31240 },
+      ["wss://author.example"],
+    );
+    expect(observerEventRelays).toEqual(["wss://relay.wavefunc.live"]);
+
+    const reportRelays = selectPublishRelays(
+      policy,
+      {
+        ...cachedEvent,
+        kind: 1985,
+        tags: [["a", `31237:${cachedEvent.pubkey}:station-1`]],
+      },
+      ["wss://author.example"],
+    );
+    expect(reportRelays).toContain("wss://relay.wavefunc.live");
+    expect(reportRelays).toContain("wss://author.example");
+
     const fallbackRelays = selectPublishRelays(policy, {
       ...cachedEvent,
       kind: 1,

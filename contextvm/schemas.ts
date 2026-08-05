@@ -139,6 +139,23 @@ export type MusicBrainzResult =
 
 export const extractStreamMetadataInputSchema = {
   url: z.string().describe("The URL of the Icecast/Shoutcast stream"),
+  stationAddress: z
+    .string()
+    .startsWith("31237:")
+    .optional()
+    .describe("Optional kind 31237 station address for anonymous listening telemetry"),
+  sessionId: z
+    .string()
+    .min(8)
+    .max(128)
+    .optional()
+    .describe("Ephemeral playback session ID; never an account pubkey"),
+  observedAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Client observation time as Unix seconds"),
 };
 
 export const extractStreamMetadataOutputSchema = {
@@ -147,6 +164,9 @@ export const extractStreamMetadataOutputSchema = {
 
 export type ExtractStreamMetadataInput = {
   url: string;
+  stationAddress?: string;
+  sessionId?: string;
+  observedAt?: number;
 };
 
 export type ExtractStreamMetadataOutput = {

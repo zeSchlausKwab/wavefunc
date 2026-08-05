@@ -59,6 +59,9 @@ describe("installed-app media acquisition contract", () => {
     const plugin = read(
       "src-tauri/plugins/media-acquisition/android/src/main/java/live/wavefunc/media/WavefuncMediaPlugin.kt",
     );
+    const consumerRules = read(
+      "src-tauri/plugins/media-acquisition/android/consumer-rules.pro",
+    );
 
     expect(build).toContain("youtubedl-android:library:0.18.1");
     expect(build).toContain("youtubedl-android:ffmpeg:0.18.1");
@@ -88,6 +91,11 @@ describe("installed-app media acquisition contract", () => {
     );
     expect(plugin).toContain("X-SHA-256");
     expect(plugin).toContain("Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING");
+    expect(plugin).toContain("catch (error: Throwable)");
+    expect(plugin).toContain("error is VirtualMachineError || error is ThreadDeath");
+    expect(consumerRules).toContain(
+      "-keep class org.apache.commons.compress.archivers.zip.** { *; }",
+    );
   });
 
   test("publishes the Android downloader license and corresponding source", () => {

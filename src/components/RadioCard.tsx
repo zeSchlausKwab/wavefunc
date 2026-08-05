@@ -34,6 +34,7 @@ import {
   buildStationReactionTemplate,
   type ParsedStation,
   type Stream,
+  type StationHealthSummary,
 } from "../lib/nostr/domain";
 import {
   canPlayStreamInApp,
@@ -56,6 +57,7 @@ import { SocialCount } from "./SocialCount";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import { useCurrentAccount } from "../lib/nostr/auth";
+import { StationHealthBadge } from "./StationHealthBadge";
 
 const MIME_TO_FORMAT: Record<string, string> = {
   "audio/mpeg": "MP3",
@@ -89,6 +91,7 @@ interface RadioCardProps {
   className?: string;
   variant?: RadioCardVariant;
   index?: number;
+  health?: StationHealthSummary;
 }
 
 export const RadioCard: React.FC<RadioCardProps> = ({
@@ -96,6 +99,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   className,
   variant = "tile",
   index,
+  health,
 }) => {
   const { currentStation, isPlaying, playStation, pause } = usePlayerStore();
   // Read the raw state too so we can render a "failed" affordance on
@@ -394,6 +398,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           className
         )}>
           {ownerMenu}
+          <StationHealthBadge health={health} className="absolute left-1 top-1 z-20" />
 
           {/* ── Mobile: horizontal layout (< md) ── */}
           <div className="flex md:hidden">
@@ -566,6 +571,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           className
         )}>
           {ownerMenu}
+          <StationHealthBadge health={health} className="absolute bottom-2 left-2 z-20" />
 
           {/* Artwork + index */}
           <div className="flex-shrink-0 relative">
@@ -592,13 +598,19 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               >
                 {nameDisplay}
               </h2>
-              <Link
-                to="/station/$naddr"
-                params={{ naddr: station.naddr }}
-                className="text-sm font-bold text-outline uppercase tracking-widest hover:text-secondary-fixed-dim transition-colors"
-              >
-                /STATION/{station.stationId?.toUpperCase() || "UNKNOWN"}
-              </Link>
+              {station.naddr ? (
+                <Link
+                  to="/station/$naddr"
+                  params={{ naddr: station.naddr }}
+                  className="text-sm font-bold text-outline uppercase tracking-widest hover:text-secondary-fixed-dim transition-colors"
+                >
+                  /STATION/{station.stationId?.toUpperCase() || "UNKNOWN"}
+                </Link>
+              ) : (
+                <span className="text-sm font-bold text-outline uppercase tracking-widest">
+                  /STATION/{station.stationId?.toUpperCase() || "UNKNOWN"}
+                </span>
+              )}
             </div>
             <div className="mt-auto">
               <span className="text-[10px] uppercase font-black tracking-widest text-on-surface/50 block mb-1">
@@ -763,6 +775,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </div>
 
           {/* Quality bar */}
+          <StationHealthBadge health={health} className="shrink-0 shadow-none" />
           <div onClick={(e) => e.stopPropagation()}>{renderQualitySelector("w-24")}</div>
         </div>
 
@@ -1097,6 +1110,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           style={{ zIndex: Math.max(1, 30 - (index ?? 0)) }}
         >
           {ownerMenu}
+          <StationHealthBadge health={health} className="absolute left-1 top-1 z-20" />
           {mobileLayout}
           {desktopLayout}
         </div>
@@ -1113,6 +1127,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         "group relative flex flex-col md:flex-row items-stretch bg-surface-container-low border-4 border-on-background hover:bg-secondary-fixed-dim transition-colors cursor-pointer overflow-hidden",
         className
       )}>
+        <StationHealthBadge health={health} className="absolute right-1 top-1 z-20" />
         {/* Index + thumbnail */}
         <div className="min-h-[6rem] bg-on-background text-surface flex items-center justify-center font-black text-4xl border-b-4 md:border-b-0 md:border-r-4 border-on-background px-4">
           {station.thumbnail && (

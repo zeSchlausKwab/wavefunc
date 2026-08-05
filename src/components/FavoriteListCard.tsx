@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFavorites, useFavoriteStations } from "../lib/hooks/useFavorites";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { RadioCard } from "./RadioCard";
@@ -13,6 +13,7 @@ import {
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { shareOrCopy } from "../lib/share";
+import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -34,6 +35,11 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
   const { signAndPublish } = useWavefuncNostr();
   const [isEditing, setIsEditing] = useState(false);
   const [, setShowZapDialog] = useState(false);
+  const stationAddresses = useMemo(
+    () => listStations.flatMap((station) => (station.address ? [station.address] : [])),
+    [listStations],
+  );
+  const { byAddress: healthByAddress } = useStationHealth(stationAddresses);
 
   const handleResonate = async () => {
     if (!currentUser) return;
@@ -178,7 +184,11 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
               NO_STATIONS_LOADED
             </div>
           ) : (
-            <div className="border-t-2 border-on-background/20 max-h-[260px] overflow-y-auto scrollbar-none">
+            <div
+              className="max-h-[min(45dvh,360px)] overflow-y-scroll overscroll-contain border-t-2 border-on-background/20 [scrollbar-color:rgba(29,28,19,0.45)_transparent] [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch]"
+              aria-label={`${list.name || "Favorites"} stations`}
+              tabIndex={0}
+            >
               {listStations.map((station, i) => (
                 <div
                   key={station.id}
@@ -192,6 +202,7 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
                       station={station}
                       variant="featured-item"
                       index={i}
+                      health={station.address ? healthByAddress.get(station.address) : undefined}
                       className={isOwner ? "border-b-0" : undefined}
                     />
                   </div>

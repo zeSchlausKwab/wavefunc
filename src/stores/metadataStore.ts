@@ -50,6 +50,8 @@ interface MetadataStore {
   lastFetchAt: number | null;
   // Internal — don't read from UI
   _currentStreamUrl: string | null;
+  _currentStationAddress: string | null;
+  _sessionId: string | null;
   _pollTimer: ReturnType<typeof setInterval> | null;
   _reset: () => void;
 }
@@ -60,6 +62,8 @@ export const useMetadataStore = create<MetadataStore>((_set, _get) => ({
   lastError: null,
   lastFetchAt: null,
   _currentStreamUrl: null,
+  _currentStationAddress: null,
+  _sessionId: null,
   _pollTimer: null,
   _reset: () => {
     useMetadataStore.setState({
@@ -80,7 +84,17 @@ async function fetchMetadataOnce(url: string): Promise<void> {
   useMetadataStore.setState({ status: "fetching", lastError: null });
 
   try {
-    const { result: metadata } = await getMetadataClient().ExtractStreamMetadata(url);
+    const telemetry = useMetadataStore.getState();
+    const { result: metadata } = await getMetadataClient().ExtractStreamMetadata(
+      url,
+      telemetry._currentStationAddress && telemetry._sessionId
+        ? {
+            stationAddress: telemetry._currentStationAddress,
+            sessionId: telemetry._sessionId,
+            observedAt: Math.floor(Date.now() / 1000),
+          }
+        : {},
+    );
 
     // Some streams report `title` but not `song`. Unify under `song`
     // so the UI can rely on one field.
@@ -121,14 +135,22 @@ async function fetchMetadataOnce(url: string): Promise<void> {
   }
 }
 
-function startPolling(url: string): void {
+function startPolling(url: string, stationAddress: string | null): void {
   const store = useMetadataStore.getState();
-  if (store._pollTimer !== null && store._currentStreamUrl === url) {
+  if (
+    store._pollTimer !== null &&
+    store._currentStreamUrl === url &&
+    store._currentStationAddress === stationAddress
+  ) {
     return; // already polling this URL
   }
   stopPolling();
 
-  useMetadataStore.setState({ _currentStreamUrl: url });
+  useMetadataStore.setState({
+    _currentStreamUrl: url,
+    _currentStationAddress: stationAddress,
+    _sessionId: crypto.randomUUID(),
+  });
 
   // Poll immediately, then on interval.
   void fetchMetadataOnce(url);
@@ -147,6 +169,8 @@ function stopPolling(): void {
   useMetadataStore.setState({
     _pollTimer: null,
     _currentStreamUrl: null,
+    _currentStationAddress: null,
+    _sessionId: null,
   });
 }
 
@@ -181,7 +205,11 @@ export function installMetadataSubscription(): () => void {
         state.kind === "playing" || state.kind === "buffering"
           ? state.stream.url
           : null;
-      if (url) startPolling(url);
+      const stationAddress =
+        state.kind === "playing" || state.kind === "buffering"
+          ? state.station.address
+          : null;
+      if (url) startPolling(url, stationAddress);
     }
 
     // Idle means reset everything.

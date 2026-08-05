@@ -30,7 +30,28 @@ METADATA_CLIENT_KEY=000000000000000000000000000000000000000000000000000000000000
 
 # Relay URL (shared)
 RELAY_URL=ws://localhost:3334
+
+# App-data boundary and persistent station observer state
+APP_STAGE=development
+CATALOG_PUBKEY=<public key that signs canonical kind 31237 stations>
+OBSERVER_DB_PATH=data/observer.sqlite
+HEALTH_BATCH_SIZE=40
+HEALTH_CONCURRENCY=8
+STATION_AUTO_UPDATE=false
 ```
+
+`METADATA_SERVER_KEY` is also the observer signing key. Its matching
+`METADATA_SERVER_PUBKEY` must be bundled into the clients so they accept only
+that observer's health, current-track, and ranking snapshots.
+
+The observer reads the canonical station catalog from the app relay, stores a
+rebuildable operational index in SQLite, and checks stations over a distributed
+24-hour schedule. Set `APP_PRIVATE_KEY` and `STATION_AUTO_UPDATE=true` only when
+this process is intentionally authorized to publish repeatedly confirmed
+permanent stream redirects as catalog updates.
+
+Stage isolation is fail-closed: development app data requires a local relay,
+while production refuses local app relays.
 
 ### Generating Production Keys
 

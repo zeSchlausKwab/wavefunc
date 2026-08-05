@@ -12,6 +12,7 @@ import {
   searchRecordingsCombined,
 } from "./tools/musicbrainz.ts";
 import { searchYouTube, prepareDownload, uploadToBlossomWithSignedEvent } from "./tools/ytdlp.ts";
+import { createStationObserverFromEnvironment } from "./observer/service.ts";
 import {
   extractStreamMetadataInputSchema,
   extractStreamMetadataOutputSchema,
@@ -44,6 +45,11 @@ const RELAYS = [
   "wss://relay2.contextvm.org/",
 ];
 
+const stationObserver = createStationObserverFromEnvironment({
+  appRelay: RELAYS[0]!,
+  observerPrivateKey: SERVER_PRIVATE_KEY,
+});
+
 async function main() {
   console.log("🎵 Starting ContextVM Metadata Server...\n");
 
@@ -71,10 +77,24 @@ async function main() {
       inputSchema: extractStreamMetadataInputSchema,
       outputSchema: extractStreamMetadataOutputSchema,
     },
-    async ({ url }) => {
+    async ({ url, stationAddress, sessionId, observedAt }) => {
       try {
         console.log(`🎧 Extracting metadata from: ${url}`);
         const metadata = await extractIcecastMetadata(url);
+
+        try {
+          await stationObserver.observeMetadata({
+            stationAddress,
+            sessionId,
+            observedAt,
+            streamUrl: url,
+            metadata,
+          });
+        } catch (observerError) {
+          // Listening telemetry is deliberately non-critical. Metadata remains
+          // useful even if the observer relay or local database is unavailable.
+          console.warn("Station observation failed:", observerError);
+        }
 
         console.log(`✅ Extracted metadata:`, metadata);
 
@@ -480,6 +500,10 @@ async function main() {
 
   // Log when requests are received
   console.log("👂 Listening for tool requests...\n");
+
+  void stationObserver.start().catch((error) => {
+    console.error("❌ Station observer failed to start:", error);
+  });
 }
 
 // Start the server

@@ -22,6 +22,8 @@ import { MobileNavigationSidebar } from "./MobileNavigationSidebar";
 import { SongFavoriteButton } from "./SongFavoriteButton";
 import { SongMagicButton } from "./SongMagicButton";
 import { useCurrentAccount } from "../lib/nostr/auth";
+import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
+import { StationHealthBadge } from "./StationHealthBadge";
 
 // ─── Snap levels ──────────────────────────────────────────────────────────────
 
@@ -135,6 +137,14 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
 
   // Metadata comes from its own store now (decoupled from playback).
   const currentMetadata = useMetadataStore((s) => s.currentMetadata);
+  const healthAddresses = useMemo(
+    () => (currentStation?.address ? [currentStation.address] : []),
+    [currentStation?.address],
+  );
+  const { byAddress: healthByAddress } = useStationHealth(healthAddresses);
+  const currentHealth = currentStation?.address
+    ? healthByAddress.get(currentStation.address)
+    : undefined;
 
   // Mirror playback state to the OS media session (lockscreen controls,
   // headset buttons, macOS Now Playing, Windows SMTC, etc). No-op in
@@ -370,14 +380,24 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           }}
           aria-label={currentStation ? "Open station details" : "No station selected"}
         >
-          <p className={cn(
-            "text-[8px] font-bold uppercase tracking-widest leading-none",
-            state.kind === "failed" ? "text-destructive" :
-            state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
-            "text-primary"
-          )}>
-            {statusLabel}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className={cn(
+              "truncate text-[8px] font-bold uppercase tracking-widest leading-none",
+              state.kind === "failed" ? "text-destructive" :
+              state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
+              "text-primary"
+            )}>
+              {statusLabel}
+            </p>
+            {currentStation && (
+              <StationHealthBadge
+                health={currentHealth}
+                compact
+                showPending
+                className="shrink-0 border shadow-none"
+              />
+            )}
+          </div>
           <h4 className="font-black text-[13px] uppercase tracking-tighter truncate font-headline leading-tight">
             {currentStation
               ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")
@@ -491,14 +511,24 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
               )}
             </div>
             <div className="flex flex-col justify-center overflow-hidden min-w-0 gap-0.5">
-              <p className={cn(
-                "font-bold uppercase text-[9px] tracking-widest leading-none",
-                state.kind === "failed" ? "text-destructive" :
-                state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
-                "text-primary"
-              )}>
-                {statusLabel}
-              </p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className={cn(
+                  "truncate font-bold uppercase text-[9px] tracking-widest leading-none",
+                  state.kind === "failed" ? "text-destructive" :
+                  state.kind === "reconnecting" || state.kind === "buffering" ? "text-secondary-fixed-dim" :
+                  "text-primary"
+                )}>
+                  {statusLabel}
+                </p>
+                {currentStation && (
+                  <StationHealthBadge
+                    health={currentHealth}
+                    compact
+                    showPending
+                    className="shrink-0 border shadow-none"
+                  />
+                )}
+              </div>
               <h4 className="font-black text-sm lg:text-base uppercase tracking-tighter truncate font-headline leading-tight">
                 {currentStation
                   ? (currentStation.name || "UNKNOWN_STATION").toUpperCase().replace(/\s+/g, "_")

@@ -71,9 +71,9 @@ CGO_ENABLED=1 GOTOOLCHAIN=local go build -v -o relay -ldflags="-s -w" . 2>&1
 echo "✅ Relay binary built"
 cd ..
 
-# Create logs directory
-echo "📁 Creating log directory..."
-mkdir -p logs
+# Create persistent runtime directories
+echo "📁 Creating runtime directories..."
+mkdir -p logs data
 
 # Reload Caddy (optional, requires passwordless sudo)
 echo "🔄 Reloading Caddy..."
