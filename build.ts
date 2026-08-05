@@ -3,6 +3,7 @@ import plugin from "bun-plugin-tailwind";
 import { existsSync } from "fs";
 import { rm, cp, mkdir } from "fs/promises";
 import path from "path";
+import { isLocalRelayUrl } from "./src/config/relayPolicy";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   console.log(`
@@ -124,14 +125,13 @@ const start = performance.now();
 // relay overrides used by release builds and CI.
 const configuredRelayUrl = process.env.RELAY_URL?.trim();
 const isLoopbackRelayUrl = configuredRelayUrl
-  ? /^ws:\/\/(?:localhost|127\.0\.0\.1|10\.0\.2\.2)(?::|\/|$)/i.test(
-      configuredRelayUrl
-    )
+  ? isLocalRelayUrl(configuredRelayUrl)
   : false;
 const definedRelayUrl =
   configuredRelayUrl && !isLoopbackRelayUrl
     ? JSON.stringify(configuredRelayUrl)
     : "undefined";
+const appStage = process.env.APP_STAGE === "development" ? "development" : "production";
 
 const entrypoints = [...new Bun.Glob("**.html").scanSync("src")]
   .map(a => path.resolve("src", a))
@@ -144,9 +144,13 @@ const result = await Bun.build({
   plugins: [plugin],
   minify: true,
   target: "browser",
+  // The HTML entrypoint is authored with relative references so Bun can
+  // resolve it, but emitted chunks must load from the origin on nested routes.
+  publicPath: "/",
   sourcemap: "linked",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    "process.env.APP_STAGE": JSON.stringify(appStage),
     // Only inject an explicit override; platform fallback happens at runtime.
     "process.env.RELAY_URL": definedRelayUrl,
     // Inject metadata server configuration (defaults to devUser1 from fixtures for local builds)

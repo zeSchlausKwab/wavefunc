@@ -1,4 +1,4 @@
-import { ProfileModel } from "applesauce-core/models";
+import { MailboxesModel, ProfileModel } from "applesauce-core/models";
 import { useEventModel } from "applesauce-react/hooks";
 import { useMemo } from "react";
 import { useWavefuncNostr, type WavefuncAccount } from "./runtime";
@@ -45,6 +45,9 @@ export function useCurrentPubkey(): string | null {
 
 export function useProfile(user: AccountLike) {
   const pubkey = getPubkey(user);
+  // Profile and mailbox models share Applesauce's batched, role-aware loader.
+  // Warming NIP-65 metadata here lets replies reach a tagged user's inboxes.
+  useEventModel(MailboxesModel, pubkey ? [pubkey] : null);
   return useEventModel(ProfileModel, pubkey ? [pubkey] : null);
 }
 

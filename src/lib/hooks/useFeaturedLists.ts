@@ -1,21 +1,17 @@
 // Resolves the admin's featured-lists feature events into parsed favorites lists.
 // Canonical applesauce-react reactivity: useEventModel + TimelineModel.
 
-import { TimelineModel } from "applesauce-core/models";
-import { useEventModel } from "applesauce-react/hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useAdminFeatures } from "./useAdminFeatures";
 import {
   addressesToParameterizedFilters,
-  getAppDataRelayUrls,
 } from "../../config/nostr";
 import {
   FAVORITES_LIST_LABEL,
   parseFavoritesListEvent,
   type ParsedFavoritesList,
 } from "../nostr/domain";
-import { useWavefuncNostr } from "../nostr/runtime";
-import { requestEventsIntoStore } from "../nostr/requestEvents";
+import { useAppDataTimeline } from "../nostr/hooks/useRelayTimeline";
 
 /**
  * Resolves the admin's featured-lists feature events into parsed favorites lists.
@@ -27,7 +23,6 @@ import { requestEventsIntoStore } from "../nostr/requestEvents";
  *   4. Return them ordered by their position in the feature events
  */
 export function useFeaturedLists() {
-  const { eventStore, relayPool } = useWavefuncNostr();
   const { features, isLoading: featuresLoading } = useAdminFeatures("lists");
 
   // All referenced favorites-list addresses, deduplicated, preserving order
@@ -54,32 +49,9 @@ export function useFeaturedLists() {
     [JSON.stringify(listAddresses)],
   );
 
-  // Finite initial request so EOSE completion can release the loading state.
-  const [listsEose, setListsEose] = useState(false);
-  useEffect(() => {
-    if (listAddresses.length === 0) {
-      setListsEose(true);
-      return;
-    }
-    setListsEose(false);
-    const requestSubscription = requestEventsIntoStore(
-      relayPool,
-      eventStore,
-      getAppDataRelayUrls(),
-      filters,
-    ).subscribe({
-      complete: () => setListsEose(true),
-      error: () => setListsEose(true),
-    });
-    return () => requestSubscription.unsubscribe();
-  }, [eventStore, relayPool, filters, listAddresses.length]);
-
-  // Reactive read from the store via the canonical TimelineModel.
-  const rawEvents =
-    useEventModel(
-      TimelineModel,
-      listAddresses.length > 0 ? [filters] : null,
-    ) ?? [];
+  const { events: rawEvents, isLoading: listsLoading } = useAppDataTimeline(
+    listAddresses.length > 0 ? filters : null,
+  );
 
   // Reorder according to the feature event's reference order
   const featuredLists: ParsedFavoritesList[] = useMemo(() => {
@@ -96,6 +68,6 @@ export function useFeaturedLists() {
 
   return {
     featuredLists,
-    isLoading: featuresLoading || !listsEose,
+    isLoading: featuresLoading || listsLoading,
   };
 }

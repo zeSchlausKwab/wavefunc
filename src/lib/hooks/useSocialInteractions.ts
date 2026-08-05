@@ -21,6 +21,7 @@ import {
   loadSocialByEvent,
 } from "../nostr/store";
 import { summarizeSocialInteractions } from "../nostr/social";
+import { getSocialRelayUrls, getZapRelayUrls } from "../../config/nostr";
 
 export interface SocialInteractionCounts {
   reactions: number;
@@ -39,7 +40,9 @@ type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">;
 
 export function useSocialInteractions(event: SocialTarget): SocialInteractionState {
   const currentUser = useCurrentAccount();
-  const { eventStore, readRelays } = useWavefuncNostr();
+  const { eventStore } = useWavefuncNostr();
+  const socialRelays = useMemo(() => getSocialRelayUrls(), []);
+  const zapRelays = useMemo(() => getZapRelayUrls(), []);
 
   const filters: Filter[] = useMemo(() => {
     const dTag = getFirstTagValue(event, "d");
@@ -69,14 +72,14 @@ export function useSocialInteractions(event: SocialTarget): SocialInteractionSta
     const dTag = getFirstTagValue(event, "d");
     const address = dTag ? `${event.kind}:${event.pubkey}:${dTag}` : null;
     const streams = [
-      loadReactions(event as NostrEvent, readRelays),
-      loadLightningZaps(event as NostrEvent, readRelays),
-      loadSocialByEvent({ value: event.id, relays: readRelays }),
+      loadReactions(event as NostrEvent, socialRelays),
+      loadLightningZaps(event as NostrEvent, zapRelays),
+      loadSocialByEvent({ value: event.id, relays: socialRelays }),
     ];
 
     if (address) {
-      streams.push(loadNutzapsByAddress({ value: address, relays: readRelays }));
-      streams.push(loadCommentsByAddress({ value: address, relays: readRelays }));
+      streams.push(loadNutzapsByAddress({ value: address, relays: socialRelays }));
+      streams.push(loadCommentsByAddress({ value: address, relays: socialRelays }));
     }
 
     const subscription = merge(...streams)
@@ -89,7 +92,7 @@ export function useSocialInteractions(event: SocialTarget): SocialInteractionSta
         },
       });
     return () => subscription.unsubscribe();
-  }, [event, eventStore, readRelays]);
+  }, [event, eventStore, socialRelays, zapRelays]);
 
   // Reactive timeline read from the shared model.
   const events =

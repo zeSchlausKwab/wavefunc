@@ -1,7 +1,7 @@
 // Applesauce-native community feed.
 // kind 1 root notes + kind 1111 replies, both tagged #wavefunc.
-// Reactivity goes through useEventModel(TimelineModel, ...) and a separate
-// effect keeps a relay subscription open so the store stays populated.
+// Timeline data uses the shared cache; per-card reactions use Applesauce's
+// batched reaction loader instead of opening one relay request per card.
 
 import { createFileRoute } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
@@ -10,7 +10,7 @@ import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
-import { getAppDataRelayUrls } from "../config/nostr";
+import { getSocialRelayUrls } from "../config/nostr";
 import { shareOrCopy } from "../lib/share";
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import {
@@ -25,6 +25,8 @@ import {
   type ParsedCommunityPost,
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
+import { loadReactions } from "../lib/nostr/store";
 import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/community")({
@@ -50,7 +52,7 @@ const categoryOptions: CategoryOption[] = [
 
 function Community() {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, signAndPublish } = useWavefuncNostr();
+  const { signAndPublish } = useWavefuncNostr();
   const [activeFilter, setActiveFilter] = useState<ShoutboxCategory>("all");
   const [inputText, setInputText] = useState("");
   const [transmitError, setTransmitError] = useState<string | null>(null);
@@ -66,22 +68,7 @@ function Community() {
     [],
   );
 
-  // Active relay subscription so events flow into the store
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
-
-  const rawEvents = useEventModel(TimelineModel, [filters]) ?? [];
+  const { events: rawEvents, isLoading } = useAppDataTimeline(filters);
 
   const allPosts: ParsedCommunityPost[] = useMemo(
     () => rawEvents.map((event) => parseCommunityPostEvent(event)),
@@ -175,7 +162,7 @@ function Community() {
     ? `OPERATOR@${currentUser.pubkey.slice(0, 8).toUpperCase()}`
     : "GUEST@WAVEFUNC";
 
-  if (!eose && allPosts.length === 0) {
+  if (isLoading && allPosts.length === 0) {
     return (
       <div className="border-4 border-on-background p-8 bg-surface-container-low flex items-center gap-4 shadow-[6px_6px_0px_0px_rgba(29,28,19,1)]">
         <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
@@ -420,22 +407,21 @@ function Community() {
 
 // ── Reactions hook ────────────────────────────────────────────────────────────
 
-function useEventReactions(eventId: string) {
+function useEventReactions(event: ParsedCommunityPost["event"]) {
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool } = useWavefuncNostr();
+  const { eventStore } = useWavefuncNostr();
 
   const filters: Filter[] = useMemo(
-    () => [{ kinds: [7], "#e": [eventId] }],
-    [eventId],
+    () => [{ kinds: [7], "#e": [event.id] }],
+    [event.id],
   );
 
   useEffect(() => {
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
+    const subscription = loadReactions(event, getSocialRelayUrls())
       .pipe(storeEvents(eventStore))
       .subscribe();
     return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
+  }, [event, eventStore]);
 
   const reactionEvents = useEventModel(TimelineModel, [filters]) ?? [];
 
@@ -474,7 +460,7 @@ function CommunityMessageCard({
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
 
-  const { count: reactionCount, userHasReacted } = useEventReactions(message.id);
+  const { count: reactionCount, userHasReacted } = useEventReactions(message.event);
 
   const timestamp = message.created_at
     ? formatDistanceToNow(new Date(message.created_at * 1000), { addSuffix: true })
@@ -713,7 +699,7 @@ function ReplyCard({
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
 
-  const { count: reactionCount, userHasReacted } = useEventReactions(reply.id);
+  const { count: reactionCount, userHasReacted } = useEventReactions(reply.event);
 
   const opId = `OP_${reply.pubkey.slice(0, 8).toUpperCase()}`;
   const timestamp = reply.created_at

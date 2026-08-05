@@ -12,6 +12,7 @@ import { Radio } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { parseStationEvent, type ParsedStation } from "@/lib/nostr/domain";
 import { StationDetail } from "@/components/StationDetail";
+import { normalizeStationRouteParam } from "@/lib/share";
 
 const NOT_FOUND_TIMEOUT_MS = 10_000;
 
@@ -25,13 +26,17 @@ type StationLoadState =
   | { status: "not-found"; station: null };
 
 function useStationByNaddr(naddr: string): StationLoadState {
+  const stationPointer = useMemo(
+    () => normalizeStationRouteParam(naddr),
+    [naddr],
+  );
   const decoded = useMemo(() => {
-    const address = decodeAddressPointer(naddr);
+    const address = decodeAddressPointer(stationPointer);
     if (address) return { kind: "address" as const, pointer: address };
-    const eventPointer = decodeEventPointer(naddr);
+    const eventPointer = decodeEventPointer(stationPointer);
     if (eventPointer) return { kind: "event" as const, pointer: eventPointer };
-    return { kind: "event" as const, pointer: naddr };
-  }, [naddr]);
+    return { kind: "event" as const, pointer: stationPointer };
+  }, [stationPointer]);
 
   // ReplaceableModel for naddr (AddressPointer), EventModel for note id /
   // EventPointer. Both are reactive — the runtime's event loader will pull
@@ -55,7 +60,7 @@ function useStationByNaddr(naddr: string): StationLoadState {
     if (event) return;
     const id = setTimeout(() => setTimedOut(true), NOT_FOUND_TIMEOUT_MS);
     return () => clearTimeout(id);
-  }, [naddr, event]);
+  }, [stationPointer, event]);
 
   // Memoize parsed station so the same NostrEvent reference yields a stable
   // wrapper across renders.

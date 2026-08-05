@@ -1,11 +1,6 @@
-// Canonical applesauce-react reactivity for station timelines.
-// Uses useEventModel + TimelineModel for the read path; a separate effect
-// keeps the relay subscription open so the store stays populated.
+// Station timelines backed by the shared cached relay query.
 
-import { TimelineModel } from "applesauce-core/models";
 import type { Filter } from "applesauce-core/helpers/filter";
-import { useEventModel } from "applesauce-react/hooks";
-import { storeEvents } from "applesauce-relay/operators";
 import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls } from "../../../config/nostr";
 import {
@@ -14,6 +9,7 @@ import {
   type ParsedStation,
 } from "../domain";
 import { useWavefuncNostr } from "../runtime";
+import { useAppDataTimeline } from "./useRelayTimeline";
 
 /**
  * Total number of stations on the wavefunc relay, via NIP-45 COUNT.
@@ -113,40 +109,22 @@ function stripSearch(filter: Filter): Filter {
 }
 
 function useStationStream(filters: Filter[]): UseStationStreamResult {
-  const { eventStore, relayPool } = useWavefuncNostr();
-
-  const [eose, setEose] = useState(false);
-  useEffect(() => {
-    if (filters.length === 0) {
-      setEose(true);
-      return;
-    }
-    setEose(false);
-    const subscription = relayPool
-      .subscription(getAppDataRelayUrls(), filters)
-      .pipe(storeEvents(eventStore))
-      .subscribe({
-        next: (message) => {
-          if (message === "EOSE") setEose(true);
-        },
-      });
-    return () => subscription.unsubscribe();
-  }, [eventStore, relayPool, filters]);
-
   // applesauce's in-memory store returns an empty set for any filter that has
   // `search` set, so we must hand TimelineModel a search-stripped copy. The
   // local matcher in useStationsObserver re-applies the search constraint.
   const readFilters = useMemo(() => filters.map(stripSearch), [filters]);
 
-  const rawEvents =
-    useEventModel(TimelineModel, readFilters.length > 0 ? [readFilters] : null) ?? [];
+  const { events: rawEvents, isLoading } = useAppDataTimeline(
+    filters.length > 0 ? filters : null,
+    readFilters,
+  );
 
   const events = useMemo(
     () => rawEvents.map((event) => parseStationEvent(event)),
     [rawEvents],
   );
 
-  return { events, eose };
+  return { events, eose: !isLoading };
 }
 
 export function useStations(

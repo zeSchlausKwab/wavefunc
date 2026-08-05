@@ -27,10 +27,14 @@ import {
   generateStationData,
   stationOrganizations,
 } from "./gen_station";
+import { isLocalRelayUrl } from "../src/config/relayPolicy";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const RELAY_URL = "ws://localhost:3334";
+if (!isLocalRelayUrl(RELAY_URL)) {
+  throw new Error("Development seed data may only be written to a loopback relay");
+}
 const APP_PRIVATE_KEY =
   process.env.APP_PRIVATE_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001";

@@ -3,6 +3,7 @@ import { join } from "path";
 import { verifyNIP98Auth } from "./lib/nip98";
 import { getPublicKey } from "nostr-tools/pure";
 import { hexToBytes } from "@noble/hashes/utils.js";
+import { isStaticAssetPath } from "./lib/http/spaFallback";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -419,6 +420,13 @@ if (!isProduction) {
 
           if (await staticFile.exists()) {
             return new Response(staticFile);
+          }
+
+          // An unknown JS/CSS/image request must be a real 404. Returning the
+          // HTML shell here makes nested routes fail with a misleading syntax
+          // error when an asset path is wrong or a stale bundle is requested.
+          if (isStaticAssetPath(pathname)) {
+            return new Response("Not found", { status: 404 });
           }
 
           // If file not found, serve index.html for client-side routing

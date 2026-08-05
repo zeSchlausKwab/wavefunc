@@ -4,7 +4,12 @@ import { ContactsModel, ProfileModel } from "applesauce-core/models";
 import { FollowUser } from "applesauce-actions/actions";
 import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { getPublicContentRelayUrls } from "../config/nostr";
+import { merge } from "rxjs";
+import {
+  getContactsRelayUrls,
+  getIdentityRelayUrls,
+  getPublicContentRelayUrls,
+} from "../config/nostr";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
@@ -77,7 +82,7 @@ export function SupportDialog() {
   const open = useUIStore((state) => state.supportOpen);
   const closeSupport = useUIStore((state) => state.closeSupport);
   const currentUser = useCurrentAccount();
-  const { eventStore, relayPool, accounts, actions, readRelays } = useWavefuncNostr();
+  const { eventStore, relayPool, accounts, actions } = useWavefuncNostr();
   const nwcConnection = useNWCConnectionStore((s) => s.connection);
   const signer = accounts.active?.signer ?? null;
 
@@ -110,14 +115,19 @@ export function SupportDialog() {
     let active = true;
     setContactsReadyFor(null);
     setError(null);
-    const filters = [
-      { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
-      ...(currentUser
-        ? [{ kinds: [3], authors: [currentUser.pubkey], limit: 1 }]
-        : []),
+    const requests = [
+      relayPool.request(getIdentityRelayUrls(), [
+        { kinds: [0], authors: [SUPPORT_PUBKEY], limit: 1 },
+      ]),
     ];
-    const sub = relayPool
-      .request(readRelays, filters)
+    if (currentUser) {
+      requests.push(
+        relayPool.request(getContactsRelayUrls(), [
+          { kinds: [3], authors: [currentUser.pubkey], limit: 1 },
+        ]),
+      );
+    }
+    const sub = merge(...requests)
       .pipe(storeEvents(eventStore))
       .subscribe({
         complete: () => {
@@ -136,7 +146,7 @@ export function SupportDialog() {
       active = false;
       sub.unsubscribe();
     };
-  }, [open, relayPool, eventStore, readRelays, currentUser?.pubkey]);
+  }, [open, relayPool, eventStore, currentUser?.pubkey]);
 
   const handleFollowDeveloper = async () => {
     if (!currentUser || !contactsReady || followsDeveloper || following) return;
@@ -145,7 +155,7 @@ export function SupportDialog() {
     try {
       await actions.run(FollowUser, {
         pubkey: SUPPORT_PUBKEY,
-        relays: getPublicContentRelayUrls(),
+        relays: getContactsRelayUrls(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to follow developer");

@@ -24,6 +24,29 @@ export interface ShareInput {
   text?: string;
 }
 
+/**
+ * Some Android share targets concatenate separate Web Share `url` and `text`
+ * fields in the wrong order, turning trailing prose into part of the link.
+ * Keeping one text field with the URL last is portable and unambiguous.
+ */
+export function buildNativeShareData(input: ShareInput): ShareData {
+  return {
+    ...(input.title ? { title: input.title } : {}),
+    text: [input.text?.trim(), input.url].filter(Boolean).join("\n"),
+  };
+}
+
+/** Recover a NIP-19/id route value when a share target appended prose to it. */
+export function normalizeStationRouteParam(value: string): string {
+  let decoded = value.trim();
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // A malformed percent escape should still reach the normal not-found path.
+  }
+  return decoded.split(/\s+/u)[0] ?? decoded;
+}
+
 export async function shareOrCopy(input: ShareInput): Promise<ShareResult> {
   // navigator.share requires a user gesture. Callers MUST invoke this
   // from a click handler, not from a useEffect or async-after-delay
@@ -33,11 +56,7 @@ export async function shareOrCopy(input: ShareInput): Promise<ShareResult> {
     typeof navigator.share === "function"
   ) {
     try {
-      await navigator.share({
-        url: input.url,
-        title: input.title,
-        text: input.text,
-      });
+      await navigator.share(buildNativeShareData(input));
       return "shared";
     } catch (err) {
       // User cancel throws AbortError — treat as success from our
