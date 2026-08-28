@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { usePlayerStore } from "../stores/playerStore";
 import { useMetadataStore } from "../stores/metadataStore";
-import { useSearchStore } from "../stores/searchStore";
 import { useUIStore } from "../stores/uiStore";
 import { buildStationReactionTemplate, type ParsedStation } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
@@ -113,6 +113,7 @@ interface FloatingPlayerProps {
 }
 
 export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: FloatingPlayerProps) {
+  const navigate = useNavigate();
   // ── Player store ──
   //
   // We read the state machine directly for precise UI states, plus a
@@ -182,7 +183,6 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
 
   const diagnosticsEnabled = useDiagnosticsEnabled();
 
-  const { triggerMusicBrainzSearch } = useSearchStore();
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -271,10 +271,13 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
   // ── Audio setup ──
   const handleSearchMetadata = () => {
     if (!currentMetadata?.song) return;
-    const query = currentMetadata.artist
-      ? `${currentMetadata.song} ${currentMetadata.artist}`
-      : currentMetadata.song;
-    triggerMusicBrainzSearch(query);
+    void navigate({
+      to: "/musicbrainz",
+      search: {
+        q: currentMetadata.song,
+        artist: currentMetadata.artist || undefined,
+      },
+    });
   };
 
   // Mount the audio element into the store. The store spins up a

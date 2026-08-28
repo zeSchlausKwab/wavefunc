@@ -61,7 +61,7 @@ export function SongMediaDialog({ song, metadata, onClose }: SongMediaDialogProp
   const currentUser = useCurrentAccount();
   const pulseLogin = useUIStore((state) => state.pulseLogin);
   const { signer, signAndPublish } = useWavefuncNostr();
-  const { addToDefaultList } = useSongFavorites();
+  const { addToDefaultList, isLoading: favoritesLoading } = useSongFavorites();
   const platform = usePlatform();
   const acquisition = mediaAcquisitionAvailability(platform);
 
@@ -131,6 +131,11 @@ export function SongMediaDialog({ song, metadata, onClose }: SongMediaDialogProp
     }
     if (acquisition.mode !== "local") {
       setErrorMsg(acquisition.reason);
+      setPhase("error");
+      return;
+    }
+    if (favoritesLoading) {
+      setErrorMsg("Liked Songs are still syncing. Please try again shortly.");
       setPhase("error");
       return;
     }
@@ -414,11 +419,13 @@ export function SongMediaDialog({ song, metadata, onClose }: SongMediaDialogProp
                       <button
                         type="button"
                         onClick={() => void saveMedia(result)}
-                        disabled={!effectiveBlossomUrl}
+                        disabled={!effectiveBlossomUrl || favoritesLoading}
                         className="flex items-center gap-1 border-2 border-primary bg-primary px-2 py-1 text-[9px] font-black uppercase tracking-widest text-primary-foreground transition-opacity hover:opacity-80 disabled:opacity-35"
                       >
                         <span className="material-symbols-outlined text-[13px]">auto_fix_high</span>
-                        FORGE_{format === "audio" ? "AUDIO" : format.toUpperCase()}
+                        {favoritesLoading
+                          ? "SYNCING_CRATE"
+                          : `FORGE_${format === "audio" ? "AUDIO" : format.toUpperCase()}`}
                       </button>
                     )}
                   </div>

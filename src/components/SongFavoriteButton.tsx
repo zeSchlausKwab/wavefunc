@@ -7,6 +7,7 @@ import {
   buildSongTemplateFromMetadata,
   deriveSongIdFromMetadata,
   getSongAddressForPubkey,
+  type SongMetadataInput,
   useSongFavorites,
 } from "../lib/hooks/useSongFavorites";
 import { cn } from "@/lib/utils";
@@ -14,14 +15,27 @@ import { cn } from "@/lib/utils";
 interface Props {
   size?: "sm" | "md";
   className?: string;
+  metadata?: SongMetadataInput;
+  showLabel?: boolean;
 }
 
-export function SongFavoriteButton({ size = "sm", className }: Props) {
+export function SongFavoriteButton({
+  size = "sm",
+  className,
+  metadata,
+  showLabel = false,
+}: Props) {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
-  const currentMetadata = useMetadataStore((s) => s.currentMetadata);
-  const { addToDefaultList, removeFromAllLists, isInAnyList, isLoggedIn } =
-    useSongFavorites();
+  const storeMetadata = useMetadataStore((s) => s.currentMetadata);
+  const resolvedMetadata = metadata ?? storeMetadata ?? undefined;
+  const {
+    addToDefaultList,
+    removeFromAllLists,
+    isInAnyList,
+    isLoggedIn,
+    isLoading: favoritesLoading,
+  } = useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);
   const [busy, setBusy] = useState(false);
   // Optimistic: null = use server state, true/false = override until relay confirms
@@ -29,10 +43,10 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
 
   // Derive the canonical song address for the current track
   const songAddress = useMemo(() => {
-    if (!currentMetadata?.song || !currentUser?.pubkey) return null;
-    const songId = deriveSongIdFromMetadata(currentMetadata);
+    if (!resolvedMetadata || !currentUser?.pubkey) return null;
+    const songId = deriveSongIdFromMetadata(resolvedMetadata);
     return getSongAddressForPubkey(songId, currentUser.pubkey);
-  }, [currentMetadata, currentUser?.pubkey]);
+  }, [resolvedMetadata, currentUser?.pubkey]);
 
   const serverFavorited = useMemo(
     () => (songAddress ? isInAnyList(songAddress) : false),
@@ -40,13 +54,24 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
   );
   const isFavorited = optimistic !== null ? optimistic : serverFavorited;
 
-  if (!currentMetadata?.song) return null;
+  const title =
+    resolvedMetadata?.musicBrainz?.title || resolvedMetadata?.song || "";
+  if (!resolvedMetadata || !title || title === "No metadata available") {
+    return null;
+  }
 
   const iconSize = size === "sm" ? "text-[14px]" : "text-[18px]";
+  const actionLabel = !isLoggedIn
+    ? "Log in to favorite this song"
+    : favoritesLoading
+      ? "Waiting for Liked Songs to finish syncing"
+      : isFavorited
+        ? "Remove from Liked Songs"
+        : "Add to Liked Songs";
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (busy) return;
+    if (busy || favoritesLoading) return;
     if (!isLoggedIn || !currentUser?.pubkey) {
       pulseLogin();
       return;
@@ -60,9 +85,9 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
         await removeFromAllLists(songAddress);
       } else {
         // Publish the song event itself first, then add it to the default list.
-        const songTemplate = buildSongTemplateFromMetadata(currentMetadata);
+        const songTemplate = buildSongTemplateFromMetadata(resolvedMetadata);
         const songEvent = await signAndPublish(songTemplate);
-        const songId = deriveSongIdFromMetadata(currentMetadata);
+        const songId = deriveSongIdFromMetadata(resolvedMetadata);
         const address = getSongAddressForPubkey(songId, songEvent.pubkey);
         await addToDefaultList(address);
       }
@@ -77,20 +102,24 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
 
   return (
     <button
+      type="button"
       onClick={handleClick}
-      disabled={busy}
+      disabled={busy || favoritesLoading}
+      aria-label={actionLabel}
+      aria-pressed={isFavorited}
+      aria-busy={busy || favoritesLoading}
       className={cn(
-        "flex items-center justify-center transition-colors",
-        isFavorited ? "text-primary" : "text-on-background/40 hover:text-primary",
+        "flex items-center justify-center transition-colors disabled:cursor-wait disabled:opacity-70",
+        showLabel &&
+          "min-h-11 gap-2 border-2 border-on-background px-3 text-[10px] font-black uppercase tracking-widest hover:bg-surface-variant",
+        isFavorited
+          ? "text-primary"
+          : showLabel
+            ? "text-on-background hover:text-primary"
+            : "text-on-background/40 hover:text-primary",
         className,
       )}
-      title={
-        !isLoggedIn
-          ? "Log in to like songs"
-          : isFavorited
-          ? "Remove from Liked Songs"
-          : "Add to Liked Songs"
-      }
+      title={actionLabel}
     >
       {busy ? (
         <span
@@ -105,6 +134,17 @@ export function SongFavoriteButton({ size = "sm", className }: Props) {
           style={isFavorited ? { fontVariationSettings: "'FILL' 1" } : {}}
         >
           star
+        </span>
+      )}
+      {showLabel && (
+        <span aria-hidden="true">
+          {favoritesLoading
+            ? "SYNCING"
+            : busy
+              ? "SAVING"
+              : isFavorited
+                ? "SAVED"
+                : "FAVORITE"}
         </span>
       )}
     </button>

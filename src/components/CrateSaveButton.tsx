@@ -18,8 +18,13 @@ interface Props {
  */
 export function CrateSaveButton({ song, size = "sm", className }: Props) {
   const currentUser = useCurrentAccount();
-  const { addToDefaultList, removeFromAllLists, isInAnyList, isLoggedIn } =
-    useSongFavorites();
+  const {
+    addToDefaultList,
+    removeFromAllLists,
+    isInAnyList,
+    isLoggedIn,
+    isLoading: favoritesLoading,
+  } = useSongFavorites();
   const pulseLogin = useUIStore((s) => s.pulseLogin);
   const [busy, setBusy] = useState(false);
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
@@ -32,7 +37,7 @@ export function CrateSaveButton({ song, size = "sm", className }: Props) {
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (busy) return;
+    if (busy || favoritesLoading) return;
     if (!isLoggedIn || !currentUser?.pubkey || !songAddress) {
       pulseLogin();
       return;
@@ -58,16 +63,26 @@ export function CrateSaveButton({ song, size = "sm", className }: Props) {
 
   return (
     <button
+      type="button"
       onClick={handleClick}
-      disabled={busy}
+      disabled={busy || favoritesLoading}
+      aria-busy={busy || favoritesLoading}
       className={cn(
-        "flex items-center gap-1 transition-colors",
+        "flex items-center gap-1 transition-colors disabled:cursor-wait disabled:opacity-70",
         isSaved ? "text-primary" : "text-on-background/40 hover:text-primary",
         className,
       )}
-      title={!isLoggedIn ? "Log in to save" : isSaved ? "Remove from Crate" : "Save to Crate"}
+      title={
+        !isLoggedIn
+          ? "Log in to save"
+          : favoritesLoading
+            ? "Waiting for Liked Songs to finish syncing"
+            : isSaved
+              ? "Remove from Crate"
+              : "Save to Crate"
+      }
     >
-      {busy ? (
+      {busy || favoritesLoading ? (
         <span
           className={cn("material-symbols-outlined", iconSize)}
           style={{ animation: "spin 0.8s linear infinite" }}

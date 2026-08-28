@@ -203,47 +203,6 @@ export async function searchLabels(
 }
 
 /**
- * Search for labels on MusicBrainz
- * @param query - Label name to search for
- * @param limit - Maximum number of results to return
- */
-export async function searchLabels(
-  query: string,
-  limit = 10
-): Promise<MusicBrainzLabel[]> {
-  const url = new URL(`${MUSICBRAINZ_API}/label`);
-  url.searchParams.set("query", `label:${query}~2`);
-  url.searchParams.set("fmt", "json");
-  url.searchParams.set("limit", limit.toString());
-
-  console.log(`🔍 Label search: ${url.toString()}`);
-
-  const response = await fetch(url.toString(), {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    throw new Error(`MusicBrainz API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const labels = data.labels || [];
-
-  return labels.map((label: any) => ({
-    id: label.id,
-    type: "label" as const,
-    name: label.name,
-    sortName: label["sort-name"],
-    country: label.country,
-    type_: label.type?.toLowerCase(),
-    labelCode: label["label-code"]?.toString(),
-    disambiguation: label.disambiguation,
-    score: label.score || 0,
-    tags: label.tags?.map((t: any) => t.name),
-  }));
-}
-
-/**
  * Advanced combined search for recordings using Lucene query syntax
  * This is useful when you need precise results combining multiple fields
  *

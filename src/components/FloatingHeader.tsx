@@ -8,27 +8,13 @@ import { AuthRequiredButton } from "./AuthRequiredButton";
 import { SupportTrigger } from "./SupportPopover";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { cn } from "@/lib/utils";
+import { getNavigationItems } from "../config/navigation";
 
 interface FloatingHeaderProps {
   searchInput: string;
   setSearchInput: (query: string) => void;
   onSearch: (query: string) => void;
 }
-
-const NAV_ITEMS: {
-  to: string;
-  label: string;
-  icon: string;
-  adminOnly?: boolean;
-}[] = [
-  { to: "/", label: "TRANSMIT", icon: "home" },
-  { to: "/browse/genres", label: "RECEPTION", icon: "music_note" },
-  { to: "/favorites", label: "ARCHIVE", icon: "star" },
-  { to: "/crate", label: "CRATE", icon: "album" },
-  { to: "/signals", label: "SIGNALS", icon: "graphic_eq" },
-  { to: "/community", label: "ASSEMBLY", icon: "forum" },
-  { to: "/admin", label: "CONTROL", icon: "admin_panel_settings", adminOnly: true },
-];
 
 const navLinkBase =
   "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-2.5 lg:px-3 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap";
@@ -39,8 +25,12 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
   const currentUser = useCurrentAccount();
   const adminUser = isAdmin(currentUser?.pubkey);
   const navItems = useMemo(
-    () => NAV_ITEMS.filter((item) => !item.adminOnly || adminUser),
+    () => getNavigationItems("desktop", adminUser),
     [adminUser]
+  );
+  const actionItems = useMemo(
+    () => getNavigationItems("desktop-action", adminUser),
+    [adminUser],
   );
 
   return (
@@ -114,14 +104,19 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
           }
         />
         <SupportTrigger />
-        <Link
-          to="/apps"
-          className={navLinkBase}
-          activeProps={{ className: navLinkActive }}
-          title="Download apps"
-        >
-          <span className="material-symbols-outlined text-[18px]">download</span>
-        </Link>
+        {actionItems.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={navLinkBase}
+            activeProps={{ className: navLinkActive }}
+            title={item.label}
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {item.icon}
+            </span>
+          </Link>
+        ))}
         <LoginSessionButtons />
       </div>
 
