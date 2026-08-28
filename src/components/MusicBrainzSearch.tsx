@@ -1,609 +1,799 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
-import { Card } from "./ui/card";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { ReleaseResultWithImage } from "./ReleaseResultWithImage";
+import { recordingToSongMetadata } from "../lib/musicbrainz";
+import { openUrl } from "../lib/openUrl";
+import { showToast } from "../stores/toastStore";
+import type {
+  ArtistResult,
+  LabelResult,
+  MusicBrainzResult,
+  RecordingResult,
+  ReleaseResult,
+} from "../types/musicbrainz";
+import { cn } from "@/lib/utils";
+import { SongFavoriteButton } from "./SongFavoriteButton";
+import { SongMagicButton } from "./SongMagicButton";
 
-type EntityType =
-  | "artists"
-  | "releases"
-  | "recordings"
-  | "recordings_advanced"
-  | "labels";
+type EntityType = "recordings" | "releases" | "artists" | "labels";
 
-interface BaseResult {
-  id: string;
-  score: number;
-  tags?: string[];
+interface MusicBrainzSearchProps {
+  initialQuery?: string;
+  initialArtist?: string;
 }
 
-interface ArtistResult extends BaseResult {
-  type: "artist";
-  name: string;
-  sortName: string;
-  country?: string;
-  beginDate?: string;
-  endDate?: string;
-  type_?: string;
-  disambiguation?: string;
-}
-
-interface ReleaseResult extends BaseResult {
-  type: "release";
-  title: string;
-  artist: string;
-  artistId?: string;
-  date?: string;
-  country?: string;
-  trackCount?: number;
-  status?: string;
-  barcode?: string;
-}
-
-interface RecordingResult extends BaseResult {
-  type: "recording";
-  title: string;
-  artist: string;
-  artistId?: string;
+interface SearchSpec {
+  type: EntityType;
+  query?: string;
+  artist?: string;
   release?: string;
-  releaseDate?: string;
-  duration?: number;
-}
-
-interface LabelResult extends BaseResult {
-  type: "label";
-  name: string;
-  sortName: string;
   country?: string;
-  type_?: string;
-  labelCode?: string;
-  disambiguation?: string;
+  date?: string;
 }
 
-type SearchResult =
-  | ArtistResult
-  | ReleaseResult
-  | RecordingResult
-  | LabelResult;
+const SEARCH_LIMIT = 15;
+const CATALOG_TIMEOUT_MS = 15_000;
 
-export function MusicBrainzSearch() {
-  const [searchQuery, setSearchQuery] = useState("");
+const ENTITY_OPTIONS: {
+  value: EntityType;
+  label: string;
+  icon: string;
+  placeholder: string;
+}[] = [
+  {
+    value: "recordings",
+    label: "SONGS",
+    icon: "music_note",
+    placeholder: "SONG_TITLE...",
+  },
+  {
+    value: "releases",
+    label: "ALBUMS",
+    icon: "album",
+    placeholder: "ALBUM_TITLE...",
+  },
+  {
+    value: "artists",
+    label: "ARTISTS",
+    icon: "person",
+    placeholder: "ARTIST_NAME...",
+  },
+  {
+    value: "labels",
+    label: "LABELS",
+    icon: "business",
+    placeholder: "LABEL_NAME...",
+  },
+];
+
+async function withCatalogTimeout<T>(request: Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error("The music catalog timed out. Please try again.")),
+      CATALOG_TIMEOUT_MS,
+    );
+  });
+
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function formatDuration(milliseconds?: number): string | null {
+  if (!milliseconds) return null;
+  const seconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+async function openMusicBrainz(path: string): Promise<void> {
+  try {
+    await openUrl(`https://musicbrainz.org/${path}`);
+  } catch (error) {
+    showToast({
+      title: "LINK_FAILED",
+      message:
+        error instanceof Error ? error.message : "Could not open MusicBrainz.",
+      tone: "error",
+    });
+  }
+}
+
+function CoverArtwork({
+  releaseId,
+  label,
+  icon = "music_note",
+}: {
+  releaseId?: string;
+  label: string;
+  icon?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden border-2 border-on-background bg-on-background text-surface sm:h-24 sm:w-24">
+      <span className="material-symbols-outlined text-[28px] text-surface/30">
+        {icon}
+      </span>
+      {releaseId && !failed && (
+        <img
+          src={`https://coverartarchive.org/release/${releaseId}/front-250`}
+          alt={`${label} cover`}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecordingCard({ recording }: { recording: RecordingResult }) {
+  const metadata = recordingToSongMetadata(recording);
+  const duration = formatDuration(recording.duration);
+
+  return (
+    <article className="border-4 border-on-background bg-background shadow-[5px_5px_0px_0px_rgba(29,28,19,1)]">
+      <div className="flex gap-3 p-3 sm:gap-4 sm:p-4">
+        <CoverArtwork
+          releaseId={recording.releaseId}
+          label={recording.release || recording.title}
+        />
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="bg-primary px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-primary-foreground">
+              RECORDING
+            </span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-on-background/40">
+              {recording.score}%_MATCH
+            </span>
+          </div>
+          <h3 className="break-words font-headline text-lg font-black uppercase leading-none tracking-tighter sm:text-2xl">
+            {recording.title}
+          </h3>
+          <p className="mt-1 truncate text-[11px] font-black uppercase tracking-tight text-primary sm:text-xs">
+            {recording.artist || "UNKNOWN_ARTIST"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-on-background/45">
+            {recording.release && <span>{recording.release}</span>}
+            {recording.releaseDate && <span>{recording.releaseDate}</span>}
+            {duration && <span>{duration}</span>}
+          </div>
+          {recording.tags && recording.tags.length > 0 && (
+            <div className="mt-2 hidden flex-wrap gap-1 sm:flex">
+              {recording.tags.slice(0, 4).map((tag, index) => (
+                <span
+                  key={`${tag}-${index}`}
+                  className="border border-on-background/20 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-on-background/45"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid min-h-12 grid-cols-[1fr_1fr_48px] border-t-4 border-on-background">
+        <SongFavoriteButton
+          metadata={metadata}
+          showLabel
+          size="md"
+          className="min-h-12 border-0 border-r-2 border-on-background px-3 hover:bg-surface-container-high"
+        />
+        <SongMagicButton
+          metadata={metadata}
+          showLabel
+          size="md"
+          className="min-h-12 border-0 border-r-2 border-on-background px-3 hover:bg-primary hover:text-primary-foreground"
+        />
+        <button
+          type="button"
+          onClick={() => void openMusicBrainz(`recording/${recording.id}`)}
+          className="flex min-h-12 items-center justify-center text-on-background/45 transition-colors hover:bg-on-background hover:text-surface"
+          title="View recording on MusicBrainz"
+          aria-label={`View ${recording.title} on MusicBrainz`}
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            open_in_new
+          </span>
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function ReleaseCard({
+  release,
+  onFindTracks,
+}: {
+  release: ReleaseResult;
+  onFindTracks: (artist: string, release: string) => void;
+}) {
+  return (
+    <article className="flex flex-col border-4 border-on-background bg-background shadow-[5px_5px_0px_0px_rgba(29,28,19,1)] sm:flex-row">
+      <div className="flex min-w-0 flex-1 gap-3 p-3 sm:gap-4 sm:p-4">
+        <CoverArtwork releaseId={release.id} label={release.title} icon="album" />
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="bg-on-background px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-surface">
+              ALBUM
+            </span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-on-background/40">
+              {release.score}%_MATCH
+            </span>
+          </div>
+          <h3 className="break-words font-headline text-lg font-black uppercase leading-none tracking-tighter sm:text-2xl">
+            {release.title}
+          </h3>
+          <p className="mt-1 truncate text-[11px] font-black uppercase tracking-tight text-primary sm:text-xs">
+            {release.artist || "UNKNOWN_ARTIST"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-on-background/45">
+            {release.date && <span>{release.date}</span>}
+            {release.country && <span>{release.country}</span>}
+            {release.trackCount != null && <span>{release.trackCount}_TRACKS</span>}
+            {release.status && <span>{release.status}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="grid min-h-12 grid-cols-[1fr_48px] border-t-4 border-on-background sm:w-44 sm:grid-cols-1 sm:grid-rows-2 sm:border-l-4 sm:border-t-0">
+        <button
+          type="button"
+          onClick={() => onFindTracks(release.artist, release.title)}
+          className="flex min-h-12 items-center justify-center gap-2 border-r-2 border-on-background px-3 text-[9px] font-black uppercase tracking-widest transition-colors hover:bg-primary hover:text-primary-foreground sm:border-b-2 sm:border-r-0"
+        >
+          <span className="material-symbols-outlined text-[17px]">queue_music</span>
+          FIND_TRACKS
+        </button>
+        <button
+          type="button"
+          onClick={() => void openMusicBrainz(`release/${release.id}`)}
+          className="flex min-h-12 items-center justify-center gap-2 px-3 text-[9px] font-black uppercase tracking-widest text-on-background/45 transition-colors hover:bg-on-background hover:text-surface"
+        >
+          <span className="material-symbols-outlined text-[17px]">open_in_new</span>
+          <span className="hidden sm:inline">MUSICBRAINZ</span>
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function ArtistCard({
+  artist,
+  onFindTracks,
+}: {
+  artist: ArtistResult;
+  onFindTracks: (artist: string) => void;
+}) {
+  return (
+    <article className="grid border-4 border-on-background bg-background shadow-[5px_5px_0px_0px_rgba(29,28,19,1)] sm:grid-cols-[minmax(0,1fr)_176px]">
+      <div className="flex min-w-0 gap-3 p-3 sm:p-4">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center border-2 border-on-background bg-on-background text-surface sm:h-24 sm:w-24">
+          <span className="material-symbols-outlined text-[30px] text-surface/55">
+            person
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="bg-on-background px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-surface">
+              ARTIST
+            </span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-on-background/40">
+              {artist.score}%_MATCH
+            </span>
+          </div>
+          <h3 className="break-words font-headline text-lg font-black uppercase leading-none tracking-tighter sm:text-2xl">
+            {artist.name}
+          </h3>
+          {artist.disambiguation && (
+            <p className="mt-1 text-[10px] font-bold uppercase text-on-background/55">
+              {artist.disambiguation}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-on-background/45">
+            {artist.country && <span>{artist.country}</span>}
+            {artist.type_ && <span>{artist.type_}</span>}
+            {artist.beginDate && (
+              <span>
+                {artist.beginDate}
+                {artist.endDate ? `—${artist.endDate}` : ""}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="grid min-h-12 grid-cols-[1fr_48px] border-t-4 border-on-background sm:grid-cols-1 sm:grid-rows-2 sm:border-l-4 sm:border-t-0">
+        <button
+          type="button"
+          onClick={() => onFindTracks(artist.name)}
+          className="flex min-h-12 items-center justify-center gap-2 border-r-2 border-on-background px-3 text-[9px] font-black uppercase tracking-widest transition-colors hover:bg-primary hover:text-primary-foreground sm:border-b-2 sm:border-r-0"
+        >
+          <span className="material-symbols-outlined text-[17px]">queue_music</span>
+          FIND_TRACKS
+        </button>
+        <button
+          type="button"
+          onClick={() => void openMusicBrainz(`artist/${artist.id}`)}
+          className="flex min-h-12 items-center justify-center gap-2 px-3 text-[9px] font-black uppercase tracking-widest text-on-background/45 transition-colors hover:bg-on-background hover:text-surface"
+        >
+          <span className="material-symbols-outlined text-[17px]">open_in_new</span>
+          <span className="hidden sm:inline">MUSICBRAINZ</span>
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function LabelCard({ label }: { label: LabelResult }) {
+  return (
+    <article className="grid border-4 border-on-background bg-background shadow-[5px_5px_0px_0px_rgba(29,28,19,1)] sm:grid-cols-[minmax(0,1fr)_176px]">
+      <div className="flex min-w-0 gap-3 p-3 sm:p-4">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center border-2 border-on-background bg-on-background text-surface sm:h-24 sm:w-24">
+          <span className="material-symbols-outlined text-[30px] text-surface/55">
+            business
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="bg-on-background px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-surface">
+              LABEL
+            </span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-on-background/40">
+              {label.score}%_MATCH
+            </span>
+          </div>
+          <h3 className="break-words font-headline text-lg font-black uppercase leading-none tracking-tighter sm:text-2xl">
+            {label.name}
+          </h3>
+          {label.disambiguation && (
+            <p className="mt-1 text-[10px] font-bold uppercase text-on-background/55">
+              {label.disambiguation}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-bold uppercase tracking-widest text-on-background/45">
+            {label.country && <span>{label.country}</span>}
+            {label.type_ && <span>{label.type_}</span>}
+            {label.labelCode && <span>LC_{label.labelCode}</span>}
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => void openMusicBrainz(`label/${label.id}`)}
+        className="flex min-h-12 items-center justify-center gap-2 border-t-4 border-on-background px-3 text-[9px] font-black uppercase tracking-widest text-on-background/45 transition-colors hover:bg-on-background hover:text-surface sm:border-l-4 sm:border-t-0"
+      >
+        <span className="material-symbols-outlined text-[17px]">open_in_new</span>
+        MUSICBRAINZ
+      </button>
+    </article>
+  );
+}
+
+function SearchSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading music catalog results">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="flex animate-pulse gap-3 border-4 border-on-background/25 p-3"
+        >
+          <div className="h-20 w-20 shrink-0 bg-on-background/12 sm:h-24 sm:w-24" />
+          <div className="flex-1 space-y-3 py-1">
+            <div className="h-3 w-20 bg-on-background/12" />
+            <div className="h-5 w-2/3 bg-on-background/12" />
+            <div className="h-3 w-1/3 bg-on-background/12" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MusicBrainzSearch({
+  initialQuery = "",
+  initialArtist = "",
+}: MusicBrainzSearchProps) {
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [entityType, setEntityType] = useState<EntityType>("recordings");
-  const [artistFilter, setArtistFilter] = useState("");
+  const [artistFilter, setArtistFilter] = useState(initialArtist);
   const [releaseFilter, setReleaseFilter] = useState("");
   const [countryFilter, setCountryFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [results, setResults] = useState<MusicBrainzResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const requestId = useRef(0);
+  const lastInitialSearch = useRef<string | null>(null);
 
-  // Clear filters when switching search types
-  useEffect(() => {
-    if (entityType === "artists" || entityType === "labels") {
-      setArtistFilter("");
-      setReleaseFilter("");
-      setCountryFilter("");
-      setDateFilter("");
-    } else if (entityType === "recordings") {
-      setReleaseFilter("");
-      setCountryFilter("");
-      setDateFilter("");
-    }
-  }, [entityType]);
+  const runSearch = useCallback(async (spec: SearchSpec) => {
+    const query = spec.query?.trim() ?? "";
+    const artist = spec.artist?.trim() ?? "";
+    const release = spec.release?.trim() ?? "";
+    const country = spec.country?.trim() ?? "";
+    const date = spec.date?.trim() ?? "";
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const id = ++requestId.current;
 
-    // For advanced search, at least one field must be filled
-    if (entityType === "recordings_advanced") {
-      if (
-        !searchQuery.trim() &&
-        !artistFilter.trim() &&
-        !releaseFilter.trim()
-      ) {
-        setError("Please enter at least one search field");
-        return;
-      }
-    } else if (!searchQuery.trim()) {
+    if (
+      (spec.type === "recordings" && !query && !artist && !release) ||
+      (spec.type !== "recordings" && !query)
+    ) {
+      setLoading(false);
+      setResults([]);
+      setHasSearched(true);
+      setError(
+        spec.type === "recordings"
+          ? "Enter a song, artist, or album to search."
+          : "Enter a catalog name to search.",
+      );
       return;
     }
 
     setLoading(true);
     setError(null);
+    setResults([]);
+    setHasSearched(true);
 
     try {
-      let data: any[] = [];
+      const client = getMetadataClient();
+      let nextResults: MusicBrainzResult[];
 
-      switch (entityType) {
+      switch (spec.type) {
         case "artists":
-          data = (await getMetadataClient().SearchArtists(searchQuery)).result;
+          nextResults = (
+            await withCatalogTimeout(client.SearchArtists(query, SEARCH_LIMIT))
+          ).result;
           break;
         case "releases":
-          data = (await getMetadataClient().SearchReleases(searchQuery, artistFilter || undefined)).result;
-          break;
-        case "recordings":
-          data = (await getMetadataClient().SearchRecordings(searchQuery, artistFilter || undefined)).result;
-          break;
-        case "recordings_advanced":
-          data = (await getMetadataClient().SearchRecordingsCombined(
-            searchQuery || undefined,
-            artistFilter || undefined,
-            releaseFilter || undefined,
-            undefined,
-            countryFilter || undefined,
-            dateFilter || undefined,
-          )).result;
+          nextResults = (
+            await withCatalogTimeout(
+              client.SearchReleases(
+                query,
+                artist || undefined,
+                SEARCH_LIMIT,
+              ),
+            )
+          ).result;
           break;
         case "labels":
-          data = (await getMetadataClient().SearchLabels(searchQuery)).result;
+          nextResults = (
+            await withCatalogTimeout(client.SearchLabels(query, SEARCH_LIMIT))
+          ).result;
+          break;
+        case "recordings":
+          nextResults =
+            release || country || date || !query
+              ? (
+                  await withCatalogTimeout(
+                    client.SearchRecordingsCombined(
+                      query || undefined,
+                      artist || undefined,
+                      release || undefined,
+                      undefined,
+                      country || undefined,
+                      date || undefined,
+                      undefined,
+                      SEARCH_LIMIT,
+                    ),
+                  )
+                ).result
+              : (
+                  await withCatalogTimeout(
+                    client.SearchRecordings(
+                      query,
+                      artist || undefined,
+                      SEARCH_LIMIT,
+                    ),
+                  )
+                ).result;
           break;
       }
 
-      setResults(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to search MusicBrainz");
-      setResults([]);
+      if (id === requestId.current) setResults(nextResults);
+    } catch (caught) {
+      if (id === requestId.current) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "The music catalog did not respond.",
+        );
+      }
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const query = initialQuery.trim();
+    const artist = initialArtist.trim();
+    if (!query && !artist) return;
+
+    const initialSearchKey = `${query}\u0000${artist}`;
+    if (lastInitialSearch.current === initialSearchKey) return;
+    lastInitialSearch.current = initialSearchKey;
+
+    setSearchQuery(query);
+    setArtistFilter(artist);
+    void runSearch({ type: "recordings", query, artist });
+  }, [initialArtist, initialQuery, runSearch]);
+
+  useEffect(
+    () => () => {
+      requestId.current += 1;
+    },
+    [],
+  );
+
+  const selectedOption =
+    ENTITY_OPTIONS.find((option) => option.value === entityType) ??
+    ENTITY_OPTIONS[0]!;
+
+  const selectEntity = (next: EntityType) => {
+    if (next === entityType) return;
+    requestId.current += 1;
+    setEntityType(next);
+    setArtistFilter("");
+    setReleaseFilter("");
+    setCountryFilter("");
+    setDateFilter("");
+    setResults([]);
+    setError(null);
+    setHasSearched(false);
+    setLoading(false);
+    if (next !== "recordings") setAdvancedOpen(false);
   };
 
-  const formatDuration = (ms?: number) => {
-    if (!ms) return null;
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  const findTracks = (artist: string, release?: string) => {
+    setEntityType("recordings");
+    setSearchQuery("");
+    setArtistFilter(artist);
+    setReleaseFilter(release ?? "");
+    setAdvancedOpen(Boolean(release));
+    void runSearch({ type: "recordings", artist, release });
   };
 
-  const renderResult = (result: SearchResult) => {
-    if (result.type === "artist") {
-      const artist = result as ArtistResult;
-      return (
-        <Card
-          key={artist.id}
-          className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-          onClick={() => {
-            // Future: trigger artist search in main UI
-            console.log("Artist clicked:", artist.name);
-          }}
-        >
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h4 className="font-bold text-lg">
-                🎤 {artist.name}
-                {artist.disambiguation && (
-                  <span className="text-sm text-gray-500 ml-2">
-                    ({artist.disambiguation})
-                  </span>
-                )}
-              </h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {artist.sortName}
-              </p>
-              <div className="flex gap-3 mt-1 text-sm text-gray-500 dark:text-gray-500">
-                {artist.country && <span>🌍 {artist.country}</span>}
-                {artist.type_ && (
-                  <span className="capitalize">{artist.type_}</span>
-                )}
-                {artist.beginDate && (
-                  <span>
-                    📅 {artist.beginDate}
-                    {artist.endDate && ` - ${artist.endDate}`}
-                  </span>
-                )}
-              </div>
-              {artist.tags && artist.tags.length > 0 && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {artist.tags.slice(0, 5).map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="ml-4 text-right">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Score: {artist.score}
-              </div>
-              <a
-                href={`https://musicbrainz.org/artist/${artist.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 text-sm mt-1 inline-block"
-                onClick={(e) => e.stopPropagation()}
-              >
-                View on MusicBrainz →
-              </a>
-            </div>
-          </div>
-        </Card>
-      );
-    }
-
-    if (result.type === "release") {
-      const release = result as ReleaseResult;
-      return (
-        <ReleaseResultWithImage
-          key={release.id}
-          release={release}
-          onClick={() => {
-            // Future: trigger release search in main UI
-            console.log("Release clicked:", release.title);
-          }}
-          onArtistClick={() => {
-            console.log("Artist clicked:", release.artist);
-          }}
-        />
-      );
-    }
-
-    if (result.type === "recording") {
-      const recording = result as RecordingResult;
-      return (
-        <Card
-          key={recording.id}
-          className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-          onClick={() => {
-            // Future: trigger recording search in main UI
-            console.log("Recording clicked:", recording.title);
-          }}
-        >
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <h4 className="font-bold text-lg">🎵 {recording.title}</h4>
-              <p
-                className="text-gray-600 dark:text-gray-400 cursor-pointer hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log("Artist clicked:", recording.artist);
-                }}
-              >
-                {recording.artist}
-              </p>
-              {recording.release && (
-                <p
-                  className="text-sm text-gray-500 dark:text-gray-500 mt-1 cursor-pointer hover:underline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log("Release clicked:", recording.release);
-                  }}
-                >
-                  📀 {recording.release}
-                  {recording.releaseDate && ` (${recording.releaseDate})`}
-                </p>
-              )}
-              {recording.duration && (
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  ⏱️ {formatDuration(recording.duration)}
-                </p>
-              )}
-              {recording.tags && recording.tags.length > 0 && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {recording.tags.slice(0, 5).map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="ml-4 text-right">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Score: {recording.score}
-              </div>
-              <a
-                href={`https://musicbrainz.org/recording/${recording.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 text-sm mt-1 inline-block"
-                onClick={(e) => e.stopPropagation()}
-              >
-                View on MusicBrainz →
-              </a>
-            </div>
-          </div>
-        </Card>
-      );
-    }
-
-    return null;
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void runSearch({
+      type: entityType,
+      query: searchQuery,
+      artist: artistFilter,
+      release: releaseFilter,
+      country: countryFilter,
+      date: dateFilter,
+    });
   };
-
-  const getEntityTypeLabel = () => {
-    switch (entityType) {
-      case "artists":
-        return { icon: "🎤", label: "Artists" };
-      case "releases":
-        return { icon: "💿", label: "Albums" };
-      case "recordings":
-        return { icon: "🎵", label: "Songs" };
-      case "recordings_advanced":
-        return { icon: "🔍", label: "Songs (Advanced)" };
-      case "labels":
-        return { icon: "🏷️", label: "Labels" };
-      default:
-        return { icon: "🔍", label: "Results" };
-    }
-  };
-
-  const entityTypeInfo = getEntityTypeLabel();
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-6">🎵 MusicBrainz Search</h2>
-
-        <Tabs
-          value={entityType}
-          onValueChange={(value) => setEntityType(value as EntityType)}
+    <div className="space-y-5">
+      <section
+        className={cn(
+          "z-30 border-4 border-on-background bg-background shadow-[6px_6px_0px_0px_rgba(29,28,19,1)] md:sticky md:top-14",
+          advancedOpen ? "relative" : "sticky top-0",
+        )}
+      >
+        <div
+          className="grid grid-cols-2 border-b-4 border-on-background sm:grid-cols-4"
+          role="tablist"
+          aria-label="Music catalog type"
         >
-          <div className="w-full overflow-x-auto mb-6">
-            <TabsList className="w-full justify-start min-w-max">
-              <TabsTrigger value="recordings" className="gap-2">
-                🎵 <span className="hidden sm:inline">Songs</span>
-              </TabsTrigger>
-              <TabsTrigger value="recordings_advanced" className="gap-2">
-                🔍 <span className="hidden sm:inline">Songs (Advanced)</span>
-              </TabsTrigger>
-              <TabsTrigger value="artists" className="gap-2">
-                🎤 <span className="hidden sm:inline">Artists</span>
-              </TabsTrigger>
-              <TabsTrigger value="releases" className="gap-2">
-                💿 <span className="hidden sm:inline">Albums</span>
-              </TabsTrigger>
-              <TabsTrigger value="labels" className="gap-2">
-                🏷️ <span className="hidden sm:inline">Labels</span>
-              </TabsTrigger>
-            </TabsList>
+          {ENTITY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              aria-selected={entityType === option.value}
+              onClick={() => selectEntity(option.value)}
+              className={cn(
+                "flex min-h-11 items-center justify-center gap-2 border-on-background px-2 text-[10px] font-black uppercase tracking-widest transition-colors odd:border-r-2 sm:border-r-2 sm:last:border-r-0",
+                option.value === "recordings" || option.value === "releases"
+                  ? "border-b-2 sm:border-b-0"
+                  : "",
+                entityType === option.value
+                  ? "bg-on-background text-surface"
+                  : "hover:bg-surface-container-high",
+              )}
+            >
+              <span className="material-symbols-outlined text-[17px]">
+                {option.icon}
+              </span>
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4">
+          <div
+            className={cn(
+              "grid gap-2",
+              entityType === "recordings" || entityType === "releases"
+                ? "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]"
+                : "sm:grid-cols-[minmax(0,1fr)_auto]",
+            )}
+          >
+            <label className="block min-w-0">
+              <span className="mb-1 block text-[8px] font-black uppercase tracking-[0.2em] text-on-background/45">
+                {selectedOption.label}_QUERY
+              </span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={selectedOption.placeholder}
+                autoComplete="off"
+                className="h-12 w-full border-2 border-on-background bg-transparent px-3 font-headline text-sm font-black uppercase tracking-tight outline-none placeholder:text-on-background/25 focus:bg-surface-container-high"
+              />
+            </label>
+
+            {(entityType === "recordings" || entityType === "releases") && (
+              <label className="block min-w-0">
+                <span className="mb-1 block text-[8px] font-black uppercase tracking-[0.2em] text-on-background/45">
+                  ARTIST_OPTIONAL
+                </span>
+                <input
+                  type="search"
+                  value={artistFilter}
+                  onChange={(event) => setArtistFilter(event.target.value)}
+                  placeholder="ARTIST_NAME..."
+                  autoComplete="off"
+                  className="h-12 w-full border-2 border-on-background bg-transparent px-3 font-headline text-sm font-black uppercase tracking-tight outline-none placeholder:text-on-background/25 focus:bg-surface-container-high"
+                />
+              </label>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-auto flex h-12 min-w-32 items-center justify-center gap-2 border-2 border-on-background bg-primary px-4 text-[10px] font-black uppercase tracking-widest text-primary-foreground shadow-[3px_3px_0px_0px_rgba(29,28,19,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none disabled:opacity-40"
+            >
+              <span
+                className="material-symbols-outlined text-[18px]"
+                style={loading ? { animation: "spin 0.8s linear infinite" } : {}}
+              >
+                {loading ? "sync" : "manage_search"}
+              </span>
+              {loading ? "SCANNING" : "LOOKUP"}
+            </button>
           </div>
 
-          {/* Songs Tab */}
-          <TabsContent value="recordings" className="mt-0">
-            <form onSubmit={handleSearch} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Song Title
-                </label>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter song name..."
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Artist Name{" "}
-                  <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={artistFilter}
-                  onChange={(e) => setArtistFilter(e.target.value)}
-                  placeholder="e.g., Led Zeppelin"
-                />
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Searching..." : "Search Songs"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          {/* Advanced Songs Tab */}
-          <TabsContent value="recordings_advanced" className="mt-0">
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
-              <p className="text-sm text-blue-900 dark:text-blue-200">
-                💡 <strong>Advanced Search:</strong> Fill in any combination of
-                fields to find specific recordings. Use quotes for exact matches
-                (e.g., "young men dead" by "the black angels").
-              </p>
+          {entityType === "recordings" && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((open) => !open)}
+                className="flex min-h-9 items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-on-background/50 transition-colors hover:text-on-background"
+                aria-expanded={advancedOpen}
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {advancedOpen ? "remove" : "add"}
+                </span>
+                MORE_FILTERS
+              </button>
+              {advancedOpen && (
+                <div className="grid gap-2 border-t-2 border-on-background/15 pt-3 sm:grid-cols-3">
+                  <label>
+                    <span className="mb-1 block text-[8px] font-black uppercase tracking-widest text-on-background/45">
+                      ALBUM
+                    </span>
+                    <input
+                      value={releaseFilter}
+                      onChange={(event) => setReleaseFilter(event.target.value)}
+                      placeholder="RELEASE_NAME..."
+                      className="h-10 w-full border-2 border-on-background/35 bg-transparent px-2 font-mono text-[10px] uppercase outline-none focus:border-on-background"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-[8px] font-black uppercase tracking-widest text-on-background/45">
+                      COUNTRY
+                    </span>
+                    <input
+                      value={countryFilter}
+                      onChange={(event) =>
+                        setCountryFilter(event.target.value.toUpperCase())
+                      }
+                      placeholder="US / GB / AT"
+                      maxLength={2}
+                      className="h-10 w-full border-2 border-on-background/35 bg-transparent px-2 font-mono text-[10px] uppercase outline-none focus:border-on-background"
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-[8px] font-black uppercase tracking-widest text-on-background/45">
+                      RELEASE_DATE
+                    </span>
+                    <input
+                      value={dateFilter}
+                      onChange={(event) => setDateFilter(event.target.value)}
+                      placeholder="YYYY / YYYY-MM-DD"
+                      className="h-10 w-full border-2 border-on-background/35 bg-transparent px-2 font-mono text-[10px] uppercase outline-none focus:border-on-background"
+                    />
+                  </label>
+                </div>
+              )}
             </div>
+          )}
+        </form>
+      </section>
 
-            <form onSubmit={handleSearch} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Song Title{" "}
-                  <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder='e.g., young men dead or "young men dead"'
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Artist Name{" "}
-                  <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={artistFilter}
-                  onChange={(e) => setArtistFilter(e.target.value)}
-                  placeholder='e.g., the black angels or "the black angels"'
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Use quotes for exact artist name match
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Album/Release{" "}
-                  <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={releaseFilter}
-                  onChange={(e) => setReleaseFilter(e.target.value)}
-                  placeholder="e.g., Passover"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Country{" "}
-                    <span className="text-gray-500 font-normal">
-                      (optional)
-                    </span>
-                  </label>
-                  <Input
-                    type="text"
-                    value={countryFilter}
-                    onChange={(e) => setCountryFilter(e.target.value)}
-                    placeholder="e.g., US, GB"
-                    maxLength={2}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Release Date{" "}
-                    <span className="text-gray-500 font-normal">
-                      (optional)
-                    </span>
-                  </label>
-                  <Input
-                    type="text"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    placeholder="YYYY or YYYY-MM-DD"
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Searching..." : "Search Songs (Advanced)"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          {/* Artists Tab */}
-          <TabsContent value="artists" className="mt-0">
-            <form onSubmit={handleSearch} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Artist Name
-                </label>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter artist name..."
-                  className="w-full"
-                />
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Searching..." : "Search Artists"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          {/* Albums Tab */}
-          <TabsContent value="releases" className="mt-0">
-            <form onSubmit={handleSearch} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Album Title
-                </label>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter album name..."
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Artist Name{" "}
-                  <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <Input
-                  type="text"
-                  value={artistFilter}
-                  onChange={(e) => setArtistFilter(e.target.value)}
-                  placeholder="e.g., Led Zeppelin"
-                />
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Searching..." : "Search Albums"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          {/* Labels Tab */}
-          <TabsContent value="labels" className="mt-0">
-            <form onSubmit={handleSearch} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Label Name
-                </label>
-                <Input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter label name..."
-                  className="w-full"
-                />
-              </div>
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Searching..." : "Search Labels"}
-              </Button>
-            </form>
-          </TabsContent>
-        </Tabs>
+      <div className="flex items-center gap-3 border-b-2 border-on-background/20 pb-2">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary">
+          {loading
+            ? "QUERY_IN_FLIGHT"
+            : error
+              ? "LOOKUP_FAILED"
+              : hasSearched
+                ? `${results.length}_${entityType.toUpperCase()}_FOUND`
+                : "READY_FOR_INPUT"}
+        </span>
+        <div className="h-1 flex-1 bg-on-background/15" />
+        <span className="hidden text-[8px] font-black uppercase tracking-widest text-on-background/35 sm:block">
+          METADATA_BY_MUSICBRAINZ
+        </span>
       </div>
 
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300">
-          ❌ {error}
-        </div>
-      )}
+      <div aria-live="polite">
+        {loading && <SearchSkeleton />}
 
-      {results.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">
-              {entityTypeInfo.icon} {entityTypeInfo.label} Results
-            </h3>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              ({results.length} found)
+        {!loading && error && (
+          <div className="flex items-start gap-3 border-4 border-destructive bg-destructive/5 p-4 text-destructive">
+            <span className="material-symbols-outlined text-[22px]">error</span>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest">
+                LOOKUP_INTERRUPTED
+              </p>
+              <p className="mt-1 text-[11px] font-bold">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && hasSearched && results.length === 0 && (
+          <div className="border-4 border-on-background/25 p-8 text-center">
+            <span className="material-symbols-outlined text-[34px] text-on-background/25">
+              search_off
             </span>
+            <p className="mt-2 font-headline text-lg font-black uppercase tracking-tighter">
+              NO_CATALOG_MATCH
+            </p>
+            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-on-background/45">
+              TRY_FEWER_WORDS_OR_ADD_AN_ARTIST
+            </p>
           </div>
-          {results.map(renderResult)}
-        </div>
-      )}
+        )}
 
-      {!loading && results.length === 0 && searchQuery && !error && (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-          <div className="text-lg mb-2">{entityTypeInfo.icon}</div>
-          <div>
-            No {entityTypeInfo.label.toLowerCase()} found for "{searchQuery}"
+        {!loading && !error && results.length > 0 && (
+          <div className="space-y-3">
+            {results.map((result) => {
+              switch (result.type) {
+                case "recording":
+                  return <RecordingCard key={result.id} recording={result} />;
+                case "release":
+                  return (
+                    <ReleaseCard
+                      key={result.id}
+                      release={result}
+                      onFindTracks={findTracks}
+                    />
+                  );
+                case "artist":
+                  return (
+                    <ArtistCard
+                      key={result.id}
+                      artist={result}
+                      onFindTracks={findTracks}
+                    />
+                  );
+                case "label":
+                  return <LabelCard key={result.id} label={result} />;
+              }
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

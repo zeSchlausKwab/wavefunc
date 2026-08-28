@@ -27,21 +27,27 @@ echo "📦 Building frontend..."
 # Create deployment archive
 echo "📦 Creating archive..."
 
-# Check if legacy-db exists before including it
-INCLUDE_LEGACY_DB=""
-if [ -d "legacy-db" ] && [ -f "legacy-db/latest.sql" ]; then
-    echo "   Including legacy-db/latest.sql..."
-    INCLUDE_LEGACY_DB="legacy-db/"
+# The 133 MB legacy snapshot is only needed to bootstrap a brand-new server.
+# Shipping it on every release wastes transfer quota and makes deploys fragile.
+LEGACY_ARCHIVE_PATH=""
+if [ "${INCLUDE_LEGACY_DB:-false}" = "true" ] && \
+   [ -d "legacy-db" ] && [ -f "legacy-db/latest.sql" ]; then
+    echo "   Including legacy-db/latest.sql (explicit opt-in)..."
+    LEGACY_ARCHIVE_PATH="legacy-db/"
+else
+    echo "   Skipping legacy-db (set INCLUDE_LEGACY_DB=true for a new-server bootstrap)"
 fi
 
 tar -czf deploy.tar.gz \
     --exclude='contextvm/node_modules' \
     --exclude='contextvm/bin' \
     --exclude='relay/relay' \
+    --exclude='relay/wavefunc-relay' \
     --exclude='relay/data' \
+    --exclude='dist/*.map' \
     --exclude='src-tauri' \
     dist/ src/ relay/ contextvm/ scripts/ \
-    $INCLUDE_LEGACY_DB \
+    $LEGACY_ARCHIVE_PATH \
     ecosystem.config.cjs \
     Caddyfile \
     package.json \
@@ -50,10 +56,12 @@ tar -czf deploy.tar.gz \
 # Upload files
 echo "📤 Uploading to VPS..."
 ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
-scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
-scp .env.production $VPS_USER@$VPS_HOST:$VPS_PATH/.env 2>/dev/null || \
+# Legacy SCP streams sequentially and avoids the SFTP request-window stalls
+# observed on this quota-constrained VPS after suspension/reactivation.
+scp -O deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
+scp -O .env.production $VPS_USER@$VPS_HOST:$VPS_PATH/.env 2>/dev/null || \
     echo "⚠️  No .env.production found, using existing VPS .env"
-scp scripts/deploy-remote.sh $VPS_USER@$VPS_HOST:$VPS_PATH/
+scp -O scripts/deploy-remote.sh $VPS_USER@$VPS_HOST:$VPS_PATH/
 
 # Execute remote deployment
 echo "🔧 Running deployment on VPS..."

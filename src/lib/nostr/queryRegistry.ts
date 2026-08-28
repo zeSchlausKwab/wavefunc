@@ -28,6 +28,8 @@ type QueryDependencies = {
   request(relays: string[], filters: Filter[]): Observable<NostrEvent>;
   subscription(relays: string[], filters: Filter[]): Observable<NostrEvent>;
   retainForMs?: number;
+  /** Current Unix time in seconds. Injectable so the history/live handoff is testable. */
+  now?: () => number;
 };
 
 function stable(value: unknown): string {
@@ -135,8 +137,20 @@ export class RelayQuery {
       });
 
     if (this.input.live !== false) {
+      // A Nostr subscription replays stored matches before it stays live. The
+      // bounded request above already owns that history, so start the live leg
+      // at a shared current-time boundary instead of downloading it twice.
+      // Events on the boundary may arrive on both legs; EventStore de-duplicates
+      // them, while using the same second prevents a gap during the handoff.
+      const liveSince = Math.floor(
+        this.dependencies.now?.() ?? Date.now() / 1_000,
+      );
+      const liveFilters = this.input.filters.map((filter) => ({
+        ...filter,
+        since: Math.max(filter.since ?? 0, liveSince),
+      }));
       this.liveSubscription = this.dependencies
-        .subscription(this.input.relays, this.input.filters)
+        .subscription(this.input.relays, liveFilters)
         .subscribe({
           next: (event) => this.addEvent(event, "relay"),
           error: () => {

@@ -2,6 +2,8 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 
 export type AppStage = "development" | "production";
 
+export type RelayConsumer = "client" | "co-located-service";
+
 export type RelayPolicy = {
   stage: AppStage;
   appData: string[];
@@ -64,20 +66,31 @@ export function isLocalRelayUrl(url: string): boolean {
   }
 }
 
-export function createRelayPolicy(input: {
+export function validateAppDataRelay(input: {
   stage: AppStage;
   appRelay: string;
-}): RelayPolicy {
+  consumer?: RelayConsumer;
+}): string {
   const appRelay = normalizeRelayUrl(input.appRelay);
   if (!appRelay) throw new Error("An app-data relay is required");
 
   const local = isLocalRelayUrl(appRelay);
-  if (input.stage === "production" && local) {
+  const consumer = input.consumer ?? "client";
+  if (input.stage === "production" && local && consumer !== "co-located-service") {
     throw new Error("Production cannot use a local app-data relay");
   }
   if (input.stage === "development" && !local) {
     throw new Error("Development app data must stay on a local relay");
   }
+
+  return appRelay;
+}
+
+export function createRelayPolicy(input: {
+  stage: AppStage;
+  appRelay: string;
+}): RelayPolicy {
+  const appRelay = validateAppDataRelay(input);
 
   const generalRead = unique(GENERAL_RELAYS);
   const identityRead = unique([...IDENTITY_RELAYS, ...GENERAL_RELAYS]);

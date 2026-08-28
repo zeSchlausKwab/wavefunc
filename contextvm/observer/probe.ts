@@ -16,6 +16,7 @@ const PERMANENT_REDIRECT_CODES = new Set([301, 308]);
 export async function probeStreamHealth(
   streamUrl: string,
   timeoutMs = 12_000,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<StreamProbeResult> {
   const startedAt = performance.now();
   let currentUrl = streamUrl;
@@ -23,7 +24,7 @@ export async function probeStreamHealth(
 
   try {
     for (let redirects = 0; redirects <= 5; redirects += 1) {
-      const response = await fetch(currentUrl, {
+      const response = await fetchImpl(currentUrl, {
         method: "GET",
         redirect: "manual",
         headers: {
@@ -37,6 +38,7 @@ export async function probeStreamHealth(
 
       if (REDIRECT_CODES.has(response.status)) {
         const location = response.headers.get("location");
+        await response.body?.cancel().catch(() => undefined);
         if (!location) throw new Error(`Redirect ${response.status} without Location`);
         permanentRedirect ||= PERMANENT_REDIRECT_CODES.has(response.status);
         currentUrl = new URL(location, currentUrl).toString();
@@ -44,11 +46,11 @@ export async function probeStreamHealth(
       }
 
       const reachable = response.ok || response.status === 206;
-      if (reachable && response.body) {
-        const reader = response.body.getReader();
-        await reader.read();
-        await reader.cancel().catch(() => undefined);
-      }
+      // Receiving the response headers already proves that the stream endpoint
+      // accepted the connection. Do not read an arbitrary body chunk here:
+      // many radio servers ignore Range and Bun commonly delivers 64 KiB at a
+      // time, which multiplies into gigabytes during a daily catalog sweep.
+      await response.body?.cancel().catch(() => undefined);
 
       return {
         reachable,

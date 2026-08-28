@@ -5,6 +5,7 @@ import { Subject } from "rxjs";
 import {
   createRelayPolicy,
   selectPublishRelays,
+  validateAppDataRelay,
 } from "../src/config/relayPolicy";
 import {
   RelayQueryRegistry,
@@ -43,6 +44,24 @@ describe("relay policy", () => {
         appRelay: "ws://192.168.1.20:3334",
       }),
     ).not.toThrow();
+  });
+
+  test("allows a co-located production service to use relay loopback", () => {
+    expect(
+      validateAppDataRelay({
+        stage: "production",
+        appRelay: "ws://127.0.0.1:3334/",
+        consumer: "co-located-service",
+      }),
+    ).toBe("ws://127.0.0.1:3334");
+
+    expect(() =>
+      validateAppDataRelay({
+        stage: "development",
+        appRelay: "wss://relay.wavefunc.live",
+        consumer: "co-located-service",
+      }),
+    ).toThrow("Development app data must stay on a local relay");
   });
 
   test("keeps lookup and wallet specialists out of general publishing", () => {
@@ -226,6 +245,45 @@ describe("shared relay queries", () => {
       ready: true,
       source: "memory",
     });
+    registry.dispose();
+  });
+
+  test("uses a current boundary for live subscriptions instead of replaying history twice", () => {
+    const eventStore = new EventStore({ verifyEvent: () => true });
+    const liveFilters: Array<Array<Record<string, unknown>>> = [];
+    const registry = new RelayQueryRegistry({
+      eventStore,
+      cache: { query: async () => [], put: async () => undefined },
+      request: () => new Subject<NostrEvent>(),
+      subscription: (_relays, filters) => {
+        liveFilters.push(filters as Array<Record<string, unknown>>);
+        return new Subject<NostrEvent>();
+      },
+      now: () => 1_800_000_000,
+    });
+
+    const query = registry.query({
+      scope: "production:wss://relay.wavefunc.live",
+      relays: ["wss://relay.wavefunc.live"],
+      filters: [
+        { kinds: [31237], limit: 500 },
+        { kinds: [31238], since: 1_700_000_000, "#a": ["station"] },
+      ],
+    });
+    const unsubscribe = query.subscribe(() => undefined);
+
+    expect(liveFilters).toEqual([
+      [
+        { kinds: [31237], limit: 500, since: 1_800_000_000 },
+        {
+          kinds: [31238],
+          since: 1_800_000_000,
+          "#a": ["station"],
+        },
+      ],
+    ]);
+
+    unsubscribe();
     registry.dispose();
   });
 });

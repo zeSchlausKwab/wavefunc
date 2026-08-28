@@ -107,18 +107,48 @@ sudo apt install caddy
 ### 3. Configure PM2 Startup
 
 ```bash
-# Setup PM2 to start on boot (run as your regular user, not root)
-pm2 startup
-
-# This will output a command to run with sudo, something like:
-# sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u YOUR_USER --hp /home/YOUR_USER
-# Copy and run that exact command
+# Generate and enable a boot unit for the actual deploy user. Do not copy a
+# placeholder such as YOUR_USER into the generated systemd service.
+sudo env PATH="$PATH" pm2 startup systemd -u "$(whoami)" --hp "$HOME"
 
 # After first deployment, save the process list
 pm2 save
+
+# Verify the generated unit before relying on it
+systemctl is-enabled "pm2-$(whoami)"
+systemctl status "pm2-$(whoami)" --no-pager
 ```
 
-**Note on Bun + PM2:** The ecosystem.config.cjs uses `interpreter: 'bun'` to run TypeScript files directly with Bun. PM2 itself runs on Node.js, but it will execute your Bun scripts correctly.
+Every deployment also installs a deploy-user `@reboot` fallback in crontab and
+configures `pm2-logrotate` with a 100 MB maximum, compression, and seven retained
+files. The systemd unit is still preferred because it exposes startup failures
+through `systemctl` and the journal.
+
+The relay intentionally has no PM2 `max_memory_restart` threshold. LMDB maps a
+large sparse file and Linux counts resident, reclaimable database pages in RSS;
+an RSS threshold therefore creates a restart loop even when Go's heap and host
+memory are healthy. `GOMEMLIMIT=1GiB` bounds Go-runtime memory instead. Override
+it with `RELAY_GOMEMLIMIT` only after measuring the relay under production load.
+
+Production enables `RELAY_POLICY_MODE=wavefunc`. This makes the relay a
+specialized WaveFunc application-data relay: unrelated Nostr kinds and broad
+filters are rejected, public query sizes and subscriptions are bounded, and
+the upstream listener binds to `127.0.0.1` so port 3334 cannot bypass Caddy.
+Local development remains permissive but loopback-only; pass `--host 0.0.0.0`
+explicitly only on an isolated development network.
+
+The deploy script records the host's cumulative network counters hourly in
+`logs/bandwidth.log`. Compare consecutive `rx_bytes` and `tx_bytes` values to
+measure usage even for WebSocket traffic that Caddy's HTTP response-size field
+does not capture.
+
+Verify both the WebSocket upgrade and a minimal Nostr subscription with:
+
+```bash
+bun scripts/check-relay-websocket.ts wss://relay.wavefunc.live/
+```
+
+**Note on Bun + PM2:** The ecosystem.config.cjs uses Bun to run TypeScript files directly. PM2 itself runs on Node.js, but it will execute the Bun scripts correctly.
 
 ### 4. Create Deployment Directory
 
@@ -251,6 +281,13 @@ Deploy from your local machine:
 ```bash
 bun run deploy
 ```
+
+The migrated 133 MB legacy station snapshot is excluded from normal releases.
+Only a new-server bootstrap should opt in with
+`INCLUDE_LEGACY_DB=true bun run deploy`.
+Prebuilt relay binaries and public source maps are also excluded; the VPS
+builds the relay from source and release source maps require an explicit
+`--sourcemap=linked` opt-in.
 
 This will:
 1. Build the frontend and Go relay locally

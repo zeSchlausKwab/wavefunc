@@ -380,12 +380,14 @@ async function extractFromStreamData(
   }
 
   try {
+    const abortController = new AbortController();
     const response = await fetch(url, {
       method: "GET",
       headers: {
         "Icy-MetaData": "1",
         "User-Agent": "WaveFunc/1.0",
       },
+      signal: abortController.signal,
     });
 
     if (!response.body) {
@@ -396,16 +398,58 @@ async function extractFromStreamData(
 
     // Use music-metadata-icy to parse the stream
     return new Promise<StreamMetadata>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timeout waiting for ICY metadata"));
-      }, 10000); // 10 second timeout
+      let settled = false;
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      let cleanStream: ReadableStream<Uint8Array> | undefined;
 
-      let resolved = false;
+      const stopReading = async (reason?: unknown) => {
+        if (!abortController.signal.aborted) {
+          abortController.abort(reason);
+        }
+
+        try {
+          if (reader) {
+            await reader.cancel(reason);
+          } else if (cleanStream && !cleanStream.locked) {
+            await cleanStream.cancel(reason);
+          } else if (!response.body?.locked) {
+            await response.body?.cancel(reason);
+          }
+        } catch {
+          // Aborting the fetch may error the stream before cancellation completes.
+        }
+      };
+
+      let timeout: ReturnType<typeof setTimeout>;
+
+      const finish = (
+        result:
+          | { type: "resolve"; value: StreamMetadata }
+          | { type: "reject"; error: unknown },
+      ) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+
+        void stopReading(
+          result.type === "reject" ? result.error : undefined,
+        ).finally(() => {
+          if (result.type === "reject") reject(result.error);
+          else resolve(result.value);
+        });
+      };
+
+      timeout = setTimeout(() => {
+        finish({
+          type: "reject",
+          error: new Error("Timeout waiting for ICY metadata"),
+        });
+      }, 10000); // 10 second timeout
 
       try {
         // Parse ICY response and extract metadata
-        const cleanStream = parseIcyResponse(response, ({ metadata: icyMeta, stats }) => {
-          if (resolved) return;
+        cleanStream = parseIcyResponse(response, ({ metadata: icyMeta, stats }) => {
+          if (settled) return;
 
           console.log(`📻 ICY metadata received:`, icyMeta);
           console.log(`📊 Stats:`, stats);
@@ -424,36 +468,29 @@ async function extractFromStreamData(
 
           // We got metadata, resolve immediately
           if (icyMeta.StreamTitle || icyMeta.icyName) {
-            resolved = true;
-            clearTimeout(timeout);
-
-            // Cancel the stream reading
-            cleanStream.cancel().catch(() => {});
-
-            resolve(metadata);
+            finish({ type: "resolve", value: metadata });
           }
         });
 
         // Start consuming the stream to trigger metadata callbacks
-        const reader = cleanStream.getReader();
+        const streamReader = cleanStream.getReader();
+        reader = streamReader;
 
         const consumeStream = async () => {
           try {
-            while (!resolved) {
-              const { done } = await reader.read();
+            while (!settled) {
+              const { done } = await streamReader.read();
               if (done) break;
               // Just consume the stream, we don't need the audio data
             }
 
             // If we exit the loop without resolving, we didn't get metadata
-            if (!resolved) {
-              clearTimeout(timeout);
-              resolve(metadata);
+            if (!settled) {
+              finish({ type: "resolve", value: metadata });
             }
           } catch (error) {
-            if (!resolved) {
-              clearTimeout(timeout);
-              reject(error);
+            if (!settled) {
+              finish({ type: "reject", error });
             }
           }
         };
@@ -461,8 +498,7 @@ async function extractFromStreamData(
         consumeStream();
 
       } catch (error: any) {
-        clearTimeout(timeout);
-        reject(error);
+        finish({ type: "reject", error });
       }
     });
 

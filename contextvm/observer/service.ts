@@ -21,7 +21,7 @@ import {
   type StationRankingSnapshot,
 } from "../../src/lib/nostr/domain";
 import type { EventTemplate } from "../../src/lib/nostr/types";
-import { createRelayPolicy } from "../../src/config/relayPolicy";
+import { validateAppDataRelay } from "../../src/config/relayPolicy";
 import type { StreamMetadata } from "../schemas";
 import { ObserverDatabase, type ObserverStation } from "./database";
 import { probeStreamHealth, type StreamProbeResult } from "./probe";
@@ -43,6 +43,13 @@ export type StationObserverOptions = {
 
 function unixNow() {
   return Math.floor(Date.now() / 1000);
+}
+
+export function withLiveBoundary(filter: Filter, since: number): Filter {
+  return {
+    ...filter,
+    since: Math.max(filter.since ?? 0, Math.floor(since)),
+  };
 }
 
 function ensureDatabaseDirectory(path: string) {
@@ -111,11 +118,13 @@ export class StationObserver {
         "⚠️ Station observer catalog sync disabled: set APP_PRIVATE_KEY or CATALOG_PUBKEY",
       );
     } else {
+      const catalogLiveSince = this.now();
       await this.syncCatalog();
-      this.subscribeCatalog();
+      this.subscribeCatalog(catalogLiveSince);
     }
+    const evidenceLiveSince = this.now();
     await this.syncEvidence();
-    this.subscribeEvidence();
+    this.subscribeEvidence(evidenceLiveSince);
     await this.publishRankings();
     this.runBackground("health batch", () => this.runHealthBatch());
 
@@ -199,12 +208,15 @@ export class StationObserver {
     console.log(`📻 Observer registry contains ${this.database.stationCount} stations`);
   }
 
-  private subscribeCatalog() {
+  private subscribeCatalog(since: number) {
     if (!this.catalogPubkey) return;
     this.subscriptions.push(
       this.pool
         .subscription([this.options.appRelay], [
-          { kinds: [STATION_KIND], authors: [this.catalogPubkey] },
+          withLiveBoundary(
+            { kinds: [STATION_KIND], authors: [this.catalogPubkey] },
+            since,
+          ),
         ])
         .subscribe({ next: this.ingestCatalogEvent }),
     );
@@ -229,11 +241,11 @@ export class StationObserver {
     this.database.setMeta("evidence_last_sync", String(this.now()));
   }
 
-  private subscribeEvidence() {
+  private subscribeEvidence(since: number) {
     this.subscriptions.push(
       this.pool
         .subscription([this.options.appRelay], [
-          { kinds: [7, 9735, 9321, 1985] },
+          withLiveBoundary({ kinds: [7, 9735, 9321, 1985] }, since),
         ])
         .subscribe({ next: this.ingestEvidenceEvent }),
     );
@@ -454,9 +466,14 @@ export function createStationObserverFromEnvironment(input: {
     (process.env.APP_STAGE !== "development" && process.env.NODE_ENV === "production")
       ? "production"
       : "development";
-  // Reuse the client policy's fail-closed local/public boundary. The observer
-  // must never turn a dev relay into a bridge to production app data.
-  createRelayPolicy({ stage, appRelay: input.appRelay });
+  // A co-located production service should use loopback so its relay traffic
+  // never crosses the public proxy. Development still fails closed if it is
+  // accidentally pointed at a public app-data relay.
+  validateAppDataRelay({
+    stage,
+    appRelay: input.appRelay,
+    consumer: "co-located-service",
+  });
   const configuredBatchSize = Number(process.env.HEALTH_BATCH_SIZE || 40);
   const configuredConcurrency = Number(process.env.HEALTH_CONCURRENCY || 8);
   return new StationObserver({

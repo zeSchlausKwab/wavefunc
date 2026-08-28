@@ -148,7 +148,9 @@ const result = await Bun.build({
   // The HTML entrypoint is authored with relative references so Bun can
   // resolve it, but emitted chunks must load from the origin on nested routes.
   publicPath: "/",
-  sourcemap: "linked",
+  // Production web/native bundles are public artifacts. Keep source maps out
+  // of releases unless a developer opts in with --sourcemap=linked.
+  sourcemap: "none",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
     "process.env.APP_STAGE": JSON.stringify(appStage),

@@ -5,6 +5,10 @@ import { getSongListSongCount } from "../lib/nostr/domain/song-list";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { StationManagementSheet } from "./StationManagementSheet";
 import { SupportTrigger } from "./SupportPopover";
+import {
+  getNavigationItems,
+  type NavigationBadge,
+} from "../config/navigation";
 
 interface NavigationItemsProps {
   onNavigate?: () => void;
@@ -23,6 +27,12 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
   // Desktop nav is in FloatingHeader
   if (variant === "desktop") return null;
 
+  const navItems = getNavigationItems("mobile");
+  const badgeCount: Record<NavigationBadge, number> = {
+    "station-favorites": favCount,
+    "song-favorites": songCount,
+  };
+
   const linkCls =
     "flex items-center gap-3 px-5 py-3.5 font-black uppercase tracking-tight text-sm border-b-2 border-on-background/10 hover:bg-on-background hover:text-surface transition-colors";
   const activeCls =
@@ -30,49 +40,35 @@ export function NavigationItems({ onNavigate, variant = "mobile" }: NavigationIt
 
   return (
     <>
-      <Link to="/" search={{}} className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">home</span>
-        TRANSMIT
-      </Link>
-      <Link to="/browse/genres" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">music_note</span>
-        RECEPTION
-      </Link>
-      <Link to="/musicbrainz" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">search</span>
-        MUSIC_SEARCH
-      </Link>
-      <Link to="/favorites" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">star</span>
-        ARCHIVE
-        {favCount > 0 && (
-          <span className="ml-auto bg-primary text-white text-[10px] font-black px-2 py-0.5 min-w-[1.5rem] text-center">
-            {favCount}
-          </span>
-        )}
-      </Link>
-      <Link to="/crate" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">album</span>
-        CRATE
-        {songCount > 0 && (
-          <span className="ml-auto bg-secondary-fixed-dim text-on-background text-[10px] font-black px-2 py-0.5 min-w-[1.5rem] text-center">
-            {songCount}
-          </span>
-        )}
-      </Link>
-      <Link to="/signals" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">graphic_eq</span>
-        SIGNALS
-      </Link>
-      <Link to="/community" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">forum</span>
-        ASSEMBLY
-      </Link>
-
-        <Link to="/apps" className={linkCls} activeProps={{ className: activeCls }} onClick={onNavigate}>
-        <span className="material-symbols-outlined text-[20px]">download</span>
-        DOWNLOAD
-      </Link>
+      {navItems.map((item) => {
+        const count = item.badge ? badgeCount[item.badge] : 0;
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            search={item.to === "/" ? {} : undefined}
+            className={linkCls}
+            activeProps={{ className: activeCls }}
+            onClick={onNavigate}
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {item.icon}
+            </span>
+            {item.label}
+            {item.badge && count > 0 && (
+              <span
+                className={
+                  item.badge === "station-favorites"
+                    ? "ml-auto bg-primary text-white text-[10px] font-black px-2 py-0.5 min-w-[1.5rem] text-center"
+                    : "ml-auto bg-secondary-fixed-dim text-on-background text-[10px] font-black px-2 py-0.5 min-w-[1.5rem] text-center"
+                }
+              >
+                {count}
+              </span>
+            )}
+          </Link>
+        );
+      })}
 
     <div className="px-5 py-4 border-t-4 border-on-background mt-2 flex flex-col gap-3">
         <StationManagementSheet

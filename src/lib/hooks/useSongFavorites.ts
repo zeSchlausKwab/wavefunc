@@ -22,6 +22,7 @@ import { useWavefuncNostr } from "../nostr/runtime";
 import { useAppDataTimeline } from "../nostr/hooks/useRelayTimeline";
 
 const DEFAULT_LIST_NAME = "Liked Songs";
+const DEFAULT_LIST_ID = "wavefunc-liked-songs";
 
 export function useSongFavorites() {
   const currentUser = useCurrentAccount();
@@ -55,16 +56,24 @@ export function useSongFavorites() {
     ParsedSongList | null
   > => {
     if (!currentUser?.pubkey) return null;
+    if (isLoading) {
+      throw new Error("Liked Songs are still syncing. Please try again shortly.");
+    }
 
     const existing =
       songLists.find((list) => list.name === DEFAULT_LIST_NAME) ??
       songLists[0];
     if (existing) return existing;
 
-    const template = buildSongListTemplate({ name: DEFAULT_LIST_NAME });
+    // A stable address prevents two first-use actions from creating separate
+    // default lists if they are started close together on a slow relay.
+    const template = buildSongListTemplate({
+      listId: DEFAULT_LIST_ID,
+      name: DEFAULT_LIST_NAME,
+    });
     const event = await signAndPublish(template);
     return parseSongListEvent(event);
-  }, [currentUser?.pubkey, signAndPublish, songLists]);
+  }, [currentUser?.pubkey, isLoading, signAndPublish, songLists]);
 
   const addToDefaultList = useCallback(
     async (songAddress: string): Promise<boolean> => {
