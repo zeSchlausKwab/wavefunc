@@ -23,11 +23,11 @@ relay.wavefunc.live {
     }
 }
 
-# Fallback for IP-based access (during transition or development)
+# Fallback for IP-based web access. The relay is intentionally unavailable
+# here: all public relay traffic must pass through the canonical HTTPS host.
 :80 {
-    # Relay WebSocket endpoint
     handle /relay/* {
-        reverse_proxy 127.0.0.1:3334
+        respond "Relay is available at wss://relay.wavefunc.live" 410
     }
 
     # Main web application

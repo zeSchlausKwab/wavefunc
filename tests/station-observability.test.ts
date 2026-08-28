@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
 import { ObserverDatabase } from "../contextvm/observer/database";
+import { probeStreamHealth } from "../contextvm/observer/probe";
+import { withLiveBoundary } from "../contextvm/observer/service";
 import {
   buildStationHealthTemplate,
   buildStationRankingTemplate,
@@ -65,6 +67,47 @@ function stationEvent(): NostrEvent {
 }
 
 describe("station observation event contracts", () => {
+  test("health probes cancel stream audio after the response handshake", async () => {
+    let cancellations = 0;
+    const fetchImpl = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "audio/mpeg" }),
+        body: {
+          cancel: async () => {
+            cancellations += 1;
+          },
+        },
+      }) as unknown as Response) as typeof fetch;
+
+    const result = await probeStreamHealth(
+      "https://radio.example/live.mp3",
+      1_000,
+      fetchImpl,
+    );
+
+    expect(result).toMatchObject({
+      reachable: true,
+      statusCode: 200,
+      contentType: "audio/mpeg",
+    });
+    expect(cancellations).toBe(1);
+  });
+
+  test("hands finite observer history off to live subscriptions without replaying it", () => {
+    expect(withLiveBoundary({ kinds: [31237] }, 1_700_000_000)).toEqual({
+      kinds: [31237],
+      since: 1_700_000_000,
+    });
+    expect(
+      withLiveBoundary(
+        { kinds: [7], since: 1_700_000_100 },
+        1_700_000_000,
+      ),
+    ).toEqual({ kinds: [7], since: 1_700_000_100 });
+  });
+
   test("round-trips health, track, and ranking snapshots", () => {
     const health = buildStationHealthTemplate({
       stationAddress,

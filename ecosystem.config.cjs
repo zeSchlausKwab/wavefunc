@@ -46,11 +46,18 @@ module.exports = {
       script: './relay/relay',
       env: {
         PORT: 3334,
+        GOMEMLIMIT: '1GiB',
+        RELAY_POLICY_MODE: 'development',
       },
       env_production: {
         PORT: 3334,
+        GOMEMLIMIT: '1GiB',
+        RELAY_POLICY_MODE: 'wavefunc',
       },
-      max_memory_restart: '500M',
+      // LMDB uses a large memory map, whose reclaimable file-backed pages are
+      // counted in RSS. A PM2 RSS limit therefore restarts a healthy relay.
+      // GOMEMLIMIT bounds memory managed by the Go runtime without treating
+      // the LMDB mapping as a heap leak.
       error_file: './logs/relay-error.log',
       out_file: './logs/relay-out.log',
       ...commonSettings,

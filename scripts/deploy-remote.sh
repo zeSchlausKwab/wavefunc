@@ -75,6 +75,18 @@ cd ..
 echo "📁 Creating runtime directories..."
 mkdir -p logs data
 
+# Bound PM2-managed logs before starting services. The relay can receive a very
+# high request volume, so an unbounded stderr log can otherwise fill the VPS.
+echo "🧹 Configuring PM2 log rotation..."
+if ! pm2 describe pm2-logrotate >/dev/null 2>&1; then
+    pm2 install pm2-logrotate
+fi
+pm2 set pm2-logrotate:max_size 100M
+pm2 set pm2-logrotate:retain 7
+pm2 set pm2-logrotate:compress true
+pm2 set pm2-logrotate:dateFormat YYYY-MM-DD_HH-mm-ss
+pm2 set pm2-logrotate:rotateInterval '0 0 * * *'
+
 # Reload Caddy (optional, requires passwordless sudo)
 echo "🔄 Reloading Caddy..."
 if timeout 10 sudo -n cp Caddyfile /etc/caddy/Caddyfile 2>/dev/null && \
@@ -130,15 +142,20 @@ NODE_ENV=production PORT=3000 pm2 start src/index.tsx \
     -o logs/web-out.log \
     --merge-logs
 
-PORT=3334 pm2 start relay/relay \
+PORT=3334 \
+GOMEMLIMIT="${RELAY_GOMEMLIMIT:-1GiB}" \
+RELAY_VERBOSE_LOGGING="${RELAY_VERBOSE_LOGGING:-false}" \
+RELAY_POLICY_MODE="${RELAY_POLICY_MODE:-wavefunc}" \
+METADATA_SERVER_PUBKEY="${METADATA_SERVER_PUBKEY:-bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2}" \
+pm2 start relay/relay \
     --name wavefunc-relay \
-    --max-memory-restart 500M \
     --log-date-format 'YYYY-MM-DD HH:mm:ss Z' \
     -e logs/relay-error.log \
     -o logs/relay-out.log \
     --merge-logs
 
 NODE_ENV=production \
+RELAY_URL="${CONTEXTVM_RELAY_URL:-ws://127.0.0.1:3334}" \
 YTDLP_PATH="${YTDLP_PATH:-$YTDLP_BIN_ABS}" \
 pm2 start contextvm/server.ts \
     --name wavefunc-contextvm \
@@ -150,6 +167,44 @@ pm2 start contextvm/server.ts \
     --merge-logs
 
 pm2 save
+
+# The deployment user may not have permission to create a system-wide PM2
+# startup unit. Install an idempotent cron fallback so a VPS reboot still
+# resurrects the saved process list. A pm2-deploy systemd unit remains the
+# preferred primary mechanism when an administrator is available.
+echo "🔄 Installing PM2 reboot safeguard..."
+if command -v crontab >/dev/null 2>&1; then
+    PM2_BIN="$(command -v pm2)"
+    PM2_HOME_DIR="$HOME/.pm2"
+    APP_DIR="$(pwd)"
+    REBOOT_MARKER="# wavefunc-pm2-resurrect"
+    REBOOT_ENTRY="@reboot sleep 20 && PM2_HOME=$PM2_HOME_DIR $PM2_BIN resurrect >> $APP_DIR/logs/pm2-resurrect.log 2>&1 $REBOOT_MARKER"
+    BANDWIDTH_MARKER="# wavefunc-bandwidth-sample"
+    BANDWIDTH_ENTRY="17 * * * * $APP_DIR/scripts/record-bandwidth.sh $BANDWIDTH_MARKER"
+    EXISTING_CRONTAB="$(crontab -l 2>/dev/null || true)"
+    {
+        printf '%s\n' "$EXISTING_CRONTAB" | grep -vF "$REBOOT_MARKER" | grep -vF "$BANDWIDTH_MARKER" || true
+        printf '%s\n' "$REBOOT_ENTRY"
+        printf '%s\n' "$BANDWIDTH_ENTRY"
+    } | crontab -
+    echo "✅ PM2 reboot safeguard installed"
+    ./scripts/record-bandwidth.sh
+    echo "✅ Hourly bandwidth sampling installed"
+else
+    echo "⚠️  crontab is unavailable; configure a pm2-$USER systemd service manually"
+fi
+
+# Catch the exact reverse-proxy failure mode before a deployment reports
+# success. PM2 can say "online" briefly even if an application exits during
+# startup, so probe the actual upstreams after they have had time to bind.
+echo "🩺 Checking local service health..."
+sleep 3
+curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/ >/dev/null
+curl --fail --silent --show-error --max-time 10 \
+    -H 'Accept: application/nostr+json' \
+    http://127.0.0.1:3334/ >/dev/null
+"$BUN_PATH" scripts/check-relay-websocket.ts ws://127.0.0.1:3334/
+echo "✅ Web and relay HTTP/WebSocket listeners are reachable"
 
 # Run migration if this is a fresh database (format change or first deploy)
 if [ "$NEEDS_MIGRATION" = "true" ]; then

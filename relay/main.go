@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"iter"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	bleve "github.com/blevesearch/bleve/v2"
 	bleveMapping "github.com/blevesearch/bleve/v2/mapping"
@@ -18,10 +21,12 @@ import (
 	"fiatjaf.com/nostr/eventstore"
 	"fiatjaf.com/nostr/eventstore/lmdb"
 	"fiatjaf.com/nostr/khatru"
+	"fiatjaf.com/nostr/khatru/policies"
 	"fiatjaf.com/nostr/nip11"
 )
 
 var (
+	host       = flag.String("host", "127.0.0.1", "Host address to bind (use 0.0.0.0 only for isolated development)")
 	port       = flag.String("port", "3334", "Port to listen on")
 	dbPath     = flag.String("db-path", "./data/events", "Path to LMDB database directory")
 	searchPath = flag.String("search-path", "./data/search", "Path to bleve search index")
@@ -30,6 +35,333 @@ var (
 	resetAll   = flag.Bool("reset-all", false, "Reset both database and index")
 	reindex    = flag.Bool("reindex", false, "Rebuild search index from existing LMDB data then exit")
 )
+
+const (
+	productionMetadataServerPubKey = "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2"
+	maxPublicIDs                   = 20
+	maxPublicAuthors               = 100
+	maxPublicTagValues             = 200
+	maxPublicSubscriptions         = 24
+)
+
+var publicReadableKinds = map[nostr.Kind]struct{}{
+	1: {}, 5: {}, 7: {}, 1059: {}, 1111: {}, 1985: {}, 9321: {}, 9735: {},
+	21059: {}, 24133: {}, 25910: {}, 30078: {}, 31237: {}, 31238: {},
+	31239: {}, 31240: {}, 31337: {},
+}
+
+var contextVMTransportKinds = map[nostr.Kind]struct{}{
+	1059: {}, 21059: {}, 25910: {},
+}
+
+func envEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func containsKind(kinds []nostr.Kind, wanted nostr.Kind) bool {
+	for _, kind := range kinds {
+		if kind == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func allKindsIn(kinds []nostr.Kind, allowed map[nostr.Kind]struct{}) bool {
+	for _, kind := range kinds {
+		if _, ok := allowed[kind]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func allowedWaveFuncLabel(value string) bool {
+	return value == "wavefunc_user_favourite_list" ||
+		value == "wavefunc_user_song_list" ||
+		strings.HasPrefix(value, "wavefunc:featured:")
+}
+
+func filterHasTag(filter nostr.Filter, name string) bool {
+	return len(filter.Tags[name]) > 0
+}
+
+func filterHasTagValue(filter nostr.Filter, name string, allowed ...string) bool {
+	for _, value := range filter.Tags[name] {
+		for _, candidate := range allowed {
+			if value == candidate {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasPublicSocialTarget(filter nostr.Filter) bool {
+	return filterHasTag(filter, "a") || filterHasTag(filter, "A") ||
+		filterHasTag(filter, "e") || filterHasTag(filter, "p") ||
+		filterHasTag(filter, "t")
+}
+
+func isRecentFilter(filter nostr.Filter) bool {
+	if filter.Since == 0 {
+		return false
+	}
+	now := nostr.Now()
+	return filter.Since >= now-nostr.Timestamp(7*24*60*60) &&
+		filter.Since <= now+nostr.Timestamp(5*60)
+}
+
+// rejectPublicFilter keeps the public endpoint specialized to WaveFunc data.
+// Development stays permissive through RELAY_POLICY_MODE; this validator is
+// only installed by the production deployment.
+func rejectPublicFilter(_ context.Context, filter nostr.Filter) (bool, string) {
+	if filter.Limit > 500 {
+		return true, "restricted: limit must not exceed 500"
+	}
+	if len(filter.IDs) > maxPublicIDs {
+		return true, "restricted: too many event ids"
+	}
+	if len(filter.Authors) > maxPublicAuthors {
+		return true, "restricted: too many authors"
+	}
+	if len(filter.Kinds) > 8 {
+		return true, "restricted: too many kinds"
+	}
+	if len(filter.Tags) > 8 {
+		return true, "restricted: too many tag filters"
+	}
+	for _, values := range filter.Tags {
+		if len(values) > maxPublicTagValues {
+			return true, "restricted: too many tag values"
+		}
+	}
+
+	// IDs-only resolution is needed for Nostr pointers and deep links. LMDB's
+	// ID fast path ignores result limits, hence the small hard cap above.
+	if len(filter.Kinds) == 0 {
+		if len(filter.IDs) > 0 && len(filter.Authors) == 0 && len(filter.Tags) == 0 {
+			return false, ""
+		}
+		return true, "restricted: explicit WaveFunc kinds are required"
+	}
+	if !allKindsIn(filter.Kinds, publicReadableKinds) {
+		return true, "restricted: this is a specialized WaveFunc relay"
+	}
+
+	if filter.Search != "" {
+		query := strings.TrimSpace(filter.Search)
+		if len(filter.Kinds) != 1 || filter.Kinds[0] != indexedKind || len(query) < 2 || len(query) > 80 {
+			return true, "restricted: search is only available for stations"
+		}
+	}
+
+	if allKindsIn(filter.Kinds, contextVMTransportKinds) {
+		if len(filter.Tags["p"]) != 1 || !isRecentFilter(filter) || filter.Limit > 100 {
+			return true, "restricted: ContextVM requests must be targeted and recent"
+		}
+		return false, ""
+	}
+	for _, kind := range filter.Kinds {
+		if _, isTransport := contextVMTransportKinds[kind]; isTransport {
+			return true, "restricted: transport and application filters cannot be mixed"
+		}
+	}
+
+	if containsKind(filter.Kinds, 24133) {
+		if len(filter.Kinds) != 1 || len(filter.Tags["p"]) != 1 || !isRecentFilter(filter) || filter.Limit > 10 {
+			return true, "restricted: NIP-46 requests must be targeted and recent"
+		}
+	}
+
+	if containsKind(filter.Kinds, 30078) {
+		labels := filter.Tags["l"]
+		if len(labels) == 0 {
+			return true, "restricted: WaveFunc lists require an application label"
+		}
+		for _, label := range labels {
+			if !allowedWaveFuncLabel(label) {
+				return true, "restricted: unknown application list label"
+			}
+		}
+	}
+
+	for _, kind := range []nostr.Kind{31238, 31239} {
+		if containsKind(filter.Kinds, kind) &&
+			(len(filter.Authors) != 1 || len(filter.Tags["a"]) == 0) {
+			return true, "restricted: observations require an author and station targets"
+		}
+	}
+	if containsKind(filter.Kinds, 31240) && len(filter.Authors) != 1 {
+		return true, "restricted: rankings require the observer author"
+	}
+
+	if containsKind(filter.Kinds, 1) &&
+		!filterHasTagValue(filter, "t", "wavefunc", "tunestr") {
+		return true, "restricted: text notes must be WaveFunc-tagged"
+	}
+	for _, kind := range []nostr.Kind{5, 7, 1111, 1985, 9321, 9735} {
+		if containsKind(filter.Kinds, kind) && !hasPublicSocialTarget(filter) {
+			return true, "restricted: social events require a WaveFunc target"
+		}
+	}
+
+	return false, ""
+}
+
+func eventHasTagValue(event nostr.Event, name string, values ...string) bool {
+	for _, tag := range event.Tags {
+		if len(tag) < 2 || tag[0] != name {
+			continue
+		}
+		for _, value := range values {
+			if tag[1] == value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func eventHasTag(event nostr.Event, name string) bool {
+	for _, tag := range event.Tags {
+		if len(tag) >= 2 && tag[0] == name && tag[1] != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func eventTargetsWaveFunc(event nostr.Event) bool {
+	for _, tag := range event.Tags {
+		if len(tag) < 2 {
+			continue
+		}
+		if (tag[0] == "a" || tag[0] == "A") &&
+			(strings.HasPrefix(tag[1], "31237:") ||
+				strings.HasPrefix(tag[1], "31337:") ||
+				strings.HasPrefix(tag[1], "30078:")) {
+			return true
+		}
+	}
+	return eventHasTagValue(event, "t", "wavefunc", "tunestr") ||
+		(eventHasTag(event, "e") && eventHasTagValue(event, "k", "1", "31237", "31337", "30078"))
+}
+
+func rejectPublicEvent(metadataAuthor nostr.PubKey) func(context.Context, nostr.Event) (bool, string) {
+	return func(_ context.Context, event nostr.Event) (bool, string) {
+		switch event.Kind {
+		case 31237, 31337:
+			return false, ""
+		case 31238, 31239, 31240:
+			if event.PubKey == metadataAuthor {
+				return false, ""
+			}
+			return true, "restricted: observer events require the configured signer"
+		case 30078:
+			for _, tag := range event.Tags {
+				if len(tag) >= 2 && tag[0] == "l" && allowedWaveFuncLabel(tag[1]) {
+					if strings.HasPrefix(tag[1], "wavefunc:featured:") &&
+						event.PubKey.Hex() != "210f31b6019f5ae13c995c8d83faa41a129f1296842e4c3313ab8a4abb09d1a2" {
+						return true, "restricted: featured lists require an administrator"
+					}
+					return false, ""
+				}
+			}
+			return true, "restricted: unknown application list"
+		case 1:
+			if eventHasTagValue(event, "t", "wavefunc", "tunestr") {
+				return false, ""
+			}
+		case 7, 1111, 9321, 9735:
+			if eventTargetsWaveFunc(event) {
+				return false, ""
+			}
+		case 1985:
+			if eventHasTagValue(event, "L", "wavefunc.station-status") &&
+				eventTargetsWaveFunc(event) {
+				return false, ""
+			}
+		case 5:
+			if eventTargetsWaveFunc(event) || eventHasTagValue(event, "k", "31237", "31337", "30078") {
+				return false, ""
+			}
+		case 1059, 21059, 24133, 25910:
+			if eventHasTag(event, "p") {
+				return false, ""
+			}
+		}
+		return true, fmt.Sprintf("restricted: event kind %d is not WaveFunc-scoped", event.Kind)
+	}
+}
+
+func rejectPublicCount(_ context.Context, filter nostr.Filter) (bool, string) {
+	if isStationOnlyCountFilter(filter) {
+		return false, ""
+	}
+	return true, "restricted: only station COUNT is supported"
+}
+
+func isLoopbackRequest(ctx context.Context) bool {
+	ip := net.ParseIP(khatru.GetIP(ctx))
+	return ip != nil && ip.IsLoopback()
+}
+
+func isLocalObserverEvidenceFilter(filter nostr.Filter) bool {
+	if len(filter.Kinds) == 0 || len(filter.IDs) > 0 || len(filter.Authors) > 0 ||
+		len(filter.Tags) > 0 || filter.Search != "" {
+		return false
+	}
+	for _, kind := range filter.Kinds {
+		if kind != 7 && kind != 9735 && kind != 9321 && kind != 1985 {
+			return false
+		}
+	}
+	return true
+}
+
+func externalPublicFilterPolicy(ctx context.Context, filter nostr.Filter) (bool, string) {
+	reject, reason := rejectPublicFilter(ctx, filter)
+	if reject && isLoopbackRequest(ctx) && isLocalObserverEvidenceFilter(filter) {
+		return false, ""
+	}
+	return reject, reason
+}
+
+func subscriptionLimitPolicy(relay *khatru.Relay, max int) func(context.Context, nostr.Filter) (bool, string) {
+	return func(ctx context.Context, _ nostr.Filter) (bool, string) {
+		connection := khatru.GetConnection(ctx)
+		if connection == nil {
+			return false, ""
+		}
+		if snapshot, ok := relay.GetClientSnapshot(connection.GetID()); ok && snapshot.SubscriptionCount >= max {
+			return true, "rate-limited: too many active subscriptions"
+		}
+		return false, ""
+	}
+}
+
+func publicQueryLimit(ctx context.Context, filter nostr.Filter) int {
+	if isLoopbackRequest(ctx) {
+		return 100_000
+	}
+	if len(filter.IDs) > 0 {
+		return maxPublicIDs
+	}
+	if containsKind(filter.Kinds, 31237) {
+		return 500
+	}
+	if containsKind(filter.Kinds, 31238) || containsKind(filter.Kinds, 31239) ||
+		containsKind(filter.Kinds, 1111) {
+		return 500
+	}
+	return 200
+}
 
 // stationSearch is a custom bleve search index with:
 //   - Station-aware indexing: indexes "name description" as searchable content
@@ -480,6 +812,8 @@ func main() {
 
 	// Initialize relay
 	relay := khatru.NewRelay()
+	verboseTrafficLogging := envEnabled(os.Getenv("RELAY_VERBOSE_LOGGING"))
+	strictPublicPolicy := strings.EqualFold(strings.TrimSpace(os.Getenv("RELAY_POLICY_MODE")), "wavefunc")
 	relayPubKey := nostr.MustPubKeyFromHex("96c727f4d1ea18a80d03621520ebfe3c9be1387033009a4f5b65959d09222eec")
 	relay.Info = &nip11.RelayInformationDocument{
 		Name:          "WaveFunc Radio Relay",
@@ -490,13 +824,48 @@ func main() {
 		SupportedNIPs: []any{1, 9, 11, 12, 15, 16, 20, 22, 33, 40, 45, 50},
 	}
 
+	if strictPublicPolicy {
+		metadataPubKeyHex := strings.TrimSpace(os.Getenv("METADATA_SERVER_PUBKEY"))
+		if metadataPubKeyHex == "" {
+			metadataPubKeyHex = productionMetadataServerPubKey
+		}
+		metadataPubKey, err := nostr.PubKeyFromHex(metadataPubKeyHex)
+		if err != nil {
+			log.Fatalf("Invalid METADATA_SERVER_PUBKEY: %v", err)
+		}
+
+		// This relay is a WaveFunc application-data relay, not a public Nostr
+		// firehose. Keep initial bursts usable for the app while bounding
+		// reconnections, query churn, listener fan-out, and write amplification.
+		relay.MaxMessageSize = 128 * 1024
+		relay.RejectConnection = policies.ConnectionRateLimiter(5, time.Minute, 30)
+		relay.OnRequest = policies.SeqRequest(
+			externalPublicFilterPolicy,
+			subscriptionLimitPolicy(relay, maxPublicSubscriptions),
+			policies.FilterIPRateLimiter(5, time.Minute, 40),
+		)
+		relay.OnCount = policies.SeqRequest(
+			rejectPublicCount,
+			policies.FilterIPRateLimiter(5, time.Minute, 20),
+		)
+		relay.OnEvent = policies.SeqEvent(
+			rejectPublicEvent(metadataPubKey),
+			policies.RejectEventsWithBase64Media,
+			policies.PreventLargeContent(64*1024),
+			policies.PreventTooManyIndexableTags(128, nil, nil),
+			policies.EventIPRateLimiter(10, time.Minute, 60),
+		)
+	}
+
 	// Wire up LMDB as primary storage (also starts expiration manager)
 	relay.UseEventstore(db, 1000)
 
 	// Override StoreEvent to also index in bleve
 	baseStore := relay.StoreEvent
 	relay.StoreEvent = func(ctx context.Context, event nostr.Event) error {
-		logIncomingEvent(event)
+		if verboseTrafficLogging {
+			logIncomingEvent(event)
+		}
 		if err := baseStore(ctx, event); err != nil {
 			return err
 		}
@@ -541,42 +910,24 @@ func main() {
 	}
 
 	// Override QueryStored: use bleve for search queries, LMDB for regular queries.
-	// Internal calls (e.g. from handleDeleteRequest) have no subscription ID in context
-	// and are identified by safeGetSubscriptionID returning "internal". For those calls
-	// we skip logging and apply phantom-event logic so that kind-5 deletion events are
-	// always accepted even when the referenced event is not in this relay's database.
+	// The public endpoint gets shape-specific response caps; the local ContextVM
+	// observer can perform its trusted catalog bootstrap without exposing that
+	// large response window to the internet.
 	relay.QueryStored = func(ctx context.Context, filter nostr.Filter) iter.Seq[nostr.Event] {
 		isInternal := safeGetSubscriptionID(ctx) == "internal"
-		if !isInternal {
+		if verboseTrafficLogging && !isInternal {
 			logQuery(ctx, filter)
 		}
 		if len(filter.Search) > 0 {
 			return search.QueryEvents(filter, 100)
 		}
-		if !isInternal {
+		if isInternal {
 			return db.QueryEvents(filter, 1000)
 		}
-		// Internal delete-check query: run normally, but if nothing is found AND the
-		// filter targets a specific author (from an "a"-tag coordinate), yield a phantom
-		// event. The phantom passes the author-equality check in handleDeleteRequest so
-		// haveDeletedSomething is set and the relay returns OK. DeleteEvent is then
-		// called with the phantom's zero ID which is a no-op in LMDB.
-		return func(yield func(nostr.Event) bool) {
-			found := false
-			for evt := range db.QueryEvents(filter, 1000) {
-				found = true
-				if !yield(evt) {
-					return
-				}
-			}
-			if !found && len(filter.Authors) == 1 {
-				phantom := nostr.Event{PubKey: filter.Authors[0]}
-				if len(filter.Kinds) > 0 {
-					phantom.Kind = filter.Kinds[0]
-				}
-				yield(phantom)
-			}
+		if strictPublicPolicy {
+			return db.QueryEvents(filter, publicQueryLimit(ctx, filter))
 		}
+		return db.QueryEvents(filter, 1000)
 	}
 
 	// NIP-45 COUNT support. The fast path is `{"kinds":[31237]}` with no
@@ -584,10 +935,8 @@ func main() {
 	// question the UI asks on every page load, and bleve's DocCount() is
 	// O(1) since the index only ever holds station events.
 	//
-	// For any other filter shape we fall back to iterating LMDB, which is
-	// still cheap because the kind/pubkey indexes are pre-built. We cap the
-	// fallback at 200k so a malformed empty-filter request can't pin the
-	// relay scanning forever.
+	// Other COUNT shapes are deliberately unsupported on this specialized
+	// relay. This removes the previous 200k-event scan amplification path.
 	relay.Count = func(_ context.Context, filter nostr.Filter) (uint32, error) {
 		if isStationOnlyCountFilter(filter) {
 			docCount, err := search.index.DocCount()
@@ -596,12 +945,7 @@ func main() {
 			}
 			// fall through to LMDB if bleve hiccups
 		}
-		const fallbackCap = 200_000
-		var n uint32
-		for range db.QueryEvents(filter, fallbackCap) {
-			n++
-		}
-		return n, nil
+		return 0, fmt.Errorf("unsupported: only station COUNT is supported")
 	}
 
 	// Drift check: if LMDB has stations but the search index has essentially
@@ -621,15 +965,26 @@ func main() {
 		}
 	}
 
-	port := *port
-	log.Printf("🚀 WaveFunc Radio Relay starting on port %s", port)
+	address := net.JoinHostPort(*host, *port)
+	log.Printf("🚀 WaveFunc Radio Relay starting on %s", address)
 	log.Printf("📊 LMDB: %s", *dbPath)
 	log.Printf("🔍 Search index: %s", *searchPath)
+	if strictPublicPolicy {
+		log.Printf("🛡️  Specialized WaveFunc relay policy enabled")
+	} else {
+		log.Printf("🧪 Permissive development relay policy enabled")
+	}
+	if verboseTrafficLogging {
+		log.Printf("🧪 Verbose relay traffic logging enabled by RELAY_VERBOSE_LOGGING")
+	}
 
-	portInt := 3334
-	fmt.Sscanf(port, "%d", &portInt)
-
-	if err := relay.Start("0.0.0.0", portInt); err != nil {
+	server := &http.Server{
+		Addr:              address,
+		Handler:           relay,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Failed to start relay: %v", err)
 	}
 }
