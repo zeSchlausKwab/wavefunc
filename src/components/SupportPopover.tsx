@@ -3,8 +3,8 @@ import { parseBolt11 } from "applesauce-common/helpers";
 import { decode } from "light-bolt11-decoder";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { SUPPORT_PUBKEY, supportRequest, verifySupportReceipt, type SupportProvider } from "../lib/nostr/support";
-import { loadSupportEndpoint } from "../lib/nostr/supportService";
+import { SUPPORT_PUBKEY, SUPPORT_MESSAGE_LIMIT, supportRequest, verifySupportReceipt, type SupportProvider } from "../lib/nostr/support";
+import { loadSupportEndpoint, supportInvoiceCallback } from "../lib/nostr/supportService";
 import { ContactsModel, ProfileModel } from "applesauce-core/models";
 import { FollowUser } from "applesauce-actions/actions";
 import { useEventModel } from "applesauce-react/hooks";
@@ -211,13 +211,10 @@ export function SupportDialog() {
     if (!Number.isSafeInteger(amountMsat)) throw new Error("Amount is too large");
     const endpoint = await loadSupportEndpoint(lud16);
     if (amountMsat < endpoint.minSendable || amountMsat > endpoint.maxSendable) throw new Error(`Choose between ${endpoint.minSendable / 1000} and ${endpoint.maxSendable / 1000} sats`);
+    const message = comment.trim();
     const request = signer && endpoint.allowsNostr
-      ? await signer.signEvent(supportRequest(amountMsat, comment, zapReceiptRelays, endpoint.lnurl)) : null;
-    const callback = new URL(endpoint.callback);
-    callback.searchParams.set("amount", String(amountMsat));
-    callback.searchParams.set("lnurl", endpoint.lnurl);
-    if (comment) callback.searchParams.set("comment", comment);
-    if (request) callback.searchParams.set("nostr", JSON.stringify(request));
+      ? await signer.signEvent(supportRequest(amountMsat, message, zapReceiptRelays, endpoint.lnurl)) : null;
+    const callback = supportInvoiceCallback(endpoint, amountMsat, message, request);
     const response = await platformFetch(callback, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) throw new Error(`Invoice service returned ${response.status}`);
     const data = await response.json();
@@ -426,19 +423,28 @@ export function SupportDialog() {
             </div>
 
             <p className="text-xs leading-relaxed text-on-background/60">
-              {currentUser ? "Public app-support zaps can appear in the supporter leaderboard with your name and amount." : "Log in to receive public credit on the supporter leaderboard. Payments without a Nostr receipt remain private to your wallet and provider."}
+              {currentUser ? "Your name, amount, and message can appear publicly in the supporter leaderboard." : "Log in to show your name and message on the supporter leaderboard. Without a login, messages go only to the recipient's wallet when supported."}
             </p>
             {/* Optional comment */}
-            {currentUser && (
-              <input
-                type="text"
+            <div className="space-y-2">
+              <label htmlFor="support-message" className="text-[10px] font-bold uppercase tracking-widest text-on-background/60">
+                Message (optional)
+              </label>
+              <textarea
+                id="support-message"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="ADD_A_MESSAGE..."
-                className="w-full border-2 border-on-background/30 px-3 py-2 text-xs font-bold uppercase tracking-tight bg-transparent outline-none placeholder:text-on-background/25"
-                maxLength={140}
+                placeholder="Leave a message with your support…"
+                className="w-full resize-y border-2 border-on-background/30 px-3 py-2 text-sm bg-transparent outline-none focus:border-primary placeholder:text-on-background/40"
+                rows={3}
+                maxLength={SUPPORT_MESSAGE_LIMIT}
+                disabled={loading}
+                aria-describedby="support-message-count"
               />
-            )}
+              <p id="support-message-count" className="text-right text-[10px] text-on-background/50">
+                {comment.length}/{SUPPORT_MESSAGE_LIMIT}
+              </p>
+            </div>
 
             {error && (
               <p className="text-[10px] font-bold uppercase tracking-widest text-primary">{error}</p>

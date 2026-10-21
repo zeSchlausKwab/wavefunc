@@ -13,6 +13,7 @@ export type SupportEndpoint = SupportProvider & {
   minSendable: number;
   maxSendable: number;
   allowsNostr: boolean;
+  commentAllowed: number;
 };
 export async function loadSupportEndpoint(
   address: string,
@@ -50,9 +51,41 @@ export async function loadSupportEndpoint(
     minSendable: data.minSendable,
     maxSendable: data.maxSendable,
     allowsNostr,
+    commentAllowed:
+      Number.isSafeInteger(data.commentAllowed) && data.commentAllowed > 0
+        ? data.commentAllowed
+        : 0,
     pubkey: allowsNostr ? data.nostrPubkey : "",
     lnurl: encodeLnurl(endpoint),
   };
+}
+
+/** NIP-57 messages live in the signed request. LUD-12 comments are a separate,
+ * optional wallet feature; never send an unsupported or oversized comment. */
+export function supportInvoiceCallback(
+  endpoint: SupportEndpoint,
+  amountMsat: number,
+  message: string,
+  request: NostrEvent | null,
+): URL {
+  const callback = new URL(endpoint.callback);
+  callback.searchParams.set("amount", String(amountMsat));
+  callback.searchParams.set("lnurl", endpoint.lnurl);
+  callback.searchParams.delete("comment");
+  callback.searchParams.delete("nostr");
+  if (request) callback.searchParams.set("nostr", JSON.stringify(request));
+  if (message) {
+    if (endpoint.commentAllowed >= Array.from(message).length) {
+      callback.searchParams.set("comment", message);
+    } else if (!request) {
+      throw new Error(
+        endpoint.commentAllowed
+          ? `This wallet accepts messages up to ${endpoint.commentAllowed} characters. Shorten your message or log in to send it with a public zap.`
+          : "This wallet does not accept private messages. Remove the message or log in to send it with a public zap.",
+      );
+    }
+  }
+  return callback;
 }
 
 /** Page inclusively across timestamp boundaries; enlarge tied pages instead of

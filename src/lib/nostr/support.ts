@@ -9,6 +9,7 @@ export const SUPPORT_PUBKEY =
   "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3";
 export const SUPPORT_NAMESPACE = "live.wavefunc.support";
 export const SUPPORT_LABEL = "app-support";
+export const SUPPORT_MESSAGE_LIMIT = 280;
 // Fixed rollout cutoff: older direct-to-profile zaps may seed the board.
 // Never compute this from the viewer's current time.
 export const LEGACY_PROFILE_ZAP_CUTOFF = 1792573093; // 2026-10-21 08:58:13 UTC
@@ -228,6 +229,7 @@ export function supportLedger(
   }
   const seen = new Set<string>();
   const totals = new Map<string, bigint>();
+  const messages = new Map<string, NostrEvent>();
   const isLegacySupport = (receipt: SupportReceipt) =>
     receipt.event.created_at < LEGACY_PROFILE_ZAP_CUTOFF &&
     receipt.request.created_at < LEGACY_PROFILE_ZAP_CUTOFF &&
@@ -252,9 +254,22 @@ export function supportLedger(
       receipt.sender,
       (totals.get(receipt.sender) ?? 0n) + receipt.msats,
     );
+    const previous = messages.get(receipt.sender);
+    if (
+      receipt.request.content.trim() &&
+      (!previous ||
+        receipt.request.created_at > previous.created_at ||
+        (receipt.request.created_at === previous.created_at &&
+          receipt.request.id < previous.id))
+    )
+      messages.set(receipt.sender, receipt.request);
   }
   const leaders = [...totals]
-    .map(([pubkey, msats]) => ({ pubkey, msats }))
+    .map(([pubkey, msats]) => ({
+      pubkey,
+      msats,
+      message: messages.get(pubkey)?.content.trim() || null,
+    }))
     .sort((a, b) =>
       a.msats === b.msats
         ? a.pubkey.localeCompare(b.pubkey)

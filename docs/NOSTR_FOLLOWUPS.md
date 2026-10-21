@@ -34,6 +34,8 @@ Future support requests contain NIP-32 `L`/`l` self-labels in `live.wavefunc.sup
 
 Read-only inspection found six qualifying old direct receipts from two identified senders; browser verification displayed those two supporters. The maximum is five, without padding the list with invented users.
 
+Each supporter also shows their latest non-empty message from an included, verified zap request, including old wallet-authored messages. Blank later zaps do not erase an earlier message, and excluded receipts cannot supply one. Text is rendered plainly, preserving line breaks. The support dialog provides an optional 280-character message field with explicit public-credit guidance. Signed messages use NIP-57 request content; optional LUD-12 wallet comments are sent only within the advertised limit. Unsupported private comments produce an error before an invoice is requested.
+
 ### Optional discovery and status
 
 Community outbox discovery is off by default and account-scoped on this device. It supplements the app feed for known participants, loads their NIP-65 lists before applying fallbacks, excludes insecure/private-address candidates and failing relays, and uses a separate pool that closes on cleanup. App data and wallet routing remain separate. NIP-66 suggestions require fresh signed reports from at least two distinct monitors, query only on demand, and edit the relay draft for explicit saving. Monitor keys are not proof of independent operators; reports remain advisory.
@@ -48,7 +50,7 @@ Enable/unlock, lock, and erase controls live in wallet settings, including while
 
 ## Validation
 
-- 150 Bun tests, TypeScript checking, production frontend build, and unsigned macOS debug Tauri build pass.
+- 154 Bun tests, TypeScript checking, and production frontend build pass. The earlier unsigned macOS debug Tauri build also passed.
 - Added regression coverage for receipt forgery/attribution/deduplication/top-five/timestamp pagination, Android reverse-port ownership, encrypted and plaintext ContextVM tool calls/progress/errors, relay-selection limits and stale monitor reports, queued listening-status cancellation, and encrypted-cache isolation/tampering/lock races/real NutWallet cache reuse.
 - Browser checks: desktop 2:1 width (approximately 779 px / 390 px at the tested viewport), mobile stacking with no horizontal overflow, real historical names/avatars/amounts, support-dialog navigation, default-off listening/outbox switches, and test-account logout. The wallet's remote relay was unavailable during UI inspection; wallet cache behavior was verified with isolated NutWallet integration tests.
 - Release preflight: six temporary mixed-version checks pass for ContextVM 0.8.0 clients against 0.14.3 servers and the reverse, in disabled/required/optional encryption modes. Each verifies tool results, errors, and progress over a localhost-only relay. These exercise wire compatibility; they do not deploy either version to production.
@@ -58,4 +60,4 @@ Enable/unlock, lock, and erase controls live in wallet settings, including while
 
 Pushing `main` triggers the VPS workflow, which checks types/tests and deploys the frontend, relay, and ContextVM server together. The archive now includes the runtime helper scripts used for health checks, bandwidth sampling, migration, and reindexing. It excludes persistent relay data, local binaries, dependencies, and source maps. Deployment replaces only the three WaveFunc PM2 services, preserving other apps and the log-rotation module. Local deployment builds explicitly set the production stage. Workflow YAML, shell syntax, an actual archive built from a disposable fixture, and scoped PM2 cleanup with stub services were checked.
 
-The web/server changes are ready for rollout with post-deploy smoke checks. Native packages remain at version 0.1.11; bump the version before tagging a new release, then verify the release artifacts and physical-device flows. The tag workflow publishes its draft automatically once all native build jobs succeed.
+The web/server changes are ready for rollout with post-deploy smoke checks. Version 0.1.12 is prepared across the frontend and native manifests. The tag workflow builds native packages and publishes its draft automatically once all native build jobs succeed. Physical-device and real-payment checks remain manual.

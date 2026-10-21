@@ -21,10 +21,12 @@ function Supporter({
   pubkey,
   msats,
   rank,
+  message,
 }: {
   pubkey: string;
   msats: bigint;
   rank: number;
+  message: string | null;
 }) {
   const profile = useProfile(pubkey);
   const name =
@@ -32,35 +34,45 @@ function Supporter({
     profile?.name ||
     `${pubkey.slice(0, 8)}…${pubkey.slice(-4)}`;
   return (
-    <li className="flex items-center gap-3 border-b-2 border-on-background/15 py-5 last:border-b-0">
-      <span className="w-5 shrink-0 font-mono text-xs font-black text-on-background/40">
-        {String(rank).padStart(2, "0")}
-      </span>
-      <Link
-        to="/profile/$pubkey"
-        params={{ pubkey }}
-        className="flex min-w-0 flex-1 items-center gap-3 hover:text-primary"
-      >
-        <Avatar className="size-11 rounded-none border-2 border-on-background">
-          <AvatarImage
-            src={profile?.picture}
-            alt=""
-            className="object-cover grayscale"
-          />
-          <AvatarFallback className="rounded-none font-black">
-            {name.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <span className="min-w-0 truncate text-sm font-black" title={name}>
-          {name}
+    <li className="border-b-2 border-on-background/15 py-5 last:border-b-0">
+      <div className="flex items-center gap-3">
+        <span className="w-5 shrink-0 font-mono text-xs font-black text-on-background/40">
+          {String(rank).padStart(2, "0")}
         </span>
-      </Link>
-      <span className="shrink-0 text-right font-mono text-sm font-black tabular-nums">
-        {formatSupportSats(msats)}
-        <span className="block text-[9px] uppercase tracking-widest text-on-background/50">
-          sats
+        <Link
+          to="/profile/$pubkey"
+          params={{ pubkey }}
+          className="flex min-w-0 flex-1 items-center gap-3 hover:text-primary"
+        >
+          <Avatar className="size-11 rounded-none border-2 border-on-background">
+            <AvatarImage
+              src={profile?.picture}
+              alt=""
+              className="object-cover grayscale"
+            />
+            <AvatarFallback className="rounded-none font-black">
+              {name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <span className="min-w-0 truncate text-sm font-black" title={name}>
+            {name}
+          </span>
+        </Link>
+        <span className="shrink-0 text-right font-mono text-sm font-black tabular-nums">
+          {formatSupportSats(msats)}
+          <span className="block text-[9px] uppercase tracking-widest text-on-background/50">
+            sats
+          </span>
         </span>
-      </span>
+      </div>
+      {message && (
+        <blockquote
+          aria-label={`Latest support message from ${name}`}
+          className="ml-8 mt-3 max-h-40 overflow-y-auto whitespace-pre-wrap border-l-2 border-primary/40 pl-3 text-xs leading-relaxed text-on-background/75 [overflow-wrap:anywhere]"
+        >
+          {message}
+        </blockquote>
+      )}
     </li>
   );
 }

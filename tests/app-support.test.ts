@@ -13,7 +13,10 @@ import {
   supportLedger,
   formatSupportSats,
 } from "../src/lib/nostr/support";
-import { loadSupportHistory } from "../src/lib/nostr/supportService";
+import {
+  loadSupportHistory,
+  supportInvoiceCallback,
+} from "../src/lib/nostr/supportService";
 const key = (n: number) => new Uint8Array(32).fill(n);
 const provider = {
   pubkey: getPublicKey(key(1)),
@@ -57,11 +60,13 @@ function receipt(
     created_at?: number;
     bound?: boolean;
     post?: boolean;
+    message?: string;
+    request_at?: number;
   } = {},
 ) {
   const request = supportRequest(
     options.amount ?? 1000,
-    "support fixture",
+    options.message ?? "support fixture",
     ["wss://relay.example"],
     provider.lnurl,
   );
@@ -70,7 +75,7 @@ function receipt(
   if (options.anonymous) request.tags.push(["anon"]);
   if (options.post) request.tags.push(["e", "a".repeat(64)]);
   const signed = finalizeEvent(
-    { ...request, created_at: 1 },
+    { ...request, created_at: options.request_at ?? 1 },
     key(options.sender ?? 2),
   );
   const description = JSON.stringify(signed);
@@ -114,8 +119,131 @@ describe("app-support receipts", () => {
     );
     expect(valid.every(Boolean)).toBe(true);
     expect(supportLedger(valid, []).leaders).toEqual([
-      { pubkey: getPublicKey(key(2)), msats: 8000n },
+      {
+        pubkey: getPublicKey(key(2)),
+        msats: 8000n,
+        message: "support fixture",
+      },
     ]);
+  });
+  test("shows the latest non-empty signed message from included support, including old wallet zaps", () => {
+    const old = receipt({
+      marked: false,
+      bound: false,
+      message: " Loving WaveFunc ser... ",
+      created_at: LEGACY_PROFILE_ZAP_CUTOFF - 1,
+    });
+    const blank = receipt({
+      message: " \n ",
+      request_at: 5,
+      payment: "2".repeat(64),
+    });
+    const post = receipt({
+      marked: false,
+      post: true,
+      message: "Unrelated post",
+      request_at: 10,
+      payment: "3".repeat(64),
+    });
+    const valid = [old, blank, post].map(
+      (e) => verifySupportReceipt(e, provider)!,
+    );
+    expect(supportLedger(valid, []).leaders[0]?.message).toBe(
+      "Loving WaveFunc ser...",
+    );
+    const newer = verifySupportReceipt(
+      receipt({
+        message: "Still listening ⚡\nThank you!",
+        request_at: 6,
+        payment: "4".repeat(64),
+      }),
+      provider,
+    )!;
+    const newest = supportLedger([...valid, newer], []);
+    expect(newest.leaders[0]?.message).toBe("Still listening ⚡\nThank you!");
+    expect(supportLedger([newer, ...valid].reverse(), []).leaders).toEqual(
+      newest.leaders,
+    );
+    const authority = getPublicKey(key(3));
+    const exclude = finalizeEvent(
+      { ...supportDecision(newer.event.id, false), created_at: 20 },
+      key(3),
+    );
+    expect(
+      supportLedger([...valid, newer], [exclude], authority).leaders[0]
+        ?.message,
+    ).toBe("Loving WaveFunc ser...");
+  });
+  test("does not invent messages for empty receipts or take messages from receipt content", () => {
+    const event = receipt({ message: "" });
+    const modified = finalizeEvent(
+      { ...event, content: "provider text" },
+      key(1),
+    );
+    expect(
+      supportLedger([verifySupportReceipt(modified, provider)!], []).leaders[0]
+        ?.message,
+    ).toBeNull();
+  });
+  test("preserves signed zap messages even when the wallet does not accept LNURL comments", () => {
+    const message = "Love the music ⚡ & keep it going!";
+    const request = finalizeEvent(
+      supportRequest(1000, message, ["wss://relay.example"], provider.lnurl),
+      key(2),
+    );
+    const endpoint = {
+      ...provider,
+      callback: "https://wallet.example/pay?token=fixture",
+      allowsNostr: true,
+      minSendable: 1000,
+      maxSendable: 10000,
+      commentAllowed: 0,
+    };
+    for (const commentAllowed of [0, 5, 100]) {
+      const url = supportInvoiceCallback(
+        { ...endpoint, commentAllowed },
+        1000,
+        message,
+        request,
+      );
+      expect(JSON.parse(url.searchParams.get("nostr")!).content).toBe(message);
+      expect(url.searchParams.get("comment")).toBe(
+        commentAllowed === 100 ? message : null,
+      );
+      expect(url.searchParams.get("token")).toBe("fixture");
+    }
+  });
+  test("delivers wallet-only messages within advertised limits and rejects unsupported ones before payment", () => {
+    const endpoint = {
+      ...provider,
+      callback: "https://wallet.example/pay",
+      allowsNostr: false,
+      minSendable: 1000,
+      maxSendable: 10000,
+      commentAllowed: 2,
+    };
+    const url = supportInvoiceCallback(endpoint, 1000, "⚡🎵", null);
+    expect(url.searchParams.get("comment")).toBe("⚡🎵");
+    expect(url.searchParams.has("nostr")).toBe(false);
+    expect(() =>
+      supportInvoiceCallback(endpoint, 1000, "Too long", null),
+    ).toThrow("up to 2 characters");
+    expect(() =>
+      supportInvoiceCallback(
+        { ...endpoint, commentAllowed: 0 },
+        1000,
+        "Hello",
+        null,
+      ),
+    ).toThrow("does not accept private messages");
+    expect(
+      supportInvoiceCallback(
+        { ...endpoint, commentAllowed: 0 },
+        1000,
+        "",
+        null,
+      ).searchParams.has("comment"),
+    ).toBe(false);
   });
   test("unmarked history requires a receiving-account decision; other authors cannot curate", () => {
     const parsed = verifySupportReceipt(receipt({ marked: false }), provider)!;
