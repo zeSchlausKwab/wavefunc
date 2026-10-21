@@ -139,7 +139,9 @@ export class StationObserver {
       ),
       setInterval(
         () => this.runBackground("ranking publish", () => this.publishRankings()),
-        60 * 60_000,
+        // Listening activity should become visible promptly; the live chart
+        // also has a two-minute window, so hourly snapshots miss it entirely.
+        60_000,
       ),
     );
   }

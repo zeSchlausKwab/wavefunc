@@ -64,6 +64,8 @@ The landing page keeps `FEATURED_COLLECTIONS` first and adds a compact `SIGNAL_C
 
 Desktop uses a two-column chart grid. Mobile uses one horizontal, snap-scrolling rail per chart so the feature does not turn the landing page into a long stack. Each item remains a real station action surface: rank, artwork/name, metric, and play button.
 
+An empty signed `MOST_LISTENED` snapshot keeps its panel visible with an explanation of the 24-hour window. Unresolved station records are not treated as an empty listening window. Observer rankings refresh every minute so new listener-minutes and the two-minute live chart appear while the page is open.
+
 Station cards display the aggregate quality score directly (`QUALITY_0`–`QUALITY_100`) together with its state (`UP`, `DEGRADED`, `DOWN`, or `INSECURE`). The persistent player uses the compact `Q_92` form and shows `Q_—` while a selected station awaits its first check. Missing evidence is never presented as a bad score. The station detail view exposes a report/confirm control for authenticated users.
 
 Recent downloads sit in the same two-column grid as observer rankings and reuse signed kind `31337` song records containing both a Blossom file URL and their original YouTube identifier. This lets users replay or save a recently persisted file without making local browser history a source of truth.

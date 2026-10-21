@@ -177,7 +177,8 @@ function SignalChart({
     .map((entry) => ({ entry, station: stations.get(entry.stationAddress) }))
     .filter((row): row is { entry: StationRankingEntry; station: ParsedStation } => Boolean(row.station))
     .slice(0, 6);
-  if (rows.length === 0) return null;
+  const emptyListeningWindow = snapshot.metric === "most-listened" && snapshot.entries.length === 0;
+  if (rows.length === 0 && !emptyListeningWindow) return null;
 
   return (
     <section className={cn(CHART_PANEL_CLASS, className)}>
@@ -185,18 +186,25 @@ function SignalChart({
         <h3 className="font-headline text-base font-black uppercase tracking-tight">{config.title}</h3>
         <span className="text-[9px] font-black uppercase tracking-widest text-primary">{config.signal}</span>
       </div>
-      <div className={CHART_RAIL_CLASS} aria-label={`${config.title} stations`}>
-        {rows.map(({ entry, station }, index) => (
-          <ChartItem
-            key={entry.stationAddress}
-            station={station}
-            entry={entry}
-            metric={snapshot.metric}
-            rank={index + 1}
-            health={health.get(entry.stationAddress)}
-          />
-        ))}
-      </div>
+      {emptyListeningWindow ? (
+        <div className="space-y-2 px-4 py-6 text-sm text-on-background/60">
+          <p>No listening activity recorded in the last 24 hours.</p>
+          <p>Play a station to get things started. Rankings refresh every minute.</p>
+        </div>
+      ) : (
+        <div className={CHART_RAIL_CLASS} aria-label={`${config.title} stations`}>
+          {rows.map(({ entry, station }, index) => (
+            <ChartItem
+              key={entry.stationAddress}
+              station={station}
+              entry={entry}
+              metric={snapshot.metric}
+              rank={index + 1}
+              health={health.get(entry.stationAddress)}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -310,9 +318,37 @@ export function SignalCharts() {
   );
   const { byAddress, isLoading: stationsLoading } = useStationsByAddresses(addresses);
   const { byAddress: health } = useStationHealth(addresses);
+
+  return (
+    <SignalChartsView
+      {...{ rankings, isLoading, recentDownloads, songsLoading, byAddress, stationsLoading, health }}
+    />
+  );
+}
+
+export function SignalChartsView({
+  rankings,
+  isLoading,
+  recentDownloads,
+  songsLoading,
+  byAddress,
+  stationsLoading,
+  health,
+}: {
+  rankings: Map<StationRankingMetric, StationRankingSnapshot>;
+  isLoading: boolean;
+  recentDownloads: ParsedSong[];
+  songsLoading: boolean;
+  byAddress: Map<string, ParsedStation>;
+  stationsLoading: boolean;
+  health: ReturnType<typeof useStationHealth>["byAddress"];
+}) {
   const visible = CHARTS.filter((chart) => {
     const snapshot = rankings.get(chart.metric);
-    return snapshot?.entries.some((entry) => byAddress.has(entry.stationAddress));
+    return snapshot && (
+      (chart.metric === "most-listened" && snapshot.entries.length === 0) ||
+      snapshot.entries.some((entry) => byAddress.has(entry.stationAddress))
+    );
   });
   const showRankingSkeletons =
     (rankings.size === 0 && isLoading) ||

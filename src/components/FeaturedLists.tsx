@@ -225,7 +225,7 @@ export function FeaturedLists() {
       >
         <CarouselContent className="-ml-6">
           {featuredLists.map((list, i) => (
-            <CarouselItem key={list.favoritesId ?? i} className="pl-6 basis-full">
+            <CarouselItem key={list.favoritesId ?? i} className="pl-6 basis-[90vw] md:basis-[700px]">
               <FeaturedListModule list={list} index={i} />
             </CarouselItem>
           ))}
