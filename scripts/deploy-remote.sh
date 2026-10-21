@@ -122,7 +122,12 @@ fi
 
 # Restart PM2 processes
 echo "🔄 Restarting services..."
-pm2 delete all 2>/dev/null || true
+# Keep unrelated applications and PM2 modules (including log rotation) running.
+for service in wavefunc-web wavefunc-relay wavefunc-contextvm; do
+    if pm2 describe "$service" >/dev/null 2>&1; then
+        pm2 delete "$service"
+    fi
+done
 
 if [ -f ".env" ]; then
     export $(grep -v '^#' .env | xargs)

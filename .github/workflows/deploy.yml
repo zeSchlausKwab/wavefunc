@@ -22,7 +22,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: relay/go.mod
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -31,18 +31,24 @@ jobs:
         run: bun run typecheck && bun run test
 
       - name: Build frontend
+        env:
+          APP_STAGE: production
         run: bun run build.ts
 
       - name: Create deployment archive
         run: |
           tar -czf deploy.tar.gz \
             --exclude='contextvm/node_modules' \
+            --exclude='contextvm/bin' \
             --exclude='relay/relay' \
+            --exclude='relay/wavefunc-relay' \
             --exclude='relay/data' \
+            --exclude='dist/*.map' \
             dist/ \
             src/ \
             relay/ \
             contextvm/ \
+            scripts/ \
             ecosystem.config.cjs \
             Caddyfile \
             package.json \
@@ -54,15 +60,6 @@ jobs:
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Upload to VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PATH: ${{ secrets.VPS_PATH }}
-        run: |
-          ssh $VPS_USER@$VPS_HOST "mkdir -p $VPS_PATH"
-          scp deploy.tar.gz $VPS_USER@$VPS_HOST:$VPS_PATH/
 
       - name: Create .env file from secrets
         env:
