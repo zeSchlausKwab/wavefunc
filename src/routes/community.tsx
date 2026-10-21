@@ -25,6 +25,7 @@ import {
   type ParsedCommunityPost,
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
+import { useCommunityOutboxes } from "../lib/nostr/hooks/useCommunityOutboxes";
 import { useWindowedTimeline } from "../lib/nostr/hooks/useWindowedTimeline";
 import { loadReactions } from "../lib/nostr/store";
 import { cn } from "../lib/utils";
@@ -68,6 +69,8 @@ function Community() {
   );
 
   const { events: rawEvents, isLoading, incomplete, retry, loadOlder, since } = useWindowedTimeline(filters, getAppDataRelayUrls());
+
+  const discoveryError = useCommunityOutboxes(currentUser?.pubkey ?? null, rawEvents, since);
 
   const allPosts: ParsedCommunityPost[] = useMemo(
     () => rawEvents.map((event) => parseCommunityPostEvent(event)),
@@ -181,6 +184,7 @@ function Community() {
   return (
     <div className="space-y-6">
 
+      {discoveryError && <p role="status" className="text-xs">{discoveryError}</p>}
       {/* Page header */}
       <div className="border-4 border-on-background bg-surface-container-high p-5 sm:p-6 shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>

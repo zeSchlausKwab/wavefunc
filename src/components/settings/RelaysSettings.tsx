@@ -1,3 +1,4 @@
+import { RelayDiscoverySettings } from "./RelayDiscoverySettings";
 import { useEffect, useState } from "react";
 import { use$ } from "applesauce-react/hooks";
 import { MailboxesFactory } from "applesauce-core/factories";
@@ -107,6 +108,7 @@ export function RelaysSettings() {
       </div>
     </fieldset>
     {message && <p role="status" className="text-sm break-words">{message}</p>}
+    <RelayDiscoverySettings key={currentPubkey} pubkey={currentPubkey} add={url=>edit(()=>setDraft(normalizePersonalRelays([...draft,{url,read:true,write:true}])))} />
     <details className="space-y-3">
       <summary className="cursor-pointer font-bold">App, profile and wallet relays</summary>
       <p className="text-sm">These relays serve specific data types and are managed by the app.</p>

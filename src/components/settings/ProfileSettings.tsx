@@ -1,3 +1,4 @@
+import { ListeningSettings } from "./ListeningSettings";
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useCurrentAccount, useProfile } from "../../lib/nostr/auth";
@@ -144,6 +145,7 @@ export function ProfileSettings() {
       }}
     >
       <div className="space-y-6">
+        <ListeningSettings key={currentUser.pubkey} pubkey={currentUser.pubkey} />
         {/* Section header */}
         <div className="flex items-center gap-2 pb-3 border-b-4 border-on-background">
           <span className="material-symbols-outlined text-[20px]">person</span>

@@ -11,6 +11,7 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventSigner } from "applesauce-core/factories";
 import { use$ } from "applesauce-react/hooks";
 import { relayPreferences } from "../../config/relayPreferences";
+import { useListeningStatus } from "./hooks/useListeningStatus";
 import { useActiveWallet } from "./useActiveWallet";
 import type { PublishResponse } from "applesauce-relay/types";
 import type { AccountManager } from "applesauce-accounts";
@@ -138,6 +139,7 @@ export function WavefuncNostrProvider({
 
   const activeAccount = use$(accountManager.active$);
   const currentPubkey = activeAccount?.pubkey ?? null;
+  useListeningStatus(activeAccount);
   const activeActions = useMemo(() => resetActionRunner(), [activeAccount]);
 
   const currentAccount = useMemo(
