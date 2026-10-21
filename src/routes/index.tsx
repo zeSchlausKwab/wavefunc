@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { StationView } from "../components/StationView";
+import { TopSupporters } from "../components/TopSupporters";
 import { FeaturedLists } from "../components/FeaturedLists";
 import { useFilterStore } from "../stores/filterStore";
 import { SignalCharts } from "../components/SignalCharts";
@@ -23,7 +24,7 @@ function Index() {
 
   return (
     <>
-      {showFeatured && <FeaturedLists />}
+      {showFeatured && <div className="mb-16 grid min-w-0 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"><FeaturedLists /><TopSupporters /></div>}
       {showFeatured && <SignalCharts />}
       <StationView searchQuery={search || ""} />
     </>

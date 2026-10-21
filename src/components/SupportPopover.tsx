@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EventTemplate, NostrEvent } from "applesauce-core/helpers/event";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { parseBolt11 } from "applesauce-common/helpers";
+import { decode } from "light-bolt11-decoder";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
+import { SUPPORT_PUBKEY, supportRequest, verifySupportReceipt, type SupportProvider } from "../lib/nostr/support";
+import { loadSupportEndpoint } from "../lib/nostr/supportService";
 import { ContactsModel, ProfileModel } from "applesauce-core/models";
 import { FollowUser } from "applesauce-actions/actions";
 import { useEventModel } from "applesauce-react/hooks";
@@ -25,7 +30,6 @@ import {
 } from "./ui/dialog";
 import { QRCode } from "./QRCode";
 
-const SUPPORT_PUBKEY = "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3";
 const AMOUNTS = [1000, 5000, 10000, 21000];
 
 declare global {
@@ -102,6 +106,11 @@ export function SupportDialog() {
   const [state, setState] = useState<SupportState>("input");
   const [zapStartTime, setZapStartTime] = useState(0);
   const [following, setFollowing] = useState(false);
+  const [receiptProvider, setReceiptProvider] = useState<SupportProvider | null>(null);
+  const paymentInFlight = useRef(false);
+  const generation = useRef(0);
+  const paidInvoice = useRef<string | null>(null);
+  useEffect(() => { generation.current++; paymentInFlight.current = false; setLoading(false); setInvoice(null); setState("input"); setReceiptProvider(null); }, [open, accounts.active?.id]);
   const [contactsReadyFor, setContactsReadyFor] = useState<string | null>(null);
   const contactsReady =
     !currentUser || contactsReadyFor === currentUser.pubkey;
@@ -176,7 +185,7 @@ export function SupportDialog() {
 
   // Monitor for zap receipt (kind 9735)
   useEffect(() => {
-    if (!invoice || state !== "invoice") return;
+    if (!invoice || !receiptProvider || !["invoice", "processing"].includes(state)) return;
     const sub = relayPool
       .subscription(zapReceiptRelays, [
         { kinds: [9735], "#p": [SUPPORT_PUBKEY], since: zapStartTime },
@@ -185,123 +194,83 @@ export function SupportDialog() {
         next: (message) => {
           const event = message;
           const bolt11 = event.tags.find((t) => t[0] === "bolt11")?.[1];
-          if (bolt11 === invoice) {
+          if (bolt11 === invoice && verifySupportReceipt(event, receiptProvider)) {
+            eventStore.add(event);
+            paidInvoice.current = invoice;
             setState("success");
           }
         },
+        error: () => { /* A receipt relay outage does not mean payment failed. */ },
       });
     return () => sub.unsubscribe();
-  }, [invoice, state, zapStartTime, relayPool, zapReceiptRelays]);
+  }, [invoice, state, zapStartTime, relayPool, zapReceiptRelays, receiptProvider, eventStore]);
 
-  // Build NIP-57 zap request (kind 9734)
-  const buildZapRequest = useCallback(async (
-    amountMsat: number,
-    allowsNostr: boolean,
-  ): Promise<NostrEvent | null> => {
-    if (!signer || !allowsNostr) return null;
-    const template: EventTemplate = {
-      kind: 9734,
-      content: comment || "",
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ["relays", ...zapReceiptRelays],
-        ["amount", amountMsat.toString()],
-        ["p", SUPPORT_PUBKEY],
-      ],
-    };
-    return await signer.signEvent(template);
-  }, [signer, comment, zapReceiptRelays]);
-
-  // Fetch invoice via LNURL (with optional zap request)
-  const getInvoice = useCallback(async (sats: number): Promise<string> => {
-    if (!lud16) throw new Error("No lightning address");
-    const [username, domain] = lud16.split("@");
-    if (!username || !domain) throw new Error("Invalid lightning address");
-
+  const getInvoice = useCallback(async (sats: number) => {
+    if (!lud16 || !Number.isSafeInteger(sats) || sats <= 0) throw new Error("Choose a positive whole-sat amount");
     const amountMsat = sats * 1000;
-    const endpoint = `https://${domain}/.well-known/lnurlp/${username}`;
-    const res = await platformFetch(endpoint);
-    if (!res.ok) throw new Error(`Lightning service returned ${res.status}`);
-    const data = await res.json();
-    if (data.status === "ERROR") throw new Error(data.reason);
+    if (!Number.isSafeInteger(amountMsat)) throw new Error("Amount is too large");
+    const endpoint = await loadSupportEndpoint(lud16);
+    if (amountMsat < endpoint.minSendable || amountMsat > endpoint.maxSendable) throw new Error(`Choose between ${endpoint.minSendable / 1000} and ${endpoint.maxSendable / 1000} sats`);
+    const request = signer && endpoint.allowsNostr
+      ? await signer.signEvent(supportRequest(amountMsat, comment, zapReceiptRelays, endpoint.lnurl)) : null;
+    const callback = new URL(endpoint.callback);
+    callback.searchParams.set("amount", String(amountMsat));
+    callback.searchParams.set("lnurl", endpoint.lnurl);
+    if (comment) callback.searchParams.set("comment", comment);
+    if (request) callback.searchParams.set("nostr", JSON.stringify(request));
+    const response = await platformFetch(callback, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`Invoice service returned ${response.status}`);
+    const data = await response.json();
+    if (data.status === "ERROR" || typeof data.pr !== "string") throw new Error(data.reason || "No invoice returned");
+    if (parseBolt11(data.pr).amount !== amountMsat) throw new Error("Invoice amount does not match your request");
+    if (request) {
+      const hash = decode(data.pr).sections.find(section => String(section.name) === "description_hash");
+      const expected = bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(request))));
+      if (hash && (!("value" in hash) || hash.value !== expected)) throw new Error("Invoice does not match the signed support request");
+    }
+    return { invoice: data.pr as string, provider: request ? endpoint : null };
+  }, [lud16, signer, comment, zapReceiptRelays]);
 
-    const { callback, minSendable, maxSendable } = data;
-    if (minSendable && amountMsat < minSendable) throw new Error(`Min: ${minSendable / 1000} sats`);
-    if (maxSendable && amountMsat > maxSendable) throw new Error(`Max: ${maxSendable / 1000} sats`);
-
-    const zapRequest = await buildZapRequest(amountMsat, data.allowsNostr);
-
-    const callbackUrl = new URL(callback);
-    callbackUrl.searchParams.set("amount", amountMsat.toString());
-    if (comment) callbackUrl.searchParams.set("comment", comment);
-    if (zapRequest) callbackUrl.searchParams.set("nostr", JSON.stringify(zapRequest));
-
-    const invoiceRes = await platformFetch(callbackUrl);
-    if (!invoiceRes.ok) throw new Error(`Invoice service returned ${invoiceRes.status}`);
-    const invoiceData = await invoiceRes.json();
-    if (!invoiceData.pr) throw new Error("No invoice returned");
-    return invoiceData.pr;
-  }, [lud16, comment, buildZapRequest]);
-
-  // Payment: show QR (manual pay)
-  const handleGetInvoice = async () => {
-    setLoading(true);
-    setError(null);
+  const pay = async (method: "invoice" | "webln" | "nwc") => {
+    if (paymentInFlight.current) return;
+    paymentInFlight.current = true;
+    const operation = generation.current;
+    let pendingInvoice: string | null = null;
+    setLoading(true); setError(null);
     try {
-      const inv = await getInvoice(amount);
-      setInvoice(inv);
-      setZapStartTime(Math.floor(Date.now() / 1000));
-      setState("invoice");
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch invoice");
+      if (method === "webln") await window.webln?.enable();
+      const result = await getInvoice(amount);
+      if (operation !== generation.current) return;
+      pendingInvoice = result.invoice;
+      setInvoice(result.invoice); setReceiptProvider(result.provider);
+      setZapStartTime(Math.floor(Date.now()/1000) - 10);
+      setState(method === "invoice" ? "invoice" : "processing");
+      if (method === "invoice") return;
+      const payment = method === "webln"
+        ? await window.webln!.sendPayment(result.invoice)
+        : await nwcPayInvoice(parseNWCConnectionString(nwcConnection!.connectionString), result.invoice, relayPool);
+      if (operation !== generation.current) return;
+      if (!payment.preimage || !/^[0-9a-f]{64}$/i.test(payment.preimage)) throw new Error("The wallet did not return a payment preimage");
+      const bytes = Uint8Array.from(payment.preimage.match(/../g)!.map(value => parseInt(value, 16)));
+      if (bytesToHex(sha256(bytes)) !== parseBolt11(result.invoice).paymentHash) throw new Error("Payment preimage does not match the invoice");
+      setState("success");
+    } catch (error) {
+      if (operation !== generation.current) return;
+      if (pendingInvoice && paidInvoice.current === pendingInvoice) return;
+      setError(error instanceof Error ? error.message : "Payment failed");
+      setState(pendingInvoice ? "invoice" : "input");
     } finally {
-      setLoading(false);
+      if (operation === generation.current) { paymentInFlight.current = false; setLoading(false); }
     }
   };
-
-  // Payment: WebLN (browser extension)
-  const handleWebLN = async () => {
-    if (!window.webln) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await window.webln.enable();
-      const inv = await getInvoice(amount);
-      setInvoice(inv);
-      setZapStartTime(Math.floor(Date.now() / 1000));
-      setState("processing");
-      const result = await window.webln.sendPayment(inv);
-      if (result.preimage) setState("success");
-    } catch (err: any) {
-      setError(err.message || "WebLN payment failed");
-      if (invoice) setState("invoice"); // fall back to QR
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Payment: NWC (Nostr Wallet Connect)
-  const handleNWC = async () => {
-    if (!nwcConnection?.connectionString) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const inv = await getInvoice(amount);
-      setInvoice(inv);
-      setZapStartTime(Math.floor(Date.now() / 1000));
-      setState("processing");
-      const connection = parseNWCConnectionString(nwcConnection.connectionString);
-      const result = await nwcPayInvoice(connection, inv, relayPool);
-      if (result.preimage) setState("success");
-    } catch (err: any) {
-      setError(err.message || "NWC payment failed");
-      if (invoice) setState("invoice");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleGetInvoice = () => pay("invoice");
+  const handleWebLN = () => pay("webln");
+  const handleNWC = () => pay("nwc");
 
   const reset = () => {
+    generation.current++;
+    paymentInFlight.current = false;
+    setReceiptProvider(null);
     setInvoice(null);
     setError(null);
     setCopied(false);
@@ -456,6 +425,9 @@ export function SupportDialog() {
               <span className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 shrink-0">SATS</span>
             </div>
 
+            <p className="text-xs leading-relaxed text-on-background/60">
+              {currentUser ? "Public app-support zaps can appear in the supporter leaderboard with your name and amount." : "Log in to receive public credit on the supporter leaderboard. Payments without a Nostr receipt remain private to your wallet and provider."}
+            </p>
             {/* Optional comment */}
             {currentUser && (
               <input

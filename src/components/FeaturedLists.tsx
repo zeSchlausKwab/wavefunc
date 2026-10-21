@@ -179,7 +179,7 @@ export function FeaturedLists() {
 
   if (isLoading) {
     return (
-      <div className="mb-16 space-y-6">
+      <div className="min-w-0 space-y-6">
         <SectionHeader label="CURATED_SIGNAL">FEATURED_COLLECTIONS</SectionHeader>
         <div className="border-4 border-on-background bg-surface-container-low p-6 shadow-[8px_8px_0px_0px_rgba(29,28,19,1)]">
           <div className="grid gap-6 md:grid-cols-[240px_1fr] min-h-[650px]">
@@ -211,7 +211,7 @@ export function FeaturedLists() {
   if (featuredLists.length === 0) return null;
 
   return (
-    <div className="mb-16 space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Section header */}
       <SectionHeader label="CURATED_SIGNAL">
         FEATURED_COLLECTIONS
@@ -225,7 +225,7 @@ export function FeaturedLists() {
       >
         <CarouselContent className="-ml-6">
           {featuredLists.map((list, i) => (
-            <CarouselItem key={list.favoritesId ?? i} className="pl-6 basis-[90vw] md:basis-[700px]">
+            <CarouselItem key={list.favoritesId ?? i} className="pl-6 basis-full">
               <FeaturedListModule list={list} index={i} />
             </CarouselItem>
           ))}
