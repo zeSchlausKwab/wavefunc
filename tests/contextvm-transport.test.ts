@@ -119,9 +119,14 @@ for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
       expect((await client.SearchArtists("WaveFunc")).result[0]?.name).toBe(
         "WaveFunc",
       );
-      await expect(client.SearchArtists("fail")).rejects.toThrow(
-        "fixture failure",
+      // Let the native WebSocket exchange settle before entering Bun's matcher.
+      // Promise rejection matchers can stall this exchange on Windows runners.
+      const toolError = await client.SearchArtists("fail").then(
+        () => undefined,
+        (error: unknown) => error,
       );
+      expect(toolError).toBeInstanceOf(Error);
+      expect((toolError as Error).message).toContain("fixture failure");
       const progress: number[] = [];
       expect(
         (
