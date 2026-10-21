@@ -119,3 +119,27 @@ func TestRejectPublicCount(t *testing.T) {
 		t.Fatal("non-station count should be rejected")
 	}
 }
+
+func TestMetadataRepliesSurviveApplicationQueryQuota(t *testing.T) {
+	policy := publicFilterRateLimitPolicy()
+	ctx := context.Background()
+	catalog := nostr.Filter{Kinds: []nostr.Kind{31237}, Limit: 100}
+	for i := 0; i < 40; i++ {
+		if reject, reason := policy(ctx, catalog); reject {
+			t.Fatalf("initial catalog burst rejected: %s", reason)
+		}
+	}
+	if reject, _ := policy(ctx, catalog); !reject {
+		t.Fatal("catalog quota must remain bounded")
+	}
+	replies := nostr.Filter{Kinds: []nostr.Kind{25910, 1059, 21059}, Since: nostr.Now(), Tags: nostr.TagMap{"p": {"client"}}}
+	if reject, reason := policy(ctx, replies); reject {
+		t.Fatalf("catalog queries starved metadata replies: %s", reason)
+	}
+	for i := 1; i < 40; i++ {
+		policy(ctx, replies)
+	}
+	if reject, _ := policy(ctx, replies); !reject {
+		t.Fatal("metadata quota must also remain bounded")
+	}
+}

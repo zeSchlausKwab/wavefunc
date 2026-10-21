@@ -66,6 +66,9 @@ async function main() {
     name: "wavefunc-metadata-server",
     version: "1.0.0",
   });
+  mcpServer.server.onerror = (error) => {
+    console.error("ContextVM protocol error:", error);
+  };
 
   // 3. Register Tool: Extract Stream Metadata
   mcpServer.registerTool(

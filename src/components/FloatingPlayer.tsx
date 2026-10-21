@@ -138,6 +138,9 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
 
   // Metadata comes from its own store now (decoupled from playback).
   const currentMetadata = useMetadataStore((s) => s.currentMetadata);
+  const metadataStatus = useMetadataStore((s) => s.status);
+  const metadataFetchedAt = useMetadataStore((s) => s.lastFetchAt);
+  const isLoadingMetadata = metadataStatus === "fetching" && metadataFetchedAt === null;
   const hasCurrentSong = Boolean(
     currentMetadata?.song?.trim() &&
       currentMetadata.song !== "No metadata available",
@@ -407,7 +410,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 {currentMetadata?.song}
                 {currentMetadata?.artist && <span className="opacity-70"> · {currentMetadata.artist}</span>}
               </p>
-            ) : isPlaying ? (
+            ) : isPlaying && isLoadingMetadata ? (
               <div
                 role="status"
                 aria-label="Loading now playing"
@@ -416,6 +419,8 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 <Skeleton className="h-2.5 w-20" />
                 <Skeleton className="h-2.5 w-10 opacity-60" />
               </div>
+            ) : isPlaying ? (
+              <p className="text-[10px] leading-none text-on-background/55">Now playing unavailable</p>
             ) : null}
           </div>
         </button>
@@ -583,7 +588,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   <SongMagicButton size="sm" className="shrink-0" />
                 </div>
               )}
-              {isPlaying && !currentMetadata?.song && <Skeleton className="h-3 w-24 mt-0.5" />}
+              {isPlaying && !hasCurrentSong && (
+                isLoadingMetadata
+                  ? <Skeleton aria-label="Loading now playing" className="h-3 w-24 mt-0.5" />
+                  : <p className="text-[10px] lg:text-[11px] text-on-background/55">Now playing unavailable</p>
+              )}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}
               {currentStation && (
                 <div className="mt-0.5">

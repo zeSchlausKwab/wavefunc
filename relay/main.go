@@ -333,6 +333,20 @@ func externalPublicFilterPolicy(ctx context.Context, filter nostr.Filter) (bool,
 	return reject, reason
 }
 
+func publicFilterRateLimitPolicy() func(context.Context, nostr.Filter) (bool, string) {
+	// Catalog/social loading must not consume the quota for the long-lived
+	// subscription that receives ContextVM replies. Both lanes remain bounded;
+	// the preceding filter policy still requires targeted, recent transport traffic.
+	application := policies.FilterIPRateLimiter(5, time.Minute, 40)
+	transport := policies.FilterIPRateLimiter(5, time.Minute, 40)
+	return func(ctx context.Context, filter nostr.Filter) (bool, string) {
+		if len(filter.Kinds) > 0 && allKindsIn(filter.Kinds, contextVMTransportKinds) {
+			return transport(ctx, filter)
+		}
+		return application(ctx, filter)
+	}
+}
+
 func subscriptionLimitPolicy(relay *khatru.Relay, max int) func(context.Context, nostr.Filter) (bool, string) {
 	return func(ctx context.Context, _ nostr.Filter) (bool, string) {
 		connection := khatru.GetConnection(ctx)
@@ -842,7 +856,7 @@ func main() {
 		relay.OnRequest = policies.SeqRequest(
 			externalPublicFilterPolicy,
 			subscriptionLimitPolicy(relay, maxPublicSubscriptions),
-			policies.FilterIPRateLimiter(5, time.Minute, 40),
+			publicFilterRateLimitPolicy(),
 		)
 		relay.OnCount = policies.SeqRequest(
 			rejectPublicCount,

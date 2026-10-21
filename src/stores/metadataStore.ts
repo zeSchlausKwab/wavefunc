@@ -75,12 +75,15 @@ export const useMetadataStore = create<MetadataStore>((_set, _get) => ({
   },
 }));
 
-/**
- * Fetch metadata once for the given URL. Exported for testing, but
- * the main entry point is the subscription below — callers shouldn't
- * need to invoke this directly.
- */
+let requestGeneration = 0;
+
+/** Fetch metadata for the active polling session; ignore superseded replies. */
 async function fetchMetadataOnce(url: string): Promise<void> {
+  // A slow extraction must be allowed to finish instead of being superseded
+  // by the next interval on the same station.
+  if (useMetadataStore.getState().status === "fetching") return;
+  const generation = ++requestGeneration;
+  const isCurrent = () => generation === requestGeneration;
   useMetadataStore.setState({ status: "fetching", lastError: null });
 
   try {
@@ -95,6 +98,7 @@ async function fetchMetadataOnce(url: string): Promise<void> {
           }
         : {},
     );
+    if (!isCurrent()) return;
 
     // Some streams report `title` but not `song`. Unify under `song`
     // so the UI can rely on one field.
@@ -103,26 +107,32 @@ async function fetchMetadataOnce(url: string): Promise<void> {
       song: metadata.song || metadata.title,
     };
 
+    // The song is ready now. Optional enrichment must never hold up the UI.
+    useMetadataStore.setState({
+      currentMetadata: normalized,
+      status: "idle",
+      lastFetchAt: Date.now(),
+    });
+
     // If we got both artist and song, try to enrich from MusicBrainz.
-    // Failure here is non-fatal — we still publish the base metadata.
+    // Failure here is non-fatal — the base metadata is already visible.
     if (normalized.artist && normalized.song) {
       try {
         const { result: mbResults } = await getMetadataClient().SearchRecordings(
           normalized.song,
           normalized.artist
         );
-        normalized.musicBrainz = mbResults[0];
+        if (isCurrent() && mbResults[0]) {
+          useMetadataStore.setState({
+            currentMetadata: { ...normalized, musicBrainz: mbResults[0] },
+          });
+        }
       } catch (err) {
         console.warn("metadataStore: MusicBrainz lookup failed", err);
       }
     }
-
-    useMetadataStore.setState({
-      currentMetadata: normalized,
-      status: "idle",
-      lastFetchAt: Date.now(),
-    });
   } catch (err) {
+    if (!isCurrent()) return;
     const message = err instanceof Error ? err.message : String(err);
     useMetadataStore.setState({
       status: "error",
@@ -147,6 +157,10 @@ function startPolling(url: string, stationAddress: string | null): void {
   stopPolling();
 
   useMetadataStore.setState({
+    currentMetadata: null,
+    lastFetchAt: null,
+    status: "idle",
+    lastError: null,
     _currentStreamUrl: url,
     _currentStationAddress: stationAddress,
     _sessionId: crypto.randomUUID(),
@@ -162,6 +176,7 @@ function startPolling(url: string, stationAddress: string | null): void {
 }
 
 function stopPolling(): void {
+  requestGeneration += 1;
   const store = useMetadataStore.getState();
   if (store._pollTimer !== null) {
     clearInterval(store._pollTimer);
@@ -195,7 +210,6 @@ export function installMetadataSubscription(): () => void {
 
     if (wasActive && !nowActive) {
       stopPolling();
-      return;
     }
 
     // Transition INTO or STATIONS-CHANGED within playing-ish state:

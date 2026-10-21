@@ -15,6 +15,7 @@ import {
 import type { ServerWebSocket } from "bun";
 import { z } from "zod";
 import { WavefuncMetadataServerClient } from "../src/ctxcn/WavefuncMetadataServerClient";
+import { extractStreamMetadataInputSchema, extractStreamMetadataOutputSchema } from "../contextvm/schemas";
 
 for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
   test(`ContextVM ${encryptionMode}: tool results, progress and errors over a local relay`, async () => {
@@ -56,6 +57,16 @@ for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
     const url = `ws://127.0.0.1:${relay.port}`;
     const signer = new PrivateKeySigner("5".repeat(64));
     const server = new McpServer({ name: "fixture", version: "1.0.0" });
+    server.registerTool("extract_stream_metadata", {
+      inputSchema: extractStreamMetadataInputSchema,
+      outputSchema: extractStreamMetadataOutputSchema,
+    }, async () => {
+      await Bun.sleep(20);
+      const output = { result: { song: "Pace or the Patience", artist: "Love of Diagrams", source: "ICY" as const,
+        raw: { StreamTitle: "Love of Diagrams - Pace or the Patience", StreamUrl: undefined },
+      } };
+      return { content: [{ type: "text", text: JSON.stringify(output) }], structuredContent: output };
+    });
     server.registerTool(
       "search_artists",
       { inputSchema: { query: z.string(), limit: z.number().optional() } },
@@ -119,6 +130,7 @@ for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
       expect((await client.SearchArtists("WaveFunc")).result[0]?.name).toBe(
         "WaveFunc",
       );
+      expect((await client.ExtractStreamMetadata("https://radio.example/bagel")).result.song).toBe("Pace or the Patience");
       // Let the native WebSocket exchange settle before entering Bun's matcher.
       // Promise rejection matchers can stall this exchange on Windows runners.
       const toolError = await client.SearchArtists("fail").then(
