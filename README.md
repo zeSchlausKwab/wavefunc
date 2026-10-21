@@ -72,7 +72,8 @@ bun dev
 
 ### Frontend
 
-- `bun dev` - Restart relay, migrate 100 real stations, and start ContextVM and frontend
+- `bun dev` - Start relay, import 100 real stations, and start ContextVM and frontend; preserve existing data
+- `bun dev:no-seed` - Start the same services without importing stations
 - `bun run dev:frontend` - Start only the frontend against existing services
 - `bun dev:fake` - Start relay with fake/test data instead of real stations
 - `bun seed` - Seed the relay with fake test data
@@ -84,7 +85,8 @@ bun dev
 ### Relay
 
 - `bun run relay` - Start the relay
-- `bun run relay:reset` - Reset database and search index
+- `bun run relay:kill` - Stop this checkout's relay without deleting data
+- `bun run relay:reset` - Explicitly clear the local database and search index, then start the relay
 - `cd relay && make dev` - Run relay in development mode
 - `cd relay && make reset-all` - Reset all data
 
@@ -143,12 +145,15 @@ All data is stored in local files - no external configuration needed!
 
 ## Development
 
+The combined web and desktop launchers stop only their own process groups, fail if ports 3334 or 3000 are already occupied, and bound relay startup waits. Use `dev:frontend` with services you already started. Normal startup and shutdown preserve relay data; reset is explicit. Combined commands require macOS/Linux (or WSL) and Go; `relay:kill` also requires `lsof`.
+
 ### Reset Everything
 
 To start fresh:
 
 ```bash
-bun run relay:reset
+bun run relay:reset # starts the cleared relay in this terminal
+# In another terminal:
 bun run seed
 ```
 
@@ -157,10 +162,7 @@ bun run seed
 ```bash
 cd relay
 
-# View SQLite database
-sqlite3 data/events.db
-
-# Check data directory
+# Events use LMDB; the search index uses Bleve.
 ls -la data/
 ```
 

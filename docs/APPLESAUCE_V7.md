@@ -99,6 +99,9 @@ Both versions returned 5,000 matches and 5,100 model emissions. The benchmark de
 - NIP-38 listening status: opt-in product behavior and privacy controls are needed before publishing listening activity.
 - Persistent decryption caching: define protected storage and logout behavior first. No plaintext decryption cache was added.
 - Optimistic verification and a full cache/storage replacement: keep verified ingestion and the durable wallet couch; profile an actual bottleneck before replacing either.
-- Development process scripts: `dev-clean.sh` still performs broad process cleanup. Prefer `bun run dev:frontend` when using an existing relay; narrowing process ownership is an independent housekeeping task.
+
+## Development housekeeping
+
+The combined web and desktop launchers now use owned process groups, check port availability, bound relay readiness, stop on service failure, and clean up on cancellation. Normal startup and shutdown preserve the database and index; `relay:reset` is explicit. `relay:kill` verifies both executable and checkout before stopping a listener and never deletes data. Disposable process tests cover descendants, unrelated services, failure, cancellation, and startup deadlines.
 
 Station sharing was committed separately in `9004f3e` before this migration.

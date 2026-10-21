@@ -14,15 +14,18 @@ WaveFunc Radio is a Nostr-based internet radio directory and player with full-te
 ## Development Commands
 
 ### Core Development
-- `bun dev` - Restart relay, migrate 100 real stations, and start ContextVM and frontend
+- `bun dev` - Start relay, import 100 real stations, and start ContextVM and frontend; preserve existing data
 - `bun dev:fake` - Start relay with fake test data instead of real stations
-- `bun dev:no-seed` - Start relay and frontend without seeding data
+- `bun dev:no-seed` - Start relay, ContextVM, and frontend without importing data
 - `bun dev:frontend` - Start only the frontend server
 - `bun --hot src/index.tsx` - Start frontend with hot reload
 
 ### Relay Management
 - `bun run relay` - Start the Nostr relay (port 3334)
-- `bun run relay:reset` - Reset database and search index
+- `bun run relay:kill` - Stop only this checkout's relay, preserving data
+- `bun run relay:reset` - Explicitly reset database and search index, then start the relay
+
+Combined web/desktop development commands own their process groups, refuse occupied ports, and bound relay startup waits. Use `dev:frontend` with existing services. They require macOS/Linux or WSL. Never reintroduce broad `pkill` or implicit relay-data deletion.
 
 ### Data Management
 - `bun run migrate` - Migrate 500 random stations from legacy database

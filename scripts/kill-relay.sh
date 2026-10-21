@@ -1,28 +1,37 @@
 #!/bin/bash
-
-# Kill any process using port 3334
-echo "🔍 Looking for processes on port 3334..."
-
-# Find and kill the process
-PID=$(lsof -ti:3334)
-
-if [ -z "$PID" ]; then
-  echo "✅ No process found on port 3334"
-else
-  echo "🔫 Killing process $PID on port 3334..."
-  kill -9 $PID
-  echo "✅ Process killed"
+set -euo pipefail
+RELAY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../relay" && pwd -P)"
+REPO_DIR="$(dirname -- "$RELAY_DIR")"
+command -v lsof >/dev/null
+PORT="${1:-3334}"
+[[ "$PORT" =~ ^[0-9]+$ ]] || { echo "Invalid relay port" >&2; exit 1; }
+PIDS="$(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN || true)"
+if [[ -z "$PIDS" ]]; then
+  echo "No relay is listening on port $PORT. Data preserved."
+  exit 0
 fi
 
-# Also kill any go run processes that might be stuck
-echo "🔍 Looking for go run relay processes..."
-pkill -f "go run.*relay" && echo "✅ Killed go run relay processes" || echo "✅ No go run relay processes found"
-
-# Wipe database and search index
-echo "🗑️  Wiping database and search index..."
-rm -rf relay/data/events
-rm -rf relay/data/search
-echo "✅ Database wiped"
-
-echo "✅ Cleanup complete!"
-
+# Validate every listener before signalling any of them. Never kill an arbitrary
+# port owner, a client connected to that port, or another checkout's Go process.
+for pid in $PIDS; do
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn | sed -n 's/^n//p')"
+  executable="$(ps -p "$pid" -o comm=)"
+  if [[ ( "$cwd" != "$RELAY_DIR" && "$cwd" != "$REPO_DIR" ) || "${executable##*/}" != "wavefunc-relay" ]]; then
+    echo "Refusing to stop PID $pid: it is not this checkout's wavefunc-relay. Stop it from its terminal." >&2
+    exit 1
+  fi
+done
+kill -TERM $PIDS
+for ((attempt=0; attempt<50; attempt++)); do
+  remaining=false
+  for pid in $PIDS; do
+    if kill -0 "$pid" 2>/dev/null; then remaining=true; fi
+  done
+  if [[ "$remaining" == false ]]; then
+    echo "Relay stopped. Data preserved; relay:reset explicitly clears it."
+    exit 0
+  fi
+  sleep 0.1
+done
+echo "Relay has not exited; refusing to reset its data while it may still be running." >&2
+exit 1
