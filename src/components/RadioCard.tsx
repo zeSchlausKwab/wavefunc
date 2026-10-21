@@ -124,6 +124,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     commentCountRelay,
     commentCountApproximate,
     commentCountFresh,
+    commentCountLowerBound,
     userHasReacted,
     userHasZapped,
     userHasCommented,
@@ -520,7 +521,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               <span className={cn("material-symbols-outlined text-[16px] md:text-[18px]", userHasCommented && "text-primary")}>
                 message
               </span>
-              <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
+              <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} lowerBound={commentCountLowerBound} />
             </button>
             <button
               className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
@@ -911,7 +912,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}>
               comment
             </span>
-            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
+            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} lowerBound={commentCountLowerBound} />
           </button>
           <button
             className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
@@ -1030,7 +1031,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             onClick={handleCommentClick} title="Comment"
           >
             <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>comment</span>
-            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
+            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} lowerBound={commentCountLowerBound} />
           </button>
           <button
             className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"

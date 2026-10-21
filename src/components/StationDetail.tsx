@@ -92,6 +92,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     commentCountRelay,
     commentCountApproximate,
     commentCountFresh,
+    commentCountLowerBound,
     userHasReacted,
     userHasZapped,
     userHasCommented,
@@ -262,7 +263,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 </button>
                 <button className="flex items-center gap-1 hover:text-primary transition-colors" title="Comment" onClick={() => commentFormRef.current?.focus()}>
                   <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")} style={userHasCommented ? { fontVariationSettings: "'FILL' 1" } : {}}>comment</span>
-                  <SocialCount count={socialComments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
+                  <SocialCount count={socialComments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} lowerBound={commentCountLowerBound} />
                 </button>
                 {isLoggedIn && station.pubkey && station.stationId && (
                   <FavoritesDropdown

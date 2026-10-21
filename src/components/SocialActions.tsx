@@ -38,6 +38,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
     commentCountRelay,
     commentCountApproximate,
     commentCountFresh,
+    commentCountLowerBound,
     userHasReacted,
     userHasZapped,
     userHasCommented,
@@ -124,7 +125,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         <MessageCircleIcon
           className={`w-4 h-4 ${userHasCommented ? "fill-current" : ""}`}
         />
-        <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
+        <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} lowerBound={commentCountLowerBound} />
       </Button>
 
       {showDebug && (

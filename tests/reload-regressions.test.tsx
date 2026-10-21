@@ -45,6 +45,8 @@ describe("reload data regressions", () => {
       ">1.2K<",
     );
     expect(renderToStaticMarkup(<SocialCount count={0} />)).toBe("");
+    expect(renderToStaticMarkup(<SocialCount count={1} lowerBound />)).toContain(">1+<");
+    expect(renderToStaticMarkup(<SocialCount count={1} lowerBound />)).toContain("At least 1 loaded");
 
     const radioCard = readFileSync(
       join(root, "src/components/RadioCard.tsx"),

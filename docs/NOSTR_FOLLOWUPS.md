@@ -50,11 +50,15 @@ Enable/unlock, lock, and erase controls live in wallet settings, including while
 
 ## Validation
 
-- 154 Bun tests, TypeScript checking, and production frontend build pass. The earlier unsigned macOS debug Tauri build also passed.
+- 158 Bun tests, TypeScript checking, and production frontend build pass. The earlier unsigned macOS debug Tauri build also passed.
 - Added regression coverage for receipt forgery/attribution/deduplication/top-five/timestamp pagination, Android reverse-port ownership, encrypted and plaintext ContextVM tool calls/progress/errors, relay-selection limits and stale monitor reports, queued listening-status cancellation, and encrypted-cache isolation/tampering/lock races/real NutWallet cache reuse.
 - Browser checks: desktop 2:1 width (approximately 779 px / 390 px at the tested viewport), mobile stacking with no horizontal overflow, real historical names/avatars/amounts, support-dialog navigation, default-off listening/outbox switches, and test-account logout. The wallet's remote relay was unavailable during UI inspection; wallet cache behavior was verified with isolated NutWallet integration tests.
 - Release preflight: six temporary mixed-version checks pass for ContextVM 0.8.0 clients against 0.14.3 servers and the reverse, in disabled/required/optional encryption modes. Each verifies tool results, errors, and progress over a localhost-only relay. These exercise wire compatibility; they do not deploy either version to production.
 - No real payment, public post, physical Android launch, mixed-version ContextVM deployment, signed release, or hardware/remote signer approval was performed. Those remain environment-specific release checks.
+
+### Comment-count correction
+
+A local fixture reproduced a loaded one-comment thread whose station card still showed `?`. COUNT can remain refreshing while the scheduler waits for a usable relay; the old fallback waited for refreshing to stop. A separately timed fallback now starts after three seconds without a count. Loaded and newly posted comments are always shown, with `1+` when they are only a known minimum; a failed query with no known comments remains unknown. Regression tests cover pending COUNT, stale zero, successful-count cancellation, failed fallback, and teardown. The original browser reproduction now displays the loaded count. POSIX process-group tests run on macOS/Linux; native Windows builds skip those WSL-only development checks.
 
 ## Release readiness
 

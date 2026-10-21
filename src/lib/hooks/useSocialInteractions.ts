@@ -20,6 +20,7 @@ import {
   loadSocialByEvent,
 } from "../nostr/store";
 import { summarizeSocialInteractions } from "../nostr/social";
+import { selectCommentCount } from "../nostr/commentCount";
 import { useCommentCount } from "../nostr/hooks/useCommentCount";
 import { relayPreferences } from "../../config/relayPreferences";
 import { getSocialRelayUrls, getZapRelayUrls } from "../../config/nostr";
@@ -39,6 +40,7 @@ export interface SocialInteractionState extends SocialInteractionCounts {
   commentCountRelay?: string;
   commentCountApproximate?: boolean;
   commentCountFresh?: boolean;
+  commentCountLowerBound?: boolean;
 }
 
 type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags" | "created_at">;
@@ -111,13 +113,15 @@ export function useSocialInteractions(event: SocialTarget, enabled = true): Soci
 
   return useMemo(() => {
     const summary = summarizeSocialInteractions(events, currentUser?.pubkey);
+    const count = selectCommentCount(commentCount, summary.comments);
     return {
       ...summary,
-      comments: commentCount.value ?? (commentCount.fallbackReady ? summary.comments : undefined),
-      commentCountRelay: commentCount.origin,
-      commentCountApproximate: commentCount.approximate,
-      commentCountFresh: commentCount.fresh,
-      error: error ?? commentCount.error,
+      comments: count.value,
+      commentCountRelay: count.origin,
+      commentCountApproximate: count.approximate,
+      commentCountFresh: count.fresh,
+      commentCountLowerBound: count.lowerBound,
+      error: error ?? count.error,
       isLoading: !eose,
     };
   }, [eose, events, currentUser?.pubkey, error, commentCount]);
