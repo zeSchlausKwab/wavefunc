@@ -1,3 +1,5 @@
+import { WavefuncWallet } from "../../lib/nostr/wallet";
+import { DecryptionCacheSettings } from "./DecryptionCacheSettings";
 import { use$ } from "applesauce-react/hooks";
 import { useState, useCallback } from "react";
 import type { NutWallet } from "applesauce-wallet/wallet";
@@ -343,9 +345,7 @@ export function WalletSettings({ wallet }: { wallet: NutWallet }) {
 
   if (!unlocked) {
     return (
-      <p className="text-muted-foreground text-center py-4">
-        Unlock your wallet to access settings
-      </p>
+      <div className="space-y-4">{wallet instanceof WavefuncWallet && <DecryptionCacheSettings key={wallet.pubkey} wallet={wallet} />}<p className="text-muted-foreground text-center py-4">Unlock your wallet to access settings</p></div>
     );
   }
 
@@ -355,6 +355,7 @@ export function WalletSettings({ wallet }: { wallet: NutWallet }) {
         <MintManager wallet={wallet} />
         <RelayManager wallet={wallet} />
       </fieldset>
+      {wallet instanceof WavefuncWallet && <DecryptionCacheSettings key={wallet.pubkey} wallet={wallet} />}
       <BackupTool wallet={wallet} />
       <fieldset disabled={busy} className="disabled:opacity-60"><ToolsSection wallet={wallet} /></fieldset>
     </div>

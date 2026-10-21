@@ -1,16 +1,60 @@
 import { NutWallet, type NutWalletOptions, type DepositOptions, type NutWalletOperation } from "applesauce-wallet/wallet";
 import { NutzapEvent, TokensOperation } from "applesauce-wallet/actions";
 import type { NostrEvent } from "applesauce-core/helpers/event";
+import { getEncryptedContent } from "applesauce-core/helpers/encrypted-content";
+import { ProtectedDecryptionCache } from "./protectedDecryptionCache";
 import { publishAccepted } from "./transport";
 
 /** A failed publication must never look like a recovered token in the local
  * store: the next recovery would skip it and clear its only durable backup. */
 export class WavefuncWallet extends NutWallet {
   private mutationRunning = false;
+  private sessionStopped = false;
+  private lockRevision = 0;
+  readonly protectedCache: ProtectedDecryptionCache | undefined;
 
   constructor(options: NutWalletOptions) {
     super(options);
     this.actions.saveToStore = false;
+    this.protectedCache = options.decryptionCache instanceof ProtectedDecryptionCache ? options.decryptionCache : undefined;
+  }
+
+  protected override async persistToCache(events: NostrEvent[]): Promise<void> {
+    if (this.protectedCache && this.protectedCache.state$.value !== "unlocked") return;
+    await super.persistToCache(events);
+  }
+
+  async unlockDecryptionCache(passphrase: string): Promise<void> {
+    if (!this.protectedCache || this.sessionStopped) throw new Error("Wallet session is closed");
+    await this.protectedCache.unlock(passphrase);
+    if (this.sessionStopped) { this.protectedCache.lock(); return; }
+    await this.unlock();
+    for (const event of this.getEncryptedEvents()) {
+      const content = getEncryptedContent(event);
+      if (content) await this.protectedCache.setItem(event.id, content);
+    }
+  }
+
+  override async unlock(): Promise<void> {
+    if (this.sessionStopped) return;
+    const revision = this.lockRevision;
+    await super.unlock();
+    if (this.sessionStopped || revision !== this.lockRevision) await super.lock();
+    else this.setAutoUnlock(true);
+  }
+
+  override async lock(): Promise<void> {
+    this.lockRevision++;
+    this.setAutoUnlock(false);
+    this.protectedCache?.lock();
+    await super.lock();
+  }
+
+  override stop(): void {
+    this.sessionStopped = true;
+    this.protectedCache?.lock();
+    super.stop();
+    void super.lock();
   }
 
   protected override async publish(event: NostrEvent, relays?: string[]): Promise<void> {
