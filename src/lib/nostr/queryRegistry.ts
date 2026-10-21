@@ -91,13 +91,11 @@ export class RelayQuery {
     for (const listener of this.listeners) listener();
   }
 
-  private addEvent(event: NostrEvent, source: "cache" | "relay") {
-    this.dependencies.eventStore.add(event, this.input.relays[0]);
-    if (source === "relay") {
-      void this.dependencies.cache.put(event, this.input.scope).catch(() => {
-        // A cache write must never break a live relay query.
-      });
-    }
+  private addEvent(event: NostrEvent) {
+    // The transport already attaches real relay provenance. Cache hydration
+    // must not fabricate a source. Persistence belongs to store insert/remove.
+    this.dependencies.eventStore.add(event);
+    return this.dependencies.eventStore.hasEvent(event.id);
   }
 
   private start() {
@@ -107,9 +105,9 @@ export class RelayQuery {
       .query(this.input.scope, this.input.filters)
       .then((events) => {
         if (this.stopped) return;
-        for (const event of events) this.addEvent(event, "cache");
-        if (events.length > 0 && !this.snapshot.ready) {
-          this.update({ ready: true, source: "cache" });
+        const accepted = events.map((event) => this.addEvent(event)).some(Boolean);
+        if (accepted && this.snapshot.source === "none") {
+          this.update({ ...this.snapshot, ready: true, source: "cache" });
         }
       })
       .catch(() => {
@@ -120,7 +118,7 @@ export class RelayQuery {
       .request(this.input.relays, this.input.filters)
       .subscribe({
         next: (event) => {
-          this.addEvent(event, "relay");
+          if (!this.addEvent(event)) return;
           if (!this.snapshot.ready) {
             this.update({ ready: true, source: "relay" });
           }
@@ -152,10 +150,12 @@ export class RelayQuery {
       this.liveSubscription = this.dependencies
         .subscription(this.input.relays, liveFilters)
         .subscribe({
-          next: (event) => this.addEvent(event, "relay"),
-          error: () => {
-            // The bounded request owns initial readiness. A later live socket
-            // failure should not turn cached content back into a loading screen.
+          next: (event) => {
+            if (this.addEvent(event)) this.update({ ready: true, source: "relay" });
+          },
+          error: (value) => {
+            const error = value instanceof Error ? value : new Error(String(value));
+            this.update({ ...this.snapshot, ready: true, error });
           },
         });
     }
@@ -175,7 +175,7 @@ export class RelayQueryRegistry {
   private readonly retainForMs: number;
 
   constructor(private readonly dependencies: QueryDependencies) {
-    this.retainForMs = dependencies.retainForMs ?? 5 * 60_000;
+    this.retainForMs = dependencies.retainForMs ?? 1_000;
   }
 
   query(input: RelayQueryInput): RelayQuery {

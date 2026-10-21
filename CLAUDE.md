@@ -14,7 +14,7 @@ WaveFunc Radio is a Nostr-based internet radio directory and player with full-te
 ## Development Commands
 
 ### Core Development
-- `bun dev` - Start relay, migrate 500 real stations, and run development server
+- `bun dev` - Restart relay, migrate 100 real stations, and start ContextVM and frontend
 - `bun dev:fake` - Start relay with fake test data instead of real stations
 - `bun dev:no-seed` - Start relay and frontend without seeding data
 - `bun dev:frontend` - Start only the frontend server
@@ -40,7 +40,7 @@ WaveFunc Radio is a Nostr-based internet radio directory and player with full-te
 ### Multi-Component System
 The application requires multiple services running simultaneously:
 1. **Go Nostr Relay** (port 3334) - Handles Nostr events with SQLite storage and Bluge full-text search
-2. **React Frontend** - NDK-based client for station discovery and playback
+2. **React Frontend** - Applesauce v7 client for station discovery and playback
 3. **ContextVM** - MCP-based metadata server for stream information
 
 ### Event System (Nostr)
@@ -55,8 +55,10 @@ Radio stations are stored as kind 31237 events following the NIP-XX Internet Rad
 - Uses native HTML5 Audio API with HLS.js fallback for streaming
 
 ### Key Classes and Patterns
-- `NDKStation` class (`src/lib/NDKStation.ts`) wraps Nostr events with validation
-- Custom hooks in `src/lib/hooks/useStations.ts` for data fetching
+- Station parsing and event builders live in `src/lib/nostr/domain/station.ts`
+- Custom hooks in `src/lib/nostr/hooks/useStations.ts` provide station data
+- `src/lib/nostr/store.ts` owns shared stores, publication, accounts, and transport
+- See `docs/APPLESAUCE_V7.md` for runtime boundaries and relay policy
 - shadcn/ui components in `src/components/ui/`
 
 ## Technology Stack
@@ -83,7 +85,7 @@ Default to using Bun instead of Node.js.
 
 ## Testing
 
-Use `bun test` to run tests.
+Use Bun 1.3.11 and `bun run test` to run tests. Run `bun run typecheck` and `bun run build` before submitting changes; CI runs all three after a frozen-lockfile install.
 
 ```ts#index.test.ts
 import { test, expect } from "bun:test";

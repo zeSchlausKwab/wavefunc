@@ -1,3 +1,4 @@
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   EventModel,
@@ -43,11 +44,11 @@ function useStationByNaddr(naddr: string): StationLoadState {
   // the event from configured relays in the background, and we'll re-render
   // as soon as it lands in the store.
   const replaceableEvent = useEventModel(
-    ReplaceableModel,
+    ReplaceableModel<NostrEvent>,
     decoded.kind === "address" ? [decoded.pointer] : null,
   );
   const eventModelEvent = useEventModel(
-    EventModel,
+    EventModel<NostrEvent>,
     decoded.kind === "event" ? [decoded.pointer] : null,
   );
   const event = decoded.kind === "address" ? replaceableEvent : eventModelEvent;

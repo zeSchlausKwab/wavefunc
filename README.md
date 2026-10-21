@@ -49,7 +49,7 @@ For more details, see [relay/README.md](relay/README.md)
 ### 2. Install Frontend Dependencies
 
 ```bash
-bun install
+bun install --frozen-lockfile
 ```
 
 ### 3. Start Development
@@ -72,11 +72,14 @@ bun dev
 
 ### Frontend
 
-- `bun dev` - Start relay, migrate 500 real stations, and run development server
+- `bun dev` - Restart relay, migrate 100 real stations, and start ContextVM and frontend
+- `bun run dev:frontend` - Start only the frontend against existing services
 - `bun dev:fake` - Start relay with fake/test data instead of real stations
 - `bun seed` - Seed the relay with fake test data
 - `bun start` - Run in production mode
 - `bun build` - Build for production
+- `bun run typecheck` - Check application, scripts, and test types
+- `bun run test` - Run the automated test suite
 
 ### Relay
 
@@ -117,8 +120,10 @@ See [legacy-db/README.md](legacy-db/README.md) for details on the legacy databas
 - **React 19** - UI framework
 - **TypeScript** - Type-safe JavaScript
 - **Tailwind CSS** - Utility-first CSS framework
-- **NDK** - Nostr Development Kit
+- **Applesauce v7 + RxJS** - Nostr event store, relay transport, accounts, and wallet
 - **shadcn/ui** - UI component library
+
+See [the Applesauce v7 migration notes](docs/APPLESAUCE_V7.md) for runtime boundaries, relay policy, compatibility, and verification.
 
 ## Configuration
 

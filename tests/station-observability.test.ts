@@ -79,7 +79,7 @@ describe("station observation event contracts", () => {
             cancellations += 1;
           },
         },
-      }) as unknown as Response) as typeof fetch;
+      }) as unknown as Response) as unknown as typeof fetch;
 
     const result = await probeStreamHealth(
       "https://radio.example/live.mp3",

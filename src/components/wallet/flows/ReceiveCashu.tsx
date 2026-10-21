@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { use$ } from "applesauce-react/hooks";
 import type { NutWallet } from "applesauce-wallet/wallet";
 import { Button } from "../../ui/button";
@@ -14,6 +14,8 @@ function normalizeCashuToken(raw: string): string {
 }
 
 export function ReceiveCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
+  const busy = use$(wallet.busy$) ?? false;
+  const inFlight = useRef(false);
   const unlocked = use$(wallet.unlocked$) ?? false;
   const [tokenString, setTokenString] = useState("");
   const [receiving, setReceiving] = useState(false);
@@ -22,9 +24,11 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: NutWallet; onDone: ()
   const [scanning, setScanning] = useState(false);
 
   const handleReceive = useCallback(async () => {
+    if (inFlight.current || busy) return;
     if (!unlocked) return setError("Wallet must be unlocked");
     if (!tokenString.trim()) return setError("Paste a cashu token");
 
+    inFlight.current = true;
     setReceiving(true);
     setError(null);
     setSuccess(false);
@@ -37,9 +41,10 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: NutWallet; onDone: ()
       console.error("Receive failed:", err);
       setError(err?.message || "Failed to receive token");
     } finally {
+      inFlight.current = false;
       setReceiving(false);
     }
-  }, [wallet, unlocked, tokenString]);
+  }, [wallet, busy, unlocked, tokenString]);
 
   if (success) {
     return (
@@ -60,21 +65,21 @@ export function ReceiveCashu({ wallet, onDone }: { wallet: NutWallet; onDone: ()
           placeholder="cashuA... or cashuB..."
           value={tokenString}
           onChange={(e) => { setTokenString(e.target.value); setError(null); }}
-          disabled={receiving}
+          disabled={busy || receiving}
           className="font-mono text-xs h-20"
         />
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
             onClick={() => setScanning(true)}
-            disabled={receiving}
+            disabled={busy || receiving}
             size="sm"
           >
             📷 Scan
           </Button>
           <Button
             onClick={handleReceive}
-            disabled={receiving || !tokenString.trim()}
+            disabled={busy || receiving || !tokenString.trim()}
             size="sm"
           >
             {receiving ? "Receiving..." : "Receive"}

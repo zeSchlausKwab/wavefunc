@@ -11,6 +11,7 @@ import { toLightningUri } from "../../../lib/openUrl";
 
 export function ReceiveLightning({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
   const mints = use$(wallet.mintUrls$);
+  const busy = use$(wallet.busy$) ?? false;
   const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
@@ -46,40 +47,39 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: NutWallet; onDone
     return () => {
       abortRef.current?.abort();
     };
-  }, []);
+  }, [wallet]);
 
   const handleCreate = useCallback(async () => {
+    if (abortRef.current || busy) return;
     if (!unlocked) return setError("Wallet must be unlocked");
-    const sats = parseInt(amount.trim(), 10);
-    if (isNaN(sats) || sats <= 0) return setError("Enter a valid amount");
+    const sats = Number(amount.trim());
+    if (!Number.isSafeInteger(sats) || sats <= 0) return setError("Enter a valid amount");
     if (!selectedMint) return setError("Select a mint");
 
     setError(null);
     setStatus("generating");
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const mintQuote = await wallet.createMintQuote(selectedMint, sats);
-      setQuote({
-        mint: selectedMint,
-        response: mintQuote,
-        amount: sats,
+      await wallet.deposit({
+        method: "bolt11", mint: selectedMint, amount: sats, signal: controller.signal,
+        onQuote: (mintQuote) => {
+          if (controller.signal.aborted) return;
+          setQuote({ mint: selectedMint, response: mintQuote, amount: sats });
+          setStatus("waiting");
+        },
       });
-      setStatus("waiting");
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-      await wallet.waitForMintQuote(selectedMint, mintQuote.quote, {
-        signal: controller.signal,
-      });
-      await wallet.redeemMintQuote(selectedMint, sats, mintQuote);
-      abortRef.current = null;
-      setStatus("paid");
-    } catch (err: any) {
-      console.error("Create quote failed:", err);
-      setError(err?.message || "Failed to create invoice");
-      setStatus("error");
+      if (!controller.signal.aborted) setStatus("paid");
+    } catch (err: unknown) {
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : "Failed to receive payment");
+        setStatus("error");
+      }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [wallet, unlocked, amount, selectedMint]);
+  }, [wallet, unlocked, busy, amount, selectedMint]);
 
   const reset = () => {
     abortRef.current?.abort();
@@ -152,7 +152,7 @@ export function ReceiveLightning({ wallet, onDone }: { wallet: NutWallet; onDone
 
       <Button
         onClick={handleCreate}
-        disabled={status === "generating" || !amount.trim() || !selectedMint}
+        disabled={busy || status === "generating" || !amount.trim() || !selectedMint}
         className="w-full"
         size="sm"
       >

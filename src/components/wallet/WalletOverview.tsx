@@ -34,6 +34,7 @@ const ACTIONS: Array<{
 export function WalletOverview({ wallet }: { wallet: NutWallet }) {
   const balance = use$(wallet.balance$);
   const unlocked = use$(wallet.unlocked$) ?? false;
+  const busy = use$(wallet.busy$) ?? false;
   const operations = use$(wallet.operationsState$) ?? {};
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
@@ -92,6 +93,7 @@ export function WalletOverview({ wallet }: { wallet: NutWallet }) {
           return (
             <button
               key={a.id}
+              disabled={busy && !isActive}
               onClick={() => setAction(isActive ? "none" : a.id)}
               className={`flex items-center gap-1.5 px-2.5 h-9 rounded-lg border text-xs font-medium transition-colors ${
                 isActive

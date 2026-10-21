@@ -1,3 +1,4 @@
+import { createCommentTagsFromCommentPointer, type CommentPointer } from "applesauce-common/helpers/comment";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventTemplate } from "../types";
 import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
@@ -244,17 +245,14 @@ export function buildStationCommentTemplate(
   station: Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">,
   content: string,
 ): EventTemplate {
-  const address = getAddressableIdentity(station);
-  return {
-    kind: 1111,
-    content,
-    tags: [
-      ...(address ? [["A", address]] : []),
-      ["K", String(station.kind)],
-      ["P", station.pubkey],
-      ["e", station.id],
-    ],
-  };
+  const identifier = getFirstTagValue(station, "d");
+  const pointer: CommentPointer = identifier !== undefined
+    ? { type: "address", kind: station.kind, pubkey: station.pubkey, id: station.id, identifier }
+    : { type: "event", kind: station.kind, pubkey: station.pubkey, id: station.id };
+  return { kind: 1111, content, tags: [
+    ...createCommentTagsFromCommentPointer(pointer, true),
+    ...createCommentTagsFromCommentPointer(pointer),
+  ] };
 }
 
 export function buildCommentReplyTemplate(
@@ -263,14 +261,10 @@ export function buildCommentReplyTemplate(
   stationId: string,
   content: string,
 ): EventTemplate {
-  return {
-    kind: 1111,
-    content,
-    tags: [
-      ["e", parentEvent.id, "", "reply"],
-      ["p", parentEvent.pubkey],
-      ["A", stationAddress],
-      ["e", stationId, "", "root"],
-    ],
-  };
+  const [kind, pubkey, ...identifier] = stationAddress.split(":");
+  if (!kind || !pubkey || !identifier.length) throw new Error("Invalid comment root address");
+  return { kind: 1111, content, tags: [
+    ...createCommentTagsFromCommentPointer({ type: "address", kind: Number(kind), pubkey, identifier: identifier.join(":"), id: stationId }, true),
+    ...createCommentTagsFromCommentPointer({ type: "event", kind: 1111, pubkey: parentEvent.pubkey, id: parentEvent.id }),
+  ] };
 }

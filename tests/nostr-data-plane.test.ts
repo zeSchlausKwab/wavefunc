@@ -218,7 +218,7 @@ describe("shared relay queries", () => {
     expect(eventStore.hasEvent(cachedEvent.id)).toBe(true);
 
     request$.next({ ...cachedEvent, id: "d".repeat(64) });
-    expect(stored.length).toBe(1);
+    expect(stored.length).toBe(0); // The EventStore owns persistence.
 
     unsubFirst();
     unsubSecond();

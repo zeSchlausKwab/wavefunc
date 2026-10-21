@@ -46,6 +46,7 @@ import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useFavorites } from "../lib/hooks/useFavorites";
+import { useNearViewport } from "../lib/hooks/useNearViewport";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { FavoritesDropdown } from "./FavoritesDropdown";
 import { StationManagementSheet } from "./StationManagementSheet";
@@ -115,14 +116,18 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   const { signAndPublish } = useWavefuncNostr();
   const { addFavorite, removeFavorite } = useFavorites();
   const isLoggedIn = !!currentUser;
+  const { ref: cardRef, visible } = useNearViewport();
   const {
     reactions,
     zaps,
     comments,
+    commentCountRelay,
+    commentCountApproximate,
+    commentCountFresh,
     userHasReacted,
     userHasZapped,
     userHasCommented,
-  } = useSocialInteractions(station.event);
+  } = useSocialInteractions(station.event, visible);
 
   const { openStationSheet } = useUIStore();
 
@@ -398,7 +403,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   if (variant === "tile") {
     return (
       <>
-        <div className={cn(
+        <div ref={cardRef} className={cn(
           "group relative bg-surface border-4 border-on-surface overflow-hidden shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[12px_12px_0px_0px_rgba(182,0,19,1)] transition-all",
           className
         )}>
@@ -510,12 +515,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             <button
               className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={handleCommentClick}
-              title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
+              title={`Comment${comments !== undefined && comments > 0 ? ` (${comments})` : ""}`}
             >
               <span className={cn("material-symbols-outlined text-[16px] md:text-[18px]", userHasCommented && "text-primary")}>
                 message
               </span>
-              <SocialCount count={comments} />
+              <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
             </button>
             <button
               className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
@@ -573,7 +578,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   if (variant === "list") {
     return (
       <>
-        <section className={cn(
+        <section ref={cardRef} className={cn(
           "group relative bg-surface border-4 border-on-background flex flex-col md:flex-row hover:shadow-[8px_8px_0px_0px_#00dbe9] transition-all duration-150",
           className
         )}>
@@ -740,7 +745,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
     return (
       <>
-        <div
+        <div ref={cardRef}
           className={cn(
             "group border-b-2 border-outline/30 py-2 flex items-center gap-3 hover:bg-secondary-fixed-dim/10 transition-colors cursor-pointer",
             className
@@ -901,12 +906,12 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           <button
             className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
             onClick={handleCommentClick}
-            title={`Comment${comments > 0 ? ` (${comments})` : ""}`}
+            title={`Comment${comments !== undefined && comments > 0 ? ` (${comments})` : ""}`}
           >
             <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")}>
               comment
             </span>
-            <SocialCount count={comments} />
+            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
           </button>
           <button
             className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
@@ -1025,7 +1030,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             onClick={handleCommentClick} title="Comment"
           >
             <span className={cn("material-symbols-outlined text-xl", userHasCommented && "text-primary")}>comment</span>
-            <SocialCount count={comments} />
+            <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
           </button>
           <button
             className="px-4 flex items-center justify-center hover:bg-secondary-fixed-dim transition-colors border-r-2 border-on-background/10"
@@ -1113,7 +1118,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
            between cards (the parent uses space-y-2). Desktop preserves
            the brutalist staggered offset (offsets[]) and wide-row
            layout. */}
-        <div
+        <div ref={cardRef}
           className={cn(
             "group relative cursor-pointer overflow-hidden transition-colors border-4 border-on-background",
             bgs[cycle], hovers[cycle], offsets[cycle],
@@ -1136,7 +1141,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
   // ─── LIST-COMPACT ─────────────────────────────────────────────────────────────
   return (
     <>
-      <div className={cn(
+      <div ref={cardRef} className={cn(
         "group relative flex flex-col md:flex-row items-stretch bg-surface-container-low border-4 border-on-background hover:bg-secondary-fixed-dim transition-colors cursor-pointer overflow-hidden",
         className
       )}>

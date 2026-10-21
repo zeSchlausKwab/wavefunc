@@ -32,13 +32,14 @@ export function useStationCount(): number | null {
     const sub = relayPool
       .count(relays, [{ kinds: [STATION_KIND] }])
       .subscribe({
+        error: (error) => console.warn("Station count unavailable:", error),
         next: (responses) => {
           // Pick the largest count across relays (in case multiple
           // wavefunc-style relays answer; takes the most authoritative).
           let best: number | null = null;
           for (const resp of Object.values(responses)) {
-            if (resp && typeof resp.count === "number") {
-              if (best === null || resp.count > best) best = resp.count;
+            if (resp.ok && typeof resp.value.count === "number") {
+              if (best === null || resp.value.count > best) best = resp.value.count;
             }
           }
           if (best !== null) setCount(best);

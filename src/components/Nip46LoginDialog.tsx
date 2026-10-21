@@ -68,22 +68,6 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     signerRef.current = null;
   }, []);
 
-  const buildBunkerUri = useCallback((signer: NostrConnectSigner) => {
-    if (!signer.remote) {
-      throw new Error("Remote signer pubkey is missing");
-    }
-
-    const params = new URLSearchParams();
-    for (const relay of signer.relays) {
-      params.append("relay", relay);
-    }
-    if (signer.secret) {
-      params.set("secret", signer.secret);
-    }
-
-    return `bunker://${signer.remote}?${params.toString()}`;
-  }, []);
-
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
@@ -138,6 +122,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
         }, 300000);
 
         await signer.waitForSigner(controller.signal);
+        if (controller.signal.aborted || signerRef.current !== signer) return;
         setState("connected");
         // Wrap the *already-connected* signer in an account directly so the
         // established session (client key, remote pubkey, relays) is preserved
@@ -160,7 +145,7 @@ export function Nip46LoginDialog({ trigger, onLogin }: Nip46LoginDialogProps) {
     };
 
     initConnection();
-  }, [activeTab, buildBunkerUri, cleanup, connectionUri, createNostrConnectSigner, onLogin, open, selectedRelay]);
+  }, [activeTab, cleanup, connectionUri, createNostrConnectSigner, onLogin, open, selectedRelay]);
 
   const handlePasteLogin = async () => {
     if (!bunkerUrl.trim()) {

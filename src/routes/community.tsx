@@ -10,7 +10,7 @@ import { useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
-import { getSocialRelayUrls } from "../config/nostr";
+import { getAppDataRelayUrls, getSocialRelayUrls } from "../config/nostr";
 import { shareOrCopy } from "../lib/share";
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import {
@@ -18,14 +18,14 @@ import {
   buildCommunityRootTemplate,
   buildReactionTemplate,
   COMMUNITY_POST_KIND,
-  COMMUNITY_REPLY_KIND,
+  LEGACY_COMMUNITY_REPLY_KIND,
   COMMUNITY_TOPIC,
   parseCommunityPostEvent,
   type CommunityCategory,
   type ParsedCommunityPost,
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
+import { useWindowedTimeline } from "../lib/nostr/hooks/useWindowedTimeline";
 import { loadReactions } from "../lib/nostr/store";
 import { cn } from "../lib/utils";
 
@@ -62,13 +62,12 @@ function Community() {
   // Subscribe to both kind 1 root notes and kind 1111 replies tagged #wavefunc
   const filters: Filter[] = useMemo(
     () => [
-      { kinds: [COMMUNITY_POST_KIND], "#t": [COMMUNITY_TOPIC], limit: 100 },
-      { kinds: [COMMUNITY_REPLY_KIND], "#t": [COMMUNITY_TOPIC], limit: 500 },
+      { kinds: [COMMUNITY_POST_KIND, LEGACY_COMMUNITY_REPLY_KIND], "#t": [COMMUNITY_TOPIC] },
     ],
     [],
   );
 
-  const { events: rawEvents, isLoading } = useAppDataTimeline(filters);
+  const { events: rawEvents, isLoading, incomplete, retry, loadOlder, since } = useWindowedTimeline(filters, getAppDataRelayUrls());
 
   const allPosts: ParsedCommunityPost[] = useMemo(
     () => rawEvents.map((event) => parseCommunityPostEvent(event)),
@@ -79,7 +78,7 @@ function Community() {
   const rootMessages = useMemo(
     () =>
       allPosts
-        .filter((post) => post.kind === COMMUNITY_POST_KIND)
+        .filter((post) => !post.isReply || !allPosts.some(parent => parent.id === post.parentEventId))
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0)),
     [allPosts],
   );
@@ -88,7 +87,7 @@ function Community() {
   const threadMap = useMemo(() => {
     const map = new Map<string, ParsedCommunityPost[]>();
     for (const post of allPosts) {
-      if (post.kind !== COMMUNITY_REPLY_KIND) continue;
+      if (!post.isReply || post.parentEventId === post.id) continue;
       if (!post.parentEventId) continue;
       if (!map.has(post.parentEventId)) map.set(post.parentEventId, []);
       map.get(post.parentEventId)!.push(post);
@@ -144,7 +143,15 @@ function Community() {
       alert("Please log in to reply");
       return;
     }
-    await signAndPublish(buildCommunityReplyTemplate(parent.event, content));
+    let root = parent;
+    const visited = new Set<string>();
+    while (root.parentEventId && !visited.has(root.id)) {
+      visited.add(root.id);
+      const ancestor = allPosts.find(post => post.id === root.parentEventId);
+      if (!ancestor) break;
+      root = ancestor;
+    }
+    await signAndPublish(buildCommunityReplyTemplate(parent.event, content, root.event));
   };
 
   const handleSubmit = async () => {
@@ -307,6 +314,11 @@ function Community() {
           </form>
 
           {/* Message feed */}
+          {incomplete && <p role="status" className="text-sm mb-3">Some history could not be loaded. <button className="underline" onClick={retry}>Retry</button></p>}
+          <div className="flex gap-4 text-xs mb-4 items-center">
+            <span>History since {new Date(since * 1000).toLocaleDateString()}</span>
+            <button className="underline" disabled={isLoading || since === 0} onClick={loadOlder}>{isLoading ? "Loading…" : "Load older posts"}</button>
+          </div>
           {filteredMessages.length === 0 ? (
             <div className="p-12 text-center">
               <span className="material-symbols-outlined text-5xl text-on-background/20 block mb-4">
@@ -419,7 +431,7 @@ function useEventReactions(event: ParsedCommunityPost["event"]) {
   useEffect(() => {
     const subscription = loadReactions(event, getSocialRelayUrls())
       .pipe(storeEvents(eventStore))
-      .subscribe();
+      .subscribe({ error: error => console.warn("Community reactions unavailable:", error) });
     return () => subscription.unsubscribe();
   }, [event, eventStore]);
 
@@ -681,6 +693,7 @@ interface ReplyCardProps {
   onReply: (content: string, parent: ParsedCommunityPost) => Promise<void>;
   canReply: boolean;
   defaultShowReplies?: boolean;
+  ancestors?: string[];
 }
 
 function ReplyCard({
@@ -690,6 +703,7 @@ function ReplyCard({
   onReply,
   canReply,
   defaultShowReplies,
+  ancestors = [],
 }: ReplyCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [showReplies, setShowReplies] = useState(defaultShowReplies ?? false);
@@ -707,8 +721,8 @@ function ReplyCard({
     : "UNKNOWN_TIME";
 
   const sortedReplies = useMemo(
-    () => [...directReplies].sort((a, b) => (a.created_at || 0) - (b.created_at || 0)),
-    [directReplies],
+    () => directReplies.filter(child => child.id !== reply.id && !ancestors.includes(child.id) && ancestors.length < 32).sort((a, b) => (a.created_at || 0) - (b.created_at || 0)),
+    [directReplies, reply.id, ancestors],
   );
 
   const handleReact = async () => {
@@ -849,6 +863,7 @@ function ReplyCard({
               onReply={onReply}
               canReply={canReply}
               defaultShowReplies={defaultShowReplies}
+              ancestors={[...ancestors, reply.id]}
             />
           ))}
           {showReplyForm && (

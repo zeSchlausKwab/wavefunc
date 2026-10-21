@@ -1,3 +1,4 @@
+import { publishAccepted } from "../src/lib/nostr/transport";
 // migrate_legacy.ts - Convert legacy station data to Nostr events
 //
 // Pulls real-world stations from radiobrowser exports, dedupes/merges them,
@@ -118,7 +119,7 @@ interface StationCheckHistory {
 // ─── Publishing helpers ──────────────────────────────────────────────────────
 
 async function publish(event: NostrEvent): Promise<void> {
-  await pool.publish([RELAY_URL], event);
+  await publishAccepted(pool, [RELAY_URL], event);
 }
 
 async function signAndPublish(

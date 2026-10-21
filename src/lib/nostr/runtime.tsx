@@ -2,21 +2,21 @@
  * Wavefunc nostr React provider.
  *
  * Reads from the singletons in `./store` and exposes them via context for
- * components that prefer hook-based access. The provider also pushes the
- * env-derived read/write relay lists into the singleton pool, attaches the
- * Applesauce event loader exactly once, and owns the active account wallet's
- * start/stop lifecycle.
+ * components that prefer hook-based access. The provider also warms the
+ * configured app relays and owns the active account
+ * wallet's start/stop lifecycle.
  */
 import { EventStoreProvider } from "applesauce-react/providers";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventSigner } from "applesauce-core/factories";
-import { getInboxes, getOutboxes } from "applesauce-core/helpers/mailboxes";
+import { use$ } from "applesauce-react/hooks";
+import { relayPreferences } from "../../config/relayPreferences";
+import { useActiveWallet } from "./useActiveWallet";
 import type { PublishResponse } from "applesauce-relay/types";
 import type { AccountManager } from "applesauce-accounts";
 import type { ActionRunner } from "applesauce-actions";
 import type { Couch } from "applesauce-wallet/helpers";
-import { NutWallet } from "applesauce-wallet/wallet";
-import { createUnifiedEventLoader } from "applesauce-loaders/loaders";
+import type { WavefuncWallet } from "./wallet";
 import { NostrConnectSigner } from "applesauce-signers";
 import {
   createContext,
@@ -24,7 +24,6 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
 import { nip19 } from "nostr-tools";
@@ -32,14 +31,10 @@ import {
   eventStore,
   relayPool,
   accounts as accountManager,
-  actions as actionRunner,
   couch as walletCouch,
-  migrateLegacyCouch,
   resetActionRunner,
-  setPublishRelays,
-  eventCache,
   relayQueries,
-  markEventLoaderAttached,
+  publishEvent,
   loginWithExtension as storeLoginWithExtension,
   loginWithPrivateKey as storeLoginWithPrivateKey,
   loginWithBunker as storeLoginWithBunker,
@@ -52,10 +47,8 @@ import {
   getIdentityRelayUrls,
   getNostrCacheScope,
   getRelayPolicy,
-  getWalletRelayUrls,
-  getContactsRelayUrls,
 } from "../../config/nostr";
-import { selectPublishRelays } from "../../config/relayPolicy";
+
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
@@ -80,7 +73,9 @@ export type WavefuncNostrContextValue = {
   accounts: AccountManager<AccountMetadata>;
   actions: ActionRunner;
   couch: Couch;
-  wallet: NutWallet | null;
+  wallet: WavefuncWallet | null;
+  walletError: Error | null;
+  restartWallet: () => void;
   readRelays: string[];
   writeRelays: string[];
   currentPubkey: string | null;
@@ -98,7 +93,7 @@ export type WavefuncNostrContextValue = {
       relays: string[];
       remote: string;
       pubkey: string;
-      secret: string;
+      connectSecret: string;
       signer: ConstructorParameters<typeof NostrConnectSigner>[0]["signer"];
       onAuth: ConstructorParameters<typeof NostrConnectSigner>[0]["onAuth"];
     }>
@@ -129,7 +124,9 @@ export function WavefuncNostrProvider({
   writeRelays,
 }: WavefuncNostrProviderProps) {
   const readRelayList = useMemo(() => unique(readRelays), [readRelays]);
-  const writeRelayList = useMemo(() => unique(writeRelays), [writeRelays]);
+  const preferences = use$(relayPreferences.state$);
+  const writeRelayList = useMemo(() => unique(preferences?.relays && getRelayPolicy().stage === "production"
+    ? preferences.relays.filter(r => r.write).map(r => r.url) : writeRelays), [writeRelays, preferences]);
 
   // Warm only the authoritative app-data relay. Other roles connect lazily
   // when a profile, wallet, social read, or publish actually needs them.
@@ -137,114 +134,18 @@ export function WavefuncNostrProvider({
     for (const url of readRelayList) {
       relayPool.relay(url);
     }
-    setPublishRelays(writeRelayList);
-  }, [readRelayList, writeRelayList]);
+  }, [readRelayList]);
 
-  // Attach the event loader exactly once across HMR. The loader resolves
-  // address pointers / replaceable events lazily and needs an initial set of
-  // lookup relays so it knows where to ask for events with no hint.
-  useEffect(() => {
-    if (!markEventLoaderAttached()) return;
-    const cacheRequest = (filters: Parameters<typeof eventCache.query>[1]) =>
-      eventCache.query(getNostrCacheScope(), filters);
-    const createLoader = (relays: string[]) =>
-      createUnifiedEventLoader(relayPool, {
-        lookupRelays: relays,
-        extraRelays: relays,
-        cacheRequest,
-        // Relay hints on arbitrary event IDs could cross the development
-        // boundary. App content has an authoritative relay and other roles
-        // are selected explicitly by kind below.
-        followRelayHints: false,
-      });
-    const appLoader = createLoader(readRelayList);
-    const identityLoader = createLoader(getIdentityRelayUrls());
-    const walletLoader = createLoader(getWalletRelayUrls());
-    const contactsLoader = createLoader(getContactsRelayUrls());
-
-    const routedLoader: typeof appLoader = Object.assign(
-      (pointer: Parameters<typeof appLoader>[0]) => {
-        const kind = "kind" in pointer ? pointer.kind : undefined;
-        if (kind === 0 || kind === 10002) return identityLoader(pointer);
-        if (kind === 10019) return walletLoader(pointer);
-        if (kind === 3) return contactsLoader(pointer);
-        return appLoader(pointer);
-      },
-      {
-        stop() {
-          appLoader.stop();
-          identityLoader.stop();
-          walletLoader.stop();
-          contactsLoader.stop();
-        },
-        [Symbol.dispose]() {
-          this.stop();
-        },
-      },
-    );
-    eventStore.eventLoader = routedLoader;
-    // readRelayList is intentionally captured at first-mount; the loader
-    // doesn't pick up later changes. New relay URLs added later are still
-    // reachable through `relayPool.relay()` above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Reactive currentPubkey from the AccountManager.
-  const [currentPubkey, setCurrentPubkey] = useState<string | null>(
-    accountManager.active?.pubkey ?? null
-  );
-  useEffect(() => {
-    const sub = accountManager.active$.subscribe((a) => {
-      resetActionRunner();
-      setCurrentPubkey(a?.pubkey ?? null);
-    });
-    return () => sub.unsubscribe();
-  }, []);
+  const activeAccount = use$(accountManager.active$);
+  const currentPubkey = activeAccount?.pubkey ?? null;
+  const activeActions = useMemo(() => resetActionRunner(), [activeAccount]);
 
   const currentAccount = useMemo(
     () => (currentPubkey ? accountFromPubkey(currentPubkey) : null),
     [currentPubkey]
   );
 
-  // Applesauce v6 wallet lifecycle. NutWallet owns the initial request,
-  // negentropy reconciliation, live subscription, automatic decryption, and
-  // operation state. Recreate it only when the active signer changes and stop
-  // it during cleanup so account switches never leak wallet subscriptions.
-  const [wallet, setWallet] = useState<NutWallet | null>(null);
-  useEffect(() => {
-    const signer = accountManager.active?.signer;
-    if (!currentPubkey || !signer) {
-      setWallet(null);
-      return;
-    }
-
-    const instance = new NutWallet({
-      pubkey: currentPubkey,
-      signer,
-      pool: relayPool,
-      eventStore,
-      couch: walletCouch,
-      relays: getWalletRelayUrls(),
-      autoUnlock: true,
-    });
-    let cancelled = false;
-    setWallet(instance);
-
-    void (async () => {
-      try {
-        await migrateLegacyCouch();
-        if (!cancelled) await instance.start();
-      } catch (error) {
-        console.error("Failed to start wallet:", error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      instance.stop();
-      setWallet((active) => (active === instance ? null : active));
-    };
-  }, [currentPubkey, readRelayList]);
+  const { wallet, error: walletError, restart: restartWallet } = useActiveWallet(activeAccount);
 
   // Keep the active author's NIP-65 mailbox metadata warm. Publishing reads
   // this synchronously, so route actions never wait for a relay round trip.
@@ -296,7 +197,7 @@ export function WavefuncNostrProvider({
         relays: string[];
         remote: string;
         pubkey: string;
-        secret: string;
+        connectSecret: string;
         signer: ConstructorParameters<typeof NostrConnectSigner>[0]["signer"];
         onAuth: ConstructorParameters<typeof NostrConnectSigner>[0]["onAuth"];
       }> = {}
@@ -306,64 +207,22 @@ export function WavefuncNostrProvider({
         relays: options.relays ?? writeRelayList,
         remote: options.remote,
         pubkey: options.pubkey,
-        secret: options.secret,
+        connectSecret: options.connectSecret,
+        timeout: 60_000,
         signer: options.signer,
         onAuth: options.onAuth,
       }),
     [writeRelayList]
   );
 
-  const publishEvent = useCallback(
-    async (event: NostrEvent, relays?: string[]) => {
-      const relayListEvent = eventStore.getReplaceable(10002, event.pubkey);
-      const authorOutboxes = relayListEvent ? getOutboxes(relayListEvent) : [];
-      const recipientInboxes = event.tags
-        .filter(([name, pubkey]) => name === "p" && Boolean(pubkey))
-        .flatMap(([, pubkey]) => {
-          const mailbox = eventStore.getReplaceable(10002, pubkey!);
-          return mailbox ? getInboxes(mailbox) : [];
-        });
-      const targetRelays = unique(
-        relays ??
-          selectPublishRelays(
-            getRelayPolicy(),
-            event,
-            authorOutboxes,
-            recipientInboxes,
-          ),
-      );
-
-      if (targetRelays.length === 0) {
-        throw new Error("No write relays configured");
-      }
-
-      try {
-        const responses = await relayPool.publish(targetRelays, event);
-        if (!responses.some((response) => response.ok)) {
-          const details = responses
-            .map((response) => `${response.from}: ${response.message ?? "rejected"}`)
-            .join("; ");
-          throw new Error(details || "Every compatible relay rejected the event");
-        }
-        eventStore.add(
-          event,
-          responses.find((response) => response.ok)?.from ?? targetRelays[0],
-        );
-        return responses;
-      } catch (error) {
-        throw error;
-      }
-    },
-    []
-  );
-
   const signAndPublish = useCallback(
     async (draft: EventTemplate, relays?: string[]) => {
-      if (!accountManager.active) {
+      const account = accountManager.active;
+      if (!account) {
         throw new Error("No account active");
       }
 
-      const event = await accountManager.signer.signEvent({
+      const event = await account.signer.signEvent({
         ...draft,
         created_at: draft.created_at ?? Math.floor(Date.now() / 1000),
       });
@@ -379,9 +238,11 @@ export function WavefuncNostrProvider({
       relayPool,
       signer: accountManager.active?.signer ?? null,
       accounts: accountManager,
-      actions: actionRunner,
+      actions: activeActions,
       couch: walletCouch,
       wallet,
+      walletError,
+      restartWallet,
       readRelays: readRelayList,
       writeRelays: writeRelayList,
       currentPubkey,
@@ -400,6 +261,10 @@ export function WavefuncNostrProvider({
       readRelayList,
       writeRelayList,
       wallet,
+      walletError,
+      restartWallet,
+      activeAccount,
+      activeActions,
       currentPubkey,
       currentAccount,
       loginWithExtension,

@@ -1,5 +1,6 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { config, getAppStage } from "./env";
+import { relayPreferences } from "./relayPreferences";
 import { createRelayPolicy } from "./relayPolicy";
 
 export const DEV_ADMIN_PUBKEY =
@@ -14,10 +15,17 @@ export function isDevelopmentEnvironment() {
 }
 
 export function getRelayPolicy() {
-  return createRelayPolicy({
+  const policy = createRelayPolicy({
     stage: getAppStage(),
     appRelay: config.relayUrl,
   });
+  const personal = relayPreferences.state$.value.relays;
+  if (personal && policy.stage === "production") {
+    policy.generalRead = personal.filter(r => r.read).map(r => r.url);
+    policy.socialRead = policy.generalRead;
+    policy.generalWriteFallback = personal.filter(r => r.write).map(r => r.url);
+  }
+  return policy;
 }
 
 export function getNostrCacheScope() {

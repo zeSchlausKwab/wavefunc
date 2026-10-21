@@ -6,7 +6,7 @@ const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("applesauce refactor contracts", () => {
-  test("keeps every Applesauce package on the same v6 major", () => {
+  test("keeps every Applesauce package on the same v7 major", () => {
     const pkg = JSON.parse(read("package.json")) as {
       dependencies: Record<string, string>;
     };
@@ -16,16 +16,16 @@ describe("applesauce refactor contracts", () => {
 
     expect(versions.length).toBeGreaterThan(0);
     for (const [name, version] of versions) {
-      expect(version, `${name} must stay on the v6 package family`).toMatch(
-        /^\^6\./,
+      expect(version, `${name} must stay on the v7 package family`).toMatch(
+        /^\^7\./,
       );
     }
   });
 
-  test("owns the v6 NutWallet lifecycle at the account boundary", () => {
-    const runtime = read("src/lib/nostr/runtime.tsx");
+  test("owns the v7 NutWallet lifecycle at the account boundary", () => {
+    const runtime = read("src/lib/nostr/useActiveWallet.ts");
 
-    expect(runtime).toContain("new NutWallet({");
+    expect(runtime).toContain("new WavefuncWallet({");
     expect(runtime).toContain("await instance.start()");
     expect(runtime).toContain("instance.stop()");
     expect(runtime).not.toContain("FactoryProvider");

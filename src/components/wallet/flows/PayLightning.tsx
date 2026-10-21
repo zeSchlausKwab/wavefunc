@@ -1,5 +1,5 @@
 import { use$ } from "applesauce-react/hooks";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../../lib/nostr/auth";
 import {
@@ -22,6 +22,8 @@ function normalizeInvoice(raw: string): string {
 
 export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
   const balance = use$(wallet.balance$);
+  const busy = use$(wallet.busy$) ?? false;
+  const inFlight = useRef(false);
   const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
@@ -52,9 +54,11 @@ export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: ()
     : 0;
 
   const handlePay = useCallback(async () => {
+    if (inFlight.current || busy) return;
     if (!unlocked) return setError("Wallet must be unlocked");
     if (!invoice.trim()) return setError("Paste a lightning invoice");
 
+    inFlight.current = true;
     setPaying(true);
     setError(null);
     setSuccess(null);
@@ -76,9 +80,10 @@ export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: ()
       console.error("Pay failed:", err);
       setError(err?.message || "Failed to pay invoice");
     } finally {
+      inFlight.current = false;
       setPaying(false);
     }
-  }, [wallet, unlocked, invoice, selectedMint, balance, preferredMint]);
+  }, [wallet, busy, unlocked, invoice, selectedMint, balance, preferredMint]);
 
   if (success) {
     return (
@@ -101,7 +106,7 @@ export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: ()
           placeholder="lnbc..."
           value={invoice}
           onChange={(e) => { setInvoice(e.target.value); setError(null); }}
-          disabled={paying}
+          disabled={busy || paying}
           className="font-mono text-xs h-20"
         />
 
@@ -109,7 +114,7 @@ export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: ()
           <select
             value={selectedMint || ""}
             onChange={(e) => setSelectedMint(e.target.value || undefined)}
-            disabled={paying}
+            disabled={busy || paying}
             className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
           >
             <option value="">Auto-select mint</option>
@@ -125,14 +130,14 @@ export function PayLightning({ wallet, onDone }: { wallet: NutWallet; onDone: ()
           <Button
             variant="outline"
             onClick={() => setScanning(true)}
-            disabled={paying}
+            disabled={busy || paying}
             size="sm"
           >
             📷 Scan
           </Button>
           <Button
             onClick={handlePay}
-            disabled={paying || !invoice.trim()}
+            disabled={busy || paying || !invoice.trim()}
             size="sm"
           >
             {paying ? "Paying..." : "Pay"}

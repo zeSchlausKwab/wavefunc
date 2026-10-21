@@ -27,7 +27,7 @@ function MintManager({ wallet }: { wallet: NutWallet }) {
     } finally {
       setSaving(false);
     }
-  }, [newMint, mints]);
+  }, [wallet, newMint, mints]);
 
   const handleRemove = useCallback(async (mintUrl: string) => {
     const mintBalance = balance?.[mintUrl] || 0;
@@ -40,7 +40,7 @@ function MintManager({ wallet }: { wallet: NutWallet }) {
     } finally {
       setSaving(false);
     }
-  }, [mints, balance]);
+  }, [wallet, mints, balance]);
 
   return (
     <details className="group space-y-3">
@@ -104,7 +104,7 @@ function RelayManager({ wallet }: { wallet: NutWallet }) {
     } finally {
       setSaving(false);
     }
-  }, [newRelay, relays]);
+  }, [wallet, newRelay, relays]);
 
   const handleRemove = useCallback(async (relayUrl: string) => {
     setSaving(true);
@@ -115,7 +115,7 @@ function RelayManager({ wallet }: { wallet: NutWallet }) {
     } finally {
       setSaving(false);
     }
-  }, [relays]);
+  }, [wallet, relays]);
 
   return (
     <details className="group space-y-3">
@@ -263,6 +263,7 @@ function BackupTool({ wallet }: { wallet: NutWallet }) {
 }
 
 function ToolsSection({ wallet }: { wallet: NutWallet }) {
+  const pending = use$(wallet.couchTokens$) ?? [];
   const [consolidating, setConsolidating] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -325,6 +326,10 @@ function ToolsSection({ wallet }: { wallet: NutWallet }) {
           Restores tokens stored in the local couch during interrupted
           operations.
         </p>
+        {pending.length > 0 && <p role="status" className="text-xs">
+          {pending.length} local backup {pending.length === 1 ? "entry remains" : "entries remain"}.
+          Recovery keeps entries that could not be published; reconnect your relays and try recovery again.
+        </p>}
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -334,6 +339,7 @@ function ToolsSection({ wallet }: { wallet: NutWallet }) {
 
 export function WalletSettings({ wallet }: { wallet: NutWallet }) {
   const unlocked = use$(wallet.unlocked$) ?? false;
+  const busy = use$(wallet.busy$) ?? false;
 
   if (!unlocked) {
     return (
@@ -345,10 +351,12 @@ export function WalletSettings({ wallet }: { wallet: NutWallet }) {
 
   return (
     <div className="space-y-6">
-      <MintManager wallet={wallet} />
-      <RelayManager wallet={wallet} />
+      <fieldset disabled={busy} className="space-y-6 disabled:opacity-60">
+        <MintManager wallet={wallet} />
+        <RelayManager wallet={wallet} />
+      </fieldset>
       <BackupTool wallet={wallet} />
-      <ToolsSection wallet={wallet} />
+      <fieldset disabled={busy} className="disabled:opacity-60"><ToolsSection wallet={wallet} /></fieldset>
     </div>
   );
 }

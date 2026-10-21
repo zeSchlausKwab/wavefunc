@@ -55,7 +55,7 @@ export function useRelayTimeline({
   const modelFilters = readFilters ?? (filters || null);
   const events =
     useEventModel(
-      TimelineModel,
+      TimelineModel<NostrEvent>,
       modelFilters && modelFilters.length > 0 ? [modelFilters] : null,
     ) ?? [];
 

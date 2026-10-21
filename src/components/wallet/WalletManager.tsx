@@ -60,10 +60,18 @@ function WalletTabs({ wallet, compact }: { wallet: NutWallet; compact?: boolean 
 }
 
 export function WalletView({ compact }: { compact?: boolean }) {
-  const { wallet } = useWavefuncNostr();
+  const { wallet, walletError, restartWallet } = useWavefuncNostr();
   const status = use$(wallet?.status$) ?? WalletStatus.Idle;
   const syncing = use$(wallet?.syncingState$) ?? false;
-  const error = use$(wallet?.errorState$);
+  const operationError = use$(wallet?.errorState$);
+  const error = walletError ?? operationError;
+  const busy = use$(wallet?.busy$) ?? false;
+
+  if (error && (!wallet || status !== WalletStatus.Ready)) return <div role="alert" className="p-4 space-y-3 text-sm">
+    <p>{error.message}</p>
+    <p>Pending operations are retained for recovery. Check history before retrying a payment.</p>
+    <button className="underline" disabled={busy} onClick={restartWallet}>Reconnect wallet</button>
+  </div>;
 
   if (!wallet || status === WalletStatus.Idle || status === WalletStatus.Loading) {
     const message = (
@@ -88,10 +96,10 @@ export function WalletView({ compact }: { compact?: boolean }) {
     <>
       {(syncing || error) && (
         <div className="px-4 pt-3 text-xs text-muted-foreground">
-          {syncing ? "Synchronizing wallet relays..." : error?.message}
+          {error?.message ?? "Synchronizing wallet relays..."}
         </div>
       )}
-      <WalletTabs wallet={wallet} compact={compact} />
+      <WalletTabs key={wallet.pubkey} wallet={wallet} compact={compact} />
     </>
   );
 }

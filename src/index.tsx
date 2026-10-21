@@ -24,13 +24,13 @@ const maintenanceLock = { isRunning: false, lastRun: 0 };
 // Define route handlers that work in both modes
 const apiRoutes: Record<string, any> = {
   "/api/hello": {
-    async GET(req) {
+    async GET(_req: Request) {
       return Response.json({
         message: "Hello, world!",
         method: "GET",
       });
     },
-    async PUT(req) {
+    async PUT(_req: Request) {
       return Response.json({
         message: "Hello, world!",
         method: "PUT",
@@ -38,7 +38,7 @@ const apiRoutes: Record<string, any> = {
     },
   },
 
-  "/api/hello/:name": async (req) => {
+  "/api/hello/:name": async (req: Bun.BunRequest<"/api/hello/:name">) => {
     const name = req.params.name;
     return Response.json({
       message: `Hello, ${name}!`,

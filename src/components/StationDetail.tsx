@@ -7,6 +7,7 @@ import {
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { usePlayerStore } from "../stores/playerStore";
+import { SocialCount } from "./SocialCount";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
 import { useComments } from "../lib/hooks/useComments";
 import { useFavorites } from "../lib/hooks/useFavorites";
@@ -88,6 +89,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     reactions,
     zaps,
     comments: socialComments,
+    commentCountRelay,
+    commentCountApproximate,
+    commentCountFresh,
     userHasReacted,
     userHasZapped,
     userHasCommented,
@@ -106,7 +110,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   const selectedStreamRequiresExternal =
     selectedStream ? !canPlayStreamInApp(selectedStream) : false;
 
-  const { comments, totalCount } = useComments(station.event);
+  const { comments, totalCount, isLoading: commentsLoading, error: commentsError } = useComments(station.event);
   const { byAddress: healthByAddress } = useStationHealth(
     station.address ? [station.address] : [],
   );
@@ -258,7 +262,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 </button>
                 <button className="flex items-center gap-1 hover:text-primary transition-colors" title="Comment" onClick={() => commentFormRef.current?.focus()}>
                   <span className={cn("material-symbols-outlined text-[18px]", userHasCommented && "text-primary")} style={userHasCommented ? { fontVariationSettings: "'FILL' 1" } : {}}>comment</span>
-                  {socialComments > 0 && <span className="text-[11px] font-bold">{formatCount(socialComments)}</span>}
+                  <SocialCount count={socialComments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
                 </button>
                 {isLoggedIn && station.pubkey && station.stationId && (
                   <FavoritesDropdown
@@ -393,7 +397,9 @@ export const StationDetail: React.FC<StationDetailProps> = ({
               <SectionHeader label={totalCount > 0 ? `${totalCount}_SIGNALS` : undefined}>
                 COMMENTS
               </SectionHeader>
-              {comments.length === 0 ? (
+              {commentsError && <p role="status" className="text-sm">Some comments could not be loaded. Cached comments are shown.</p>}
+              {commentsLoading && <p className="text-sm">Loading comments…</p>}
+              {comments.length === 0 && !commentsLoading ? (
                 <div className="border-4 border-on-background p-8 bg-surface-container-low flex flex-col items-center gap-3">
                   <span className="material-symbols-outlined text-4xl text-on-background/20">chat_bubble</span>
                   <span className="text-[11px] font-black uppercase tracking-widest text-on-background/40 text-center">NO_SIGNALS_YET — BE_THE_FIRST</span>

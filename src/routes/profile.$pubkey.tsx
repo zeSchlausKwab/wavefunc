@@ -61,10 +61,10 @@ function ProfilePage() {
 
         {/* Bio & Details */}
         <div className="mt-6 space-y-4">
-          {(profile?.bio || profile?.about) && (
+          {(profile?.about) && (
             <div className="bg-muted/50 rounded-lg p-4">
               <p className="text-sm whitespace-pre-wrap">
-                {profile?.bio || profile?.about}
+                {profile?.about}
               </p>
             </div>
           )}

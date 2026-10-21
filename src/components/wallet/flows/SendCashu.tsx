@@ -1,5 +1,5 @@
 import { use$ } from "applesauce-react/hooks";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { NutWallet } from "applesauce-wallet/wallet";
 import { useCurrentAccount } from "../../../lib/nostr/auth";
 import {
@@ -12,6 +12,8 @@ import { CopyableQR } from "../../QRCode";
 
 export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () => void }) {
   const balance = use$(wallet.balance$);
+  const busy = use$(wallet.busy$) ?? false;
+  const inFlight = useRef(false);
   const unlocked = use$(wallet.unlocked$) ?? false;
   const currentUser = useCurrentAccount();
   const preferredMint = usePreferredMint(currentUser?.pubkey);
@@ -48,9 +50,10 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
     : 0;
 
   const handleSend = useCallback(async () => {
+    if (inFlight.current || busy) return;
     if (!unlocked) return setError("Wallet must be unlocked");
-    const sendAmount = parseInt(amount.trim(), 10);
-    if (isNaN(sendAmount) || sendAmount <= 0)
+    const sendAmount = Number(amount.trim());
+    if (!Number.isSafeInteger(sendAmount) || sendAmount <= 0)
       return setError("Enter a valid amount");
     if (sendAmount > totalBalance)
       return setError(`Insufficient balance (${totalBalance} sats)`);
@@ -58,6 +61,7 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
       return setError(`Mint balance: ${balance[selectedMint]} sats`);
     }
 
+    inFlight.current = true;
     setSending(true);
     setError(null);
     setCreated(null);
@@ -71,9 +75,10 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
       setError(err?.message || "Failed to create token");
       setCreated(null);
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
-  }, [wallet, unlocked, amount, selectedMint, totalBalance, balance]);
+  }, [wallet, busy, unlocked, amount, selectedMint, totalBalance, balance]);
 
   if (created) {
     return (
@@ -96,7 +101,7 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
         placeholder={`Amount (max ${totalBalance} sats)`}
         value={amount}
         onChange={(e) => { setAmount(e.target.value); setError(null); }}
-        disabled={sending}
+        disabled={busy || sending}
         min="1"
       />
 
@@ -104,7 +109,7 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
         <select
           value={selectedMint || ""}
           onChange={(e) => setSelectedMint(e.target.value || undefined)}
-          disabled={sending}
+          disabled={busy || sending}
           className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
         >
           <option value="">Auto-select mint</option>
@@ -119,7 +124,7 @@ export function SendCashu({ wallet, onDone }: { wallet: NutWallet; onDone: () =>
       <Button
         className="w-full"
         onClick={handleSend}
-        disabled={sending || !amount.trim()}
+        disabled={busy || sending || !amount.trim()}
         size="sm"
       >
         {sending ? "Creating..." : "Create Token"}

@@ -13,7 +13,7 @@ export function MiniProfile({
   const pubkey = typeof userOrPubkey === "string" ? userOrPubkey : userOrPubkey?.pubkey;
 
   return (
-    <Link to={`/profile/${pubkey}`} onClick={onNavigate}>
+    <Link to="/profile/$pubkey" params={{ pubkey: pubkey ?? "" }} disabled={!pubkey} onClick={onNavigate}>
       <div className="w-9 h-full border-r-4 border-on-background overflow-hidden bg-on-background flex items-center justify-center hover:opacity-80 transition-opacity group shrink-0">
         {profile?.picture ? (
           <img

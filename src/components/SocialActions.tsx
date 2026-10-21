@@ -4,6 +4,7 @@ import { buildStationReactionTemplate } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useSocialInteractions } from "../lib/hooks/useSocialInteractions";
+import { SocialCount } from "./SocialCount";
 import { AuthRequiredButton } from "./AuthRequiredButton";
 import { DebugDialog } from "./DebugDialog";
 import { Button } from "./ui/button";
@@ -13,7 +14,7 @@ import { ZapIcon } from "./ui/icons/lucide-zap";
 import { FileJsonIcon } from "./ui/icons/lucide-file-json";
 import { ZapDialog } from "./ZapDialog";
 
-type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags">;
+type SocialTarget = Pick<NostrEvent, "id" | "kind" | "pubkey" | "tags" | "content" | "created_at">;
 
 interface SocialActionsProps {
   station: SocialTarget;
@@ -34,6 +35,9 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
     reactions,
     zaps,
     comments,
+    commentCountRelay,
+    commentCountApproximate,
+    commentCountFresh,
     userHasReacted,
     userHasZapped,
     userHasCommented,
@@ -120,9 +124,7 @@ export const SocialActions: React.FC<SocialActionsProps> = ({
         <MessageCircleIcon
           className={`w-4 h-4 ${userHasCommented ? "fill-current" : ""}`}
         />
-        {comments > 0 && (
-          <span className="text-xs font-medium">{formatCount(comments)}</span>
-        )}
+        <SocialCount count={comments} source={commentCountRelay} approximate={commentCountApproximate} fresh={commentCountFresh} />
       </Button>
 
       {showDebug && (

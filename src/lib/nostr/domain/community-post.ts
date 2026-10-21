@@ -1,6 +1,7 @@
-// Community feed (Signal Feed) — kind 1 root notes + kind 1111 replies, both
-// tagged with the `wavefunc` topic. Simple flat threading via `e`-tags.
+// Community feed uses NIP-10 kind 1 notes. Historical kind 1111 replies remain readable.
 
+import { getNip10References } from "applesauce-common/helpers/threading";
+import { ensureMarkedEventPointerTag } from "applesauce-core/helpers/factory";
 import { getOrComputeCachedValue } from "applesauce-core/helpers/cache";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventTemplate } from "../types";
@@ -8,7 +9,8 @@ import { getMatchingTags } from "./shared";
 
 export const COMMUNITY_TOPIC = "wavefunc";
 export const COMMUNITY_POST_KIND = 1;
-export const COMMUNITY_REPLY_KIND = 1111;
+export const COMMUNITY_REPLY_KIND = 1;
+export const LEGACY_COMMUNITY_REPLY_KIND = 1111;
 
 export type CommunityCategory = "bug" | "feature" | "greeting" | "general";
 
@@ -26,11 +28,12 @@ export function parseCommunityPostEvent(event: NostrEvent) {
       (tag) => tag !== COMMUNITY_TOPIC,
     ) as CommunityCategory[];
 
+    const refs = getNip10References(event);
     const replyTag = event.tags.find(
       (tag) => tag[0] === "e" && tag[3] === "reply",
     );
     const fallbackEtag = event.tags.find((tag) => tag[0] === "e");
-    const parentEventId = replyTag?.[1] ?? fallbackEtag?.[1];
+    const parentEventId = refs.reply?.e?.id ?? refs.root?.e?.id ?? replyTag?.[1] ?? fallbackEtag?.[1];
 
     return {
       event,
@@ -41,7 +44,7 @@ export function parseCommunityPostEvent(event: NostrEvent) {
       content: event.content,
       tags: event.tags,
       categories,
-      isReply: event.kind === COMMUNITY_REPLY_KIND,
+      isReply: Boolean(parentEventId) || event.kind === LEGACY_COMMUNITY_REPLY_KIND,
       parentEventId,
     };
   });
@@ -67,16 +70,15 @@ export function buildCommunityRootTemplate(
 }
 
 export function buildCommunityReplyTemplate(
-  parent: Pick<NostrEvent, "id" | "pubkey">,
+  parent: Pick<NostrEvent, "id" | "pubkey" | "kind" | "tags">,
   content: string,
+  originalRoot?: Pick<NostrEvent, "id" | "pubkey">,
 ): EventTemplate {
-  return {
-    kind: COMMUNITY_REPLY_KIND,
-    content,
-    tags: [
-      ["t", COMMUNITY_TOPIC],
-      ["e", parent.id, "", "reply"],
-      ["p", parent.pubkey],
-    ],
-  };
+  const refs = getNip10References(parent);
+  const root = originalRoot ? { id: originalRoot.id, author: originalRoot.pubkey }
+    : refs.root?.e ?? { id: parent.id, author: parent.pubkey };
+  let tags = ensureMarkedEventPointerTag([["t", COMMUNITY_TOPIC]], root, "root");
+  tags = ensureMarkedEventPointerTag(tags, { id: parent.id, author: parent.pubkey }, "reply");
+  tags.push(["p", parent.pubkey]);
+  return { kind: COMMUNITY_REPLY_KIND, content, tags };
 }

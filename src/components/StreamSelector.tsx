@@ -56,6 +56,7 @@ export const StreamSelector: React.FC<StreamSelectorProps> = ({
     streams[0];
 
   const sortedStreams = sortStreamsByPreference(streams);
+  if (!selectedStream) return null;
   const defaultTrigger = (
     <Button
       type="button"

@@ -15,8 +15,8 @@ export function Spectrogram({
   className,
 }: SpectrogramProps) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const animationFrameRef = useRef<number>();
-  const dataArrayRef = useRef<Uint8Array>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | undefined>(undefined);
 
   // Grid dimensions
   const ROWS = 8;
@@ -44,7 +44,7 @@ export function Spectrogram({
 
       // Update each cell based on frequency data
       const cells = gridRef.current.querySelectorAll<HTMLDivElement>("[data-cell]");
-      const frequencyBinsPerColumn = Math.floor(dataArrayRef.current.length / COLS);
+      const frequencyBinsPerColumn = Math.max(1, Math.floor(dataArrayRef.current.length / COLS));
 
       cells.forEach((cell, index) => {
         const col = index % COLS;
@@ -55,7 +55,7 @@ export function Spectrogram({
         const endBin = startBin + frequencyBinsPerColumn;
         let sum = 0;
         for (let i = startBin; i < endBin && i < dataArrayRef.current!.length; i++) {
-          sum += dataArrayRef.current![i];
+          sum += dataArrayRef.current![i] ?? 0;
         }
         const average = sum / frequencyBinsPerColumn;
 

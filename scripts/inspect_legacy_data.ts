@@ -41,7 +41,7 @@ interface LegacyStation {
 // Parse a single station INSERT line from SQL
 function parseStationInsert(line: string): LegacyStation | null {
   const match = line.match(/\(([^)]+)\)/);
-  if (!match) return null;
+  if (!match?.[1]) return null;
 
   // Properly parse CSV-like values respecting quotes
   const values: (string | null)[] = [];
@@ -49,8 +49,7 @@ function parseStationInsert(line: string): LegacyStation | null {
   let inQuote = false;
   let escaped = false;
 
-  for (let i = 0; i < match[1].length; i++) {
-    const char = match[1][i];
+  for (const char of match[1]) {
 
     if (escaped) {
       current += char;
@@ -89,37 +88,37 @@ function parseStationInsert(line: string): LegacyStation | null {
 
   const station: LegacyStation = {
     StationID: parseInt(values[0] as string),
-    Name: values[1],
-    Url: values[2],
-    Homepage: values[3],
-    Favicon: values[4],
-    Creation: values[5],
-    Country: values[6],
-    Language: values[7],
-    Tags: values[8],
+    Name: values[1] ?? null,
+    Url: values[2] ?? null,
+    Homepage: values[3] ?? null,
+    Favicon: values[4] ?? null,
+    Creation: values[5] ?? null,
+    Country: values[6] ?? null,
+    Language: values[7] ?? null,
+    Tags: values[8] ?? null,
     Votes: parseInt(values[9] as string) || 0,
-    Subcountry: values[10],
+    Subcountry: values[10] ?? null,
     clickcount: parseInt(values[11] as string) || 0,
     ClickTrend: parseInt(values[12] as string) || 0,
-    ClickTimestamp: values[13],
-    Codec: values[14],
+    ClickTimestamp: values[13] ?? null,
+    Codec: values[14] ?? null,
     LastCheckOK: parseInt(values[15] as string) || 0,
-    LastCheckTime: values[16],
+    LastCheckTime: values[16] ?? null,
     Bitrate: parseInt(values[17] as string) || 0,
-    UrlCache: values[18],
-    LastCheckOkTime: values[19],
+    UrlCache: values[18] ?? null,
+    LastCheckOkTime: values[19] ?? null,
     Hls: parseInt(values[20] as string) || 0,
-    ChangeUuid: values[21],
+    ChangeUuid: values[21] ?? null,
     StationUuid: values[22] || `legacy-${values[0]}`,
-    CountryCode: values[23],
-    LastLocalCheckTime: values[24],
-    CountrySubdivisionCode: values[25],
+    CountryCode: values[23] ?? null,
+    LastLocalCheckTime: values[24] ?? null,
+    CountrySubdivisionCode: values[25] ?? null,
     GeoLat: values[26] ? parseFloat(values[26] as string) : null,
     GeoLong: values[27] ? parseFloat(values[27] as string) : null,
     SslError: parseInt(values[28] as string) || 0,
-    LanguageCodes: values[29],
+    LanguageCodes: values[29] ?? null,
     ExtendedInfo: parseInt(values[30] as string) || 0,
-    ServerUuid: values[31],
+    ServerUuid: values[31] ?? null,
   };
 
   return station;

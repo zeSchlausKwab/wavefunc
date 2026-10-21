@@ -1,3 +1,4 @@
+import { publishAccepted } from "../src/lib/nostr/transport";
 // Seed development data into the local relay using applesauce primitives.
 // Publishes user profiles, radio stations, favorites lists, and admin
 
@@ -48,7 +49,7 @@ const pool = new RelayPool();
 pool.relay(RELAY_URL);
 
 async function publish(event: NostrEvent): Promise<void> {
-  await pool.publish([RELAY_URL], event);
+  await publishAccepted(pool, [RELAY_URL], event);
 }
 
 async function signAndPublish(

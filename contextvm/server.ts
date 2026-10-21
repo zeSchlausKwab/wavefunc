@@ -414,7 +414,7 @@ async function main() {
         console.log(`✅ Prepared: tempId=${result.tempId}, sha256=${result.sha256}`);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          structuredContent: result,
+          structuredContent: { ...result },
         };
       } catch (error: any) {
         console.error(`❌ prepare_download failed: ${error.message}`);
@@ -454,7 +454,7 @@ async function main() {
         console.log(`✅ Uploaded: ${result.url} (${result.size} bytes)`);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          structuredContent: result,
+          structuredContent: { ...result },
         };
       } catch (error: any) {
         console.error(`❌ upload_to_blossom failed: ${error.message}`);

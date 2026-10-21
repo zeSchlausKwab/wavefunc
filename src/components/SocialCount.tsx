@@ -10,15 +10,17 @@ export function formatSocialCount(count: number): string {
   return String(count);
 }
 
-export function SocialCount({ count }: { count: number }) {
+export function SocialCount({ count, approximate, source, fresh }: { count: number | undefined; approximate?: boolean; source?: string; fresh?: boolean }) {
+  if (count === undefined) return <span className="ml-1 text-xs" title="Count unavailable" aria-label="Count unavailable">?</span>;
   if (count <= 0) return null;
 
   return (
     <span
       className="ml-1 text-[9px] font-black tabular-nums leading-none md:text-[10px]"
+      title={source ? `${fresh === false ? "Cached c" : "C"}ount from ${source}${approximate ? " (approximate)" : ""}` : undefined}
       data-social-count
     >
-      {formatSocialCount(count)}
+      {approximate ? "~" : ""}{formatSocialCount(count)}
     </span>
   );
 }

@@ -83,7 +83,7 @@ const YT_REGEX =
 const VIMEO_REGEX = /vimeo\.com\/(\d+)/i;
 
 function hasAnyExt(url: string, exts: string[]) {
-  const lower = url.split(/[?#]/)[0].toLowerCase();
+  const lower = (url.split(/[?#]/)[0] ?? "").toLowerCase();
   return exts.some((ext) => lower.endsWith(ext));
 }
 function isLikelyVideoContentType(ct: string) {

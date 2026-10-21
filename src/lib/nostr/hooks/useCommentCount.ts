@@ -1,0 +1,64 @@
+import { useEffect, useMemo, useState } from "react";
+import { use$ } from "applesauce-react/hooks";
+import { createCountService } from "applesauce-loaders/loaders";
+import { map, merge, type Subscription } from "rxjs";
+import { storeEvents } from "applesauce-relay/operators";
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import { getRelayPolicy, getSocialRelayUrls } from "../../../config/nostr";
+import { relayPreferences } from "../../../config/relayPreferences";
+import { eventStore, loadCommentsByAddress, loadLegacyCommentsByAddress, loadCommentsByEvent, relayPool, publishedEvents$, socialReadErrors$ } from "../store";
+import { useRelayTimeline } from "./useRelayTimeline";
+
+const globals = globalThis as typeof globalThis & { __wavefuncCounts?: ReturnType<typeof createCountService> };
+export const commentCounts = globals.__wavefuncCounts ??= createCountService(relayPool, {
+  // The app relay restricts COUNT to station queries. Social counts use compatible personal/public relays.
+  relays: relayPreferences.state$.pipe(map(() => getRelayPolicy().stage === "development" ? [] : getRelayPolicy().generalRead)),
+  concurrency: 4, attemptTimeout: 3_000, cacheCapacity: 500,
+});
+
+type Target = Pick<NostrEvent, "id" | "kind" | "tags" | "pubkey" | "created_at">;
+export function useCommentCount(event: Target, pubkey: string | undefined, enabled: boolean) {
+  const preferences = use$(relayPreferences.state$);
+  const address = event.tags.find(tag => tag[0] === "d")?.[1];
+  const target = useMemo(() => ({ id: event.id, kind: event.kind, created_at: event.created_at,
+    address: address === undefined ? undefined : `${event.kind}:${event.pubkey}:${address}` }), [event.id, event.kind, event.pubkey, event.created_at, address]);
+  useEffect(() => {
+    const subscription = publishedEvents$.subscribe(event => {
+      if (event.kind === 1111 && event.tags.some(([name, value]) =>
+        target.address ? name === "A" && value === target.address : name === "E" && value === target.id)) {
+        void commentCounts.invalidate(target).catch(() => {});
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [target]);
+  const handle = useMemo(() => commentCounts.event(target), [target]);
+  const count = use$(enabled ? handle.comments : undefined);
+  const [fallback, setFallback] = useState<{ ready: boolean; error?: unknown }>({ ready: false });
+  const relays = useMemo(() => getSocialRelayUrls(), [preferences]);
+  const filters = useMemo(() => target.address
+    ? [{ kinds: [1111], "#A": [target.address] }, { kinds: [1111], "#a": [target.address] }]
+    : [{ kinds: [1111], "#E": [target.id] }, { kinds: [1111], "#e": [target.id] }], [target]);
+  // A personal badge does not require downloading everyone else's comments.
+  useRelayTimeline({ filters: enabled && pubkey ? filters.map(filter => ({ ...filter, authors: [pubkey] })) : null, relays });
+  useEffect(() => {
+    setFallback({ ready: false });
+    if (!enabled || !count || count.refreshing || count.value !== undefined) return;
+    let failure: unknown;
+    const errors = socialReadErrors$.subscribe(({ values, error }) => {
+      if (values.includes(target.address ?? target.id)) failure = error;
+    });
+    let subscription: Subscription | undefined;
+    // Give a newly observed metric time to enter the COUNT scheduler before falling back.
+    const timer = setTimeout(() => {
+      const streams = target.address ? [loadCommentsByAddress({ value: target.address, relays }), loadLegacyCommentsByAddress({ value: target.address, relays })]
+        : [loadCommentsByEvent({ value: target.id, relays })];
+      subscription = merge(...streams).pipe(storeEvents(eventStore)).subscribe({
+        complete: () => setFallback({ ready: true, error: failure }),
+        error: error => setFallback({ ready: true, error }),
+      });
+    }, 250);
+    return () => { clearTimeout(timer); subscription?.unsubscribe(); errors.unsubscribe(); };
+  }, [enabled, count?.refreshing, count?.value, !!count, target, relays]);
+  return { value: count?.value, fallbackReady: fallback.ready && !fallback.error, refreshing: count?.refreshing ?? false,
+    fresh: count?.fresh, origin: count?.origin?.relay, approximate: count?.approximate, error: fallback.error };
+}

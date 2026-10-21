@@ -3,11 +3,9 @@ import { castUser } from "applesauce-common/casts";
 import { ProfileModel } from "applesauce-core/models";
 import { use$, useEventModel } from "applesauce-react/hooks";
 import { storeEvents } from "applesauce-relay/operators";
-import { TokensOperation } from "applesauce-wallet/actions";
-import { NutzapEvent } from "applesauce-wallet/actions";
 import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { merge } from "rxjs";
 import { openUrl, toLightningUri } from "../lib/openUrl";
 import { platformFetch } from "../lib/platformFetch";
@@ -19,7 +17,6 @@ import {
 import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { actions, couch } from "../lib/nostr/store";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
 import { useNWCConnectionStore } from "../stores/nwcConnectionStore";
 import {
@@ -80,6 +77,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   // ── Wallet (sender) + nutzap info (recipient) for the NIP-61 zap path ──
   const balance = use$(wallet?.balance$);
   const walletUnlocked = use$(wallet?.unlocked$) ?? false;
+  const walletBusy = use$(wallet?.busy$) ?? false;
+  const zapInFlight = useRef(false);
 
   const recipientUser = useMemo(
     () => castUser(station.pubkey, eventStore),
@@ -123,7 +122,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       ]),
     )
       .pipe(storeEvents(eventStore))
-      .subscribe();
+      .subscribe({ error: error => console.warn("Recipient metadata unavailable:", error) });
     return () => sub.unsubscribe();
   }, [open, relayPool, eventStore, station.pubkey]);
 
@@ -302,6 +301,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const zapWithNutzap = async (amountSats: number): Promise<boolean> => {
     if (!currentUser) throw new Error("Not logged in");
     if (!wallet || !walletUnlocked) throw new Error("Cashu wallet is locked");
+    if (walletBusy) throw new Error("Wait for the current wallet operation to finish");
     if (!recipientNutzapInfo?.p2pk) {
       throw new Error("Recipient has not published a nutzap p2pk key");
     }
@@ -317,38 +317,10 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       );
     }
 
-    // Cashu/NIP-61 require the P2PK pubkey to be prefixed with "02" before
-    // locking. The applesauce-wallet `NutzapInfo.p2pk` getter returns the
-    // raw 32-byte hex pubkey from the kind 10019 event — we add the prefix
-    // here when handing it to cashu-ts.
-    const lockPubkey = recipientNutzapInfo.p2pk.startsWith("02")
-      ? recipientNutzapInfo.p2pk
-      : `02${recipientNutzapInfo.p2pk}`;
-
-    await actions.run(
-      TokensOperation,
-      amountSats,
-      async ({ selectedProofs, mint, cashuWallet }) => {
-        const { keep, send } = await cashuWallet.ops
-          .send(amountSats, selectedProofs)
-          .asP2PK({ pubkey: lockPubkey })
-          .run();
-
-        // Nest the NutzapEvent action inside TokensOperation so the locked
-        // proofs are published as a kind 9321 event before TokensOperation
-        // commits the change. If the publish throws, TokensOperation rolls
-        // back the spend and the user keeps their tokens.
-        await actions.run(
-          NutzapEvent,
-          station as NostrEvent,
-          { mint, proofs: send, unit: "sat" },
-          { comment: comment || undefined, couch },
-        );
-
-        return { change: keep.length > 0 ? keep : undefined };
-      },
-      { mint: nutzapMint, couch },
-    );
+    await wallet.sendNutzap(station as NostrEvent, {
+      amount: amountSats, mint: nutzapMint,
+      recipientKey: recipientNutzapInfo.p2pk, comment: comment || undefined,
+    });
 
     return true;
   };
@@ -380,6 +352,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const zapWithCashuLightning = async (amountSats: number): Promise<boolean> => {
     if (!currentUser) throw new Error("Not logged in");
     if (!wallet || !walletUnlocked) throw new Error("Cashu wallet is locked");
+    if (walletBusy) throw new Error("Wait for the current wallet operation to finish");
     if (!cashuLightningZapMint) {
       throw new Error("No mint with positive balance");
     }
@@ -484,9 +457,11 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     zapMethod: (amount: number) => Promise<boolean>,
     errorMessage: string,
   ) => {
-    const amountNum = parseInt(amount, 10);
-    if (!amountNum || amountNum <= 0) return;
+    if (zapInFlight.current) return;
+    const amountNum = Number(amount);
+    if (!Number.isSafeInteger(amountNum) || amountNum <= 0) return;
 
+    zapInFlight.current = true;
     setZapState("processing");
     setError(null);
 
@@ -498,6 +473,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     } catch (err) {
       setError(err instanceof Error ? err.message : errorMessage);
       setZapState("error");
+    } finally {
+      zapInFlight.current = false;
     }
   };
 
@@ -729,7 +706,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               {canNutzap && (
                 <Button
                   onClick={handleZapWithNutzap}
-                  disabled={!amount || parseInt(amount) <= 0 || isProcessing}
+                  disabled={!amount || parseInt(amount) <= 0 || isProcessing || walletBusy}
                   className="w-full bg-orange-600 hover:bg-orange-700 text-white"
                   title={
                     nutzapMint
@@ -745,7 +722,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
               {canCashuLightningZap && (
                 <Button
                   onClick={handleZapWithCashuLightning}
-                  disabled={!amount || parseInt(amount) <= 0 || isProcessing}
+                  disabled={!amount || parseInt(amount) <= 0 || isProcessing || walletBusy}
                   className="w-full bg-amber-600 hover:bg-amber-700 text-white"
                   title={
                     cashuLightningZapMint
