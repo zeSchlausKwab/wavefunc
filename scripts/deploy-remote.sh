@@ -14,6 +14,13 @@ export PATH="$BUN_INSTALL/bin:/usr/local/go/bin:$PATH"
 command -v bun >/dev/null 2>&1 || { echo "❌ Bun not found"; exit 1; }
 command -v go >/dev/null 2>&1 || { echo "❌ Go not found"; exit 1; }
 
+# A version check can succeed even when the installed binary cannot execute
+# JavaScript on this VPS CPU. Check before touching files or running services.
+if ! timeout 10 bun -e 'console.log(`✓ Bun runtime: ${process.versions.bun}`)'; then
+    echo "❌ Bun cannot execute JavaScript; install a CPU-compatible build before deploying"
+    exit 1
+fi
+
 echo "✓ Using Bun: $(which bun)"
 echo "✓ Using Go: $(which go)"
 

@@ -16,6 +16,20 @@ This guide covers deploying WaveFunc Radio to a VPS using PM2 and Caddy.
 - Caddy installed and running
 - SSH key authentication configured
 
+### Production runtime compatibility
+
+Builds and CI use Bun 1.3.11. During the 0.1.12 deployment, the current VPS
+reported a QEMU 2.5 virtual CPU without SSE4.2. Both the regular and baseline
+Bun 1.3.11 binaries hung on a trivial JavaScript command, although `--version`
+succeeded. The previous Bun 1.3.1 binary was restored; web, relay, and encrypted
+ContextVM health checks passed with the new application code.
+
+Keep that working production runtime until the VPS exposes a compatible CPU.
+[Bun's CPU requirements](https://bun.sh/docs/installation#cpu-requirements)
+require SSE4.2 on x64. Test any replacement binary separately before activating
+it. `deploy-remote.sh` now executes a bounded JavaScript preflight before changing
+files or services, so a successful version check alone is insufficient.
+
 ## Initial VPS Setup
 
 ### 1. Create Deploy User (Optional but Recommended)
