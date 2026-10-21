@@ -2,7 +2,7 @@
 import { NostrServerTransport } from "@contextvm/sdk";
 import { PrivateKeySigner } from "@contextvm/sdk";
 import { ApplesauceRelayPool } from "@contextvm/sdk";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@contextvm/mcp-sdk/server/mcp.js";
 import { extractIcecastMetadata } from "./tools/stream-metadata.ts";
 import {
   searchArtists,

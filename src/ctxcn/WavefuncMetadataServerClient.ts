@@ -1,5 +1,5 @@
-import { Client } from "@modelcontextprotocol/sdk/client";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { Client } from "@contextvm/mcp-sdk/client";
+import type { Transport } from "@contextvm/mcp-sdk/shared/transport.js";
 import {
   NostrClientTransport,
   type NostrTransportOptions,
@@ -282,6 +282,8 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
   static readonly DEFAULT_RELAYS = ["ws://localhost:3334"];
   private client: Client;
   private transport: Transport;
+  private ready: Promise<void>;
+  private closed = false;
 
   constructor(
     options: Partial<NostrTransportOptions> & { privateKey?: string; relays?: string[] } = {}
@@ -313,13 +315,14 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     });
 
     // Auto-connect in constructor
-    this.client.connect(this.transport).catch((error) => {
-      console.error(`Failed to connect to server: ${error}`);
-    });
+    this.ready = this.client.connect(this.transport);
+    // Keep rejection observable by calls without an unhandled constructor rejection.
+    void this.ready.catch(() => undefined);
   }
 
   async disconnect(): Promise<void> {
-    await this.transport.close();
+    this.closed = true;
+    await this.client.close();
   }
 
   private async call<T = unknown>(
@@ -327,6 +330,9 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     args: Record<string, unknown>,
     options?: { timeout?: number; onprogress?: (progress: { progress: number; message?: string }) => void }
   ): Promise<T> {
+    if (this.closed) throw new Error("Metadata client is closed");
+    await this.ready;
+    if (this.closed) throw new Error("Metadata client is closed");
     const result = await this.client.callTool(
       { name, arguments: { ...args } },
       undefined,
