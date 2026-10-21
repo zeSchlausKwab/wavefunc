@@ -135,11 +135,11 @@ const configuredRelayUrl = process.env.RELAY_URL?.trim();
 const isLoopbackRelayUrl = configuredRelayUrl
   ? isLocalRelayUrl(configuredRelayUrl)
   : false;
+const appStage = process.env.APP_STAGE === "development" ? "development" : "production";
 const definedRelayUrl =
-  configuredRelayUrl && !isLoopbackRelayUrl
+  configuredRelayUrl && (appStage === "development" || !isLoopbackRelayUrl)
     ? JSON.stringify(configuredRelayUrl)
     : "undefined";
-const appStage = process.env.APP_STAGE === "development" ? "development" : "production";
 
 const entrypoints = [...new Bun.Glob("**.html").scanSync("src")]
   .map(a => path.resolve("src", a))

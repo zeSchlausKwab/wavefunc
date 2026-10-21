@@ -6,7 +6,7 @@ Implemented October 21, 2026, following the [v7 release announcement](https://no
 
 The application's Applesauce packages resolve to 7.0.0, including the newly adopted `applesauce-wallet-connect`. RxJS is now a direct dependency. Cashu TS resolves to 4.12.0 to match Applesauce Wallet's amount types. Bun 1.3.11 and TypeScript 5.9.3 are pinned; CI installs the lockfile and runs type checking, tests, and the production build.
 
-`@contextvm/sdk` remains at 0.8.0 with its own nested Applesauce dependency tree. Do not override its internal major versions to v7. Updating ContextVM is a separate transport/protocol migration; its latest release inspected during this work still used Applesauce v6. The server's structured-result typing was corrected without changing the wire payload.
+The follow-up upgrades `@contextvm/sdk` to 0.14.3 and both endpoints to its supported `@contextvm/mcp-sdk` 1.30.0. ContextVM retains its own nested Applesauce v6 dependency; do not override that tree to v7. The metadata client waits for its connection before dispatch and rejects calls after closing. Loopback tests cover signed plaintext and encrypted requests, structured results, server errors, progress notifications, and shutdown.
 
 ## Runtime boundaries
 
@@ -92,16 +92,22 @@ Same machine and Bun 1.3.11, median of five measured runs after warmup:
 
 Both versions returned 5,000 matches and 5,100 model emissions. The benchmark deliberately excludes signature verification and network/UI work; these numbers are not an end-to-end application speedup claim. `scripts/benchmark-nostr.ts` makes the workload reproducible.
 
-## Follow-up work deliberately separate from this migration
+## Completed optional follow-ups
 
-- ContextVM SDK upgrade: verify the client/server protocol and its dependency boundaries together.
-- Broad outbox feed discovery and NIP-66 relay selection: measure traffic, coverage, and connection limits before expanding relay fanout.
-- NIP-38 listening status: opt-in product behavior and privacy controls are needed before publishing listening activity.
-- Persistent decryption caching: define protected storage and logout behavior first. No plaintext decryption cache was added.
-- Optimistic verification and a full cache/storage replacement: keep verified ingestion and the durable wallet couch; profile an actual bottleneck before replacing either.
+See [Nostr follow-ups](NOSTR_FOLLOWUPS.md) for behavior, limits, historical attribution, and validation.
+
+- ContextVM SDK and MCP dependency upgrade, with local client/server protocol tests.
+- Opt-in community outbox discovery using NIP-65, bounded to 100 known participants, six additional sockets and two relays per author. NIP-66 reports offer manual relay suggestions; they never veto connections.
+- Opt-in NIP-38 music status, scoped to the account, serialized through the signer, refreshed every two minutes, cleared on pause/stop/disable, and expired after five minutes.
+- Passphrase-protected persistent decryption cache, disabled by default. AES-GCM ciphertext is separate from proof backups; session keys are discarded on lock/logout. Configured caches start locked, allowing cache unlock before signer decryption.
+- Verified top-five app-support leaderboard, new request labels, recipient-signed historical curation, and the approved fixed-cutoff exception for old direct profile zaps.
+
+Optimistic verification and a full cache/storage replacement remain contingent on profiling a real bottleneck. Verified ingestion and durable wallet recovery are retained.
 
 ## Development housekeeping
 
-The combined web and desktop launchers now use owned process groups, check port availability, bound relay readiness, stop on service failure, and clean up on cancellation. Normal startup and shutdown preserve the database and index; `relay:reset` is explicit. `relay:kill` verifies both executable and checkout before stopping a listener and never deletes data. Disposable process tests cover descendants, unrelated services, failure, cancellation, and startup deadlines.
+The combined web, desktop and Android launchers now use owned process groups, check port availability, bound relay readiness, stop on service failure, and clean up on cancellation. Normal startup and shutdown preserve the database and index; `relay:reset` is explicit. `relay:kill` verifies both executable and checkout before stopping a listener and never deletes data. Disposable process tests cover descendants, unrelated services, failure, cancellation, and startup deadlines.
+
+Android reverse-port setup selects one authorized device (or `ANDROID_SERIAL`), preserves existing matching mappings, refuses conflicting mappings, and removes only mappings it created. Explicit development builds preserve a configured loopback port; production bundles still discard local relay overrides.
 
 Station sharing was committed separately in `9004f3e` before this migration.

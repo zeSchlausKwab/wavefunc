@@ -17,6 +17,7 @@ WaveFunc Radio is a Nostr-based internet radio directory and player with full-te
 - `bun dev` - Start relay, import 100 real stations, and start ContextVM and frontend; preserve existing data
 - `bun dev:fake` - Start relay with fake test data instead of real stations
 - `bun dev:no-seed` - Start relay, ContextVM, and frontend without importing data
+- `bun run tauri:android` - Start owned services and Android development, preserving existing adb mappings; use `ANDROID_SERIAL` for multiple devices
 - `bun dev:frontend` - Start only the frontend server
 - `bun --hot src/index.tsx` - Start frontend with hot reload
 
@@ -25,7 +26,7 @@ WaveFunc Radio is a Nostr-based internet radio directory and player with full-te
 - `bun run relay:kill` - Stop only this checkout's relay, preserving data
 - `bun run relay:reset` - Explicitly reset database and search index, then start the relay
 
-Combined web/desktop development commands own their process groups, refuse occupied ports, and bound relay startup waits. Use `dev:frontend` with existing services. They require macOS/Linux or WSL. Never reintroduce broad `pkill` or implicit relay-data deletion.
+Combined web/desktop/Android development commands own their process groups, refuse occupied ports, and bound relay startup waits. Use `dev:frontend` with existing services. They require macOS/Linux or WSL. Never reintroduce broad `pkill` or implicit relay-data deletion.
 
 ### Data Management
 - `bun run migrate` - Migrate 500 random stations from legacy database
@@ -42,7 +43,7 @@ Combined web/desktop development commands own their process groups, refuse occup
 
 ### Multi-Component System
 The application requires multiple services running simultaneously:
-1. **Go Nostr Relay** (port 3334) - Handles Nostr events with SQLite storage and Bluge full-text search
+1. **Go Nostr Relay** (port 3334) - Handles Nostr events with LMDB storage and Bleve full-text search
 2. **React Frontend** - Applesauce v7 client for station discovery and playback
 3. **ContextVM** - MCP-based metadata server for stream information
 
