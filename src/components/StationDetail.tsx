@@ -25,6 +25,7 @@ import {
 import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 import { StationHealthBadge } from "./StationHealthBadge";
 import { StationReportDialog } from "./StationReportDialog";
+import { StationShareDialog } from "./StationShareDialog";
 
 interface StationDetailProps {
   station: ParsedStation;
@@ -96,6 +97,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
     getDefaultSelectedStream(station.streams)
   );
   const [showZapDialog, setShowZapDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [showStreams, setShowStreams] = useState(false);
   const commentFormRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -270,9 +272,10 @@ export const StationDetail: React.FC<StationDetailProps> = ({
                 <StationReportDialog station={station} />
               </div>
               <button
-                onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/station/${station.naddr}`)}
+                onClick={() => setShowShareDialog(true)}
                 className="text-on-background/40 hover:text-on-background transition-colors"
                 title="Share"
+                aria-label={`Share ${station.name || "station"}`}
               >
                 <span className="material-symbols-outlined text-[18px]">share</span>
               </button>
@@ -450,6 +453,11 @@ export const StationDetail: React.FC<StationDetailProps> = ({
         open={showZapDialog}
         onOpenChange={setShowZapDialog}
         onZap={async (_amount: number) => {}}
+      />
+      <StationShareDialog
+        station={station}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
       />
     </div>
   );

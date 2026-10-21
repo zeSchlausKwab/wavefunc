@@ -17,6 +17,11 @@
  */
 
 export type ShareResult = "shared" | "copied" | "failed";
+export type NativeShareResult =
+  | "shared"
+  | "cancelled"
+  | "unavailable"
+  | "failed";
 
 export interface ShareInput {
   url: string;
@@ -36,6 +41,38 @@ export function buildNativeShareData(input: ShareInput): ShareData {
   };
 }
 
+export function canShareViaDevice(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    typeof navigator.share === "function"
+  );
+}
+
+/**
+ * Invoke only the OS share sheet. Unlike shareOrCopy, this never changes the
+ * user's requested action into a clipboard copy when sharing is unavailable.
+ */
+export async function shareViaDevice(
+  input: ShareInput,
+): Promise<NativeShareResult> {
+  if (!canShareViaDevice()) return "unavailable";
+
+  try {
+    await navigator.share(buildNativeShareData(input));
+    return "shared";
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
+      return "cancelled";
+    }
+    return "failed";
+  }
+}
+
 /** Recover a NIP-19/id route value when a share target appended prose to it. */
 export function normalizeStationRouteParam(value: string): string {
   let decoded = value.trim();
@@ -51,21 +88,12 @@ export async function shareOrCopy(input: ShareInput): Promise<ShareResult> {
   // navigator.share requires a user gesture. Callers MUST invoke this
   // from a click handler, not from a useEffect or async-after-delay
   // path, or the browser will reject the call.
-  if (
-    typeof navigator !== "undefined" &&
-    typeof navigator.share === "function"
-  ) {
-    try {
-      await navigator.share(buildNativeShareData(input));
+  if (canShareViaDevice()) {
+    const result = await shareViaDevice(input);
+    if (result === "shared" || result === "cancelled") {
       return "shared";
-    } catch (err) {
-      // User cancel throws AbortError — treat as success from our
-      // perspective. Any other error falls through to clipboard.
-      if (err instanceof Error && err.name === "AbortError") {
-        return "shared";
-      }
-      // fall through to clipboard
     }
+    // A native failure preserves this legacy helper's clipboard fallback.
   }
 
   if (

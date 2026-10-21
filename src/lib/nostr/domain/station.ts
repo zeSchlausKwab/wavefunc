@@ -59,6 +59,13 @@ export type StationDeletionInput = {
   reason?: string;
 };
 
+export type ShareStationNoteInput = {
+  station: Pick<NostrEvent, "kind" | "pubkey" | "tags">;
+  content: string;
+  url: string;
+  hashtags?: string[];
+};
+
 function normalizeUrl(url: string) {
   return url.trim().replace(/^`|`$/g, "");
 }
@@ -184,6 +191,34 @@ export function buildStationDeletionTemplate(
     kind: 5,
     content: input.reason ?? "Deleted radio station",
     tags,
+  };
+}
+
+/** Build a kind-1 note that links to and references an addressable station. */
+export function buildShareStationNoteTemplate(
+  input: ShareStationNoteInput,
+): EventTemplate {
+  const address = getAddressableIdentity(input.station);
+  const trimmedContent = input.content.trim();
+  const content = trimmedContent.includes(input.url)
+    ? trimmedContent
+    : [trimmedContent, input.url].filter(Boolean).join("\n\n");
+  const hashtags = Array.from(
+    new Set(
+      (input.hashtags ?? [])
+        .map((tag) => tag.trim().replace(/^#/, ""))
+        .filter(Boolean),
+    ),
+  );
+
+  return {
+    kind: 1,
+    content,
+    tags: [
+      ...(address ? [["a", address]] : []),
+      ["r", input.url],
+      ...hashtags.map((tag) => ["t", tag]),
+    ],
   };
 }
 

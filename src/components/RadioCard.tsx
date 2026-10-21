@@ -41,7 +41,6 @@ import {
   getDefaultSelectedStream,
   openStreamExternally,
 } from "../lib/player/adapters";
-import { shareOrCopy } from "../lib/share";
 import { usePlayerStore } from "../stores/playerStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useUIStore } from "../stores/uiStore";
@@ -58,6 +57,7 @@ import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { StationHealthBadge } from "./StationHealthBadge";
+import { StationShareDialog } from "./StationShareDialog";
 
 const MIME_TO_FORMAT: Record<string, string> = {
   "audio/mpeg": "MP3",
@@ -128,6 +128,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showZapDialog, setShowZapDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [selectedStream, setSelectedStream] = useState<Stream | undefined>(
     () => getDefaultSelectedStream(station.streams)
   );
@@ -217,11 +218,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   const handleShare = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    void shareOrCopy({
-      url: `${window.location.origin}/station/${station.naddr}`,
-      title: station.name || "WaveFunc Radio",
-      text: `Listen to ${station.name || "this station"} on WaveFunc`,
-    });
+    setShowShareDialog(true);
   };
 
   const handleLike = async (e?: React.MouseEvent) => {
@@ -389,6 +386,14 @@ export const RadioCard: React.FC<RadioCardProps> = ({
     />
   );
 
+  const shareDialog = (
+    <StationShareDialog
+      station={station}
+      open={showShareDialog}
+      onOpenChange={setShowShareDialog}
+    />
+  );
+
   // ─── TILE ────────────────────────────────────────────────────────────────────
   if (variant === "tile") {
     return (
@@ -536,6 +541,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               className="py-1.5 md:py-2.5 flex items-center justify-center border-r-2 border-on-surface hover:bg-secondary-fixed-dim transition-colors"
               onClick={handleShare}
               title="Share"
+              aria-label={`Share ${station.name || "station"}`}
             >
               <span className="material-symbols-outlined text-[16px] md:text-[18px]">share</span>
             </button>
@@ -558,6 +564,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </div>
 
         {zapDialog}
+        {shareDialog}
       </>
     );
   }
@@ -669,6 +676,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                 className="flex-1 flex items-center justify-center border-r-2 border-on-background hover:bg-secondary-fixed-dim transition-colors"
                 onClick={handleShare}
                 title="Share"
+                aria-label={`Share ${station.name || "station"}`}
               >
                 <span className="material-symbols-outlined scale-75">share</span>
               </button>
@@ -721,6 +729,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </section>
 
         {zapDialog}
+        {shareDialog}
       </>
     );
   }
@@ -926,6 +935,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             className="py-2 flex items-center justify-center border-r-2 border-on-background/10 hover:bg-secondary-fixed-dim transition-colors"
             onClick={handleShare}
             title="Share"
+            aria-label={`Share ${station.name || "station"}`}
           >
             <span className="material-symbols-outlined text-[18px]">share</span>
           </button>
@@ -1038,7 +1048,9 @@ export const RadioCard: React.FC<RadioCardProps> = ({
           </button>
           <button
             className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
-            onClick={handleShare} title="Share"
+            onClick={handleShare}
+            title="Share"
+            aria-label={`Share ${station.name || "station"}`}
           >
             <span className="material-symbols-outlined text-xl">share</span>
           </button>
@@ -1116,6 +1128,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </div>
 
         {zapDialog}
+        {shareDialog}
       </>
     );
   }
@@ -1194,6 +1207,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             className="px-4 flex items-center justify-center hover:bg-primary hover:text-white transition-colors border-r-2 border-on-background/10"
             onClick={handleShare}
             title="Share"
+            aria-label={`Share ${station.name || "station"}`}
           >
             <span className="material-symbols-outlined text-xl">share</span>
           </button>
@@ -1211,6 +1225,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
         </div>
       </div>
       {zapDialog}
+      {shareDialog}
     </>
   );
 };
