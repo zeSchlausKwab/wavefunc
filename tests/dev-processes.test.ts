@@ -10,8 +10,9 @@ function alive(pid: number) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
+// Combined development services use POSIX process groups; Windows users run them in WSL.
 describe("development process ownership", () => {
-  test("stops owned descendants after parent exit and leaves other sessions alive", async () => {
+  test.skipIf(process.platform === "win32")("stops owned descendants after parent exit and leaves other sessions alive", async () => {
     const dir = await mkdtemp(join(tmpdir(), "wavefunc-process-test-"));
     const pidFile = join(dir, "child.pid");
     const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
@@ -36,7 +37,7 @@ describe("development process ownership", () => {
     }
   });
 
-  test("a failed service interrupts an in-progress command and cleanup stops it", async () => {
+  test.skipIf(process.platform === "win32")("a failed service interrupts an in-progress command and cleanup stops it", async () => {
     const session = new DevProcesses({ stdio: "ignore" }, 100);
     try {
       const command = session.run("import", [process.execPath, "-e", "setInterval(() => {}, 1000)"]);
@@ -46,7 +47,7 @@ describe("development process ownership", () => {
     } finally { await session.stop(); }
   });
 
-  test("cancellation stops waiting for a command and missing commands fail promptly", async () => {
+  test.skipIf(process.platform === "win32")("cancellation stops waiting for a command and missing commands fail promptly", async () => {
     const session = new DevProcesses({ stdio: "ignore" }, 100);
     try {
       const command = session.run("frontend", [process.execPath, "-e", "setInterval(() => {}, 1000)"]);
