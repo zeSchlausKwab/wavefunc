@@ -3639,7 +3639,7 @@ dependencies = [
 
 [[package]]
 name = "wavefunc-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "cdk",
@@ -3662,7 +3662,7 @@ dependencies = [
 
 [[package]]
 name = "wavefunc_bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flutter_rust_bridge",
  "once_cell",
