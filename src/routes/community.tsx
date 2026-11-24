@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls, getSocialRelayUrls } from "../config/nostr";
 import { RichNoteContent } from "../components/RichNoteContent";
+import { ZapDialog } from "../components/ZapDialog";
 import { shareOrCopy } from "../lib/share";
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import {
@@ -511,6 +512,7 @@ function CommunityMessageCard({
 }: CommunityMessageCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
+  const [showZapDialog, setShowZapDialog] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
   const profile = useProfile(message.pubkey);
@@ -631,16 +633,26 @@ function CommunityMessageCard({
               </button>
 
               <button
-                disabled={!canReply}
-                className={cn(
-                  "flex items-center gap-1 transition-colors hover:text-yellow-500",
-                  !canReply && "opacity-30 cursor-not-allowed"
-                )}
+                type="button"
+                onClick={() => setShowZapDialog(true)}
+                title="Zap transmission"
+                className="flex items-center gap-1 transition-colors hover:text-yellow-500"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
                   bolt
                 </span>
               </button>
+
+              {showZapDialog && (
+                <ZapDialog
+                  station={{
+                    ...message.event,
+                    name: profile?.display_name || profile?.name || opId,
+                  }}
+                  open={showZapDialog}
+                  onOpenChange={setShowZapDialog}
+                />
+              )}
 
               <button
                 onClick={handleShare}
@@ -754,6 +766,7 @@ function ReplyCard({
 }: ReplyCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [showReplies, setShowReplies] = useState(defaultShowReplies ?? false);
+  const [showZapDialog, setShowZapDialog] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
   const profile = useProfile(reply.pubkey);
@@ -858,16 +871,26 @@ function ReplyCard({
               </button>
 
               <button
-                disabled={!canReply}
-                className={cn(
-                  "flex items-center gap-1 transition-colors hover:text-yellow-500",
-                  !canReply && "opacity-30 cursor-not-allowed"
-                )}
+                type="button"
+                onClick={() => setShowZapDialog(true)}
+                title="Zap transmission"
+                className="flex items-center gap-1 transition-colors hover:text-yellow-500"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
                   bolt
                 </span>
               </button>
+
+              {showZapDialog && (
+                <ZapDialog
+                  station={{
+                    ...reply.event,
+                    name: profile?.display_name || profile?.name || opId,
+                  }}
+                  open={showZapDialog}
+                  onOpenChange={setShowZapDialog}
+                />
+              )}
 
               <button onClick={handleShare} className="flex items-center gap-1 hover:text-primary transition-colors">
                 <span className="material-symbols-outlined text-sm">share</span>

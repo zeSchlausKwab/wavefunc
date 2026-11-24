@@ -89,25 +89,48 @@ export function Spectrogram({
     const bufferLength = analyser.frequencyBinCount;
     dataRef.current = new Uint8Array(bufferLength);
     const levels = new Float32Array(COLS);
+    let silentFrames = 0;
+    let phase = 0;
 
     const tick = () => {
       if (!analyser || !dataRef.current) return;
       analyser.getByteFrequencyData(dataRef.current);
       const data = dataRef.current;
 
-      // Logarithmic bin grouping so bass/mids/treble each get balanced columns.
-      const maxBin = Math.max(COLS, Math.floor(data.length * 0.72));
-      for (let col = 0; col < COLS; col++) {
-        const lo = Math.floor(Math.pow(maxBin, col / COLS));
-        const hi = Math.max(lo + 1, Math.floor(Math.pow(maxBin, (col + 1) / COLS)));
-        let maxVal = 0;
-        for (let i = lo; i < hi && i < data.length; i++) {
-          if ((data[i] ?? 0) > maxVal) maxVal = data[i] ?? 0;
+      // Detect CORS-restricted streams where the browser zeroes out AnalyserNode.
+      let framePeak = 0;
+      for (let i = 0; i < data.length; i++) {
+        if ((data[i] ?? 0) > framePeak) framePeak = data[i] ?? 0;
+      }
+      if (framePeak === 0) {
+        silentFrames++;
+      } else {
+        silentFrames = 0;
+      }
+
+      if (silentFrames > 45) {
+        // Gentle calm carrier wave instead of a dead flatline on CORS-blocked streams.
+        phase += 0.06;
+        for (let col = 0; col < COLS; col++) {
+          const norm = 0.16 + 0.14 * Math.sin(phase + (col / COLS) * Math.PI * 2);
+          levels[col] = Math.max(0.06, norm);
+          peaksRef.current[col] = levels[col]!;
         }
-        const norm = maxVal / 255;
-        levels[col] = norm;
-        const prevPeak = peaksRef.current[col] ?? 0;
-        peaksRef.current[col] = norm >= prevPeak ? norm : Math.max(norm, prevPeak - 0.025);
+      } else {
+        // Logarithmic bin grouping so bass/mids/treble each get balanced columns.
+        const maxBin = Math.max(COLS, Math.floor(data.length * 0.72));
+        for (let col = 0; col < COLS; col++) {
+          const lo = Math.floor(Math.pow(maxBin, col / COLS));
+          const hi = Math.max(lo + 1, Math.floor(Math.pow(maxBin, (col + 1) / COLS)));
+          let maxVal = 0;
+          for (let i = lo; i < hi && i < data.length; i++) {
+            if ((data[i] ?? 0) > maxVal) maxVal = data[i] ?? 0;
+          }
+          const norm = maxVal / 255;
+          levels[col] = norm;
+          const prevPeak = peaksRef.current[col] ?? 0;
+          peaksRef.current[col] = norm >= prevPeak ? norm : Math.max(norm, prevPeak - 0.025);
+        }
       }
 
       drawGrid(levels, peaksRef.current);

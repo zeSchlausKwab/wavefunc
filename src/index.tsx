@@ -1,5 +1,5 @@
 import { serve, file } from "bun";
-import { join } from "path";
+import { join, resolve } from "path";
 import { verifyNIP98Auth } from "./lib/nip98";
 import { getPublicKey } from "nostr-tools/pure";
 import { hexToBytes } from "@noble/hashes/utils.js";
@@ -394,32 +394,51 @@ if (!isProduction) {
 // Start server
 (async () => {
   if (isProduction) {
-    // Production: Serve static files from dist/ and public/
+    // Production: Serve static files from dist/ and public/ with proper caching & path guards
+    const publicRoot = resolve(process.cwd(), "public");
+    const distRoot = resolve(process.cwd(), "dist");
+
     const server = serve({
       routes: {
         ...apiRoutes,
         "/*": async (req) => {
           const url = new URL(req.url);
           const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+          const relPath = pathname.replace(/^\/+/, "");
 
           // Try to serve from public/ first (for static assets like images)
-          const publicPath = join(process.cwd(), "public", pathname);
-          const publicFile = file(publicPath);
-
-          if (await publicFile.exists()) {
-            const headers: Record<string, string> = {};
-            if (pathname.startsWith("/.well-known/")) {
-              headers["Access-Control-Allow-Origin"] = "*";
+          const publicPath = resolve(publicRoot, relPath);
+          if (publicPath.startsWith(publicRoot)) {
+            const publicFile = file(publicPath);
+            if (await publicFile.exists()) {
+              const headers: Record<string, string> = {
+                "Cache-Control": "public, max-age=3600",
+              };
+              if (pathname.startsWith("/.well-known/")) {
+                headers["Access-Control-Allow-Origin"] = "*";
+              }
+              return new Response(publicFile, { headers });
             }
-            return new Response(publicFile, { headers });
           }
 
           // Try to serve from dist/ (built assets)
-          const filePath = join(process.cwd(), "dist", pathname);
-          const staticFile = file(filePath);
-
-          if (await staticFile.exists()) {
-            return new Response(staticFile);
+          const filePath = resolve(distRoot, relPath);
+          if (filePath.startsWith(distRoot)) {
+            const staticFile = file(filePath);
+            if (await staticFile.exists()) {
+              const isHashed =
+                pathname.startsWith("/chunk-") ||
+                /-[a-z0-9]{8,}\.(js|css|woff2?|png|svg|ico)$/i.test(pathname);
+              const cacheControl =
+                pathname === "/index.html"
+                  ? "no-cache"
+                  : isHashed
+                    ? "public, max-age=31536000, immutable"
+                    : "public, max-age=3600";
+              return new Response(staticFile, {
+                headers: { "Cache-Control": cacheControl },
+              });
+            }
           }
 
           // An unknown JS/CSS/image request must be a real 404. Returning the
@@ -430,7 +449,9 @@ if (!isProduction) {
           }
 
           // If file not found, serve index.html for client-side routing
-          return new Response(file(join(process.cwd(), "dist", "index.html")));
+          return new Response(file(join(distRoot, "index.html")), {
+            headers: { "Cache-Control": "no-cache" },
+          });
         },
       },
     });

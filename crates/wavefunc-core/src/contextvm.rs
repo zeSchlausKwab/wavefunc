@@ -242,11 +242,14 @@ pub async fn call_tool(
         .finalize(client_keys)?;
     let request_event_id = request_event.id;
 
+    let since = Timestamp::from(Timestamp::now().as_secs().saturating_sub(60));
     let filter = Filter::new()
         .kind(Kind::Custom(CONTEXTVM_KIND))
         .author(server_pubkey)
         .pubkey(client_keys.public_key())
-        .event(request_event_id);
+        .event(request_event_id)
+        .since(since)
+        .limit(20);
 
     let sub_output = client.subscribe(filter).await?;
     let sub_id = sub_output.value;
@@ -664,11 +667,14 @@ pub async fn extract_stream_metadata(
     let request_event_id = request_event.id;
 
     // Subscribe to correlated replies BEFORE publishing the request so no fast reply is missed.
+    let since = Timestamp::from(Timestamp::now().as_secs().saturating_sub(60));
     let filter = Filter::new()
         .kind(Kind::Custom(CONTEXTVM_KIND))
         .author(server_pubkey)
         .pubkey(client_keys.public_key())
-        .event(request_event_id);
+        .event(request_event_id)
+        .since(since)
+        .limit(20);
 
     let sub_output = client.subscribe(filter).await?;
     let sub_id = sub_output.value;

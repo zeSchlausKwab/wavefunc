@@ -2864,8 +2864,9 @@ impl WavefuncCore {
         Ok(out)
     }
 
-    /// Search YouTube videos via ContextVM `search_youtube`, with desktop local `yt-dlp`
-    /// and direct YouTube search fallback so results return reliably on every platform.
+    /// Search YouTube videos **on-device first**:
+    /// - Desktop: local `yt-dlp` → direct on-device YouTube HTTPS → ContextVM fallback
+    /// - Android: direct on-device YouTube HTTPS → ContextVM fallback
     pub async fn search_youtube(
         &self,
         query: &str,
@@ -2874,21 +2875,6 @@ impl WavefuncCore {
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Ok(Vec::new());
-        }
-        let cfg = self.config.read().await.clone();
-        if let Ok(results) = contextvm::search_youtube(
-            &self.client,
-            &self.ephemeral_keys,
-            &cfg.metadata_server_pubkey,
-            trimmed,
-            limit,
-            15,
-        )
-        .await
-        {
-            if !results.is_empty() {
-                return Ok(results);
-            }
         }
 
         #[cfg(not(target_os = "android"))]
@@ -2900,7 +2886,24 @@ impl WavefuncCore {
             }
         }
 
-        contextvm::search_youtube_web_fallback(&self.http, trimmed, limit).await
+        if let Ok(results) =
+            contextvm::search_youtube_web_fallback(&self.http, trimmed, limit).await
+        {
+            if !results.is_empty() {
+                return Ok(results);
+            }
+        }
+
+        let cfg = self.config.read().await.clone();
+        contextvm::search_youtube(
+            &self.client,
+            &self.ephemeral_keys,
+            &cfg.metadata_server_pubkey,
+            trimmed,
+            limit,
+            15,
+        )
+        .await
     }
 
     /// Download a YouTube video/audio locally via `yt-dlp` when available (desktop),

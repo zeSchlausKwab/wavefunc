@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import QrScanner from "qr-scanner";
+import type QrScannerType from "qr-scanner";
 import { Button } from "./ui/button";
 
 interface QRScannerProps {
@@ -9,44 +9,47 @@ interface QRScannerProps {
 
 export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const scannerRef = useRef<QrScanner | null>(null);
+  const scannerRef = useRef<QrScannerType | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cameras, setCameras] = useState<QrScanner.Camera[]>([]);
+  const [cameras, setCameras] = useState<QrScannerType.Camera[]>([]);
   const [cameraId, setCameraId] = useState<string>("");
 
   useEffect(() => {
     if (!videoRef.current) return;
 
     let cancelled = false;
+    let scanner: QrScannerType | null = null;
 
-    const scanner = new QrScanner(
-      videoRef.current,
-      (result) => {
-        onScan(result.data);
-      },
-      {
-        highlightScanRegion: true,
-        highlightCodeOutline: true,
-        preferredCamera: "environment",
-      }
-    );
-    scannerRef.current = scanner;
-
-    scanner
-      .start()
-      .then(async () => {
-        if (cancelled) return;
-        try {
-          const list = await QrScanner.listCameras(true);
-          if (!cancelled) {
-            setCameras(list);
-            // pick back camera as default if available
-            const back = list.find((c) =>
-              /back|rear|environment/i.test(c.label)
-            );
-            setCameraId(back?.id || list[0]?.id || "");
+    void import("qr-scanner")
+      .then(({ default: QrScanner }) => {
+        if (cancelled || !videoRef.current) return;
+        scanner = new QrScanner(
+          videoRef.current,
+          (result) => {
+            onScan(result.data);
+          },
+          {
+            highlightScanRegion: true,
+            highlightCodeOutline: true,
+            preferredCamera: "environment",
           }
-        } catch {}
+        );
+        scannerRef.current = scanner;
+
+        return scanner.start().then(async () => {
+          if (cancelled) return;
+          try {
+            const list = await QrScanner.listCameras(true);
+            if (!cancelled) {
+              setCameras(list);
+              // pick back camera as default if available
+              const back = list.find((c) =>
+                /back|rear|environment/i.test(c.label)
+              );
+              setCameraId(back?.id || list[0]?.id || "");
+            }
+          } catch {}
+        });
       })
       .catch((err) => {
         if (!cancelled) {
@@ -61,8 +64,8 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 
     return () => {
       cancelled = true;
-      scanner.stop();
-      scanner.destroy();
+      scanner?.stop();
+      scanner?.destroy();
       scannerRef.current = null;
     };
   }, [onScan]);

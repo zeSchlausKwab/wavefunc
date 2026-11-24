@@ -151,6 +151,7 @@ const result = await Bun.build({
   outdir,
   plugins: [plugin],
   minify: true,
+  splitting: true,
   target: "browser",
   // The HTML entrypoint is authored with relative references so Bun can
   // resolve it, but emitted chunks must load from the origin on nested routes.

@@ -168,12 +168,13 @@ jobs:
           channel: stable
           cache: true
       - name: Build Rust core (Android ABIs)
+        working-directory: app/rust
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
         run: |
           cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 \
-            -o app/android/app/src/main/jniLibs \
-            build --manifest-path app/rust/Cargo.toml --release
+            -o ../android/app/src/main/jniLibs \
+            build --release
       - name: Setup Android signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

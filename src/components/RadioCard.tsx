@@ -19,7 +19,7 @@ function StationThumbnail({
 
   if (src && !error) {
     return (
-      <img src={src} alt={alt} className={imgClassName} onError={handleError} />
+      <img src={src} alt={alt} loading="lazy" decoding="async" className={imgClassName} onError={handleError} />
     );
   }
   return (
