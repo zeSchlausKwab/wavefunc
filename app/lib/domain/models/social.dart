@@ -361,11 +361,55 @@ class CashuWalletStatus {
     this.initialized = false,
     this.totalBalanceSats = 0,
     this.mints = const [],
+    this.nip60Synced = false,
+    this.walletRelays = const [],
+    this.tokenEventCount = 0,
   });
 
   final bool initialized;
   final int totalBalanceSats;
   final List<CashuMintBalance> mints;
+  final bool nip60Synced;
+  final List<String> walletRelays;
+  final int tokenEventCount;
+}
+
+class Nip60RawTokenEvent {
+  const Nip60RawTokenEvent({
+    required this.id,
+    required this.createdAt,
+    required this.content,
+  });
+
+  final String id;
+  final int createdAt;
+  final String content;
+}
+
+class Nip60RawEvents {
+  const Nip60RawEvents({
+    this.walletEventContent,
+    this.tokenEvents = const [],
+    this.deletedIds = const [],
+    this.walletRelays = const [],
+    this.discoveredMints = const [],
+  });
+
+  final String? walletEventContent;
+  final List<Nip60RawTokenEvent> tokenEvents;
+  final List<String> deletedIds;
+  final List<String> walletRelays;
+  final List<String> discoveredMints;
+}
+
+class Nip60DecryptedTokenEvent {
+  const Nip60DecryptedTokenEvent({
+    required this.id,
+    required this.plaintext,
+  });
+
+  final String id;
+  final String plaintext;
 }
 
 class CashuMintQuoteInfo {
@@ -422,4 +466,109 @@ class RecipientNutzapInfo {
   final List<String> relays;
 
   bool get acceptsNutzaps => mints.isNotEmpty;
+}
+
+class MusicBrainzRecording {
+  const MusicBrainzRecording({
+    required this.id,
+    required this.title,
+    required this.artist,
+    this.artistId,
+    this.release,
+    this.releaseId,
+    this.releaseDate,
+    this.durationMs,
+    this.score = 0,
+    this.tags = const [],
+  });
+
+  final String id;
+  final String title;
+  final String artist;
+  final String? artistId;
+  final String? release;
+  final String? releaseId;
+  final String? releaseDate;
+  final int? durationMs;
+  final int score;
+  final List<String> tags;
+
+  String? get formattedDuration {
+    final ms = durationMs;
+    if (ms == null || ms <= 0) return null;
+    final secs = ms ~/ 1000;
+    final m = secs ~/ 60;
+    final s = secs % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  String? get releaseYear {
+    final d = releaseDate?.trim();
+    if (d == null || d.length < 4) return null;
+    return d.substring(0, 4);
+  }
+}
+
+class YouTubeSearchResult {
+  const YouTubeSearchResult({
+    required this.videoId,
+    required this.url,
+    required this.title,
+    this.durationSecs,
+    this.channel,
+    this.thumbnailUrl,
+  });
+
+  final String videoId;
+  final String url;
+  final String title;
+  final int? durationSecs;
+  final String? channel;
+  final String? thumbnailUrl;
+
+  String? get formattedDuration {
+    final secs = durationSecs;
+    if (secs == null || secs <= 0) return null;
+    final m = secs ~/ 60;
+    final s = secs % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class PreparedMedia {
+  const PreparedMedia({
+    required this.jobId,
+    required this.sha256,
+    required this.size,
+    required this.mimeType,
+  });
+
+  final String jobId;
+  final String sha256;
+  final int size;
+  final String mimeType;
+}
+
+class UploadedMedia {
+  const UploadedMedia({
+    required this.url,
+    required this.sha256,
+    required this.size,
+    required this.mimeType,
+  });
+
+  final String url;
+  final String sha256;
+  final int size;
+  final String mimeType;
+}
+
+class BlossomAuthResult {
+  const BlossomAuthResult({
+    this.signedEventJson,
+    this.unsignedEventJson,
+  });
+
+  final String? signedEventJson;
+  final String? unsignedEventJson;
 }

@@ -602,6 +602,60 @@ class RustBridgeBackend implements WavefuncBackend {
   }
 
   @override
+  Future<void> closeCashuWallet() => frb.closeCashuWallet();
+
+  @override
+  Future<Nip60RawEvents> fetchNip60RawEvents() async {
+    final res = await frb.fetchNip60RawEvents();
+    return Nip60RawEvents(
+      walletEventContent: res.walletEventContent,
+      tokenEvents: res.tokenEvents
+          .map(
+            (e) => Nip60RawTokenEvent(
+              id: e.id,
+              createdAt: e.createdAt.toInt(),
+              content: e.content,
+            ),
+          )
+          .toList(),
+      deletedIds: res.deletedIds,
+      walletRelays: res.walletRelays,
+      discoveredMints: res.discoveredMints,
+    );
+  }
+
+  @override
+  Future<CashuWalletStatus> syncNip60Wallet() async {
+    final res = await frb.syncNip60Wallet();
+    return _mapCashuStatus(res);
+  }
+
+  @override
+  Future<CashuWalletStatus> applyDecryptedNip60Events({
+    String? walletContentPlain,
+    required List<Nip60DecryptedTokenEvent> decryptedTokens,
+    required List<String> deletedIds,
+    required List<String> discoveredMints,
+    required List<String> walletRelays,
+  }) async {
+    final res = await frb.applyDecryptedNip60Events(
+      walletContentPlain: walletContentPlain,
+      decryptedTokens: decryptedTokens
+          .map(
+            (e) => frb.FrbNip60DecryptedTokenEvent(
+              id: e.id,
+              plaintext: e.plaintext,
+            ),
+          )
+          .toList(),
+      deletedIds: deletedIds,
+      discoveredMints: discoveredMints,
+      walletRelays: walletRelays,
+    );
+    return _mapCashuStatus(res);
+  }
+
+  @override
   Future<CashuWalletStatus> getCashuStatus() async {
     final res = await frb.getCashuStatus();
     return _mapCashuStatus(res);
@@ -722,6 +776,196 @@ class RustBridgeBackend implements WavefuncBackend {
   }
 
   @override
+  Future<List<MusicBrainzRecording>> searchRecordings({
+    required String query,
+    String? artist,
+    int limit = 15,
+  }) async {
+    final list = await frb.searchRecordings(
+      query: query,
+      artist: artist,
+      limit: limit,
+    );
+    return list
+        .map(
+          (r) => MusicBrainzRecording(
+            id: r.id,
+            title: r.title,
+            artist: r.artist,
+            artistId: r.artistId,
+            release: r.release,
+            releaseId: r.releaseId,
+            releaseDate: r.releaseDate,
+            durationMs: r.durationMs?.toInt(),
+            score: r.score,
+            tags: r.tags,
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<List<YouTubeSearchResult>> searchYouTube({
+    required String query,
+    int limit = 5,
+  }) async {
+    final list = await frb.searchYoutube(query: query, limit: limit);
+    return list
+        .map(
+          (y) => YouTubeSearchResult(
+            videoId: y.videoId,
+            url: y.url,
+            title: y.title,
+            durationSecs: y.durationSecs?.toInt(),
+            channel: y.channel,
+            thumbnailUrl: y.thumbnailUrl,
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<PreparedMedia> prepareYouTubeMedia({
+    required String cacheRoot,
+    required String videoId,
+    required String format,
+  }) async {
+    final res = await frb.prepareYoutubeMedia(
+      cacheRoot: cacheRoot,
+      videoId: videoId,
+      format: format,
+    );
+    return PreparedMedia(
+      jobId: res.jobId,
+      sha256: res.sha256,
+      size: res.size.toInt(),
+      mimeType: res.mimeType,
+    );
+  }
+
+  @override
+  Future<BlossomAuthResult> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  }) async {
+    final res = await frb.signBlossomUploadAuth(
+      sha256: sha256,
+      blossomUrl: blossomUrl,
+      format: format,
+    );
+    return BlossomAuthResult(
+      signedEventJson: res.signedEventJson,
+      unsignedEventJson: res.unsignedEventJson,
+    );
+  }
+
+  @override
+  Future<UploadedMedia> uploadMediaToBlossom({
+    required String jobId,
+    required String blossomUrl,
+    required String signedAuthEventJson,
+  }) async {
+    final res = await frb.uploadMediaToBlossom(
+      jobId: jobId,
+      blossomUrl: blossomUrl,
+      signedAuthEventJson: signedAuthEventJson,
+    );
+    return UploadedMedia(
+      url: res.url,
+      sha256: res.sha256,
+      size: res.size.toInt(),
+      mimeType: res.mimeType,
+    );
+  }
+
+  @override
+  Future<void> discardMediaJob(String jobId) =>
+      frb.discardMediaJob(jobId: jobId);
+
+  @override
+  Future<ActionOutcome> attachSongAudioUrl({
+    required String songId,
+    required String audioUrl,
+    String? youtubeId,
+  }) async {
+    final res = await frb.attachSongAudioUrl(
+      songId: songId,
+      audioUrl: audioUrl,
+      youtubeId: youtubeId,
+    );
+    return _mapOutcome(res);
+  }
+
+  @override
+  Future<NostrProfile> fetchUserProfile(String pubkeyOrNpub) async {
+    final p = await frb.fetchUserProfile(pubkeyOrNpub: pubkeyOrNpub);
+    return NostrProfile(
+      pubkey: p.pubkey,
+      npub: p.npub,
+      name: p.name,
+      displayName: p.displayName,
+      picture: p.picture,
+      nip05: p.nip05,
+      about: p.about,
+      lud16: p.lud16,
+      lud06: p.lud06,
+    );
+  }
+
+  @override
+  Future<List<SavedSong>> fetchSignalSongs({int limit = 80}) async {
+    final list = await frb.fetchSignalSongs(limit: limit);
+    return list
+        .map(
+          (s) => SavedSong(
+            id: s.id,
+            pubkey: s.pubkey,
+            songId: s.songId,
+            address: s.address,
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            coverArt: s.coverArt,
+            thumb: s.thumb,
+            durationSecs: s.durationSecs,
+            releaseYear: s.releaseYear,
+            mbid: s.mbid,
+            audioUrl: s.audioUrl,
+            genres: s.genres,
+            createdAt: s.createdAt.toInt(),
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<ActionOutcome> publishStation({
+    required String name,
+    required String streamUrl,
+    String format = 'mp3',
+    int bitrateBps = 128000,
+    String? description,
+    String? website,
+    String? countryCode,
+    String? thumbnail,
+    List<String> genres = const [],
+  }) async {
+    final res = await frb.publishStation(
+      name: name,
+      streamUrl: streamUrl,
+      format: format,
+      bitrateBps: bitrateBps,
+      description: description,
+      website: website,
+      countryCode: countryCode,
+      thumbnail: thumbnail,
+      genres: genres,
+    );
+    return _mapOutcome(res);
+  }
+
+  @override
   Future<void> dispose() async {}
 
   // ── Mappers ───────────────────────────────────────────────────────────────
@@ -776,6 +1020,9 @@ class RustBridgeBackend implements WavefuncBackend {
               ),
             )
             .toList(),
+        nip60Synced: v.nip60Synced,
+        walletRelays: v.walletRelays,
+        tokenEventCount: v.tokenEventCount,
       );
 
   ZapInvoiceResult _mapZapInvoice(frb.FrbZapInvoiceResult v) =>

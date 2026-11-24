@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +20,25 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+
+  rust-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path crates/wavefunc-core/Cargo.toml
+      - run: cargo check --manifest-path app/rust/Cargo.toml
+
+  flutter-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test

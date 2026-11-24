@@ -18,6 +18,8 @@ class MainActivity : AudioServiceActivity() {
         private const val AMBER_CHANNEL = "live.wavefunc.app/amber"
         private const val REQ_GET_PUBKEY = 5501
         private const val REQ_SIGN_EVENT = 5502
+        private const val REQ_NIP44_DECRYPT = 5503
+        private const val REQ_NIP44_ENCRYPT = 5504
     }
 
     private var pendingResult: MethodChannel.Result? = null
@@ -91,9 +93,86 @@ class MainActivity : AudioServiceActivity() {
                         startActivityForResult(intent, REQ_SIGN_EVENT)
                     }
 
+                    "nip44Decrypt", "nip44Encrypt" -> {
+                        val isDecrypt = call.method == "nip44Decrypt"
+                        val payload = call.argument<String>("payload")
+                        val pubkey = call.argument<String>("pubkey")
+                        val currentUser = call.argument<String>("currentUser")
+                        val signerPackage = call.argument<String>("signerPackage")
+                        if (payload.isNullOrBlank() || pubkey.isNullOrBlank()) {
+                            result.error("INVALID_ARGS", "Missing payload or pubkey.", null)
+                            return@setMethodCallHandler
+                        }
+
+                        // Try silent NIP-55 ContentProvider first (no UI interruption if approved).
+                        val providerMethod = if (isDecrypt) "NIP44_DECRYPT" else "NIP44_ENCRYPT"
+                        val pkg = if (!signerPackage.isNullOrBlank()) signerPackage else "com.greenart7c3.nostrsigner"
+                        val silent = tryAmberContentProvider(
+                            signerPackage = pkg,
+                            method = providerMethod,
+                            args = arrayOf(payload, pubkey, currentUser ?: pubkey),
+                        )
+                        if (silent != null) {
+                            result.success(silent)
+                            return@setMethodCallHandler
+                        }
+
+                        if (pendingResult != null) {
+                            result.error("BUSY", "Another signer request is already in progress.", null)
+                            return@setMethodCallHandler
+                        }
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("nostrsigner:${Uri.encode(payload)}"),
+                        ).apply {
+                            putExtra("type", if (isDecrypt) "nip44_decrypt" else "nip44_encrypt")
+                            putExtra("pubKey", pubkey)
+                            if (!currentUser.isNullOrBlank()) {
+                                putExtra("current_user", currentUser)
+                            }
+                            if (!signerPackage.isNullOrBlank()) {
+                                `package` = signerPackage
+                            }
+                        }
+                        if (intent.resolveActivity(packageManager) == null) {
+                            result.error("NO_SIGNER", "No NIP-55 signer app is available for NIP-44.", null)
+                            return@setMethodCallHandler
+                        }
+                        val reqCode = if (isDecrypt) REQ_NIP44_DECRYPT else REQ_NIP44_ENCRYPT
+                        pendingResult = result
+                        pendingRequestCode = reqCode
+                        startActivityForResult(intent, reqCode)
+                    }
+
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun tryAmberContentProvider(
+        signerPackage: String,
+        method: String,
+        args: Array<String>,
+    ): String? {
+        return try {
+            val uri = Uri.parse("content://$signerPackage.$method")
+            contentResolver.query(uri, args, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val rejectedIdx = cursor.getColumnIndex("rejected")
+                    if (rejectedIdx >= 0 && cursor.getString(rejectedIdx) != null) {
+                        return null
+                    }
+                    val idx = cursor.getColumnIndex("result").takeIf { it >= 0 }
+                        ?: cursor.getColumnIndex("signature").takeIf { it >= 0 }
+                        ?: 0
+                    cursor.getString(idx)?.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -145,6 +224,16 @@ class MainActivity : AudioServiceActivity() {
                         callback.error("EMPTY_RESULT", "Amber did not return a signed event.", null)
                     } else {
                         callback.success(signedEvent)
+                    }
+                }
+
+                REQ_NIP44_DECRYPT, REQ_NIP44_ENCRYPT -> {
+                    val out = (data.getStringExtra("result")
+                        ?: data.getStringExtra("signature"))?.trim()
+                    if (out.isNullOrBlank()) {
+                        callback.error("EMPTY_RESULT", "Amber did not return a NIP-44 result.", null)
+                    } else {
+                        callback.success(out)
                     }
                 }
             }

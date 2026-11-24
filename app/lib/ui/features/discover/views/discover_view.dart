@@ -4,8 +4,12 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../domain/models/station.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
+import '../../../core/widgets/sonic_wf_cube.dart';
 import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
+import '../../crate/view_models/crate_view_model.dart';
+import '../../crate/views/crate_view.dart';
+import '../../crate/views/media_forge_sheet.dart';
 import '../../player/view_models/player_view_model.dart';
 import '../view_models/discover_view_model.dart';
 import 'station_card.dart';
@@ -17,6 +21,7 @@ class DiscoverView extends StatefulWidget {
     required this.discoverViewModel,
     required this.playerViewModel,
     required this.authViewModel,
+    this.crateViewModel,
     required this.onOpenStationDetail,
     required this.onOpenStationComment,
     required this.onOpenStationZap,
@@ -32,6 +37,7 @@ class DiscoverView extends StatefulWidget {
   final DiscoverViewModel discoverViewModel;
   final PlayerViewModel playerViewModel;
   final AuthViewModel authViewModel;
+  final CrateViewModel? crateViewModel;
   final ValueChanged<Station> onOpenStationDetail;
   final ValueChanged<Station> onOpenStationComment;
   final ValueChanged<Station> onOpenStationZap;
@@ -49,6 +55,8 @@ class DiscoverView extends StatefulWidget {
 
 class _DiscoverViewState extends State<DiscoverView> {
   late final TextEditingController _searchController;
+  final TextEditingController _songQueryController = TextEditingController();
+  bool _songSearchMode = false;
 
   @override
   void initState() {
@@ -61,6 +69,7 @@ class _DiscoverViewState extends State<DiscoverView> {
   @override
   void dispose() {
     _searchController.dispose();
+    _songQueryController.dispose();
     super.dispose();
   }
 
@@ -71,14 +80,16 @@ class _DiscoverViewState extends State<DiscoverView> {
         widget.discoverViewModel,
         widget.playerViewModel,
         widget.authViewModel,
+        if (widget.crateViewModel != null) widget.crateViewModel!,
       ]),
       builder: (context, _) {
         final vm = widget.discoverViewModel;
         final player = widget.playerViewModel;
         final auth = widget.authViewModel;
+        final crate = widget.crateViewModel;
         final status = vm.relayStatus;
 
-        if (_searchController.text != vm.searchQuery) {
+        if (!_songSearchMode && _searchController.text != vm.searchQuery) {
           _searchController.value = TextEditingValue(
             text: vm.searchQuery,
             selection: TextSelection.collapsed(offset: vm.searchQuery.length),
@@ -102,6 +113,13 @@ class _DiscoverViewState extends State<DiscoverView> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          if (!widget.isExpandedDesktop) ...[
+                            SonicWfCube(
+                              isPlaying: player.isPlaying,
+                              size: 42,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,12 +134,16 @@ class _DiscoverViewState extends State<DiscoverView> {
                                           : SonicColors.signalRed,
                                     ),
                                     const SizedBox(width: 6),
-                                    Text(
-                                      'WAVEFUNC // RADIO',
-                                      style: SonicMachineTheme.labelTech(
-                                        fontSize: 9.5,
-                                        color: SonicColors.signalRed,
-                                        letterSpacing: 1.8,
+                                    Flexible(
+                                      child: Text(
+                                        'WAVEFUNC // RADIO',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: SonicMachineTheme.labelTech(
+                                          fontSize: 9.5,
+                                          color: SonicColors.signalRed,
+                                          letterSpacing: 1.5,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -152,39 +174,75 @@ class _DiscoverViewState extends State<DiscoverView> {
                       Row(
                         children: [
                           Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              focusNode: widget.searchFocusNode,
-                              onChanged: vm.setSearchQuery,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                              decoration: InputDecoration(
-                                hintText: widget.isWideLayout
-                                    ? 'SEARCH_STATIONS, GENRES, CITIES...  (⌘K / /)'
-                                    : 'SEARCH_STATIONS, GENRES, CITIES...',
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: SonicColors.ink,
-                                ),
-                                suffixIcon: vm.searchQuery.isNotEmpty
-                                    ? IconButton(
+                            child: _songSearchMode && crate != null
+                                ? TextField(
+                                    controller: _songQueryController,
+                                    focusNode: widget.searchFocusNode,
+                                    onSubmitted: (q) => crate.searchSongs(q),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          'SEARCH SONGS (MUSICBRAINZ)...',
+                                      prefixIcon: const Icon(
+                                        Icons.music_note,
+                                        color: SonicColors.signalRed,
+                                      ),
+                                      suffixIcon: IconButton(
                                         icon: const Icon(
-                                          Icons.close,
+                                          Icons.arrow_forward,
                                           color: SonicColors.ink,
                                         ),
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          vm.setSearchQuery('');
-                                        },
-                                      )
-                                    : null,
-                              ),
-                            ),
+                                        tooltip: 'Search songs',
+                                        onPressed: () => crate.searchSongs(
+                                          _songQueryController.text,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : TextField(
+                                    controller: _searchController,
+                                    focusNode: widget.searchFocusNode,
+                                    onChanged: vm.setSearchQuery,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                    decoration: InputDecoration(
+                                      hintText: widget.isWideLayout
+                                          ? 'SEARCH_STATIONS, GENRES, CITIES...  (⌘K / /)'
+                                          : 'SEARCH_STATIONS, GENRES, CITIES...',
+                                      prefixIcon: const Icon(
+                                        Icons.search,
+                                        color: SonicColors.ink,
+                                      ),
+                                      suffixIcon: vm.searchQuery.isNotEmpty
+                                          ? IconButton(
+                                              icon: const Icon(
+                                                Icons.close,
+                                                color: SonicColors.ink,
+                                              ),
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                vm.setSearchQuery('');
+                                              },
+                                            )
+                                          : null,
+                                    ),
+                                  ),
                           ),
-                          if (widget.isWideLayout) ...[
-                            const SizedBox(width: 10),
+                          if (crate != null) ...[
+                            const SizedBox(width: 8),
+                            _SearchModeToggle(
+                              songMode: _songSearchMode,
+                              onChanged: (songs) =>
+                                  setState(() => _songSearchMode = songs),
+                            ),
+                          ],
+                          if (widget.isWideLayout && !_songSearchMode) ...[
+                            const SizedBox(width: 8),
                             _ViewModeToggle(
                               tableMode: vm.tableViewMode,
                               onChanged: vm.setTableViewMode,
@@ -193,7 +251,13 @@ class _DiscoverViewState extends State<DiscoverView> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      if (vm.activeList != null)
+                      if (_songSearchMode && crate != null)
+                        _SongSearchResultsSection(
+                          crateViewModel: crate,
+                          authViewModel: auth,
+                          onRequestLogin: widget.onRequestLogin,
+                        )
+                      else if (vm.activeList != null)
                         _ActiveListStageBanner(
                           list: vm.activeList!,
                           stations: vm.stations,
@@ -771,6 +835,9 @@ class _SessionHeaderPill extends StatelessWidget {
       );
     }
 
+    final walletSats = authViewModel.displayWalletBalanceSats;
+    final isSyncing = authViewModel.isNip60Syncing;
+
     return SonicPlate(
       backgroundColor: SonicColors.ink,
       shadowColor: SonicColors.voltageCyan,
@@ -782,26 +849,217 @@ class _SessionHeaderPill extends StatelessWidget {
         children: [
           StationThumbnail(
             url: session.profile?.picture,
-            size: 22,
+            size: 24,
             borderWidth: 1,
             highlight: true,
           ),
           const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 92),
-            child: Text(
-              session.displayName.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: SonicMachineTheme.labelTech(
-                fontSize: 9.5,
-                color: SonicColors.foundation,
-                letterSpacing: 0.7,
-              ),
+            constraints: const BoxConstraints(maxWidth: 108),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  session.displayName.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SonicMachineTheme.labelTech(
+                    fontSize: 9.5,
+                    color: SonicColors.foundation,
+                    letterSpacing: 0.7,
+                  ),
+                ),
+                if (walletSats != null || isSyncing)
+                  Text(
+                    isSyncing && walletSats == null
+                        ? '⚡ SYNCING...'
+                        : '⚡ $walletSats SATS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: SonicMachineTheme.labelTech(
+                      fontSize: 8.5,
+                      color: SonicColors.voltageCyan,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SearchModeToggle extends StatelessWidget {
+  const _SearchModeToggle({
+    required this.songMode,
+    required this.onChanged,
+  });
+
+  final bool songMode;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: SonicColors.ink, width: 2),
+        color: SonicColors.surfacePlate,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSegment(
+            icon: Icons.radio,
+            tooltip: 'Search Stations',
+            selected: !songMode,
+            onTap: () => onChanged(false),
+          ),
+          Container(width: 1.5, height: 34, color: SonicColors.ink),
+          _buildSegment(
+            icon: Icons.music_note,
+            tooltip: 'Search Songs (MusicBrainz)',
+            selected: songMode,
+            onTap: () => onChanged(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegment({
+    required IconData icon,
+    required String tooltip,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          color: selected ? SonicColors.ink : Colors.transparent,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 18,
+            color: selected ? SonicColors.voltageCyan : SonicColors.ink,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SongSearchResultsSection extends StatelessWidget {
+  const _SongSearchResultsSection({
+    required this.crateViewModel,
+    required this.authViewModel,
+    required this.onRequestLogin,
+  });
+
+  final CrateViewModel crateViewModel;
+  final AuthViewModel authViewModel;
+  final VoidCallback onRequestLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    if (crateViewModel.isSearchingSongs) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: CircularProgressIndicator(color: SonicColors.signalRed),
+        ),
+      );
+    }
+    if (crateViewModel.songSearchError != null) {
+      return SonicPlate(
+        backgroundColor: SonicColors.signalRed,
+        shadowOffset: Offset.zero,
+        padding: const EdgeInsets.all(10),
+        child: Text(
+          crateViewModel.songSearchError!,
+          style: SonicMachineTheme.labelTech(
+            fontSize: 10,
+            color: SonicColors.onSignal,
+          ),
+        ),
+      );
+    }
+    if (crateViewModel.searchResults.isEmpty) {
+      return SonicPlate(
+        shadowOffset: Offset.zero,
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          crateViewModel.lastSongQuery.isEmpty
+              ? 'TYPE A SONG OR ARTIST AND PRESS ENTER TO SEARCH MUSICBRAINZ & BACK UP TO BLOSSOM'
+              : 'NO RECORDINGS MATCHED "${crateViewModel.lastSongQuery.toUpperCase()}"',
+          style: SonicMachineTheme.labelTech(
+            fontSize: 9.5,
+            color: SonicColors.seamOutline,
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SonicSectionHeader(
+          title: 'MUSICBRAINZ_RECORDINGS',
+          accent: true,
+          trailing: Text(
+            '${crateViewModel.searchResults.length} MATCHES',
+            style: SonicMachineTheme.labelTech(
+              fontSize: 9.5,
+              color: SonicColors.seamOutline,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final rec in crateViewModel.searchResults)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SongRecordingCard(
+              recording: rec,
+              alreadySaved: crateViewModel.hasSong(rec.title, rec.artist),
+              isSaving: crateViewModel.isSaving,
+              onSave: () async {
+                if (!authViewModel.isLoggedIn) {
+                  onRequestLogin();
+                  return;
+                }
+                final id = await crateViewModel.saveRecording(rec);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      id != null
+                          ? 'Saved "${rec.title}" to Song Crate'
+                          : 'Could not save song',
+                    ),
+                  ),
+                );
+              },
+              onBackupToBlossom: () {
+                if (!authViewModel.isLoggedIn) {
+                  onRequestLogin();
+                  return;
+                }
+                MediaForgeSheet.open(
+                  context,
+                  crateViewModel: crateViewModel,
+                  authViewModel: authViewModel,
+                  onRequestLogin: onRequestLogin,
+                  recording: rec,
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

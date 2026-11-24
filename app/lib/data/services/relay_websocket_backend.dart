@@ -601,6 +601,26 @@ class RelayWebSocketBackend implements WavefuncBackend {
       const CashuWalletStatus();
 
   @override
+  Future<void> closeCashuWallet() async {}
+
+  @override
+  Future<Nip60RawEvents> fetchNip60RawEvents() async => const Nip60RawEvents();
+
+  @override
+  Future<CashuWalletStatus> syncNip60Wallet() async =>
+      const CashuWalletStatus();
+
+  @override
+  Future<CashuWalletStatus> applyDecryptedNip60Events({
+    String? walletContentPlain,
+    required List<Nip60DecryptedTokenEvent> decryptedTokens,
+    required List<String> deletedIds,
+    required List<String> discoveredMints,
+    required List<String> walletRelays,
+  }) async =>
+      const CashuWalletStatus();
+
+  @override
   Future<CashuWalletStatus> getCashuStatus() async =>
       const CashuWalletStatus();
 
@@ -655,6 +675,77 @@ class RelayWebSocketBackend implements WavefuncBackend {
     required String stationAddress,
     required int amountSats,
     String? comment,
+  }) async =>
+      _signingUnsupported();
+
+  @override
+  Future<List<MusicBrainzRecording>> searchRecordings({
+    required String query,
+    String? artist,
+    int limit = 15,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<YouTubeSearchResult>> searchYouTube({
+    required String query,
+    int limit = 5,
+  }) async =>
+      const [];
+
+  @override
+  Future<PreparedMedia> prepareYouTubeMedia({
+    required String cacheRoot,
+    required String videoId,
+    required String format,
+  }) async =>
+      _signingUnsupported();
+
+  @override
+  Future<BlossomAuthResult> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  }) async =>
+      _signingUnsupported();
+
+  @override
+  Future<UploadedMedia> uploadMediaToBlossom({
+    required String jobId,
+    required String blossomUrl,
+    required String signedAuthEventJson,
+  }) async =>
+      _signingUnsupported();
+
+  @override
+  Future<void> discardMediaJob(String jobId) async {}
+
+  @override
+  Future<ActionOutcome> attachSongAudioUrl({
+    required String songId,
+    required String audioUrl,
+    String? youtubeId,
+  }) async =>
+      _signingUnsupported();
+
+  @override
+  Future<NostrProfile> fetchUserProfile(String pubkeyOrNpub) async =>
+      NostrProfile(pubkey: pubkeyOrNpub, npub: pubkeyOrNpub);
+
+  @override
+  Future<List<SavedSong>> fetchSignalSongs({int limit = 80}) async => const [];
+
+  @override
+  Future<ActionOutcome> publishStation({
+    required String name,
+    required String streamUrl,
+    String format = 'mp3',
+    int bitrateBps = 128000,
+    String? description,
+    String? website,
+    String? countryCode,
+    String? thumbnail,
+    List<String> genres = const [],
   }) async =>
       _signingUnsupported();
 

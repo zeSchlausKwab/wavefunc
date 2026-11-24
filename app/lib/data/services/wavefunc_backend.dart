@@ -212,6 +212,20 @@ abstract class WavefuncBackend {
     List<String> mints = const [],
   });
 
+  Future<void> closeCashuWallet();
+
+  Future<Nip60RawEvents> fetchNip60RawEvents();
+
+  Future<CashuWalletStatus> syncNip60Wallet();
+
+  Future<CashuWalletStatus> applyDecryptedNip60Events({
+    String? walletContentPlain,
+    required List<Nip60DecryptedTokenEvent> decryptedTokens,
+    required List<String> deletedIds,
+    required List<String> discoveredMints,
+    required List<String> walletRelays,
+  });
+
   Future<CashuWalletStatus> getCashuStatus();
 
   Future<CashuWalletStatus> addCashuMint(String mintUrl);
@@ -248,6 +262,63 @@ abstract class WavefuncBackend {
     required String stationAddress,
     required int amountSats,
     String? comment,
+  });
+
+  // ── Song Search (MusicBrainz), YouTube Search & Blossom Media Forge ───────
+
+  Future<List<MusicBrainzRecording>> searchRecordings({
+    required String query,
+    String? artist,
+    int limit = 15,
+  });
+
+  Future<List<YouTubeSearchResult>> searchYouTube({
+    required String query,
+    int limit = 5,
+  });
+
+  Future<PreparedMedia> prepareYouTubeMedia({
+    required String cacheRoot,
+    required String videoId,
+    required String format,
+  });
+
+  Future<BlossomAuthResult> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  });
+
+  Future<UploadedMedia> uploadMediaToBlossom({
+    required String jobId,
+    required String blossomUrl,
+    required String signedAuthEventJson,
+  });
+
+  Future<void> discardMediaJob(String jobId);
+
+  Future<ActionOutcome> attachSongAudioUrl({
+    required String songId,
+    required String audioUrl,
+    String? youtubeId,
+  });
+
+  // ── Public Profiles, Global Song Signals & Station Publishing ─────────────
+
+  Future<NostrProfile> fetchUserProfile(String pubkeyOrNpub);
+
+  Future<List<SavedSong>> fetchSignalSongs({int limit = 80});
+
+  Future<ActionOutcome> publishStation({
+    required String name,
+    required String streamUrl,
+    String format = 'mp3',
+    int bitrateBps = 128000,
+    String? description,
+    String? website,
+    String? countryCode,
+    String? thumbnail,
+    List<String> genres = const [],
   });
 
   Future<void> dispose();

@@ -8,33 +8,38 @@ use nostr_sdk::prelude::*;
 use tokio::sync::RwLock;
 
 use crate::cashu::{
-    build_station_nutzap_builder, parse_nutzap_info_event, CashuWalletManager,
+    build_station_nutzap_builder, parse_nip60_wallet_content, parse_nutzap_info_event,
+    CashuWalletManager,
 };
 use crate::config::{
     CoreConfig, ADMIN_FEATURED_LISTS_LABEL, APP_DATA_KIND, COMMENT_KIND, COMMUNITY_POST_KIND,
-    COMMUNITY_TOPIC, DEFAULT_IDENTITY_RELAYS, DEFAULT_SOCIAL_RELAYS, DEV_ADMIN_PUBKEY,
-    FAVORITES_LIST_LABEL, NUTZAP_INFO_KIND, NUTZAP_KIND, PROD_ADMIN_PUBKEYS, REACTION_KIND,
-    SONG_KIND, SONG_LIST_LABEL, STATION_KIND, ZAP_RECEIPT_KIND,
+    COMMUNITY_TOPIC, DEFAULT_IDENTITY_RELAYS, DEFAULT_SOCIAL_RELAYS, DEFAULT_WALLET_RELAYS,
+    DELETION_KIND, DEV_ADMIN_PUBKEY, FAVORITES_LIST_LABEL, NUTZAP_INFO_KIND, NUTZAP_KIND,
+    PROD_ADMIN_PUBKEYS, REACTION_KIND, RELAY_LIST_KIND, SONG_KIND, SONG_LIST_LABEL, STATION_KIND,
+    WALLET_KIND, WALLET_TOKEN_KIND, ZAP_RECEIPT_KIND,
 };
 use crate::contextvm;
 use crate::error::{Result, WavefuncError};
 use crate::media::MediaAcquisitionManager;
 use crate::models::{
-    AccountSessionInfo, ActionOutcome, BunkerLoginResult, CashuMintQuoteInfo, CashuReceiveResult,
-    CashuSendResult, CashuWalletStatus, CommunityPost, FeaturedList, GeneratedAccount,
-    NostrConnectChallenge, NostrProfile, NowPlayingMetadata, NwcWalletStatus, PreparedMedia,
-    RecipientNutzapInfo, RelayStatus, SavedSong, SignerKind, SongCrate, Station, StationCardCounts,
-    StationFacets, StationSocialSummary, UploadedMedia, ZapInvoiceResult, ZapPaymentResult,
+    AccountSessionInfo, ActionOutcome, BlossomAuthResult, BunkerLoginResult, CashuMintQuoteInfo,
+    CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost, FeaturedList,
+    GeneratedAccount, MusicBrainzRecording, Nip60DecryptedTokenEvent, Nip60RawEvents,
+    Nip60RawTokenEvent, NostrConnectChallenge, NostrProfile, NowPlayingMetadata, NwcWalletStatus,
+    PreparedMedia, RecipientNutzapInfo, RelayStatus, SavedSong, SignerKind, SongCrate, Station,
+    StationCardCounts, StationFacets, StationSocialSummary, UploadedMedia, YouTubeSearchResult,
+    ZapInvoiceResult, ZapPaymentResult,
 };
 use crate::parser::{
     compute_facets, deduplicate_stations, matches_station_search, parse_admin_featured_list_refs,
     parse_favorites_list_event, parse_station_event,
 };
 use crate::social::{
-    build_comment_tree, build_community_post_builder, build_delete_favorites_list_builder,
-    build_favorites_list_builder, build_listening_status_builder, build_new_favorites_list_builder,
-    build_profile_event_builder, build_song_event_builder, build_song_list_builder,
-    build_station_comment_builder, build_station_reaction_builder,
+    build_blossom_auth_builder, build_comment_tree, build_community_post_builder,
+    build_delete_favorites_list_builder, build_favorites_list_builder,
+    build_listening_status_builder, build_new_favorites_list_builder, build_profile_event_builder,
+    build_song_audio_update_builder, build_song_event_builder, build_song_list_builder,
+    build_station_comment_builder, build_station_event_builder, build_station_reaction_builder,
     build_update_favorites_list_builder, build_zap_request_builder, parse_community_posts,
     parse_profile_event, parse_song_event, summarize_station_social_counts,
 };
@@ -83,6 +88,7 @@ pub struct WavefuncCore {
     config: RwLock<CoreConfig>,
     client: Client,
     identity_client: Client,
+    wallet_client: Client,
     http: reqwest::Client,
     ephemeral_keys: Keys,
     cached_stations: RwLock<Vec<Station>>,
@@ -107,6 +113,7 @@ impl WavefuncCore {
             config: RwLock::new(config),
             client: Client::new(),
             identity_client: Client::new(),
+            wallet_client: Client::new(),
             http,
             ephemeral_keys: Keys::generate(),
             cached_stations: RwLock::new(Vec::new()),
@@ -2045,7 +2052,7 @@ impl WavefuncCore {
         session.pay_invoice(bolt11, amount_sats).await
     }
 
-    // ─── Embedded Cashu Ecash Wallet (`cdk` + `cdk-redb`) & NIP-61 Nutzaps ─
+    // ─── Embedded Cashu Ecash Wallet (`cdk` + `cdk-redb`) & NIP-60/61 ─────
 
     /// Initialize or reopen the embedded multi-mint Cashu wallet stored in `db_dir`.
     pub async fn init_cashu_wallet(
@@ -2061,12 +2068,465 @@ impl WavefuncCore {
         Ok(status)
     }
 
+    /// Close the in-memory Cashu wallet and stop NIP-60 wallet relay connections.
+    pub async fn close_cashu_wallet(&self) {
+        {
+            let mut guard = self.cashu.write().await;
+            *guard = None;
+        }
+        let _ = self.wallet_client.disconnect().await;
+    }
+
     /// Return current Cashu wallet balances across all configured mints.
     pub async fn get_cashu_status(&self) -> CashuWalletStatus {
         let guard = self.cashu.read().await;
         match guard.as_ref() {
             Some(mgr) => mgr.status().await,
             None => CashuWalletStatus::default(),
+        }
+    }
+
+    async fn ensure_wallet_relays(&self, extra_relays: &[String]) -> Vec<String> {
+        let mut urls: Vec<String> = DEFAULT_WALLET_RELAYS
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let app_relay = self.config.read().await.relay_url.clone();
+        if app_relay.starts_with("wss://") && !urls.contains(&app_relay) {
+            urls.push(app_relay);
+        }
+        for r in extra_relays {
+            let trimmed = r.trim().trim_end_matches('/').to_string();
+            if (trimmed.starts_with("wss://") || trimmed.starts_with("ws://"))
+                && !urls.contains(&trimmed)
+            {
+                urls.push(trimmed);
+            }
+        }
+        for url in &urls {
+            let _ = self.wallet_client.add_relay(url.as_str()).await;
+        }
+        self.wallet_client.connect().await;
+        urls
+    }
+
+    async fn nip44_decrypt_self(&self, ciphertext: &str) -> Result<String> {
+        let mode = {
+            let guard = self.signer.read().await;
+            match guard.as_ref() {
+                None => {
+                    return Err(WavefuncError::AuthRequired(
+                        "Sign in to sync your NIP-60 wallet.".to_string(),
+                    ))
+                }
+                Some(ActiveSigner::LocalKey(keys)) => Err(keys.clone()),
+                Some(ActiveSigner::Bunker { signer, pubkey }) => Ok((Some(signer.clone()), *pubkey)),
+                Some(ActiveSigner::Amber { pubkey }) => Ok((None, *pubkey)),
+            }
+        };
+
+        match mode {
+            Err(keys) => nostr::nips::nip44::decrypt(keys.secret_key(), &keys.public_key(), ciphertext)
+                .map_err(|e| WavefuncError::Wallet(format!("NIP-44 decrypt failed: {e}"))),
+            Ok((Some(bunker), pubkey)) => bunker
+                .nip44_decrypt_async(&pubkey, ciphertext)
+                .await
+                .map_err(|e| WavefuncError::Wallet(format!("Bunker NIP-44 decrypt failed: {e}"))),
+            Ok((None, _)) => Err(WavefuncError::Wallet(
+                "External Amber signer requires Flutter NIP-55 decryption".to_string(),
+            )),
+        }
+    }
+
+    async fn nip44_encrypt_self(&self, plaintext: &str) -> Result<String> {
+        let mode = {
+            let guard = self.signer.read().await;
+            match guard.as_ref() {
+                None => {
+                    return Err(WavefuncError::AuthRequired(
+                        "Sign in to publish NIP-60 wallet updates.".to_string(),
+                    ))
+                }
+                Some(ActiveSigner::LocalKey(keys)) => Err(keys.clone()),
+                Some(ActiveSigner::Bunker { signer, pubkey }) => Ok((Some(signer.clone()), *pubkey)),
+                Some(ActiveSigner::Amber { pubkey }) => Ok((None, *pubkey)),
+            }
+        };
+
+        match mode {
+            Err(keys) => nostr::nips::nip44::encrypt(
+                keys.secret_key(),
+                &keys.public_key(),
+                plaintext,
+                nostr::nips::nip44::Version::V2,
+            )
+            .map_err(|e| WavefuncError::Wallet(format!("NIP-44 encrypt failed: {e}"))),
+            Ok((Some(bunker), pubkey)) => bunker
+                .nip44_encrypt_async(&pubkey, plaintext)
+                .await
+                .map_err(|e| WavefuncError::Wallet(format!("Bunker NIP-44 encrypt failed: {e}"))),
+            Ok((None, _)) => Err(WavefuncError::Wallet(
+                "External Amber signer cannot encrypt inside Rust".to_string(),
+            )),
+        }
+    }
+
+    /// Fetch raw NIP-60 events (`kind 17375`, `kind 7375`, `kind 5`, `kind 10019`, `kind 10002`)
+    /// for the active account from default + user-configured wallet relays.
+    pub async fn fetch_nip60_raw_events(&self) -> Result<Nip60RawEvents> {
+        let pubkey = {
+            let guard = self.signer.read().await;
+            guard
+                .as_ref()
+                .map(ActiveSigner::pubkey)
+                .ok_or_else(|| {
+                    WavefuncError::AuthRequired("Sign in to sync your NIP-60 wallet.".to_string())
+                })?
+        };
+
+        let mut relays = self.ensure_wallet_relays(&[]).await;
+        let timeout = Duration::from_secs(7);
+
+        let meta_filter = Filter::new()
+            .author(pubkey)
+            .kinds([
+                Kind::Custom(WALLET_KIND),
+                Kind::Custom(NUTZAP_INFO_KIND),
+                Kind::Custom(RELAY_LIST_KIND),
+            ])
+            .limit(30);
+        let token_filter = Filter::new()
+            .author(pubkey)
+            .kind(Kind::Custom(WALLET_TOKEN_KIND))
+            .limit(250);
+        let del_filter = Filter::new()
+            .author(pubkey)
+            .kind(Kind::Custom(DELETION_KIND))
+            .limit(500);
+
+        let (meta_res, tok_res, del_res) = tokio::join!(
+            self.wallet_client.fetch_events(meta_filter.clone()).timeout(timeout),
+            self.wallet_client.fetch_events(token_filter.clone()).timeout(timeout),
+            self.wallet_client.fetch_events(del_filter.clone()).timeout(timeout),
+        );
+
+        let mut all_meta: Vec<Event> = meta_res.map(|e| e.into_iter().collect()).unwrap_or_default();
+        let mut all_tokens: HashMap<String, Event> = HashMap::new();
+        if let Ok(evs) = tok_res {
+            for ev in evs.into_iter() {
+                all_tokens.insert(ev.id.to_hex(), ev);
+            }
+        }
+        let mut deleted_ids: HashSet<String> = HashSet::new();
+        if let Ok(evs) = del_res {
+            for ev in evs.into_iter() {
+                for tag in ev.tags.iter() {
+                    let s = tag.as_slice();
+                    if s.first().map(|x| x.as_str()) == Some("e") {
+                        if let Some(id) = s.get(1) {
+                            deleted_ids.insert(id.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Discover user-specific wallet relays & mints from kind 10002, 10019, and clear-text 17375 tags.
+        let mut extra_relays: Vec<String> = Vec::new();
+        let mut discovered_mints: Vec<String> = Vec::new();
+        for ev in &all_meta {
+            for tag in ev.tags.iter() {
+                let s = tag.as_slice();
+                match s.first().map(|x| x.as_str()) {
+                    Some("r") | Some("relay") => {
+                        if let Some(url) = s.get(1).map(|v| v.trim().trim_end_matches('/')) {
+                            if (url.starts_with("wss://") || url.starts_with("ws://"))
+                                && !relays.contains(&url.to_string())
+                                && !extra_relays.contains(&url.to_string())
+                            {
+                                extra_relays.push(url.to_string());
+                            }
+                        }
+                    }
+                    Some("mint") => {
+                        if let Some(url) = s.get(1).map(|v| crate::cashu::normalize_mint_url(v)) {
+                            if url.starts_with("http") && !discovered_mints.contains(&url) {
+                                discovered_mints.push(url);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Second pass if user has custom write/wallet relays we hadn't queried yet.
+        if !extra_relays.is_empty() {
+            relays = self.ensure_wallet_relays(&extra_relays).await;
+            let (meta2, tok2, del2) = tokio::join!(
+                self.wallet_client.fetch_events(meta_filter).timeout(Duration::from_secs(6)),
+                self.wallet_client.fetch_events(token_filter).timeout(Duration::from_secs(6)),
+                self.wallet_client.fetch_events(del_filter).timeout(Duration::from_secs(6)),
+            );
+            if let Ok(evs) = meta2 {
+                all_meta.extend(evs.into_iter());
+            }
+            if let Ok(evs) = tok2 {
+                for ev in evs.into_iter() {
+                    all_tokens.insert(ev.id.to_hex(), ev);
+                }
+            }
+            if let Ok(evs) = del2 {
+                for ev in evs.into_iter() {
+                    for tag in ev.tags.iter() {
+                        let s = tag.as_slice();
+                        if s.first().map(|x| x.as_str()) == Some("e") {
+                            if let Some(id) = s.get(1) {
+                                deleted_ids.insert(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Pick newest kind 17375 replaceable wallet event.
+        let latest_wallet = all_meta
+            .iter()
+            .filter(|e| e.kind == Kind::Custom(WALLET_KIND))
+            .max_by_key(|e| e.created_at);
+
+        let wallet_event_content = latest_wallet
+            .map(|e| e.content.clone())
+            .filter(|c| !c.trim().is_empty());
+
+        let mut token_events: Vec<Nip60RawTokenEvent> = all_tokens
+            .into_values()
+            .filter(|ev| !deleted_ids.contains(&ev.id.to_hex()) && !ev.content.trim().is_empty())
+            .map(|ev| Nip60RawTokenEvent {
+                id: ev.id.to_hex(),
+                created_at: ev.created_at.as_secs(),
+                content: ev.content,
+            })
+            .collect();
+        token_events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        Ok(Nip60RawEvents {
+            wallet_event_content,
+            token_events,
+            deleted_ids: deleted_ids.into_iter().collect(),
+            wallet_relays: relays,
+            discovered_mints,
+        })
+    }
+
+    /// Sync NIP-60 wallet events directly in Rust (for LocalKey & NIP-46 Bunker sessions).
+    pub async fn sync_nip60_wallet(&self) -> Result<CashuWalletStatus> {
+        let raw = self.fetch_nip60_raw_events().await?;
+
+        let mut wallet_cfg = None;
+        if let Some(enc) = raw.wallet_event_content.as_deref() {
+            if let Ok(plain) = self.nip44_decrypt_self(enc).await {
+                wallet_cfg = Some(parse_nip60_wallet_content(&plain));
+            }
+        }
+
+        // If decrypted kind 17375 specifies additional private wallet relays, fetch from them too.
+        let mut all_relays = raw.wallet_relays.clone();
+        let mut all_token_raw = raw.token_events;
+        let mut all_deleted: HashSet<String> = raw.deleted_ids.into_iter().collect();
+
+        if let Some(cfg) = &wallet_cfg {
+            let new_relays: Vec<String> = cfg
+                .relays
+                .iter()
+                .filter(|r| !all_relays.contains(r))
+                .cloned()
+                .collect();
+            if !new_relays.is_empty() {
+                all_relays = self.ensure_wallet_relays(&new_relays).await;
+                if let Some(pubkey) = self.signer.read().await.as_ref().map(ActiveSigner::pubkey) {
+                    let tf = Filter::new()
+                        .author(pubkey)
+                        .kind(Kind::Custom(WALLET_TOKEN_KIND))
+                        .limit(250);
+                    let df = Filter::new()
+                        .author(pubkey)
+                        .kind(Kind::Custom(DELETION_KIND))
+                        .limit(500);
+                    let (tr, dr) = tokio::join!(
+                        self.wallet_client.fetch_events(tf).timeout(Duration::from_secs(6)),
+                        self.wallet_client.fetch_events(df).timeout(Duration::from_secs(6)),
+                    );
+                    if let Ok(evs) = dr {
+                        for ev in evs.into_iter() {
+                            for tag in ev.tags.iter() {
+                                let s = tag.as_slice();
+                                if s.first().map(|x| x.as_str()) == Some("e") {
+                                    if let Some(id) = s.get(1) {
+                                        all_deleted.insert(id.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let mut existing_ids: HashSet<String> =
+                        all_token_raw.iter().map(|t| t.id.clone()).collect();
+                    if let Ok(evs) = tr {
+                        for ev in evs.into_iter() {
+                            let id = ev.id.to_hex();
+                            if !all_deleted.contains(&id)
+                                && !ev.content.trim().is_empty()
+                                && existing_ids.insert(id.clone())
+                            {
+                                all_token_raw.push(Nip60RawTokenEvent {
+                                    id,
+                                    created_at: ev.created_at.as_secs(),
+                                    content: ev.content,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut decrypted_tokens: Vec<Nip60DecryptedTokenEvent> = Vec::new();
+        for tok in all_token_raw {
+            if all_deleted.contains(&tok.id) {
+                continue;
+            }
+            if let Ok(plaintext) = self.nip44_decrypt_self(&tok.content).await {
+                decrypted_tokens.push(Nip60DecryptedTokenEvent {
+                    id: tok.id,
+                    plaintext,
+                });
+            }
+        }
+
+        let deleted_vec: Vec<String> = all_deleted.into_iter().collect();
+        let mut guard = self.cashu.write().await;
+        let mgr = guard
+            .as_mut()
+            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+        mgr.apply_nip60_sync(
+            wallet_cfg.as_ref(),
+            &decrypted_tokens,
+            &deleted_vec,
+            &raw.discovered_mints,
+            &all_relays,
+        )
+        .await
+    }
+
+    /// Apply NIP-60 events decrypted externally by Android NIP-55 Amber.
+    pub async fn apply_decrypted_nip60_events(
+        &self,
+        wallet_content_plain: Option<&str>,
+        decrypted_tokens: &[Nip60DecryptedTokenEvent],
+        deleted_ids: &[String],
+        discovered_mints: &[String],
+        wallet_relays: &[String],
+    ) -> Result<CashuWalletStatus> {
+        let wallet_cfg = wallet_content_plain.map(parse_nip60_wallet_content);
+        let mut guard = self.cashu.write().await;
+        let mgr = guard
+            .as_mut()
+            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+        mgr.apply_nip60_sync(
+            wallet_cfg.as_ref(),
+            decrypted_tokens,
+            deleted_ids,
+            discovered_mints,
+            wallet_relays,
+        )
+        .await
+    }
+
+    /// Best-effort NIP-60 rollover publisher after a Cashu spend/receive/mint when using
+    /// LocalKey or NIP-46 Bunker so other NIP-60 clients stay in sync.
+    async fn publish_nip60_rollover_for_mint(&self, mint_url: &str) {
+        let (should_sync, relays, payload_opt, old_ids) = {
+            let guard = self.cashu.read().await;
+            let Some(mgr) = guard.as_ref() else {
+                return;
+            };
+            if !mgr.is_nip60_synced() {
+                return;
+            }
+            let Ok((payload_opt, old_ids)) = mgr.build_nip60_rollover_payload(mint_url).await else {
+                return;
+            };
+            (true, mgr.wallet_relays().to_vec(), payload_opt, old_ids)
+        };
+        if !should_sync {
+            return;
+        }
+        // Only LocalKey / Bunker can encrypt & sign in background without interrupting UI.
+        let can_bg_sign = {
+            let guard = self.signer.read().await;
+            matches!(
+                guard.as_ref(),
+                Some(ActiveSigner::LocalKey(_)) | Some(ActiveSigner::Bunker { .. })
+            )
+        };
+        if !can_bg_sign {
+            return;
+        }
+
+        let _ = self.ensure_wallet_relays(&relays).await;
+
+        let mut new_event_id: Option<String> = None;
+        if let Some(plaintext) = payload_opt {
+            if let Ok(ciphertext) = self.nip44_encrypt_self(&plaintext).await {
+                let builder = EventBuilder::new(Kind::Custom(WALLET_TOKEN_KIND), ciphertext);
+                if let Ok(event) = self.sign_event_in_background(builder).await {
+                    let id_hex = event.id.to_hex();
+                    if self.wallet_client.send_event(&event).await.is_ok() {
+                        new_event_id = Some(id_hex);
+                    }
+                }
+            }
+        }
+
+        if !old_ids.is_empty() {
+            let mut tags: Vec<Tag> = Vec::with_capacity(old_ids.len() + 1);
+            for id in &old_ids {
+                if let Ok(t) = Tag::parse(["e", id.as_str()]) {
+                    tags.push(t);
+                }
+            }
+            if let Ok(kt) = Tag::parse(["k", &WALLET_TOKEN_KIND.to_string()]) {
+                tags.push(kt);
+            }
+            let del_builder = EventBuilder::new(Kind::Custom(DELETION_KIND), "").tags(tags);
+            if let Ok(del_event) = self.sign_event_in_background(del_builder).await {
+                let _ = self.wallet_client.send_event(&del_event).await;
+            }
+        }
+
+        let mut guard = self.cashu.write().await;
+        if let Some(mgr) = guard.as_mut() {
+            mgr.record_nip60_token_event(mint_url, new_event_id);
+        }
+    }
+
+    async fn sign_event_in_background(&self, builder: EventBuilder) -> Result<Event> {
+        let mode = {
+            let guard = self.signer.read().await;
+            match guard.as_ref() {
+                Some(ActiveSigner::LocalKey(keys)) => Err(keys.clone()),
+                Some(ActiveSigner::Bunker { signer, .. }) => Ok(signer.clone()),
+                _ => {
+                    return Err(WavefuncError::Wallet(
+                        "Background signing unavailable".to_string(),
+                    ))
+                }
+            }
+        };
+        match mode {
+            Err(keys) => Ok(builder.finalize(&keys)?),
+            Ok(bunker) => Ok(builder.finalize_async(bunker.as_ref()).await?),
         }
     }
 
@@ -2099,20 +2559,28 @@ impl WavefuncCore {
         mint_url: &str,
         quote_id: &str,
     ) -> Result<CashuWalletStatus> {
-        let mut guard = self.cashu.write().await;
-        let mgr = guard
-            .as_mut()
-            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
-        mgr.claim_mint_quote(mint_url, quote_id).await
+        let status = {
+            let mut guard = self.cashu.write().await;
+            let mgr = guard
+                .as_mut()
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+            mgr.claim_mint_quote(mint_url, quote_id).await?
+        };
+        self.publish_nip60_rollover_for_mint(mint_url).await;
+        Ok(status)
     }
 
     /// Redeem an encoded `cashuA...` / `cashuB...` token into the embedded wallet.
     pub async fn receive_cashu_token(&self, token: &str) -> Result<CashuReceiveResult> {
-        let mut guard = self.cashu.write().await;
-        let mgr = guard
-            .as_mut()
-            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
-        mgr.receive_token(token).await
+        let res = {
+            let mut guard = self.cashu.write().await;
+            let mgr = guard
+                .as_mut()
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+            mgr.receive_token(token).await?
+        };
+        self.publish_nip60_rollover_for_mint(&res.mint_url).await;
+        Ok(res)
     }
 
     /// Create a shareable `cashuB...` token from the embedded wallet.
@@ -2122,11 +2590,15 @@ impl WavefuncCore {
         amount_sats: u64,
         memo: Option<&str>,
     ) -> Result<CashuSendResult> {
-        let mut guard = self.cashu.write().await;
-        let mgr = guard
-            .as_mut()
-            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
-        mgr.send_token(mint_url, amount_sats, memo).await
+        let res = {
+            let mut guard = self.cashu.write().await;
+            let mgr = guard
+                .as_mut()
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+            mgr.send_token(mint_url, amount_sats, memo).await?
+        };
+        self.publish_nip60_rollover_for_mint(&res.mint_url).await;
+        Ok(res)
     }
 
     /// Melt Cashu ecash to pay a BOLT11 Lightning invoice (e.g. NIP-57 station zap).
@@ -2136,11 +2608,15 @@ impl WavefuncCore {
         bolt11: &str,
         amount_sats: u64,
     ) -> Result<ZapPaymentResult> {
-        let mut guard = self.cashu.write().await;
-        let mgr = guard
-            .as_mut()
-            .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
-        mgr.pay_invoice(mint_url, bolt11, amount_sats).await
+        let (used_mint, res) = {
+            let mut guard = self.cashu.write().await;
+            let mgr = guard
+                .as_mut()
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
+            mgr.pay_invoice_with_mint(mint_url, bolt11, amount_sats).await?
+        };
+        self.publish_nip60_rollover_for_mint(&used_mint).await;
+        Ok(res)
     }
 
     /// Fetch a recipient's NIP-61 `kind 10019` nutzap info (P2PK pubkey + accepted mints + relays).
@@ -2222,45 +2698,436 @@ impl WavefuncCore {
             &proof_jsons,
             comment,
         )?;
-        self.sign_or_prepare(builder, Some(station_address.to_string()))
+        let outcome = self
+            .sign_or_prepare(builder, Some(station_address.to_string()))
+            .await?;
+        self.publish_nip60_rollover_for_mint(&mint_url).await;
+        Ok(outcome)
+    }
+
+    // ─── Song Search (MusicBrainz), YouTube Search & Blossom Media Forge ──
+
+    /// Search MusicBrainz recordings via ContextVM (`search_recordings`), with direct MusicBrainz REST fallback.
+    pub async fn search_recordings(
+        &self,
+        query: &str,
+        artist: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MusicBrainzRecording>> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let cfg = self.config.read().await.clone();
+        if let Ok(results) = contextvm::search_recordings(
+            &self.client,
+            &self.ephemeral_keys,
+            &cfg.metadata_server_pubkey,
+            trimmed,
+            artist,
+            limit,
+            10,
+        )
+        .await
+        {
+            if !results.is_empty() {
+                return Ok(results);
+            }
+        }
+
+        // Direct MusicBrainz WS2 REST fallback if ContextVM is busy or offline.
+        self.search_recordings_musicbrainz_http(trimmed, artist, limit)
             .await
     }
 
-    // ─── Desktop Media Acquisition (`yt-dlp` -> Blossom) ──────────────────
+    async fn search_recordings_musicbrainz_http(
+        &self,
+        query: &str,
+        artist: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MusicBrainzRecording>> {
+        let mb_query = match artist.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(a) => format!("recording:\"{query}\" AND artist:\"{a}\""),
+            None => query.to_string(),
+        };
+        let mut url = url::Url::parse("https://musicbrainz.org/ws/2/recording/")
+            .map_err(|e| WavefuncError::InvalidInput(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("query", &mb_query)
+            .append_pair("limit", &limit.clamp(1, 25).to_string())
+            .append_pair("fmt", "json");
 
-    /// Download a YouTube video/audio via `yt-dlp` into a temporary cache job and compute SHA-256.
+        let resp = self
+            .http
+            .get(url)
+            .header(
+                reqwest::header::USER_AGENT,
+                "WaveFuncRadio/0.2 (https://wavefunc.live)",
+            )
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(WavefuncError::InvalidInput(format!(
+                "MusicBrainz search failed (HTTP {})",
+                resp.status().as_u16()
+            )));
+        }
+        let body: serde_json::Value = resp.json().await?;
+        let Some(recordings) = body.get("recordings").and_then(|v| v.as_array()) else {
+            return Ok(Vec::new());
+        };
+
+        let mut out = Vec::with_capacity(recordings.len());
+        for rec in recordings {
+            let Some(id) = rec.get("id").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let Some(title) = rec.get("title").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let first_credit = rec
+                .get("artist-credit")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| arr.first());
+            let artist_name = first_credit
+                .and_then(|c| c.get("name").and_then(|v| v.as_str()))
+                .or_else(|| {
+                    first_credit
+                        .and_then(|c| c.get("artist"))
+                        .and_then(|a| a.get("name"))
+                        .and_then(|v| v.as_str())
+                })
+                .unwrap_or("Unknown Artist")
+                .to_string();
+            let artist_id = first_credit
+                .and_then(|c| c.get("artist"))
+                .and_then(|a| a.get("id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let first_rel = rec
+                .get("releases")
+                .and_then(|v| v.as_array())
+                .and_then(|arr| arr.first());
+            let release = first_rel
+                .and_then(|r| r.get("title"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let release_id = first_rel
+                .and_then(|r| r.get("id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let release_date = first_rel
+                .and_then(|r| r.get("date"))
+                .and_then(|v| v.as_str())
+                .or_else(|| rec.get("first-release-date").and_then(|v| v.as_str()))
+                .map(str::to_string);
+            let duration_ms = rec.get("length").and_then(|v| v.as_u64());
+            let score = rec.get("score").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let tags: Vec<String> = rec
+                .get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(str::to_string))
+                        .take(5)
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            out.push(MusicBrainzRecording {
+                id: id.to_string(),
+                title: title.to_string(),
+                artist: artist_name,
+                artist_id,
+                release,
+                release_id,
+                release_date,
+                duration_ms,
+                score,
+                tags,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Search YouTube videos via ContextVM `search_youtube` for Blossom media backup.
+    pub async fn search_youtube(
+        &self,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<YouTubeSearchResult>> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(Vec::new());
+        }
+        let cfg = self.config.read().await.clone();
+        contextvm::search_youtube(
+            &self.client,
+            &self.ephemeral_keys,
+            &cfg.metadata_server_pubkey,
+            trimmed,
+            limit,
+            20,
+        )
+        .await
+    }
+
+    /// Download a YouTube video/audio locally via `yt-dlp` when available (desktop),
+    /// or via the WaveFunc ContextVM `prepare_download` service (Android / no local yt-dlp).
     pub async fn prepare_youtube_media(
         &self,
         cache_root: &str,
         video_id: &str,
         format: &str,
     ) -> Result<PreparedMedia> {
-        self.media
-            .prepare_youtube_media(cache_root, video_id, format)
-            .await
+        #[cfg(not(target_os = "android"))]
+        {
+            if let Ok(mut prepared) = self
+                .media
+                .prepare_youtube_media(cache_root, video_id, format)
+                .await
+            {
+                prepared.job_id = format!("local:{}", prepared.job_id);
+                return Ok(prepared);
+            }
+        }
+
+        let _ = cache_root;
+        let cfg = self.config.read().await.clone();
+        contextvm::prepare_download_remote(
+            &self.client,
+            &self.ephemeral_keys,
+            &cfg.metadata_server_pubkey,
+            video_id,
+            format,
+            180,
+        )
+        .await
     }
 
-    /// Stream a prepared media job to a Blossom server using a signed BUD-02 auth event.
+    /// Sign a BUD-02 Blossom upload authorization event (`kind 24242`) WITHOUT publishing to relays.
+    /// Returns `signed_event_json` for LocalKey/Bunker, or `unsigned_event_json` for Amber.
+    pub async fn sign_blossom_upload_auth(
+        &self,
+        sha256: &str,
+        blossom_url: &str,
+        format: &str,
+    ) -> Result<BlossomAuthResult> {
+        let builder = build_blossom_auth_builder(sha256, blossom_url, format)?;
+        let mode = {
+            let guard = self.signer.read().await;
+            match guard.as_ref() {
+                None => {
+                    return Err(WavefuncError::AuthRequired(
+                        "Sign in to authorize Blossom uploads.".to_string(),
+                    ))
+                }
+                Some(ActiveSigner::LocalKey(keys)) => Err(keys.clone()),
+                Some(ActiveSigner::Bunker { signer, .. }) => Ok((Some(signer.clone()), None)),
+                Some(ActiveSigner::Amber { pubkey }) => Ok((None, Some(*pubkey))),
+            }
+        };
+
+        match mode {
+            Err(keys) => {
+                let ev = builder.finalize(&keys)?;
+                Ok(BlossomAuthResult {
+                    signed_event_json: Some(ev.as_json()),
+                    unsigned_event_json: None,
+                })
+            }
+            Ok((Some(bunker), _)) => {
+                let ev = builder.finalize_async(bunker.as_ref()).await?;
+                Ok(BlossomAuthResult {
+                    signed_event_json: Some(ev.as_json()),
+                    unsigned_event_json: None,
+                })
+            }
+            Ok((None, Some(pubkey))) => {
+                let unsigned = builder.finalize_unsigned(pubkey);
+                Ok(BlossomAuthResult {
+                    signed_event_json: None,
+                    unsigned_event_json: Some(unsigned.as_json()),
+                })
+            }
+            Ok((None, None)) => Err(WavefuncError::AuthRequired(
+                "No active signer available.".to_string(),
+            )),
+        }
+    }
+
+    /// Upload a prepared media job (`local:<id>` or `remote:<id>`) to a Blossom server.
     pub async fn upload_media_to_blossom(
         &self,
         job_id: &str,
         blossom_url: &str,
         signed_auth_event_json: &str,
     ) -> Result<UploadedMedia> {
+        if let Some(remote_id) = job_id.strip_prefix("remote:") {
+            let cfg = self.config.read().await.clone();
+            return contextvm::upload_to_blossom_remote(
+                &self.client,
+                &self.ephemeral_keys,
+                &cfg.metadata_server_pubkey,
+                remote_id,
+                blossom_url,
+                signed_auth_event_json,
+                180,
+            )
+            .await;
+        }
+        let local_id = job_id.strip_prefix("local:").unwrap_or(job_id);
         self.media
-            .upload_to_blossom(&self.http, job_id, blossom_url, signed_auth_event_json)
+            .upload_to_blossom(&self.http, local_id, blossom_url, signed_auth_event_json)
             .await
     }
 
     /// Clean up a prepared media acquisition job directory.
     pub async fn discard_media_job(&self, job_id: &str) -> Result<()> {
-        self.media.discard_job(job_id).await
+        if job_id.starts_with("remote:") {
+            return Ok(());
+        }
+        let local_id = job_id.strip_prefix("local:").unwrap_or(job_id);
+        self.media.discard_job(local_id).await
+    }
+
+    /// Attach a Blossom `audio_url` (and optional `youtube:<id>`) to an existing user `kind 31337` song event.
+    pub async fn attach_song_audio_url(
+        &self,
+        song_id: &str,
+        audio_url: &str,
+        youtube_id: Option<&str>,
+    ) -> Result<ActionOutcome> {
+        let pubkey = {
+            let guard = self.signer.read().await;
+            guard
+                .as_ref()
+                .map(ActiveSigner::pubkey)
+                .ok_or_else(|| {
+                    WavefuncError::AuthRequired("Sign in to update saved songs.".to_string())
+                })?
+        };
+
+        let filter = Filter::new()
+            .author(pubkey)
+            .kind(Kind::Custom(SONG_KIND))
+            .identifier(song_id.trim())
+            .limit(5);
+        let events = self
+            .client
+            .fetch_events(filter)
+            .timeout(Duration::from_secs(6))
+            .await?;
+        let existing = events
+            .into_iter()
+            .max_by_key(|e| e.created_at)
+            .ok_or_else(|| {
+                WavefuncError::InvalidInput("Saved song event not found on relay".to_string())
+            })?;
+
+        let builder = build_song_audio_update_builder(&existing, audio_url, youtube_id)?;
+        let address = format!("{SONG_KIND}:{}:{}", pubkey.to_hex(), song_id.trim());
+        self.sign_or_prepare(builder, Some(address)).await
+    }
+
+    // ─── Public Profiles, Global Song Signals (kind 31337) & Station Submit ─
+
+    /// Fetch a single public Nostr profile (`kind 0`) by hex pubkey or npub.
+    pub async fn fetch_user_profile(&self, pubkey_or_npub: &str) -> Result<NostrProfile> {
+        let pk = PublicKey::parse(pubkey_or_npub.trim())
+            .map_err(|e| WavefuncError::InvalidInput(format!("Invalid pubkey: {e}")))?;
+        let hex = pk.to_hex();
+        let map = self.fetch_profiles(&[hex.clone()]).await?;
+        if let Some(p) = map.get(&hex) {
+            return Ok(p.clone());
+        }
+        Ok(NostrProfile {
+            pubkey: hex,
+            npub: pk.to_bech32().unwrap_or_default(),
+            name: None,
+            display_name: None,
+            picture: None,
+            nip05: None,
+            about: None,
+            lud16: None,
+            lud06: None,
+        })
+    }
+
+    /// Fetch the global stream of recent `kind 31337` saved songs ("Signals") across WaveFunc.
+    pub async fn fetch_signal_songs(&self, limit: usize) -> Result<Vec<SavedSong>> {
+        let cfg = self.config.read().await.clone();
+        let filter = Filter::new()
+            .kind(Kind::Custom(SONG_KIND))
+            .limit(limit.clamp(1, 150));
+
+        let events = self
+            .client
+            .fetch_events(filter)
+            .timeout(Duration::from_secs(cfg.request_timeout_secs))
+            .await?;
+
+        let mut by_addr: HashMap<String, SavedSong> = HashMap::new();
+        for ev in events.iter() {
+            if let Some(song) = parse_song_event(ev) {
+                match by_addr.get(&song.address) {
+                    Some(existing) if existing.created_at >= song.created_at => {}
+                    _ => {
+                        by_addr.insert(song.address.clone(), song);
+                    }
+                }
+            }
+        }
+        let mut songs: Vec<SavedSong> = by_addr.into_values().collect();
+        songs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(songs)
+    }
+
+    /// Publish a new NIP-XX Internet Radio station (`kind 31237`) to the WaveFunc relay.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn publish_station(
+        &self,
+        name: &str,
+        stream_url: &str,
+        format: &str,
+        bitrate_bps: u32,
+        description: Option<&str>,
+        website: Option<&str>,
+        country_code: Option<&str>,
+        thumbnail: Option<&str>,
+        genres: &[String],
+    ) -> Result<ActionOutcome> {
+        let pubkey = {
+            let guard = self.signer.read().await;
+            guard
+                .as_ref()
+                .map(ActiveSigner::pubkey)
+                .ok_or_else(|| {
+                    WavefuncError::AuthRequired("Sign in to submit a radio station.".to_string())
+                })?
+        };
+        let (station_id, builder) = build_station_event_builder(
+            name,
+            stream_url,
+            format,
+            bitrate_bps,
+            description,
+            website,
+            country_code,
+            thumbnail,
+            genres,
+        )?;
+        let address = format!("{STATION_KIND}:{}:{station_id}", pubkey.to_hex());
+        self.sign_or_prepare(builder, Some(address)).await
     }
 
     /// Gracefully shut down relay connections.
     pub async fn shutdown(&self) {
         self.disconnect_nwc().await;
+        self.close_cashu_wallet().await;
         self.client.shutdown().await;
         self.identity_client.shutdown().await;
+        self.wallet_client.shutdown().await;
     }
 }

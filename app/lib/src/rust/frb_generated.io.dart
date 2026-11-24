@@ -56,6 +56,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbActionOutcome dco_decode_frb_action_outcome(dynamic raw);
 
   @protected
+  FrbBlossomAuthResult dco_decode_frb_blossom_auth_result(dynamic raw);
+
+  @protected
   FrbBunkerLoginResult dco_decode_frb_bunker_login_result(dynamic raw);
 
   @protected
@@ -84,6 +87,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FrbGeneratedAccount dco_decode_frb_generated_account(dynamic raw);
+
+  @protected
+  FrbMusicBrainzRecording dco_decode_frb_music_brainz_recording(dynamic raw);
+
+  @protected
+  FrbNip60DecryptedTokenEvent dco_decode_frb_nip_60_decrypted_token_event(
+    dynamic raw,
+  );
+
+  @protected
+  FrbNip60RawEvents dco_decode_frb_nip_60_raw_events(dynamic raw);
+
+  @protected
+  FrbNip60RawTokenEvent dco_decode_frb_nip_60_raw_token_event(dynamic raw);
 
   @protected
   FrbNostrConnectChallenge dco_decode_frb_nostr_connect_challenge(dynamic raw);
@@ -140,6 +157,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbUploadedMedia dco_decode_frb_uploaded_media(dynamic raw);
 
   @protected
+  FrbYouTubeSearchResult dco_decode_frb_you_tube_search_result(dynamic raw);
+
+  @protected
   FrbZapInvoiceResult dco_decode_frb_zap_invoice_result(dynamic raw);
 
   @protected
@@ -164,6 +184,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<FrbFeaturedList> dco_decode_list_frb_featured_list(dynamic raw);
 
   @protected
+  List<FrbMusicBrainzRecording> dco_decode_list_frb_music_brainz_recording(
+    dynamic raw,
+  );
+
+  @protected
+  List<FrbNip60DecryptedTokenEvent>
+  dco_decode_list_frb_nip_60_decrypted_token_event(dynamic raw);
+
+  @protected
+  List<FrbNip60RawTokenEvent> dco_decode_list_frb_nip_60_raw_token_event(
+    dynamic raw,
+  );
+
+  @protected
   List<FrbSavedSong> dco_decode_list_frb_saved_song(dynamic raw);
 
   @protected
@@ -179,6 +213,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<FrbStationStream> dco_decode_list_frb_station_stream(dynamic raw);
+
+  @protected
+  List<FrbYouTubeSearchResult> dco_decode_list_frb_you_tube_search_result(
+    dynamic raw,
+  );
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -259,6 +298,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbActionOutcome sse_decode_frb_action_outcome(SseDeserializer deserializer);
 
   @protected
+  FrbBlossomAuthResult sse_decode_frb_blossom_auth_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FrbBunkerLoginResult sse_decode_frb_bunker_login_result(
     SseDeserializer deserializer,
   );
@@ -299,6 +343,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FrbGeneratedAccount sse_decode_frb_generated_account(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbMusicBrainzRecording sse_decode_frb_music_brainz_recording(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbNip60DecryptedTokenEvent sse_decode_frb_nip_60_decrypted_token_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbNip60RawEvents sse_decode_frb_nip_60_raw_events(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbNip60RawTokenEvent sse_decode_frb_nip_60_raw_token_event(
     SseDeserializer deserializer,
   );
 
@@ -371,6 +435,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbUploadedMedia sse_decode_frb_uploaded_media(SseDeserializer deserializer);
 
   @protected
+  FrbYouTubeSearchResult sse_decode_frb_you_tube_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FrbZapInvoiceResult sse_decode_frb_zap_invoice_result(
     SseDeserializer deserializer,
   );
@@ -407,6 +476,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<FrbMusicBrainzRecording> sse_decode_list_frb_music_brainz_recording(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbNip60DecryptedTokenEvent>
+  sse_decode_list_frb_nip_60_decrypted_token_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbNip60RawTokenEvent> sse_decode_list_frb_nip_60_raw_token_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<FrbSavedSong> sse_decode_list_frb_saved_song(
     SseDeserializer deserializer,
   );
@@ -426,6 +511,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<FrbStationStream> sse_decode_list_frb_station_stream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbYouTubeSearchResult> sse_decode_list_frb_you_tube_search_result(
     SseDeserializer deserializer,
   );
 
@@ -522,6 +612,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_frb_blossom_auth_result(
+    FrbBlossomAuthResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_frb_bunker_login_result(
     FrbBunkerLoginResult self,
     SseSerializer serializer,
@@ -575,6 +671,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_frb_generated_account(
     FrbGeneratedAccount self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_music_brainz_recording(
+    FrbMusicBrainzRecording self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_nip_60_decrypted_token_event(
+    FrbNip60DecryptedTokenEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_nip_60_raw_events(
+    FrbNip60RawEvents self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_nip_60_raw_token_event(
+    FrbNip60RawTokenEvent self,
     SseSerializer serializer,
   );
 
@@ -675,6 +795,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_frb_you_tube_search_result(
+    FrbYouTubeSearchResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_frb_zap_invoice_result(
     FrbZapInvoiceResult self,
     SseSerializer serializer,
@@ -717,6 +843,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_frb_music_brainz_recording(
+    List<FrbMusicBrainzRecording> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_nip_60_decrypted_token_event(
+    List<FrbNip60DecryptedTokenEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_nip_60_raw_token_event(
+    List<FrbNip60RawTokenEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_frb_saved_song(
     List<FrbSavedSong> self,
     SseSerializer serializer,
@@ -743,6 +887,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_frb_station_stream(
     List<FrbStationStream> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_you_tube_search_result(
+    List<FrbYouTubeSearchResult> self,
     SseSerializer serializer,
   );
 

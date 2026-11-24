@@ -11,9 +11,12 @@ import '../../../../domain/models/social.dart';
 
 /// MVVM ViewModel for multi-account Nostr sessions, signers, and NIP-38 status.
 class AuthViewModel extends ChangeNotifier {
-  AuthViewModel({required this._authRepository}) {
+  AuthViewModel({required this._authRepository, this.cashuBaseDir}) {
     _nip38Enabled = _authRepository.nip38StatusEnabled;
   }
+
+  /// Optional override directory for the Cashu wallet DB (primarily for tests).
+  final String? cashuBaseDir;
 
   /// Whether this OS supports Android NIP-55 Amber intent signing.
   static bool get supportsAmberPlatform => !kIsWeb && Platform.isAndroid;
@@ -60,6 +63,8 @@ class AuthViewModel extends ChangeNotifier {
   bool _isAmberAvailable = false;
   bool _isBusy = false;
   bool _isWalletBusy = false;
+  bool _isNip60Syncing = false;
+  String? _nip60SyncError;
   bool _nip38Enabled = false;
   String? _errorMessage;
   GeneratedAccount? _lastGeneratedAccount;
@@ -67,9 +72,26 @@ class AuthViewModel extends ChangeNotifier {
   AccountSession? get session => _session;
   NwcWalletStatus get nwcStatus => _nwcStatus;
   CashuWalletStatus get cashuStatus => _cashuStatus;
+  bool get isNip60Enabled {
+    final pk = _session?.pubkey;
+    if (pk == null) return false;
+    return _authRepository.isNip60EnabledForAccount(pk);
+  }
+
+  bool get isNip60Syncing => _isNip60Syncing;
+  String? get nip60SyncError => _nip60SyncError;
   bool get isCashuReady => _cashuStatus.initialized;
   int get cashuBalanceSats => _cashuStatus.totalBalanceSats;
   bool get isNwcConnected => _nwcStatus.connected;
+
+  /// Combined sats balance to surface in profile buttons when any wallet is active.
+  int? get displayWalletBalanceSats {
+    final hasNwc = _nwcStatus.connected && _nwcStatus.balanceSats != null;
+    final hasCashu = _cashuStatus.initialized && (isNip60Enabled || _session == null);
+    if (!hasNwc && !hasCashu) return null;
+    return (hasNwc ? _nwcStatus.balanceSats! : 0) +
+        (hasCashu ? _cashuStatus.totalBalanceSats : 0);
+  }
   List<StoredAuthCredentials> get savedAccounts =>
       _authRepository.savedAccounts;
   bool get isLoggedIn => _session != null;
@@ -115,21 +137,66 @@ class AuthViewModel extends ChangeNotifier {
     _session = await _authRepository.restoreSession();
     _nwcStatus = await _authRepository.restoreNwc();
     notifyListeners();
-    // Cashu wallet opens asynchronously (mint keyset fetches may be slow).
-    unawaited(_restoreCashu());
+    // NIP-60 wallet is OFF by default; only load & sync if enabled for this account.
+    unawaited(_syncCashuForActiveSession());
   }
 
-  Future<void> _restoreCashu() async {
-    try {
-      final dir = await getApplicationSupportDirectory();
-      await initCashuAt('${dir.path}${Platform.pathSeparator}cashu');
-    } catch (_) {
+  Future<void> _syncCashuForActiveSession() async {
+    final pk = _session?.pubkey;
+    if (pk == null || !_authRepository.isNip60EnabledForAccount(pk)) {
+      await _authRepository.closeCashuWallet();
       _cashuStatus = const CashuWalletStatus();
+      _isNip60Syncing = false;
+      _nip60SyncError = null;
+      notifyListeners();
+      return;
+    }
+
+    _isNip60Syncing = true;
+    _nip60SyncError = null;
+    notifyListeners();
+    try {
+      String baseDir;
+      if (cashuBaseDir != null) {
+        baseDir = cashuBaseDir!;
+      } else {
+        try {
+          final dir = await getApplicationSupportDirectory()
+              .timeout(const Duration(seconds: 3));
+          baseDir = dir.path;
+        } catch (_) {
+          baseDir = Directory.systemTemp.path;
+        }
+      }
+      final walletDir =
+          '$baseDir${Platform.pathSeparator}cashu${Platform.pathSeparator}$pk';
+      _cashuStatus = await _authRepository.restoreCashu(walletDir);
+      notifyListeners();
+      _cashuStatus = await _authRepository.syncNip60Wallet();
+    } catch (e) {
+      _nip60SyncError = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isNip60Syncing = false;
       notifyListeners();
     }
   }
 
-  /// Opens the embedded Cashu wallet stored in [dbDir].
+  /// Enable or disable the NIP-60 wallet for the active account on this device.
+  Future<void> setNip60Enabled(bool enabled) async {
+    final pk = _session?.pubkey;
+    if (pk == null) return;
+    await _authRepository.setNip60EnabledForAccount(pk, enabled);
+    notifyListeners();
+    await _syncCashuForActiveSession();
+  }
+
+  /// Re-sync NIP-60 wallet events (`kind 17375` + `kind 7375`) from Nostr relays.
+  Future<void> syncNip60Wallet() async {
+    if (!isNip60Enabled) return;
+    await _syncCashuForActiveSession();
+  }
+
+  /// Opens the embedded Cashu wallet stored in [dbDir] (also used by unit tests).
   Future<void> initCashuAt(String dbDir) async {
     _cashuStatus = await _authRepository.restoreCashu(dbDir);
     notifyListeners();
@@ -140,6 +207,7 @@ class AuthViewModel extends ChangeNotifier {
       final generated = await _authRepository.generateAccount();
       _lastGeneratedAccount = generated;
       _session = await _authRepository.loginWithNsec(generated.nsec);
+      unawaited(_syncCashuForActiveSession());
       return generated;
     });
   }
@@ -148,6 +216,7 @@ class AuthViewModel extends ChangeNotifier {
     final res = await _runAuth(() async {
       _lastGeneratedAccount = null;
       _session = await _authRepository.loginWithNsec(secret);
+      unawaited(_syncCashuForActiveSession());
       return true;
     });
     return res ?? false;
@@ -157,6 +226,7 @@ class AuthViewModel extends ChangeNotifier {
     final res = await _runAuth(() async {
       _lastGeneratedAccount = null;
       _session = await _authRepository.loginWithBunker(bunkerUri);
+      unawaited(_syncCashuForActiveSession());
       return true;
     });
     return res ?? false;
@@ -178,6 +248,7 @@ class AuthViewModel extends ChangeNotifier {
     final res = await _runAuth(() async {
       _lastGeneratedAccount = null;
       _session = await _authRepository.awaitNostrConnect(sessionId);
+      unawaited(_syncCashuForActiveSession());
       return true;
     });
     return res ?? false;
@@ -190,6 +261,7 @@ class AuthViewModel extends ChangeNotifier {
     final res = await _runAuth(() async {
       _lastGeneratedAccount = null;
       _session = await _authRepository.loginWithAmber();
+      unawaited(_syncCashuForActiveSession());
       return true;
     });
     return res ?? false;
@@ -198,6 +270,7 @@ class AuthViewModel extends ChangeNotifier {
   Future<bool> switchAccount(String pubkey) async {
     final res = await _runAuth(() async {
       _session = await _authRepository.switchAccount(pubkey);
+      unawaited(_syncCashuForActiveSession());
       return true;
     });
     return res ?? false;
@@ -206,6 +279,7 @@ class AuthViewModel extends ChangeNotifier {
   Future<void> removeAccount(String pubkey) async {
     await _runAuth(() async {
       _session = await _authRepository.removeAccount(pubkey);
+      unawaited(_syncCashuForActiveSession());
     });
   }
 
@@ -214,6 +288,7 @@ class AuthViewModel extends ChangeNotifier {
       await _authRepository.logout();
       _session = null;
       _lastGeneratedAccount = null;
+      await _syncCashuForActiveSession();
     });
   }
 
@@ -227,6 +302,18 @@ class AuthViewModel extends ChangeNotifier {
     Future<ActionOutcome> Function(WavefuncBackend backend) operation,
   ) {
     return _authRepository.completeAction(operation);
+  }
+
+  Future<String> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  }) {
+    return _authRepository.signBlossomUploadAuth(
+      sha256: sha256,
+      blossomUrl: blossomUrl,
+      format: format,
+    );
   }
 
   Future<bool> connectNwc(String nwcUri) async {
@@ -312,14 +399,8 @@ class AuthViewModel extends ChangeNotifier {
   // ── Cashu ecash wallet ────────────────────────────────────────────────────
 
   Future<void> refreshCashu() async {
-    if (!_cashuStatus.initialized) {
-      await _restoreCashu();
-      return;
-    }
-    try {
-      _cashuStatus = await _authRepository.refreshCashu();
-      notifyListeners();
-    } catch (_) {}
+    if (!isNip60Enabled) return;
+    await _syncCashuForActiveSession();
   }
 
   Future<T> _runWallet<T>(Future<T> Function() fn) async {

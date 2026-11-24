@@ -571,6 +571,9 @@ class _FakeBackend implements WavefuncBackend {
   bool zapReceiptPublished = false;
   int receiptChecks = 0;
   int cashuBalance = 0;
+  int nip60SyncedBalance = 689;
+  int nip60SyncCalls = 0;
+  bool cashuClosed = false;
   final List<String> sentNutzaps = [];
   RecipientNutzapInfo? nutzapInfo;
 
@@ -580,6 +583,7 @@ class _FakeBackend implements WavefuncBackend {
         initialized: true,
         totalBalanceSats: cashuBalance,
         mints: [CashuMintBalance(mintUrl: _mint, balanceSats: cashuBalance)],
+        nip60Synced: nip60SyncCalls > 0,
       );
 
   @override
@@ -597,8 +601,38 @@ class _FakeBackend implements WavefuncBackend {
     required String dbDir,
     required String seedMaterial,
     List<String> mints = const [],
-  }) async =>
-      _cashuStatus;
+  }) async {
+    cashuClosed = false;
+    return _cashuStatus;
+  }
+
+  @override
+  Future<void> closeCashuWallet() async {
+    cashuClosed = true;
+  }
+
+  @override
+  Future<Nip60RawEvents> fetchNip60RawEvents() async => const Nip60RawEvents();
+
+  @override
+  Future<CashuWalletStatus> syncNip60Wallet() async {
+    nip60SyncCalls++;
+    cashuBalance = nip60SyncedBalance;
+    return _cashuStatus;
+  }
+
+  @override
+  Future<CashuWalletStatus> applyDecryptedNip60Events({
+    String? walletContentPlain,
+    required List<Nip60DecryptedTokenEvent> decryptedTokens,
+    required List<String> deletedIds,
+    required List<String> discoveredMints,
+    required List<String> walletRelays,
+  }) async {
+    nip60SyncCalls++;
+    cashuBalance = nip60SyncedBalance;
+    return _cashuStatus;
+  }
 
   @override
   Future<CashuWalletStatus> getCashuStatus() async => _cashuStatus;
@@ -686,6 +720,142 @@ class _FakeBackend implements WavefuncBackend {
       published: true,
       eventId: 'nutzap-event-1',
       targetAddress: stationAddress,
+    );
+  }
+
+  final List<String> attachedBlossomUrls = [];
+
+  @override
+  Future<List<MusicBrainzRecording>> searchRecordings({
+    required String query,
+    String? artist,
+    int limit = 15,
+  }) async =>
+      const [
+        MusicBrainzRecording(
+          id: 'mb-rec-roygbiv',
+          title: 'Roygbiv',
+          artist: 'Boards of Canada',
+          release: 'Music Has the Right to Children',
+          releaseDate: '1998-04-20',
+          durationMs: 151000,
+          score: 100,
+          tags: ['electronic', 'ambient'],
+        ),
+      ];
+
+  @override
+  Future<List<YouTubeSearchResult>> searchYouTube({
+    required String query,
+    int limit = 5,
+  }) async =>
+      const [
+        YouTubeSearchResult(
+          videoId: 'yT0gRc2c2wQ',
+          url: 'https://www.youtube.com/watch?v=yT0gRc2c2wQ',
+          title: 'Boards of Canada - Roygbiv (Official Audio)',
+          durationSecs: 151,
+          channel: 'Warp Records',
+        ),
+      ];
+
+  @override
+  Future<PreparedMedia> prepareYouTubeMedia({
+    required String cacheRoot,
+    required String videoId,
+    required String format,
+  }) async =>
+      const PreparedMedia(
+        jobId: 'local:job-1',
+        sha256: 'deadbeef00112233445566778899aabbccddeeff00112233445566778899aabb',
+        size: 2048000,
+        mimeType: 'audio/mp4',
+      );
+
+  @override
+  Future<BlossomAuthResult> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  }) async =>
+      const BlossomAuthResult(
+        signedEventJson: '{"id":"auth1","kind":24242,"sig":"sig1"}',
+      );
+
+  @override
+  Future<UploadedMedia> uploadMediaToBlossom({
+    required String jobId,
+    required String blossomUrl,
+    required String signedAuthEventJson,
+  }) async =>
+      const UploadedMedia(
+        url: 'https://blossom.band/deadbeef.m4a',
+        sha256: 'deadbeef00112233445566778899aabbccddeeff00112233445566778899aabb',
+        size: 2048000,
+        mimeType: 'audio/mp4',
+      );
+
+  @override
+  Future<void> discardMediaJob(String jobId) async {}
+
+  @override
+  Future<ActionOutcome> attachSongAudioUrl({
+    required String songId,
+    required String audioUrl,
+    String? youtubeId,
+  }) async {
+    attachedBlossomUrls.add('$songId->$audioUrl');
+    return ActionOutcome(
+      published: true,
+      eventId: 'ev-song-audio-1',
+      targetAddress: '31337:deadbeef:$songId',
+    );
+  }
+
+  @override
+  Future<NostrProfile> fetchUserProfile(String pubkeyOrNpub) async =>
+      NostrProfile(
+        pubkey: pubkeyOrNpub,
+        npub: 'npub1testprofile',
+        name: 'alice',
+        displayName: 'Alice Signal',
+        about: 'Independent radio curator on Nostr',
+        lud16: 'alice@getalby.com',
+      );
+
+  @override
+  Future<List<SavedSong>> fetchSignalSongs({int limit = 80}) async => const [
+        SavedSong(
+          id: 'sig-1',
+          pubkey: 'pk-1',
+          songId: 'mb-roygbiv',
+          address: '31337:pk-1:mb-roygbiv',
+          title: 'Roygbiv',
+          artist: 'Boards of Canada',
+          album: 'Music Has the Right to Children',
+          audioUrl: 'https://blossom.band/roygbiv.m4a',
+        ),
+      ];
+
+  final List<String> publishedStations = [];
+
+  @override
+  Future<ActionOutcome> publishStation({
+    required String name,
+    required String streamUrl,
+    String format = 'mp3',
+    int bitrateBps = 128000,
+    String? description,
+    String? website,
+    String? countryCode,
+    String? thumbnail,
+    List<String> genres = const [],
+  }) async {
+    publishedStations.add('$name|$streamUrl');
+    return const ActionOutcome(
+      published: true,
+      eventId: 'ev-new-station-1',
+      targetAddress: '31237:deadbeef:new-station',
     );
   }
 
@@ -915,10 +1085,15 @@ void main() {
     Navigator.of(tester.element(find.text('STATION_COMMENTS // NIP-22'))).pop();
     await tester.pumpAndSettle();
 
-    // Tap play and verify FloatingPlayerBar docks.
+    // Tap play and verify FloatingPlayerBar docks with background spectrometer.
     await tester.tap(find.byIcon(Icons.play_arrow).first);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.byIcon(Icons.stop), findsOneWidget);
+
+    // Stop before running pumpAndSettle on subsequent navigation checks.
+    await playerVm.stop();
+    await tester.pumpAndSettle();
 
     // Sign in and verify header pill updates + Library shows synced favorites list & crate.
     await authVm.loginWithNsec('nsec1test');
@@ -1239,5 +1414,309 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     h.discoverVm.dispose();
     h.authVm.dispose();
+  });
+
+  testWidgets(
+      'NIP-60 wallet is off by default, remembers opt-in, syncs balance, and shows in profile button',
+      (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefService = PreferencesService(prefs);
+    final backend = _FakeBackend(testStations);
+    final authRepo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: AmberSignerService(),
+      preferences: prefService,
+    );
+    final authVm = AuthViewModel(
+      authRepository: authRepo,
+      cashuBaseDir: '/tmp/wavefunc-test-nip60',
+    );
+    final stationRepo = StationRepository(
+      backend: backend,
+      preferences: prefService,
+    );
+    final discoverVm = DiscoverViewModel(
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final audioEngine = _FakeAudioEngine();
+    final playerVm = PlayerViewModel(
+      engine: audioEngine,
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final communityVm = CommunityViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+    final crateVm = CrateViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+
+    await discoverVm.initialize();
+    await authVm.loginWithNsec('nsec1test');
+
+    await tester.pumpWidget(
+      WavefuncApp(
+        discoverViewModel: discoverVm,
+        playerViewModel: playerVm,
+        authViewModel: authVm,
+        communityViewModel: communityVm,
+        crateViewModel: crateVm,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Off by default: no sync triggered and no balance in profile pill.
+    expect(authVm.isNip60Enabled, isFalse);
+    expect(backend.nip60SyncCalls, 0);
+    expect(find.text('⚡ 689 SATS'), findsNothing);
+
+    // Enable NIP-60 wallet -> syncs 689 sats and shows in profile pill.
+    await authVm.setNip60Enabled(true);
+    await tester.pumpAndSettle();
+    expect(authVm.isNip60Enabled, isTrue);
+    expect(backend.nip60SyncCalls, 1);
+    expect(authVm.displayWalletBalanceSats, 689);
+    expect(find.text('⚡ 689 SATS'), findsOneWidget);
+
+    // Persisted preference remembered for this account.
+    expect(prefService.isNip60EnabledForAccount(authVm.session!.pubkey), isTrue);
+
+    // Switching off stops wallet and clears profile balance.
+    await authVm.setNip60Enabled(false);
+    await tester.pumpAndSettle();
+    expect(authVm.isNip60Enabled, isFalse);
+    expect(backend.cashuClosed, isTrue);
+    expect(authVm.displayWalletBalanceSats, isNull);
+    expect(find.text('⚡ 689 SATS'), findsNothing);
+
+    await playerVm.stop();
+    await audioEngine.disposeEngine();
+    playerVm.dispose();
+    discoverVm.dispose();
+    communityVm.dispose();
+    crateVm.dispose();
+    authVm.dispose();
+  });
+
+  testWidgets(
+      'song search finds MusicBrainz recordings and backs up audio to Blossom',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefService = PreferencesService(prefs);
+    final backend = _FakeBackend(testStations);
+    final authRepo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: AmberSignerService(),
+      preferences: prefService,
+    );
+    final authVm = AuthViewModel(
+      authRepository: authRepo,
+      cashuBaseDir: '/tmp/wavefunc-test-songs',
+    );
+    final stationRepo = StationRepository(
+      backend: backend,
+      preferences: prefService,
+    );
+    final discoverVm = DiscoverViewModel(
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final audioEngine = _FakeAudioEngine();
+    final playerVm = PlayerViewModel(
+      engine: audioEngine,
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final communityVm = CommunityViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+    final crateVm = CrateViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+
+    await discoverVm.initialize();
+    await authVm.loginWithNsec('nsec1test');
+
+    await tester.pumpWidget(
+      WavefuncApp(
+        discoverViewModel: discoverVm,
+        playerViewModel: playerVm,
+        authViewModel: authVm,
+        communityViewModel: communityVm,
+        crateViewModel: crateVm,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Switch Discover search bar to Songs (MusicBrainz) mode.
+    await tester.tap(find.byTooltip('Search Songs (MusicBrainz)'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'SEARCH SONGS (MUSICBRAINZ)...'),
+      'Roygbiv',
+    );
+    await tester.tap(find.byTooltip('Search songs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MUSICBRAINZ_RECORDINGS'), findsOneWidget);
+    expect(find.text('Roygbiv'), findsWidgets);
+    expect(find.textContaining('BOARDS OF CANADA'), findsOneWidget);
+
+    // Tap Blossom Backup -> opens MEDIA_FORGE, searches YouTube, and uploads to Blossom.
+    await tester.tap(find.text('BLOSSOM BACKUP'));
+    await tester.pumpAndSettle();
+    expect(find.text('MEDIA_FORGE // BLOSSOM BACKUP'), findsOneWidget);
+    expect(
+      find.text('Boards of Canada - Roygbiv (Official Audio)'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('BACKUP'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('BACKED UP TO BLOSSOM'), findsOneWidget);
+    expect(backend.attachedBlossomUrls, isNotEmpty);
+
+    await tester.tap(find.text('DONE'));
+    await tester.pumpAndSettle();
+
+    await playerVm.stop();
+    await audioEngine.disposeEngine();
+    playerVm.dispose();
+    discoverVm.dispose();
+    communityVm.dispose();
+    crateVm.dispose();
+    authVm.dispose();
+  });
+
+  testWidgets(
+      'feed song signals, public user profile sheet, and station submission work end-to-end',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefService = PreferencesService(prefs);
+    final backend = _FakeBackend(testStations);
+    final authRepo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: AmberSignerService(),
+      preferences: prefService,
+    );
+    final authVm = AuthViewModel(
+      authRepository: authRepo,
+      cashuBaseDir: '/tmp/wavefunc-test-parity',
+    );
+    final stationRepo = StationRepository(
+      backend: backend,
+      preferences: prefService,
+    );
+    final discoverVm = DiscoverViewModel(
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final audioEngine = _FakeAudioEngine();
+    final playerVm = PlayerViewModel(
+      engine: audioEngine,
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final communityVm = CommunityViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+    final crateVm = CrateViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+
+    await discoverVm.initialize();
+    await authVm.loginWithNsec('nsec1test');
+
+    await tester.pumpWidget(
+      WavefuncApp(
+        discoverViewModel: discoverVm,
+        playerViewModel: playerVm,
+        authViewModel: authVm,
+        communityViewModel: communityVm,
+        crateViewModel: crateVm,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open FEED -> switch to SONG SIGNALS -> verify Blossom track + tap author profile.
+    await tester.tap(find.text('FEED'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('SONG SIGNALS'));
+    await tester.pumpAndSettle();
+    expect(find.text('Roygbiv'), findsOneWidget);
+    expect(find.byTooltip('Play Blossom audio'), findsOneWidget);
+
+    // Tap the signal author icon to open UserProfileSheet (kind 0).
+    await tester.tap(find.byTooltip('View saver profile'));
+    await tester.pumpAndSettle();
+    expect(find.text('NOSTR_PROFILE // KIND 0'), findsOneWidget);
+    expect(find.text('Alice Signal'), findsOneWidget);
+    expect(find.text('Independent radio curator on Nostr'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    // 2. Open SYSTEM -> Submit Station -> publish kind 31237 station.
+    await tester.tap(find.text('SYSTEM'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('SUBMIT STATION'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('SUBMIT STATION'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SUBMIT RADIO STATION'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'STATION NAME *'),
+      'Pirate Dub FM',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'STREAM URL (HTTP/HTTPS) *'),
+      'https://stream.piratedub.fm/live.mp3',
+    );
+    await tester.tap(find.text('PUBLISH STATION TO NOSTR'));
+    await tester.pumpAndSettle();
+
+    expect(
+      backend.publishedStations,
+      ['Pirate Dub FM|https://stream.piratedub.fm/live.mp3'],
+    );
+
+    await playerVm.stop();
+    await audioEngine.disposeEngine();
+    playerVm.dispose();
+    discoverVm.dispose();
+    communityVm.dispose();
+    crateVm.dispose();
+    authVm.dispose();
   });
 }

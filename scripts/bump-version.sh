@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bump version across all project files in sync
+# Bump version across web + native Rust + Flutter app in sync
 # Usage: ./scripts/bump-version.sh <new-version>
 # Example: ./scripts/bump-version.sh 1.0.0
 
@@ -14,43 +14,37 @@ fi
 NEW_VERSION="$1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Validate semver format
 if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
   echo "Error: '$NEW_VERSION' is not a valid semver version"
   exit 1
 fi
 
-echo "Bumping version to $NEW_VERSION..."
+IFS='.' read -r MAJOR MINOR PATCH <<< "${NEW_VERSION%%-*}"
+VERSION_CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
+
+echo "Bumping version to $NEW_VERSION (build $VERSION_CODE)..."
+
+cd "$ROOT"
 
 # 1. package.json
-cd "$ROOT"
 OLD_PKG_VERSION=$(grep -o '"version": "[^"]*"' package.json | head -1 | cut -d'"' -f4)
 sed -i '' "s/\"version\": \"$OLD_PKG_VERSION\"/\"version\": \"$NEW_VERSION\"/" package.json
 echo "  ✓ package.json: $OLD_PKG_VERSION → $NEW_VERSION"
 
-# 2. src-tauri/tauri.conf.json
-OLD_TAURI_VERSION=$(grep -o '"version": "[^"]*"' src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
-sed -i '' "s/\"version\": \"$OLD_TAURI_VERSION\"/\"version\": \"$NEW_VERSION\"/" src-tauri/tauri.conf.json
-echo "  ✓ tauri.conf.json: $OLD_TAURI_VERSION → $NEW_VERSION"
+# 2. app/pubspec.yaml
+OLD_PUBSPEC_VERSION=$(grep '^version: ' app/pubspec.yaml | head -1 | awk '{print $2}')
+sed -i '' "s/^version: .*/version: ${NEW_VERSION}+${VERSION_CODE}/" app/pubspec.yaml
+echo "  ✓ app/pubspec.yaml: $OLD_PUBSPEC_VERSION → ${NEW_VERSION}+${VERSION_CODE}"
 
-# 3. src-tauri/Cargo.toml
-OLD_CARGO_VERSION=$(grep '^version = ' src-tauri/Cargo.toml | head -1 | cut -d'"' -f2)
-sed -i '' "s/^version = \"$OLD_CARGO_VERSION\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
-echo "  ✓ Cargo.toml: $OLD_CARGO_VERSION → $NEW_VERSION"
-
-# 4. Android tauri.properties (if exists)
-TAURI_PROPS="src-tauri/gen/android/app/tauri.properties"
-if [ -f "$TAURI_PROPS" ]; then
-  # Calculate versionCode: major*1000000 + minor*1000 + patch
-  IFS='.' read -r MAJOR MINOR PATCH <<< "${NEW_VERSION%%-*}"
-  VERSION_CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
-  sed -i '' "s/tauri.android.versionName=.*/tauri.android.versionName=$NEW_VERSION/" "$TAURI_PROPS"
-  sed -i '' "s/tauri.android.versionCode=.*/tauri.android.versionCode=$VERSION_CODE/" "$TAURI_PROPS"
-  echo "  ✓ tauri.properties: versionName=$NEW_VERSION, versionCode=$VERSION_CODE"
-fi
+# 3. crates/wavefunc-core/Cargo.toml & app/rust/Cargo.toml
+for cargo_file in crates/wavefunc-core/Cargo.toml app/rust/Cargo.toml; do
+  OLD_CARGO=$(grep '^version = ' "$cargo_file" | head -1 | cut -d'"' -f2)
+  sed -i '' "s/^version = \"$OLD_CARGO\"/version = \"$NEW_VERSION\"/" "$cargo_file"
+  echo "  ✓ $cargo_file: $OLD_CARGO → $NEW_VERSION"
+done
 
 echo ""
-echo "Done! Version bumped to $NEW_VERSION across all files."
+echo "Done! Version bumped to $NEW_VERSION across all packages."
 echo ""
 echo "Next steps:"
 echo "  git add -A && git commit -m 'chore: bump version to $NEW_VERSION'"

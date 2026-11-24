@@ -45,7 +45,8 @@ tar -czf deploy.tar.gz \
     --exclude='relay/wavefunc-relay' \
     --exclude='relay/data' \
     --exclude='dist/*.map' \
-    --exclude='src-tauri' \
+    --exclude='app' \
+    --exclude='crates' \
     dist/ src/ relay/ contextvm/ scripts/ \
     $LEGACY_ARCHIVE_PATH \
     ecosystem.config.cjs \

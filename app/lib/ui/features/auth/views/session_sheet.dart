@@ -140,6 +140,39 @@ class AccountSessionSheet extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                authViewModel.isNip60Enabled &&
+                                        authViewModel.isCashuReady
+                                    ? 'NIP-60 WALLET // ⚡ ${authViewModel.cashuBalanceSats} SATS'
+                                    : 'NIP-60 WALLET',
+                                style: SonicMachineTheme.labelTech(fontSize: 10),
+                              ),
+                              Text(
+                                authViewModel.isNip60Syncing
+                                    ? 'Syncing balance from Nostr relays...'
+                                    : authViewModel.isNip60Enabled
+                                        ? 'Enabled for this account on this device'
+                                        : 'Off by default • Enable to load & sync balance',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: authViewModel.isNip60Enabled,
+                          activeThumbColor: SonicColors.ink,
+                          activeTrackColor: SonicColors.voltageCyan,
+                          onChanged: authViewModel.setNip60Enabled,
+                        ),
+                      ],
+                    ),
                   ],
 
                   if (saved.isNotEmpty) ...[

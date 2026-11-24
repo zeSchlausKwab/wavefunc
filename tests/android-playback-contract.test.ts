@@ -1,26 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("Android playback release contract", () => {
-  test("packages a native Media3 playback service", () => {
-    const cargo = read("src-tauri/Cargo.toml");
-    const pluginCargo = read("src-tauri/plugins/native-player/Cargo.toml");
-    const manifest = read(
-      "src-tauri/plugins/native-player/android/src/main/AndroidManifest.xml"
-    );
-    const service = read(
-      "src-tauri/plugins/native-player/android/src/main/java/live/wavefunc/player/WavefuncPlaybackService.kt"
-    );
-    const plugin = read(
-      "src-tauri/plugins/native-player/android/src/main/java/live/wavefunc/player/WavefuncPlayerPlugin.kt"
-    );
+  test("packages a native foreground media playback service", () => {
+    const manifest = read("app/android/app/src/main/AndroidManifest.xml");
+    const pubspec = read("app/pubspec.yaml");
 
-    expect(cargo).toContain("tauri-plugin-wavefunc-player");
-    expect(pluginCargo).toContain('links = "tauri-plugin-wavefunc-player"');
+    expect(pubspec).toContain("audio_service:");
+    expect(pubspec).toContain("just_audio:");
     expect(manifest).toContain("android.permission.FOREGROUND_SERVICE");
     expect(manifest).toContain(
       "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
@@ -28,86 +19,73 @@ describe("Android playback release contract", () => {
     expect(manifest).toContain("android.permission.POST_NOTIFICATIONS");
     expect(manifest).toContain("android.permission.WAKE_LOCK");
     expect(manifest).toContain('android:foregroundServiceType="mediaPlayback"');
-    expect(service).toContain("MediaSessionService");
-    expect(service).toContain("ExoPlayer.Builder");
-    expect(service).toContain("setWakeMode(C.WAKE_MODE_NETWORK)");
-    expect(plugin).toContain("requestPermissionForAlias");
+    expect(manifest).toContain("com.ryanheise.audioservice.AudioService");
+    expect(manifest).toContain("com.ryanheise.audioservice.MediaButtonReceiver");
   });
 
-  test("keeps arbitrary HTTP radio streams playable in release builds", () => {
-    const androidBuild = read("src-tauri/android-template/build.gradle.kts");
-    const service = read(
-      "src-tauri/plugins/native-player/android/src/main/java/live/wavefunc/player/WavefuncPlaybackService.kt"
-    );
+  test("keeps arbitrary HTTP radio streams playable in Android and macOS release builds", () => {
+    const manifest = read("app/android/app/src/main/AndroidManifest.xml");
+    const androidBuild = read("app/android/app/build.gradle.kts");
+    const macPlist = read("app/macos/Runner/Info.plist");
 
-    expect(androidBuild).toContain(
-      'manifestPlaceholders["usesCleartextTraffic"] = "true"'
-    );
-    expect(androidBuild).toContain(
-      'variant.applicationId.set("live.wavefunc.app.debug")'
-    );
-    expect(service).toContain("setAllowCrossProtocolRedirects(true)");
-    expect(service).toContain('"Icy-MetaData" to "1"');
+    expect(manifest).toContain('android:usesCleartextTraffic="true"');
+    expect(androidBuild).toContain('applicationId = "live.wavefunc.app"');
+    expect(androidBuild).toContain('rootProject.file("keystore.properties")');
+    expect(macPlist).toContain("<key>NSAllowsArbitraryLoads</key>");
+    expect(macPlist).toContain("<true/>");
   });
 
-  test("copies the maintained Android toolchain templates in release CI", () => {
-    const rootBuild = read("src-tauri/android-template/root-build.gradle.kts");
-    const workflow = read(".github/workflows/release.yml");
+  test("builds native Rust + Flutter release artifacts in GitHub Actions", () => {
+    const release = read(".github/workflows/release.yml");
+    const checks = read(".github/workflows/checks.yml");
 
-    expect(rootBuild).toContain("com.android.tools.build:gradle:8.13.2");
-    expect(rootBuild).toContain("kotlin-gradle-plugin:2.2.21");
-    expect(workflow).toContain(
-      "cp src-tauri/android-template/root-build.gradle.kts src-tauri/gen/android/build.gradle.kts"
-    );
+    expect(release).toContain("cargo ndk");
+    expect(release).toContain("flutter build apk --release");
+    expect(release).toContain("flutter build macos --release");
+    expect(release).toContain("flutter build linux --release");
+    expect(release).toContain("flutter build windows --release");
+    expect(release).toContain("ANDROID_KEYSTORE_BASE64");
+    expect(checks).toContain("cargo test --manifest-path crates/wavefunc-core/Cargo.toml");
+    expect(checks).toContain("flutter analyze");
+    expect(checks).toContain("flutter test");
   });
 
   test("packages the adaptive icon layers and a device-reachable relay", () => {
-    const androidBuild = read("src-tauri/android-template/build.gradle.kts");
+    const manifest = read("app/android/app/src/main/AndroidManifest.xml");
+    const adaptiveIcon = read(
+      "app/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+    );
     const frontendBuild = read("build.ts");
     const environment = read("src/config/env.ts");
-    const platform = read("src/lib/platform.ts");
 
-    expect(androidBuild).toContain("syncWavefuncIcons");
-    expect(androidBuild).toContain('from(file("../../../icons/android"))');
-    expect(frontendBuild).toContain(
-      '"process.env.RELAY_URL": definedRelayUrl'
-    );
+    expect(manifest).toContain('android:icon="@mipmap/ic_launcher"');
+    expect(manifest).toContain('android:roundIcon="@mipmap/ic_launcher_round"');
+    expect(adaptiveIcon).toContain("ic_launcher_background");
+    expect(adaptiveIcon).toContain("ic_launcher_foreground");
+    expect(
+      existsSync(
+        join(
+          root,
+          "app/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png"
+        )
+      )
+    ).toBe(true);
+    expect(frontendBuild).toContain('"process.env.RELAY_URL": definedRelayUrl');
     expect(frontendBuild).toContain("isLoopbackRelayUrl");
     expect(frontendBuild).not.toContain(
       'JSON.stringify(process.env.RELAY_URL || "ws://localhost:3334")'
     );
-    expect(platform).toContain("__TAURI_INTERNALS__");
-    expect(platform).toContain('runtime.location.hostname === "tauri.localhost"');
     expect(environment).toContain('return "wss://relay.wavefunc.live"');
   });
 
-  test("keeps tappable web content outside Android system bars", () => {
-    const androidBuild = read("src-tauri/android-template/build.gradle.kts");
-    const activity = read("src-tauri/android-template/MainActivity.kt");
+  test("configures macOS release entitlements for native Rust FFI and network playback", () => {
+    const releaseEntitlements = read("app/macos/Runner/Release.entitlements");
+    const podfile = read("app/macos/Podfile");
 
-    expect(androidBuild).toContain("syncWavefuncMainActivity");
-    expect(activity).toContain("WindowInsetsCompat.Type.systemBars()");
-    expect(activity).toContain("WindowInsetsCompat.Type.displayCutout()");
-    expect(activity).toContain("ViewCompat.setOnApplyWindowInsetsListener");
-    expect(activity).toContain("WindowInsetsCompat.CONSUMED");
-  });
-
-  test("routes Android playback and live metadata through the native backend", () => {
-    const bridge = read("src/lib/nativePlayback.ts");
-    const store = read("src/stores/playerStore.ts");
-    const mobile = read("src-tauri/plugins/native-player/src/mobile.rs");
-    const permissions = read(
-      "src-tauri/plugins/native-player/permissions/default.toml"
+    expect(releaseEntitlements).toContain(
+      "com.apple.security.cs.disable-library-validation"
     );
-
-    expect(bridge).toContain('"plugin:wavefunc-player|play"');
-    expect(bridge).toContain('"plugin:wavefunc-player|update_metadata"');
-    expect(bridge).toContain("addPluginListener");
-    expect(store).toContain("nativePlayback");
-    expect(mobile).toContain('"registerListener"');
-    expect(mobile).toContain("RegisterListenerRequest { event, handler }");
-    expect(permissions).toContain('"allow-register-listener"');
-    expect(permissions).toContain('"allow-remove-listener"');
-    expect(mobile).not.toContain("compile_error!");
+    expect(releaseEntitlements).toContain("com.apple.security.network.client");
+    expect(podfile).toContain("pod 'wavefunc_bridge'");
   });
 });

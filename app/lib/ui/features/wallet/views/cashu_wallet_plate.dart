@@ -7,10 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../domain/models/social.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
+import '../../../core/widgets/qr_scanner_sheet.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../auth/view_models/auth_view_model.dart';
 
-/// Settings plate for the embedded on-device Cashu ecash wallet (CDK + redb).
+/// Settings plate for the per-account NIP-60 Cashu ecash wallet (CDK + redb + Nostr relay sync).
 class CashuWalletPlate extends StatelessWidget {
   const CashuWalletPlate({super.key, required this.authViewModel});
 
@@ -21,14 +22,19 @@ class CashuWalletPlate extends StatelessWidget {
     return ListenableBuilder(
       listenable: authViewModel,
       builder: (context, _) {
+        final loggedIn = authViewModel.isLoggedIn;
+        final enabled = authViewModel.isNip60Enabled;
+        final syncing = authViewModel.isNip60Syncing;
+        final syncError = authViewModel.nip60SyncError;
         final cashu = authViewModel.cashuStatus;
-        final ready = cashu.initialized;
-        final busy = authViewModel.isWalletBusy;
+        final ready = enabled && cashu.initialized;
+        final busy = authViewModel.isWalletBusy || syncing;
 
         return SonicPlate(
           backgroundColor: SonicColors.surfacePlate,
-          shadowColor:
-              cashu.totalBalanceSats > 0 ? SonicColors.voltageCyan : SonicColors.ink,
+          shadowColor: enabled && cashu.totalBalanceSats > 0
+              ? SonicColors.voltageCyan
+              : SonicColors.ink,
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,132 +42,210 @@ class CashuWalletPlate extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'ECASH_WALLET // CASHU NIP-61',
-                      style: SonicMachineTheme.labelTech(
-                        fontSize: 10,
-                        color: ready ? SonicColors.ink : SonicColors.signalRed,
-                      ),
-                    ),
-                  ),
-                  SonicTag(
-                    label: ready ? 'ON-DEVICE' : 'STARTING',
-                    highlighted: ready,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                ready ? '⚡ ${cashu.totalBalanceSats} SATS' : '⚡ — SATS',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Bearer ecash stored locally. Use it to nutzap stations instantly or pay any zap invoice.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (ready && cashu.mints.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                for (final m in cashu.mints)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: SonicColors.foundation,
-                      border: Border.all(color: SonicColors.seamOutline, width: 1),
-                    ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.account_balance_outlined,
-                            size: 14, color: SonicColors.ink),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            m.displayHost.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: SonicMachineTheme.labelTech(
-                              fontSize: 9.5,
-                              color: SonicColors.ink,
-                              letterSpacing: 0.6,
-                            ),
+                        Text(
+                          'NIP-60 WALLET // CASHU ECASH',
+                          style: SonicMachineTheme.labelTech(
+                            fontSize: 10,
+                            color: enabled ? SonicColors.ink : SonicColors.signalRed,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          '${m.balanceSats} SATS',
-                          style: SonicMachineTheme.labelTech(
-                            fontSize: 9.5,
-                            color: m.balanceSats > 0
-                                ? SonicColors.signalRed
-                                : SonicColors.seamOutline,
-                          ),
+                          !loggedIn
+                              ? 'Sign in to enable your NIP-60 wallet.'
+                              : enabled
+                                  ? 'Enabled for this account on this device. Switch off to stop wallet loading and sync.'
+                                  : 'Switched off by default. Enable to load and sync your NIP-60 balance from Nostr relays.',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
                   ),
-              ],
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  SonicPowerButton(
-                    label: 'Deposit',
-                    icon: Icons.south_west,
-                    compact: true,
-                    onPressed: !ready || busy
-                        ? null
-                        : () => showCashuDialog(
-                              context,
-                              CashuDepositPanel(authViewModel: authViewModel),
-                            ),
-                  ),
-                  SonicPowerButton(
-                    label: 'Receive Token',
-                    icon: Icons.download,
-                    primary: false,
-                    compact: true,
-                    onPressed: !ready || busy
-                        ? null
-                        : () => showCashuDialog(
-                              context,
-                              CashuReceivePanel(authViewModel: authViewModel),
-                            ),
-                  ),
-                  SonicPowerButton(
-                    label: 'Send Token',
-                    icon: Icons.upload,
-                    primary: false,
-                    compact: true,
-                    onPressed: !ready || busy || cashu.totalBalanceSats <= 0
-                        ? null
-                        : () => showCashuDialog(
-                              context,
-                              CashuSendPanel(authViewModel: authViewModel),
-                            ),
-                  ),
-                  SonicPowerButton(
-                    label: 'Add Mint',
-                    icon: Icons.add,
-                    primary: false,
-                    compact: true,
-                    onPressed: !ready || busy
-                        ? null
-                        : () => showCashuDialog(
-                              context,
-                              CashuAddMintPanel(authViewModel: authViewModel),
-                            ),
-                  ),
-                  SonicPowerButton(
-                    label: 'Refresh',
-                    icon: Icons.refresh,
-                    primary: false,
-                    compact: true,
-                    onPressed: busy ? null : authViewModel.refreshCashu,
+                  const SizedBox(width: 8),
+                  Switch(
+                    value: enabled,
+                    activeThumbColor: SonicColors.ink,
+                    activeTrackColor: SonicColors.voltageCyan,
+                    onChanged: loggedIn
+                        ? (v) => authViewModel.setNip60Enabled(v)
+                        : null,
                   ),
                 ],
               ),
+              if (enabled) ...[
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      ready ? '⚡ ${cashu.totalBalanceSats} SATS' : '⚡ — SATS',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    SonicTag(
+                      label: syncing
+                          ? 'SYNCING'
+                          : (cashu.nip60Synced ? 'NIP-60 SYNCED' : 'LOCAL'),
+                      highlighted: cashu.nip60Synced || syncing,
+                    ),
+                  ],
+                ),
+                if (syncing) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: SonicColors.ink,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'SYNCING AND UNLOCKING YOUR NIP-60 WALLET...',
+                          style: SonicMachineTheme.labelTech(
+                            fontSize: 9,
+                            color: SonicColors.seamOutline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (syncError != null) ...[
+                  const SizedBox(height: 8),
+                  SonicPlate(
+                    backgroundColor: SonicColors.signalRed,
+                    shadowOffset: Offset.zero,
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      syncError,
+                      style: SonicMachineTheme.labelTech(
+                        fontSize: 9.5,
+                        color: SonicColors.onSignal,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
+                if (ready && cashu.mints.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  for (final m in cashu.mints)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: SonicColors.foundation,
+                        border: Border.all(
+                          color: SonicColors.seamOutline,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.account_balance_outlined,
+                            size: 14,
+                            color: SonicColors.ink,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              m.displayHost.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: SonicMachineTheme.labelTech(
+                                fontSize: 9.5,
+                                color: SonicColors.ink,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${m.balanceSats} SATS',
+                            style: SonicMachineTheme.labelTech(
+                              fontSize: 9.5,
+                              color: m.balanceSats > 0
+                                  ? SonicColors.signalRed
+                                  : SonicColors.seamOutline,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    SonicPowerButton(
+                      label: 'Deposit',
+                      icon: Icons.south_west,
+                      compact: true,
+                      onPressed: !ready || busy
+                          ? null
+                          : () => showCashuDialog(
+                                context,
+                                CashuDepositPanel(authViewModel: authViewModel),
+                              ),
+                    ),
+                    SonicPowerButton(
+                      label: 'Receive Token',
+                      icon: Icons.download,
+                      primary: false,
+                      compact: true,
+                      onPressed: !ready || busy
+                          ? null
+                          : () => showCashuDialog(
+                                context,
+                                CashuReceivePanel(authViewModel: authViewModel),
+                              ),
+                    ),
+                    SonicPowerButton(
+                      label: 'Send Token',
+                      icon: Icons.upload,
+                      primary: false,
+                      compact: true,
+                      onPressed: !ready || busy || cashu.totalBalanceSats <= 0
+                          ? null
+                          : () => showCashuDialog(
+                                context,
+                                CashuSendPanel(authViewModel: authViewModel),
+                              ),
+                    ),
+                    SonicPowerButton(
+                      label: 'Add Mint',
+                      icon: Icons.add,
+                      primary: false,
+                      compact: true,
+                      onPressed: !ready || busy
+                          ? null
+                          : () => showCashuDialog(
+                                context,
+                                CashuAddMintPanel(authViewModel: authViewModel),
+                              ),
+                    ),
+                    SonicPowerButton(
+                      label: syncing ? 'Syncing...' : 'Sync Relays',
+                      icon: Icons.sync,
+                      primary: false,
+                      compact: true,
+                      onPressed: busy ? null : authViewModel.syncNip60Wallet,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );
@@ -638,7 +722,28 @@ class _CashuReceivePanelState extends State<CashuReceivePanel> {
             controller: _tokenController,
             minLines: 3,
             maxLines: 5,
-            decoration: const InputDecoration(hintText: 'cashuB...'),
+            decoration: InputDecoration(
+              hintText: 'cashuB...',
+              suffixIcon: QrScannerSheet.isSupported
+                  ? IconButton(
+                      tooltip: 'Scan Cashu QR',
+                      icon: const Icon(
+                        Icons.qr_code_scanner,
+                        color: SonicColors.ink,
+                      ),
+                      onPressed: () async {
+                        final scanned = await QrScannerSheet.scan(
+                          context,
+                          title: 'Scan Cashu Token QR',
+                          hint: 'POINT AT A CASHUA... OR CASHUB... QR CODE',
+                        );
+                        if (scanned != null && mounted) {
+                          setState(() => _tokenController.text = scanned);
+                        }
+                      },
+                    )
+                  : null,
+            ),
           ),
           const SizedBox(height: 10),
           Row(

@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../domain/models/now_playing.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
+import '../../../core/widgets/sonic_visualizer.dart';
 import '../../../core/widgets/station_thumbnail.dart';
 import '../view_models/player_view_model.dart';
 
@@ -58,86 +59,106 @@ class FloatingPlayerBar extends StatelessWidget {
                                   : SonicColors.seamOutline),
                         ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  child: Row(
-                    children: [
-                      StationThumbnail(
-                        url: station.thumbnail,
-                        size: 44,
-                        borderWidth: 2,
-                        highlight: snap.isPlaying,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              primaryLine,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    color: SonicColors.foundation,
-                                    fontSize: 14,
-                                  ),
+                Stack(
+                  children: [
+                    if (snap.isPlaying || snap.isBusy)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+                            child: SonicVisualizer(
+                              isPlaying: snap.isPlaying,
+                              isBuffering: snap.isBusy,
+                              columns: 24,
+                              rows: 8,
+                              height: 58,
+                              subtleBackground: true,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              secondaryLine,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: SonicMachineTheme.labelTech(
-                                fontSize: 10,
-                                color: snap.phase == PlayerPhase.failed
-                                    ? SonicColors.signalRed
-                                    : SonicColors.voltageCyan,
-                                letterSpacing: 0.9,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      _DockControlButton(
-                        icon: snap.isPlaying
-                            ? Icons.pause
-                            : (snap.phase == PlayerPhase.failed
-                                ? Icons.refresh
-                                : Icons.play_arrow),
-                        backgroundColor: snap.isPlaying
-                            ? SonicColors.voltageCyan
-                            : SonicColors.signalRed,
-                        foregroundColor: snap.isPlaying
-                            ? SonicColors.ink
-                            : SonicColors.onSignal,
-                        loading: snap.isBusy,
-                        onTap: () {
-                          if (snap.isPlaying) {
-                            playerViewModel.pause();
-                          } else if (snap.phase == PlayerPhase.failed) {
-                            playerViewModel.retry();
-                          } else {
-                            playerViewModel.resume();
-                          }
-                        },
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
                       ),
-                      const SizedBox(width: 6),
-                      _DockControlButton(
-                        icon: Icons.stop,
-                        backgroundColor: SonicColors.thumbnailDark,
-                        foregroundColor: SonicColors.foundation,
-                        onTap: playerViewModel.stop,
+                      child: Row(
+                        children: [
+                          StationThumbnail(
+                            url: station.thumbnail,
+                            size: 44,
+                            borderWidth: 2,
+                            highlight: snap.isPlaying,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  primaryLine,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        color: SonicColors.foundation,
+                                        fontSize: 14,
+                                      ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  secondaryLine,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: SonicMachineTheme.labelTech(
+                                    fontSize: 10,
+                                    color: snap.phase == PlayerPhase.failed
+                                        ? SonicColors.signalRed
+                                        : SonicColors.voltageCyan,
+                                    letterSpacing: 0.9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _DockControlButton(
+                            icon: snap.isPlaying
+                                ? Icons.pause
+                                : (snap.phase == PlayerPhase.failed
+                                    ? Icons.refresh
+                                    : Icons.play_arrow),
+                            backgroundColor: snap.isPlaying
+                                ? SonicColors.voltageCyan
+                                : SonicColors.signalRed,
+                            foregroundColor: snap.isPlaying
+                                ? SonicColors.ink
+                                : SonicColors.onSignal,
+                            loading: snap.isBusy,
+                            onTap: () {
+                              if (snap.isPlaying) {
+                                playerViewModel.pause();
+                              } else if (snap.phase == PlayerPhase.failed) {
+                                playerViewModel.retry();
+                              } else {
+                                playerViewModel.resume();
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          _DockControlButton(
+                            icon: Icons.stop,
+                            backgroundColor: SonicColors.thumbnailDark,
+                            foregroundColor: SonicColors.foundation,
+                            onTap: playerViewModel.stop,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),

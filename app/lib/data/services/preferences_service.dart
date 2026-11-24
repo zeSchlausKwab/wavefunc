@@ -11,6 +11,7 @@ class PreferencesService {
   static const _keyVolume = 'wavefunc_volume';
   static const _keyNip38Enabled = 'wavefunc_nip38_status_enabled';
   static const _keyOnboardingDone = 'wavefunc_onboarding_done_v1';
+  static const _keyNip60EnabledPrefix = 'wavefunc_nip60_enabled_v1_';
 
   final SharedPreferences _prefs;
 
@@ -52,4 +53,11 @@ class PreferencesService {
 
   Future<void> setOnboardingCompleted(bool value) =>
       _prefs.setBool(_keyOnboardingDone, value);
+
+  /// Per-account NIP-60 wallet opt-in. Switched OFF by default.
+  bool isNip60EnabledForAccount(String pubkey) =>
+      _prefs.getBool('$_keyNip60EnabledPrefix$pubkey') ?? false;
+
+  Future<void> setNip60EnabledForAccount(String pubkey, bool enabled) =>
+      _prefs.setBool('$_keyNip60EnabledPrefix$pubkey', enabled);
 }

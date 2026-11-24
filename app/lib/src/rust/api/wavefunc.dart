@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FrbRelayStatus> connectRelay({required String relayUrl}) =>
     RustLib.instance.api.crateApiWavefuncConnectRelay(relayUrl: relayUrl);
@@ -339,6 +339,29 @@ Future<FrbCashuWalletStatus> initCashuWallet({
   mints: mints,
 );
 
+Future<void> closeCashuWallet() =>
+    RustLib.instance.api.crateApiWavefuncCloseCashuWallet();
+
+Future<FrbNip60RawEvents> fetchNip60RawEvents() =>
+    RustLib.instance.api.crateApiWavefuncFetchNip60RawEvents();
+
+Future<FrbCashuWalletStatus> syncNip60Wallet() =>
+    RustLib.instance.api.crateApiWavefuncSyncNip60Wallet();
+
+Future<FrbCashuWalletStatus> applyDecryptedNip60Events({
+  String? walletContentPlain,
+  required List<FrbNip60DecryptedTokenEvent> decryptedTokens,
+  required List<String> deletedIds,
+  required List<String> discoveredMints,
+  required List<String> walletRelays,
+}) => RustLib.instance.api.crateApiWavefuncApplyDecryptedNip60Events(
+  walletContentPlain: walletContentPlain,
+  decryptedTokens: decryptedTokens,
+  deletedIds: deletedIds,
+  discoveredMints: discoveredMints,
+  walletRelays: walletRelays,
+);
+
 Future<FrbCashuWalletStatus> getCashuStatus() =>
     RustLib.instance.api.crateApiWavefuncGetCashuStatus();
 
@@ -427,6 +450,74 @@ Future<FrbUploadedMedia> uploadMediaToBlossom({
 Future<void> discardMediaJob({required String jobId}) =>
     RustLib.instance.api.crateApiWavefuncDiscardMediaJob(jobId: jobId);
 
+Future<List<FrbMusicBrainzRecording>> searchRecordings({
+  required String query,
+  String? artist,
+  required int limit,
+}) => RustLib.instance.api.crateApiWavefuncSearchRecordings(
+  query: query,
+  artist: artist,
+  limit: limit,
+);
+
+Future<List<FrbYouTubeSearchResult>> searchYoutube({
+  required String query,
+  required int limit,
+}) => RustLib.instance.api.crateApiWavefuncSearchYoutube(
+  query: query,
+  limit: limit,
+);
+
+Future<FrbBlossomAuthResult> signBlossomUploadAuth({
+  required String sha256,
+  required String blossomUrl,
+  required String format,
+}) => RustLib.instance.api.crateApiWavefuncSignBlossomUploadAuth(
+  sha256: sha256,
+  blossomUrl: blossomUrl,
+  format: format,
+);
+
+Future<FrbActionOutcome> attachSongAudioUrl({
+  required String songId,
+  required String audioUrl,
+  String? youtubeId,
+}) => RustLib.instance.api.crateApiWavefuncAttachSongAudioUrl(
+  songId: songId,
+  audioUrl: audioUrl,
+  youtubeId: youtubeId,
+);
+
+Future<FrbNostrProfile> fetchUserProfile({required String pubkeyOrNpub}) =>
+    RustLib.instance.api.crateApiWavefuncFetchUserProfile(
+      pubkeyOrNpub: pubkeyOrNpub,
+    );
+
+Future<List<FrbSavedSong>> fetchSignalSongs({required int limit}) =>
+    RustLib.instance.api.crateApiWavefuncFetchSignalSongs(limit: limit);
+
+Future<FrbActionOutcome> publishStation({
+  required String name,
+  required String streamUrl,
+  required String format,
+  required int bitrateBps,
+  String? description,
+  String? website,
+  String? countryCode,
+  String? thumbnail,
+  required List<String> genres,
+}) => RustLib.instance.api.crateApiWavefuncPublishStation(
+  name: name,
+  streamUrl: streamUrl,
+  format: format,
+  bitrateBps: bitrateBps,
+  description: description,
+  website: website,
+  countryCode: countryCode,
+  thumbnail: thumbnail,
+  genres: genres,
+);
+
 class FrbAccountSessionInfo {
   final String pubkey;
   final String npub;
@@ -484,6 +575,24 @@ class FrbActionOutcome {
           eventId == other.eventId &&
           unsignedEventJson == other.unsignedEventJson &&
           targetAddress == other.targetAddress;
+}
+
+class FrbBlossomAuthResult {
+  final String? signedEventJson;
+  final String? unsignedEventJson;
+
+  const FrbBlossomAuthResult({this.signedEventJson, this.unsignedEventJson});
+
+  @override
+  int get hashCode => signedEventJson.hashCode ^ unsignedEventJson.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbBlossomAuthResult &&
+          runtimeType == other.runtimeType &&
+          signedEventJson == other.signedEventJson &&
+          unsignedEventJson == other.unsignedEventJson;
 }
 
 class FrbBunkerLoginResult {
@@ -616,16 +725,27 @@ class FrbCashuWalletStatus {
   final bool initialized;
   final BigInt totalBalanceSats;
   final List<FrbCashuMintBalance> mints;
+  final bool nip60Synced;
+  final List<String> walletRelays;
+  final int tokenEventCount;
 
   const FrbCashuWalletStatus({
     required this.initialized,
     required this.totalBalanceSats,
     required this.mints,
+    required this.nip60Synced,
+    required this.walletRelays,
+    required this.tokenEventCount,
   });
 
   @override
   int get hashCode =>
-      initialized.hashCode ^ totalBalanceSats.hashCode ^ mints.hashCode;
+      initialized.hashCode ^
+      totalBalanceSats.hashCode ^
+      mints.hashCode ^
+      nip60Synced.hashCode ^
+      walletRelays.hashCode ^
+      tokenEventCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -634,7 +754,10 @@ class FrbCashuWalletStatus {
           runtimeType == other.runtimeType &&
           initialized == other.initialized &&
           totalBalanceSats == other.totalBalanceSats &&
-          mints == other.mints;
+          mints == other.mints &&
+          nip60Synced == other.nip60Synced &&
+          walletRelays == other.walletRelays &&
+          tokenEventCount == other.tokenEventCount;
 }
 
 class FrbCommunityPost {
@@ -787,6 +910,141 @@ class FrbGeneratedAccount {
           pubkey == other.pubkey &&
           npub == other.npub &&
           nsec == other.nsec;
+}
+
+class FrbMusicBrainzRecording {
+  final String id;
+  final String title;
+  final String artist;
+  final String? artistId;
+  final String? release;
+  final String? releaseId;
+  final String? releaseDate;
+  final BigInt? durationMs;
+  final int score;
+  final List<String> tags;
+
+  const FrbMusicBrainzRecording({
+    required this.id,
+    required this.title,
+    required this.artist,
+    this.artistId,
+    this.release,
+    this.releaseId,
+    this.releaseDate,
+    this.durationMs,
+    required this.score,
+    required this.tags,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      artistId.hashCode ^
+      release.hashCode ^
+      releaseId.hashCode ^
+      releaseDate.hashCode ^
+      durationMs.hashCode ^
+      score.hashCode ^
+      tags.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbMusicBrainzRecording &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          artist == other.artist &&
+          artistId == other.artistId &&
+          release == other.release &&
+          releaseId == other.releaseId &&
+          releaseDate == other.releaseDate &&
+          durationMs == other.durationMs &&
+          score == other.score &&
+          tags == other.tags;
+}
+
+class FrbNip60DecryptedTokenEvent {
+  final String id;
+  final String plaintext;
+
+  const FrbNip60DecryptedTokenEvent({
+    required this.id,
+    required this.plaintext,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ plaintext.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbNip60DecryptedTokenEvent &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          plaintext == other.plaintext;
+}
+
+class FrbNip60RawEvents {
+  final String? walletEventContent;
+  final List<FrbNip60RawTokenEvent> tokenEvents;
+  final List<String> deletedIds;
+  final List<String> walletRelays;
+  final List<String> discoveredMints;
+
+  const FrbNip60RawEvents({
+    this.walletEventContent,
+    required this.tokenEvents,
+    required this.deletedIds,
+    required this.walletRelays,
+    required this.discoveredMints,
+  });
+
+  @override
+  int get hashCode =>
+      walletEventContent.hashCode ^
+      tokenEvents.hashCode ^
+      deletedIds.hashCode ^
+      walletRelays.hashCode ^
+      discoveredMints.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbNip60RawEvents &&
+          runtimeType == other.runtimeType &&
+          walletEventContent == other.walletEventContent &&
+          tokenEvents == other.tokenEvents &&
+          deletedIds == other.deletedIds &&
+          walletRelays == other.walletRelays &&
+          discoveredMints == other.discoveredMints;
+}
+
+class FrbNip60RawTokenEvent {
+  final String id;
+  final BigInt createdAt;
+  final String content;
+
+  const FrbNip60RawTokenEvent({
+    required this.id,
+    required this.createdAt,
+    required this.content,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ createdAt.hashCode ^ content.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbNip60RawTokenEvent &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          createdAt == other.createdAt &&
+          content == other.content;
 }
 
 class FrbNostrConnectChallenge {
@@ -1486,6 +1744,45 @@ class FrbUploadedMedia {
           sha256 == other.sha256 &&
           size == other.size &&
           mimeType == other.mimeType;
+}
+
+class FrbYouTubeSearchResult {
+  final String videoId;
+  final String url;
+  final String title;
+  final BigInt? durationSecs;
+  final String? channel;
+  final String? thumbnailUrl;
+
+  const FrbYouTubeSearchResult({
+    required this.videoId,
+    required this.url,
+    required this.title,
+    this.durationSecs,
+    this.channel,
+    this.thumbnailUrl,
+  });
+
+  @override
+  int get hashCode =>
+      videoId.hashCode ^
+      url.hashCode ^
+      title.hashCode ^
+      durationSecs.hashCode ^
+      channel.hashCode ^
+      thumbnailUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbYouTubeSearchResult &&
+          runtimeType == other.runtimeType &&
+          videoId == other.videoId &&
+          url == other.url &&
+          title == other.title &&
+          durationSecs == other.durationSecs &&
+          channel == other.channel &&
+          thumbnailUrl == other.thumbnailUrl;
 }
 
 class FrbZapInvoiceResult {

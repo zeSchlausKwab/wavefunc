@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use wavefunc_core::{
-    AccountSessionInfo, ActionOutcome, BunkerLoginResult, CashuMintBalance, CashuMintQuoteInfo,
-    CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost, CoreConfig, FacetCount,
-    FeaturedList, GeneratedAccount, NostrConnectChallenge, NostrProfile, NowPlayingMetadata,
-    NwcWalletStatus, PreparedMedia, RecipientNutzapInfo, RelayStatus, SavedSong, SignerKind,
-    SongCrate, Station, StationCardCounts, StationComment, StationFacets, StationSocialSummary,
-    StationStream, StreamQuality, UploadedMedia, WavefuncCore, ZapInvoiceResult, ZapPaymentResult,
+    AccountSessionInfo, ActionOutcome, BlossomAuthResult, BunkerLoginResult, CashuMintBalance,
+    CashuMintQuoteInfo, CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost,
+    CoreConfig, FacetCount, FeaturedList, GeneratedAccount, MusicBrainzRecording,
+    Nip60DecryptedTokenEvent, Nip60RawEvents, Nip60RawTokenEvent, NostrConnectChallenge,
+    NostrProfile, NowPlayingMetadata, NwcWalletStatus, PreparedMedia, RecipientNutzapInfo,
+    RelayStatus, SavedSong, SignerKind, SongCrate, Station, StationCardCounts, StationComment,
+    StationFacets, StationSocialSummary, StationStream, StreamQuality, UploadedMedia, WavefuncCore,
+    YouTubeSearchResult, ZapInvoiceResult, ZapPaymentResult,
 };
 
 static CORE: OnceCell<Arc<WavefuncCore>> = OnceCell::new();
@@ -1072,6 +1074,9 @@ pub struct FrbCashuWalletStatus {
     pub initialized: bool,
     pub total_balance_sats: u64,
     pub mints: Vec<FrbCashuMintBalance>,
+    pub nip60_synced: bool,
+    pub wallet_relays: Vec<String>,
+    pub token_event_count: u32,
 }
 
 impl From<CashuWalletStatus> for FrbCashuWalletStatus {
@@ -1080,6 +1085,59 @@ impl From<CashuWalletStatus> for FrbCashuWalletStatus {
             initialized: s.initialized,
             total_balance_sats: s.total_balance_sats,
             mints: s.mints.into_iter().map(Into::into).collect(),
+            nip60_synced: s.nip60_synced,
+            wallet_relays: s.wallet_relays,
+            token_event_count: s.token_event_count,
+        }
+    }
+}
+
+pub struct FrbNip60RawTokenEvent {
+    pub id: String,
+    pub created_at: u64,
+    pub content: String,
+}
+
+impl From<Nip60RawTokenEvent> for FrbNip60RawTokenEvent {
+    fn from(e: Nip60RawTokenEvent) -> Self {
+        Self {
+            id: e.id,
+            created_at: e.created_at,
+            content: e.content,
+        }
+    }
+}
+
+pub struct FrbNip60RawEvents {
+    pub wallet_event_content: Option<String>,
+    pub token_events: Vec<FrbNip60RawTokenEvent>,
+    pub deleted_ids: Vec<String>,
+    pub wallet_relays: Vec<String>,
+    pub discovered_mints: Vec<String>,
+}
+
+impl From<Nip60RawEvents> for FrbNip60RawEvents {
+    fn from(r: Nip60RawEvents) -> Self {
+        Self {
+            wallet_event_content: r.wallet_event_content,
+            token_events: r.token_events.into_iter().map(Into::into).collect(),
+            deleted_ids: r.deleted_ids,
+            wallet_relays: r.wallet_relays,
+            discovered_mints: r.discovered_mints,
+        }
+    }
+}
+
+pub struct FrbNip60DecryptedTokenEvent {
+    pub id: String,
+    pub plaintext: String,
+}
+
+impl From<FrbNip60DecryptedTokenEvent> for Nip60DecryptedTokenEvent {
+    fn from(e: FrbNip60DecryptedTokenEvent) -> Self {
+        Self {
+            id: e.id,
+            plaintext: e.plaintext,
         }
     }
 }
@@ -1199,6 +1257,48 @@ pub async fn init_cashu_wallet(
 ) -> Result<FrbCashuWalletStatus, String> {
     core()
         .init_cashu_wallet(&db_dir, &seed_material, &mints)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn close_cashu_wallet() {
+    core().close_cashu_wallet().await;
+}
+
+pub async fn fetch_nip60_raw_events() -> Result<FrbNip60RawEvents, String> {
+    core()
+        .fetch_nip60_raw_events()
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn sync_nip60_wallet() -> Result<FrbCashuWalletStatus, String> {
+    core()
+        .sync_nip60_wallet()
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn apply_decrypted_nip60_events(
+    wallet_content_plain: Option<String>,
+    decrypted_tokens: Vec<FrbNip60DecryptedTokenEvent>,
+    deleted_ids: Vec<String>,
+    discovered_mints: Vec<String>,
+    wallet_relays: Vec<String>,
+) -> Result<FrbCashuWalletStatus, String> {
+    let tokens: Vec<Nip60DecryptedTokenEvent> =
+        decrypted_tokens.into_iter().map(Into::into).collect();
+    core()
+        .apply_decrypted_nip60_events(
+            wallet_content_plain.as_deref(),
+            &tokens,
+            &deleted_ids,
+            &discovered_mints,
+            &wallet_relays,
+        )
         .await
         .map(Into::into)
         .map_err(|e| e.to_string())
@@ -1328,5 +1428,165 @@ pub async fn discard_media_job(job_id: String) -> Result<(), String> {
     core()
         .discard_media_job(&job_id)
         .await
+        .map_err(|e| e.to_string())
+}
+
+// ─── Song Search (MusicBrainz), YouTube Search & Blossom Auth ────────────────
+
+pub struct FrbMusicBrainzRecording {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub artist_id: Option<String>,
+    pub release: Option<String>,
+    pub release_id: Option<String>,
+    pub release_date: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub score: u32,
+    pub tags: Vec<String>,
+}
+
+impl From<MusicBrainzRecording> for FrbMusicBrainzRecording {
+    fn from(r: MusicBrainzRecording) -> Self {
+        Self {
+            id: r.id,
+            title: r.title,
+            artist: r.artist,
+            artist_id: r.artist_id,
+            release: r.release,
+            release_id: r.release_id,
+            release_date: r.release_date,
+            duration_ms: r.duration_ms,
+            score: r.score,
+            tags: r.tags,
+        }
+    }
+}
+
+pub struct FrbYouTubeSearchResult {
+    pub video_id: String,
+    pub url: String,
+    pub title: String,
+    pub duration_secs: Option<u64>,
+    pub channel: Option<String>,
+    pub thumbnail_url: Option<String>,
+}
+
+impl From<YouTubeSearchResult> for FrbYouTubeSearchResult {
+    fn from(y: YouTubeSearchResult) -> Self {
+        Self {
+            video_id: y.video_id,
+            url: y.url,
+            title: y.title,
+            duration_secs: y.duration_secs,
+            channel: y.channel,
+            thumbnail_url: y.thumbnail_url,
+        }
+    }
+}
+
+pub struct FrbBlossomAuthResult {
+    pub signed_event_json: Option<String>,
+    pub unsigned_event_json: Option<String>,
+}
+
+impl From<BlossomAuthResult> for FrbBlossomAuthResult {
+    fn from(r: BlossomAuthResult) -> Self {
+        Self {
+            signed_event_json: r.signed_event_json,
+            unsigned_event_json: r.unsigned_event_json,
+        }
+    }
+}
+
+pub async fn search_recordings(
+    query: String,
+    artist: Option<String>,
+    limit: u32,
+) -> Result<Vec<FrbMusicBrainzRecording>, String> {
+    core()
+        .search_recordings(&query, artist.as_deref(), limit)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn search_youtube(
+    query: String,
+    limit: u32,
+) -> Result<Vec<FrbYouTubeSearchResult>, String> {
+    core()
+        .search_youtube(&query, limit)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn sign_blossom_upload_auth(
+    sha256: String,
+    blossom_url: String,
+    format: String,
+) -> Result<FrbBlossomAuthResult, String> {
+    core()
+        .sign_blossom_upload_auth(&sha256, &blossom_url, &format)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn attach_song_audio_url(
+    song_id: String,
+    audio_url: String,
+    youtube_id: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .attach_song_audio_url(&song_id, &audio_url, youtube_id.as_deref())
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_user_profile(pubkey_or_npub: String) -> Result<FrbNostrProfile, String> {
+    core()
+        .fetch_user_profile(&pubkey_or_npub)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_signal_songs(limit: u32) -> Result<Vec<FrbSavedSong>, String> {
+    core()
+        .fetch_signal_songs(limit as usize)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn publish_station(
+    name: String,
+    stream_url: String,
+    format: String,
+    bitrate_bps: u32,
+    description: Option<String>,
+    website: Option<String>,
+    country_code: Option<String>,
+    thumbnail: Option<String>,
+    genres: Vec<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .publish_station(
+            &name,
+            &stream_url,
+            &format,
+            bitrate_bps,
+            description.as_deref(),
+            website.as_deref(),
+            country_code.as_deref(),
+            thumbnail.as_deref(),
+            &genres,
+        )
+        .await
+        .map(Into::into)
         .map_err(|e| e.to_string())
 }

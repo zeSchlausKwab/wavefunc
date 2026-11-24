@@ -8,9 +8,6 @@ on:
 permissions:
   contents: write
 
-env:
-  RELAY_URL: wss://relay.wavefunc.live
-
 jobs:
   create-release:
     runs-on: ubuntu-latest
@@ -27,42 +24,16 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
-        id: changelog
         run: |
-          # Get previous tag
           PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
           if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "${GITHUB_REF#refs/tags/}" ]; then
             PREV_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
-          echo "Generating changelog from $PREV_TAG to ${GITHUB_REF#refs/tags/}..."
           CHANGES=$(git log "$PREV_TAG"..HEAD --pretty=format:"- %s" --no-merges)
-          # Write to file for the release body
           cat > RELEASE_NOTES.md << 'HEREDOC'
           ## What's Changed
           HEREDOC
           echo "$CHANGES" >> RELEASE_NOTES.md
-          cat >> RELEASE_NOTES.md << 'HEREDOC'
-
-          ## Android downloader licensing
-
-          WaveFunc source remains MIT licensed. The Android APK also contains
-          youtubedl-android 0.18.1 under GPL-3.0. Its exact upstream source and
-          GPL license are attached to this release; WaveFunc corresponding
-          source is the source archive for this release tag.
-          HEREDOC
-
-      - name: Prepare Android GPL source and license
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 3 \
-            https://github.com/yausername/youtubedl-android/archive/refs/tags/0.18.1.tar.gz \
-            --output youtubedl-android-0.18.1-source.tar.gz
-          echo "08833449d671142c34325203cbfcca31c4fa668a0c4b8c0c31a2e4354ce11b98  youtubedl-android-0.18.1-source.tar.gz" | sha256sum --check
-          curl --fail --location --retry 3 \
-            https://raw.githubusercontent.com/yausername/youtubedl-android/0.18.1/LICENSE \
-            --output GPL-3.0-youtubedl-android.txt
-          echo "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986  GPL-3.0-youtubedl-android.txt" | sha256sum --check
 
       - name: Create GitHub Release
         id: create
@@ -73,193 +44,163 @@ jobs:
           body_path: RELEASE_NOTES.md
           draft: true
           prerelease: false
-          files: |
-            youtubedl-android-0.18.1-source.tar.gz
-            GPL-3.0-youtubedl-android.txt
 
-  build-desktop:
+  build-macos:
     needs: create-release
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            target: universal-apple-darwin
-            label: macOS
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            label: Linux x64
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
-            label: Windows x64
-    runs-on: ${{ matrix.platform }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: '1.3.11'
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+          targets: aarch64-apple-darwin
+      - uses: subosito/flutter-action@v2
         with:
-          targets: ${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+          channel: stable
+          cache: true
+      - name: Build Rust core (macOS arm64)
+        run: ./app/scripts/build-rust-desktop.sh release
+      - name: Analyze, test & build macOS app
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+          flutter build macos --release
+      - name: Package macOS release
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          cd app/build/macos/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent wavefunc_app.app "WaveFunc-${VERSION}-macos-arm64.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: app/build/macos/Build/Products/Release/WaveFunc-*-macos-arm64.zip
 
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux Flutter dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev \
-            libgtk-3-dev
-
-      - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Prepare desktop media engine (macOS)
-        if: matrix.platform == 'macos-latest'
-        shell: bash
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libssl-dev \
+            libayatana-appindicator3-dev libsecret-1-dev libjsoncpp-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build Rust core (Linux x64)
+        run: ./app/scripts/build-rust-desktop.sh release
+      - name: Build Linux release
+        working-directory: app
         run: |
-          set -euo pipefail
-          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno-arm /tmp/wavefunc-deno-x64
-          curl --fail --location --retry 3 \
-            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
-            --output src-tauri/resources/bin/yt-dlp
-          curl --fail --location --retry 3 \
-            https://github.com/denoland/deno/releases/download/v2.8.1/deno-aarch64-apple-darwin.zip \
-            --output /tmp/deno-arm.zip
-          curl --fail --location --retry 3 \
-            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-apple-darwin.zip \
-            --output /tmp/deno-x64.zip
-          unzip -q /tmp/deno-arm.zip -d /tmp/wavefunc-deno-arm
-          unzip -q /tmp/deno-x64.zip -d /tmp/wavefunc-deno-x64
-          mv /tmp/wavefunc-deno-arm/deno src-tauri/resources/bin/deno-aarch64
-          mv /tmp/wavefunc-deno-x64/deno src-tauri/resources/bin/deno-x86_64
-          chmod +x src-tauri/resources/bin/yt-dlp \
-            src-tauri/resources/bin/deno-aarch64 \
-            src-tauri/resources/bin/deno-x86_64
-
-      - name: Prepare desktop media engine (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
-        shell: bash
+          flutter pub get
+          flutter build linux --release
+      - name: Package Linux release
         run: |
-          set -euo pipefail
-          mkdir -p src-tauri/resources/bin /tmp/wavefunc-deno
-          curl --fail --location --retry 3 \
-            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
-            --output src-tauri/resources/bin/yt-dlp
-          curl --fail --location --retry 3 \
-            https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-unknown-linux-gnu.zip \
-            --output /tmp/deno.zip
-          unzip -q /tmp/deno.zip -d /tmp/wavefunc-deno
-          mv /tmp/wavefunc-deno/deno src-tauri/resources/bin/deno
-          chmod +x src-tauri/resources/bin/yt-dlp src-tauri/resources/bin/deno
+          VERSION="${{ needs.create-release.outputs.version }}"
+          tar -czf "WaveFunc-${VERSION}-linux-x64.tar.gz" -C app/build/linux/x64/release bundle
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: WaveFunc-*-linux-x64.tar.gz
 
-      - name: Prepare desktop media engine (Windows)
-        if: matrix.platform == 'windows-latest'
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build Rust core (Windows x64)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force src-tauri/resources/bin | Out-Null
-          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile src-tauri/resources/bin/yt-dlp.exe
-          Invoke-WebRequest https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip -OutFile $env:RUNNER_TEMP/deno.zip
-          Expand-Archive -Force $env:RUNNER_TEMP/deno.zip $env:RUNNER_TEMP/wavefunc-deno
-          Move-Item $env:RUNNER_TEMP/wavefunc-deno/deno.exe src-tauri/resources/bin/deno.exe
-
-      - name: Check types and tests
-        run: bun run typecheck && bun run test
-
-      - name: Build frontend
-        run: bun run build
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cargo build --manifest-path app/rust/Cargo.toml --release
+          New-Item -ItemType Directory -Force app/windows/lib | Out-Null
+          Copy-Item app/rust/target/release/wavefunc_bridge.dll app/windows/lib/wavefunc_bridge.dll
+      - name: Build Windows release
+        working-directory: app
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          $version = "${{ needs.create-release.outputs.version }}"
+          Compress-Archive -Path app/build/windows/x64/runner/Release/* -DestinationPath "WaveFunc-$version-windows-x64.zip"
+      - uses: softprops/action-gh-release@v2
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: WaveFunc ${{ needs.create-release.outputs.version }}
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          releaseBody: ''
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: WaveFunc-*-windows-x64.zip
 
   build-android:
     needs: create-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.11'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
-          # The legacy "tools" package is no longer available from Google.
           packages: platform-tools
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
-
-      - name: Install NDK
-        run: sdkmanager "ndk;27.0.12077973"
-
-      - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Check types and tests
-        run: bun run typecheck && bun run test
-
-      - name: Build frontend
-        run: bun run build
-
-      - name: Initialize Tauri Android project
-        run: bunx tauri android init
-
-      - name: Generate app icons
-        run: bunx tauri icon src-tauri/icons/icon.png
-
-      - name: Setup keystore and signing
-        run: |
-          mkdir -p src-tauri/keystore
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/keystore/wavefunc.keystore
-          printf 'password=%s\nkeyAlias=wavefunc\nstoreFile=../../../keystore/wavefunc.keystore\n' \
-            "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            > src-tauri/gen/android/keystore.properties
-          cp src-tauri/android-template/build.gradle.kts src-tauri/gen/android/app/build.gradle.kts
-          cp src-tauri/android-template/root-build.gradle.kts src-tauri/gen/android/build.gradle.kts
-
-      - name: Build Android APK
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: taiki-e/install-action@cargo-ndk
+      - name: Install Android NDK
+        run: yes | sdkmanager "ndk;28.2.13676358"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build Rust core (Android ABIs)
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-        run: bunx tauri android build --apk
-
-      - name: Upload APK to release
-        uses: softprops/action-gh-release@v2
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+        run: |
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 \
+            -o app/android/app/src/main/jniLibs \
+            build --manifest-path app/rust/Cargo.toml --release
+      - name: Setup Android signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > app/android/wavefunc.keystore
+            printf 'password=%s\nkeyAlias=wavefunc\nstoreFile=wavefunc.keystore\n' \
+              "$ANDROID_KEYSTORE_PASSWORD" \
+              > app/android/keystore.properties
+          fi
+      - name: Build Android release APK
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build apk --release
+      - name: Rename release APK
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          cp app/build/app/outputs/flutter-apk/app-release.apk "WaveFunc-${VERSION}-android-universal.apk"
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
-          files: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          files: WaveFunc-*-android-universal.apk
 
   publish-release:
-    needs: [create-release, build-desktop, build-android]
+    needs: [create-release, build-macos, build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

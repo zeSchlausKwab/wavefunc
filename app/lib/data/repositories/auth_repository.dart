@@ -37,6 +37,12 @@ class AuthRepository {
   Future<void> setOnboardingCompleted(bool completed) =>
       _preferences.setOnboardingCompleted(completed);
 
+  bool isNip60EnabledForAccount(String pubkey) =>
+      _preferences.isNip60EnabledForAccount(pubkey);
+
+  Future<void> setNip60EnabledForAccount(String pubkey, bool enabled) =>
+      _preferences.setNip60EnabledForAccount(pubkey, enabled);
+
   Future<bool> isAmberAvailable() => _amber.isAvailable();
 
   /// Restore previously active Nostr session and list of saved accounts.
@@ -429,6 +435,69 @@ class AuthRepository {
     return _cashuStatus;
   }
 
+  Future<void> closeCashuWallet() async {
+    try {
+      await _backend.closeCashuWallet();
+    } catch (_) {}
+    _cashuStatus = const CashuWalletStatus();
+  }
+
+  /// Sync NIP-60 wallet metadata (`kind 17375`) and encrypted proofs (`kind 7375`)
+  /// from Nostr relays, decrypting via NIP-44 (LocalKey, NIP-46 Bunker, or Android Amber).
+  Future<CashuWalletStatus> syncNip60Wallet() async {
+    final active = _session;
+    if (active == null) {
+      throw StateError('Sign in to sync your NIP-60 wallet.');
+    }
+
+    if (active.signerKind == SignerKind.amber) {
+      final raw = await _backend.fetchNip60RawEvents();
+      String? walletPlain;
+      if (raw.walletEventContent != null && raw.walletEventContent!.isNotEmpty) {
+        try {
+          walletPlain = await _amber.nip44Decrypt(
+            ciphertext: raw.walletEventContent!,
+            pubkey: active.pubkey,
+            currentUser: active.pubkey,
+            signerPackage: active.amberPackage,
+          );
+        } catch (_) {}
+      }
+
+      final decryptedTokens = <Nip60DecryptedTokenEvent>[];
+      for (final tok in raw.tokenEvents) {
+        try {
+          final plain = await _amber.nip44Decrypt(
+            ciphertext: tok.content,
+            pubkey: active.pubkey,
+            currentUser: active.pubkey,
+            signerPackage: active.amberPackage,
+          );
+          decryptedTokens.add(Nip60DecryptedTokenEvent(id: tok.id, plaintext: plain));
+        } catch (_) {
+          // Skip unreadable or rejected individual token events.
+        }
+      }
+
+      _cashuStatus = await _backend.applyDecryptedNip60Events(
+        walletContentPlain: walletPlain,
+        decryptedTokens: decryptedTokens,
+        deletedIds: raw.deletedIds,
+        discoveredMints: raw.discoveredMints,
+        walletRelays: raw.walletRelays,
+      );
+    } else {
+      _cashuStatus = await _backend.syncNip60Wallet();
+    }
+
+    if (_cashuStatus.mints.isNotEmpty) {
+      await _storage.saveCashuMints(
+        _cashuStatus.mints.map((m) => m.mintUrl).toList(),
+      );
+    }
+    return _cashuStatus;
+  }
+
   Future<CashuWalletStatus> refreshCashu() async {
     _cashuStatus = await _backend.getCashuStatus();
     return _cashuStatus;
@@ -523,5 +592,31 @@ class AuthRepository {
     );
     _cashuStatus = await _backend.getCashuStatus();
     return outcome;
+  }
+
+  /// Sign a BUD-02 Blossom upload auth event (`kind 24242`) without publishing to relays.
+  /// Transparently delegates to Android NIP-55 Amber when signed in with Amber.
+  Future<String> signBlossomUploadAuth({
+    required String sha256,
+    required String blossomUrl,
+    required String format,
+  }) async {
+    final res = await _backend.signBlossomUploadAuth(
+      sha256: sha256,
+      blossomUrl: blossomUrl,
+      format: format,
+    );
+    if (res.signedEventJson != null && res.signedEventJson!.isNotEmpty) {
+      return res.signedEventJson!;
+    }
+    final unsigned = res.unsignedEventJson;
+    if (unsigned == null || unsigned.isEmpty) {
+      throw StateError('Signer did not return Blossom upload authorization.');
+    }
+    return _amber.signEvent(
+      unsignedEventJson: unsigned,
+      currentUser: _session?.pubkey,
+      signerPackage: _session?.amberPackage,
+    );
   }
 }

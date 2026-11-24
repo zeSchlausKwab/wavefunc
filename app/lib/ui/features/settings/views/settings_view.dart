@@ -3,10 +3,12 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../data/services/wavefunc_backend.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
+import '../../../core/widgets/qr_scanner_sheet.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../discover/view_models/discover_view_model.dart';
+import '../../discover/views/publish_station_sheet.dart';
 import '../../wallet/views/cashu_wallet_plate.dart';
 
 class SettingsView extends StatefulWidget {
@@ -355,9 +357,30 @@ class _SettingsViewState extends State<SettingsView> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: _nwcController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'nostr+walletconnect://...',
-                        prefixIcon: Icon(Icons.bolt, color: SonicColors.ink),
+                        prefixIcon:
+                            const Icon(Icons.bolt, color: SonicColors.ink),
+                        suffixIcon: QrScannerSheet.isSupported
+                            ? IconButton(
+                                tooltip: 'Scan NWC QR',
+                                icon: const Icon(
+                                  Icons.qr_code_scanner,
+                                  color: SonicColors.ink,
+                                ),
+                                onPressed: () async {
+                                  final scanned = await QrScannerSheet.scan(
+                                    context,
+                                    title: 'Scan NWC Wallet QR',
+                                    hint:
+                                        'POINT AT A NOSTR+WALLETCONNECT:// QR CODE',
+                                  );
+                                  if (scanned != null && mounted) {
+                                    setState(() => _nwcController.text = scanned);
+                                  }
+                                },
+                              )
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -378,6 +401,63 @@ class _SettingsViewState extends State<SettingsView> {
             // ── Embedded Cashu ecash wallet ──
             if (auth.supportsSigning) ...[
               CashuWalletPlate(authViewModel: auth),
+              const SizedBox(height: 18),
+            ],
+
+            // ── Publish Radio Station Plate ──
+            if (auth.supportsSigning) ...[
+              SonicPlate(
+                backgroundColor: SonicColors.surfacePlate,
+                shadowOffset: const Offset(4, 4),
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'BROADCAST_DIRECTORY // KIND 31237',
+                            style: SonicMachineTheme.labelTech(
+                              fontSize: 10,
+                              color: SonicColors.signalRed,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Publish a new internet radio station directly to the Nostr relay.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SonicPowerButton(
+                      label: 'Submit Station',
+                      icon: Icons.cell_tower,
+                      compact: true,
+                      onPressed: () async {
+                        if (!auth.isLoggedIn) {
+                          widget.onRequestLogin();
+                          return;
+                        }
+                        final published = await PublishStationSheet.open(
+                          context,
+                          authViewModel: auth,
+                          discoverViewModel: vm,
+                        );
+                        if (published == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Station published to Nostr!'),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 18),
             ],
 

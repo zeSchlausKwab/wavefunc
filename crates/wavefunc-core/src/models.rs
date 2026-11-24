@@ -322,6 +322,37 @@ pub struct CashuWalletStatus {
     pub initialized: bool,
     pub total_balance_sats: u64,
     pub mints: Vec<CashuMintBalance>,
+    pub nip60_synced: bool,
+    pub wallet_relays: Vec<String>,
+    pub token_event_count: u32,
+}
+
+/// Encrypted NIP-60 token event fetched from relays (for external NIP-55 Amber decryption).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Nip60RawTokenEvent {
+    pub id: String,
+    pub created_at: u64,
+    pub content: String,
+}
+
+/// Bundle of raw encrypted NIP-60 events returned when an external signer (Amber) must decrypt.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Nip60RawEvents {
+    pub wallet_event_content: Option<String>,
+    pub token_events: Vec<Nip60RawTokenEvent>,
+    pub deleted_ids: Vec<String>,
+    pub wallet_relays: Vec<String>,
+    pub discovered_mints: Vec<String>,
+}
+
+/// Decrypted NIP-60 token event passed back into Rust after external Amber NIP-44 decryption.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Nip60DecryptedTokenEvent {
+    pub id: String,
+    pub plaintext: String,
 }
 
 /// NUT-04 Lightning deposit quote for minting Cashu ecash.
@@ -381,6 +412,42 @@ pub struct UploadedMedia {
     pub sha256: String,
     pub size: u64,
     pub mime_type: String,
+}
+
+/// MusicBrainz recording result returned by Song Search.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MusicBrainzRecording {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub artist_id: Option<String>,
+    pub release: Option<String>,
+    pub release_id: Option<String>,
+    pub release_date: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub score: u32,
+    pub tags: Vec<String>,
+}
+
+/// YouTube video candidate returned by ContextVM `search_youtube` for Blossom backup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YouTubeSearchResult {
+    pub video_id: String,
+    pub url: String,
+    pub title: String,
+    pub duration_secs: Option<u64>,
+    pub channel: Option<String>,
+    pub thumbnail_url: Option<String>,
+}
+
+/// Signed (or unsigned-for-Amber) BUD-02 Blossom upload auth event (`kind 24242`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlossomAuthResult {
+    pub signed_event_json: Option<String>,
+    pub unsigned_event_json: Option<String>,
 }
 
 /// Parsed WaveFunc community feed note (`kind 1` or legacy `kind 1111` tagged `#wavefunc`).

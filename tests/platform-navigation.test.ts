@@ -80,47 +80,17 @@ describe("platform-aware external navigation", () => {
     }
   });
 
-  test("grants only the external URI schemes WaveFunc uses", () => {
-    const capability = JSON.parse(
-      read("src-tauri/capabilities/default.json"),
-    ) as { permissions: Array<string | { identifier: string; allow: Array<{ url: string }> }> };
-    const opener = capability.permissions.find(
-      (permission) =>
-        typeof permission !== "string" &&
-        permission.identifier === "opener:allow-open-url",
-    );
+  test("declares only the external URI schemes WaveFunc uses on Android and web", () => {
+    const manifest = read("app/android/app/src/main/AndroidManifest.xml");
 
-    expect(opener).toEqual({
-      identifier: "opener:allow-open-url",
-      allow: [
-        { url: "http://*" },
-        { url: "https://*" },
-        { url: "mailto:*" },
-        { url: "tel:*" },
-        { url: "lightning:*" },
-        { url: "nostrconnect:*" },
-        { url: "bunker:*" },
-      ],
-    });
-
-    expect(read("src-tauri/src/lib.rs")).toContain("tauri_plugin_opener::init()");
+    expect(manifest).toContain('android:scheme="https"');
+    expect(manifest).toContain('android:scheme="http"');
+    expect(manifest).toContain('android:scheme="nostrsigner"');
+    expect(manifest).toContain('android:scheme="lightning"');
     expect(read("src/lib/openUrl.ts")).not.toContain("plugin-shell");
   });
 
-  test("uses the scoped native HTTP client for secure LNURL requests", async () => {
-    const capability = JSON.parse(
-      read("src-tauri/capabilities/default.json"),
-    ) as { permissions: Array<string | { identifier: string; allow: Array<{ url: string }> }> };
-    const http = capability.permissions.find(
-      (permission) =>
-        typeof permission !== "string" && permission.identifier === "http:default",
-    );
-
-    expect(http).toEqual({
-      identifier: "http:default",
-      allow: [{ url: "https://*" }],
-    });
-    expect(read("src-tauri/src/lib.rs")).toContain("tauri_plugin_http::init()");
+  test("enforces secure HTTPS LNURL requests in platformFetch", async () => {
     expect(read("src/components/SupportPopover.tsx")).toContain("platformFetch(");
     expect(read("src/components/ZapDialog.tsx")).toContain("platformFetch(");
     expect(platformFetch("http://insecure.example.com")).rejects.toThrow(

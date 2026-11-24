@@ -1,23 +1,28 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use cdk::amount::SplitTarget;
+use cdk::cdk_database::WalletDatabase;
+use cdk::mint_url::MintUrl;
 use cdk::nuts::{
-    CurrencyUnit, KeySetInfo, PaymentMethod, PublicKey as CdkPublicKey, SpendingConditions, Token,
+    CurrencyUnit, KeySetInfo, PaymentMethod, Proof, PublicKey as CdkPublicKey, SpendingConditions,
+    State, Token,
 };
+use cdk::types::ProofInfo;
 use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
 use cdk_redb::WalletRedbDatabase;
 use nostr::prelude::*;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::config::{DEFAULT_CASHU_MINTS, NUTZAP_INFO_KIND, NUTZAP_KIND, STATION_KIND};
 use crate::error::{Result, WavefuncError};
 use crate::models::{
     CashuMintBalance, CashuMintQuoteInfo, CashuReceiveResult, CashuSendResult, CashuWalletStatus,
-    RecipientNutzapInfo, ZapPaymentResult,
+    Nip60DecryptedTokenEvent, RecipientNutzapInfo, ZapPaymentResult,
 };
 
 /// Normalize a Cashu mint URL by stripping trailing slashes.
@@ -43,11 +48,92 @@ pub fn derive_wallet_seed(seed_material: &str) -> [u8; 64] {
     out
 }
 
-/// Multi-mint Cashu wallet powered by `cdk 0.18` + pure-Rust `cdk-redb`.
+/// Parsed contents of a NIP-60 `kind 17375` wallet metadata event.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ParsedNip60WalletConfig {
+    pub privkey: Option<String>,
+    pub mints: Vec<String>,
+    pub relays: Vec<String>,
+}
+
+/// Parsed JSON body of a NIP-60 `kind 7375` token proof event.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Nip60TokenPayload {
+    pub mint: String,
+    #[serde(default)]
+    pub unit: Option<String>,
+    #[serde(default)]
+    pub proofs: Vec<Proof>,
+    #[serde(default)]
+    pub del: Vec<String>,
+}
+
+/// Parse decrypted JSON tag array from a NIP-60 `kind 17375` event.
+pub fn parse_nip60_wallet_content(plaintext: &str) -> ParsedNip60WalletConfig {
+    let mut cfg = ParsedNip60WalletConfig::default();
+    let Ok(tags) = serde_json::from_str::<Vec<Vec<String>>>(plaintext.trim()) else {
+        return cfg;
+    };
+    for tag in tags {
+        match tag.first().map(|s| s.as_str()) {
+            Some("privkey") => {
+                if let Some(pk) = tag.get(1).map(|v| v.trim()).filter(|v| !v.is_empty()) {
+                    cfg.privkey = Some(pk.to_string());
+                }
+            }
+            Some("mint") => {
+                if let Some(url) = tag
+                    .get(1)
+                    .map(|v| normalize_mint_url(v))
+                    .filter(|v| v.starts_with("http"))
+                {
+                    if !cfg.mints.contains(&url) {
+                        cfg.mints.push(url);
+                    }
+                }
+            }
+            Some("relay") => {
+                if let Some(url) = tag
+                    .get(1)
+                    .map(|v| v.trim().to_string())
+                    .filter(|v| v.starts_with("ws://") || v.starts_with("wss://"))
+                {
+                    if !cfg.relays.contains(&url) {
+                        cfg.relays.push(url);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    cfg
+}
+
+/// Parse decrypted JSON content from a NIP-60 `kind 7375` token proof event.
+pub fn parse_nip60_token_content(plaintext: &str) -> Option<Nip60TokenPayload> {
+    let mut payload: Nip60TokenPayload = serde_json::from_str(plaintext.trim()).ok()?;
+    payload.mint = normalize_mint_url(&payload.mint);
+    if !payload.mint.starts_with("http") {
+        return None;
+    }
+    // Only sat-denominated proofs are managed by the sat wallet.
+    if let Some(unit) = payload.unit.as_deref() {
+        if !unit.eq_ignore_ascii_case("sat") && !unit.is_empty() {
+            return None;
+        }
+    }
+    Some(payload)
+}
+
+/// Multi-mint Cashu wallet powered by `cdk 0.18` + pure-Rust `cdk-redb`,
+/// synchronized with NIP-60 (`kind 17375` + `kind 7375`) on Nostr relays.
 pub struct CashuWalletManager {
     localstore: Arc<WalletRedbDatabase>,
     seed: [u8; 64],
     wallets: HashMap<String, Arc<Wallet>>,
+    nip60_synced: bool,
+    wallet_relays: Vec<String>,
+    active_token_events: HashMap<String, Vec<String>>,
 }
 
 impl CashuWalletManager {
@@ -72,6 +158,9 @@ impl CashuWalletManager {
             localstore,
             seed,
             wallets: HashMap::new(),
+            nip60_synced: false,
+            wallet_relays: Vec::new(),
+            active_token_events: HashMap::new(),
         };
 
         let target_mints: Vec<String> = if mints.is_empty() {
@@ -132,10 +221,207 @@ impl CashuWalletManager {
         }
         mints.sort_by(|a, b| b.balance_sats.cmp(&a.balance_sats).then_with(|| a.mint_url.cmp(&b.mint_url)));
 
+        let token_event_count: u32 = self
+            .active_token_events
+            .values()
+            .map(|v| v.len() as u32)
+            .sum();
+
         CashuWalletStatus {
             initialized: true,
             total_balance_sats: total,
             mints,
+            nip60_synced: self.nip60_synced,
+            wallet_relays: self.wallet_relays.clone(),
+            token_event_count,
+        }
+    }
+
+    pub fn is_nip60_synced(&self) -> bool {
+        self.nip60_synced
+    }
+
+    pub fn wallet_relays(&self) -> &[String] {
+        &self.wallet_relays
+    }
+
+    /// Reconcile decrypted NIP-60 `kind 17375` + `kind 7375` events into the local `cdk-redb` store,
+    /// filtering deleted/rolled-over events and verifying proof spend state via NUT-07.
+    pub async fn apply_nip60_sync(
+        &mut self,
+        wallet_config: Option<&ParsedNip60WalletConfig>,
+        decrypted_tokens: &[Nip60DecryptedTokenEvent],
+        deleted_ids: &[String],
+        extra_mints: &[String],
+        wallet_relays: &[String],
+    ) -> Result<CashuWalletStatus> {
+        let mut all_deleted: HashSet<String> = deleted_ids.iter().cloned().collect();
+        let mut parsed_tokens: Vec<(String, Nip60TokenPayload)> = Vec::new();
+
+        for item in decrypted_tokens {
+            if all_deleted.contains(&item.id) {
+                continue;
+            }
+            if let Some(payload) = parse_nip60_token_content(&item.plaintext) {
+                for del_id in &payload.del {
+                    if !del_id.trim().is_empty() {
+                        all_deleted.insert(del_id.trim().to_string());
+                    }
+                }
+                parsed_tokens.push((item.id.clone(), payload));
+            }
+        }
+
+        // Second pass: drop any token event whose ID appeared in another token's `"del"` rollover list.
+        let mut mint_proofs: HashMap<String, Vec<Proof>> = HashMap::new();
+        let mut active_events_by_mint: HashMap<String, Vec<String>> = HashMap::new();
+        let mut seen_ys: HashSet<CdkPublicKey> = HashSet::new();
+
+        for (event_id, payload) in parsed_tokens {
+            if all_deleted.contains(&event_id) {
+                continue;
+            }
+            active_events_by_mint
+                .entry(payload.mint.clone())
+                .or_default()
+                .push(event_id);
+
+            let bucket = mint_proofs.entry(payload.mint).or_default();
+            for proof in payload.proofs {
+                if let Ok(y) = proof.y() {
+                    if seen_ys.insert(y) {
+                        bucket.push(proof);
+                    }
+                }
+            }
+        }
+
+        // Collect all mints from wallet config, nutzap info, and token events.
+        let mut discovered_mints: Vec<String> = Vec::new();
+        if let Some(cfg) = wallet_config {
+            for m in &cfg.mints {
+                if !discovered_mints.contains(m) {
+                    discovered_mints.push(m.clone());
+                }
+            }
+        }
+        for m in extra_mints {
+            let norm = normalize_mint_url(m);
+            if norm.starts_with("http") && !discovered_mints.contains(&norm) {
+                discovered_mints.push(norm);
+            }
+        }
+        for m in mint_proofs.keys() {
+            if !discovered_mints.contains(m) {
+                discovered_mints.push(m.clone());
+            }
+        }
+
+        for mint_url in &discovered_mints {
+            let _ = self.ensure_mint(mint_url).await;
+        }
+
+        // Import & NUT-07-verify synced proofs per mint.
+        for (mint_url, proofs) in mint_proofs {
+            let Ok(wallet) = self.ensure_mint(&mint_url).await else {
+                continue;
+            };
+            let Ok(parsed_mint_url) = MintUrl::from_str(&mint_url) else {
+                continue;
+            };
+
+            // Verify spend state with mint (NUT-07). If mint is offline, keep non-deleted proofs.
+            let mut unspent_proofs: Vec<Proof> = Vec::new();
+            let mut spent_ys: Vec<CdkPublicKey> = Vec::new();
+            if !proofs.is_empty() {
+                match wallet.check_proofs_spent(proofs.clone()).await {
+                    Ok(states) if states.len() == proofs.len() => {
+                        for (proof, ps) in proofs.into_iter().zip(states.into_iter()) {
+                            match ps.state {
+                                State::Spent => spent_ys.push(ps.y),
+                                _ => unspent_proofs.push(proof),
+                            }
+                        }
+                    }
+                    _ => {
+                        unspent_proofs = proofs;
+                    }
+                }
+            }
+
+            let added: Vec<ProofInfo> = unspent_proofs
+                .into_iter()
+                .filter_map(|p| {
+                    ProofInfo::new(p, parsed_mint_url.clone(), State::Unspent, CurrencyUnit::Sat)
+                        .ok()
+                })
+                .collect();
+
+            if !added.is_empty() || !spent_ys.is_empty() {
+                let _ = self.localstore.update_proofs(added, spent_ys).await;
+            }
+        }
+
+        // Also prune any previously cached local proofs that were spent on another device.
+        for wallet in self.wallets.values() {
+            if let Ok(existing) = wallet.get_proofs_by_states(vec![State::Unspent]).await {
+                if !existing.is_empty() {
+                    let _ = wallet.check_proofs_spent(existing).await;
+                }
+            }
+        }
+
+        self.nip60_synced = true;
+        self.wallet_relays = wallet_relays.to_vec();
+        self.active_token_events = active_events_by_mint;
+        Ok(self.status().await)
+    }
+
+    /// Build a NIP-60 `kind 7375` JSON payload containing all currently unspent proofs for `mint_url`
+    /// plus the list of superseded `kind 7375` event IDs to delete.
+    pub async fn build_nip60_rollover_payload(
+        &self,
+        mint_url: &str,
+    ) -> Result<(Option<String>, Vec<String>)> {
+        let normalized = normalize_mint_url(mint_url);
+        let old_ids = self
+            .active_token_events
+            .get(&normalized)
+            .cloned()
+            .unwrap_or_default();
+
+        let Some(wallet) = self.wallets.get(&normalized) else {
+            return Ok((None, old_ids));
+        };
+        let proofs = wallet
+            .get_proofs_by_states(vec![State::Unspent])
+            .await
+            .map_err(|e| WavefuncError::Wallet(format!("Read unspent proofs failed: {e}")))?;
+
+        if proofs.is_empty() {
+            return Ok((None, old_ids));
+        }
+
+        let payload = Nip60TokenPayload {
+            mint: normalized,
+            unit: Some("sat".to_string()),
+            proofs,
+            del: old_ids.clone(),
+        };
+        let json = serde_json::to_string(&payload)?;
+        Ok((Some(json), old_ids))
+    }
+
+    /// Record the newly published `kind 7375` event ID for `mint_url` after a NIP-60 rollover.
+    pub fn record_nip60_token_event(&mut self, mint_url: &str, new_event_id: Option<String>) {
+        let normalized = normalize_mint_url(mint_url);
+        match new_event_id {
+            Some(id) => {
+                self.active_token_events.insert(normalized, vec![id]);
+            }
+            None => {
+                self.active_token_events.remove(&normalized);
+            }
         }
     }
 
@@ -243,13 +529,13 @@ impl CashuWalletManager {
         })
     }
 
-    /// Melt Cashu ecash to pay a BOLT11 Lightning invoice (used for Cashu-funded NIP-57 zaps!).
-    pub async fn pay_invoice(
+    /// Melt Cashu ecash to pay a BOLT11 Lightning invoice, returning `(mint_url, result)`.
+    pub async fn pay_invoice_with_mint(
         &mut self,
         mint_url: Option<&str>,
         bolt11: &str,
         amount_sats: u64,
-    ) -> Result<ZapPaymentResult> {
+    ) -> Result<(String, ZapPaymentResult)> {
         let cleaned = bolt11.trim();
         let target_mint = self.pick_mint_with_balance(mint_url, amount_sats, None).await?;
         let wallet = self.ensure_mint(&target_mint).await?;
@@ -274,11 +560,25 @@ impl CashuWalletManager {
             .map(str::to_string)
             .unwrap_or_else(|| quote.id.clone());
 
-        Ok(ZapPaymentResult {
-            preimage,
-            amount_sats,
-            bolt11: cleaned.to_string(),
-        })
+        Ok((
+            target_mint,
+            ZapPaymentResult {
+                preimage,
+                amount_sats,
+                bolt11: cleaned.to_string(),
+            },
+        ))
+    }
+
+    /// Melt Cashu ecash to pay a BOLT11 Lightning invoice (used for Cashu-funded NIP-57 zaps!).
+    pub async fn pay_invoice(
+        &mut self,
+        mint_url: Option<&str>,
+        bolt11: &str,
+        amount_sats: u64,
+    ) -> Result<ZapPaymentResult> {
+        let (_, res) = self.pay_invoice_with_mint(mint_url, bolt11, amount_sats).await?;
+        Ok(res)
     }
 
     /// Create P2PK-locked Cashu proofs for a NIP-61 Nutzap (`kind 9321`), returning
@@ -542,5 +842,38 @@ mod tests {
             .tags
             .iter()
             .any(|t| t.as_slice() == ["u", "https://mint.minibits.cash/Bitcoin"]));
+    }
+
+    #[test]
+    fn parses_nip60_wallet_config_and_token_rollover() {
+        let wallet_json = r#"[
+            ["privkey", "deadbeef"],
+            ["mint", "https://mint.minibits.cash/Bitcoin/"],
+            ["mint", "https://mint.coinos.io"],
+            ["relay", "wss://relay.minibits.cash"]
+        ]"#;
+        let cfg = parse_nip60_wallet_content(wallet_json);
+        assert_eq!(cfg.privkey.as_deref(), Some("deadbeef"));
+        assert_eq!(
+            cfg.mints,
+            vec![
+                "https://mint.minibits.cash/Bitcoin".to_string(),
+                "https://mint.coinos.io".to_string()
+            ]
+        );
+        assert_eq!(cfg.relays, vec!["wss://relay.minibits.cash".to_string()]);
+
+        let token_json = r#"{
+            "mint": "https://mint.minibits.cash/Bitcoin/",
+            "unit": "sat",
+            "proofs": [],
+            "del": ["old-event-1", "old-event-2"]
+        }"#;
+        let parsed = parse_nip60_token_content(token_json).expect("should parse kind 7375");
+        assert_eq!(parsed.mint, "https://mint.minibits.cash/Bitcoin");
+        assert_eq!(parsed.del, vec!["old-event-1", "old-event-2"]);
+
+        let usd_token = r#"{"mint": "https://mint.minibits.cash/Bitcoin", "unit": "usd", "proofs": []}"#;
+        assert!(parse_nip60_token_content(usd_token).is_none());
     }
 }

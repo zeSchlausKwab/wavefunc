@@ -72,6 +72,31 @@ pub const NUTZAP_KIND: u16 = 9321;
 /// NIP-61 Nutzap mint & P2PK info event kind.
 pub const NUTZAP_INFO_KIND: u16 = 10019;
 
+/// NIP-60 Cashu wallet replaceable metadata event kind.
+pub const WALLET_KIND: u16 = 17375;
+
+/// NIP-60 Cashu unspent token proofs event kind.
+pub const WALLET_TOKEN_KIND: u16 = 7375;
+
+/// NIP-60 Cashu wallet spending history event kind.
+pub const WALLET_HISTORY_KIND: u16 = 7376;
+
+/// NIP-65 user relay list metadata event kind.
+pub const RELAY_LIST_KIND: u16 = 10002;
+
+/// NIP-09 event deletion kind.
+pub const DELETION_KIND: u16 = 5;
+
+/// Public relays consulted for NIP-60 Cashu wallet sync (`kind 17375` / `7375` / `10019`).
+pub const DEFAULT_WALLET_RELAYS: &[&str] = &[
+    "wss://relay.primal.net",
+    "wss://relay.damus.io",
+    "wss://nos.lol",
+    "wss://nostr.wine",
+    "wss://relay.minibits.cash",
+    "wss://relay.coinos.io",
+];
+
 /// Default Cashu mints offered when initializing a fresh wallet.
 pub const DEFAULT_CASHU_MINTS: &[&str] = &[
     "https://mint.minibits.cash/Bitcoin",
@@ -92,6 +117,9 @@ pub const ADMIN_FEATURED_LISTS_LABEL: &str = "wavefunc:featured:lists";
 
 /// ContextVM ephemeral JSON-RPC event kind.
 pub const CONTEXTVM_KIND: u16 = 25910;
+
+/// Blossom BUD-02 upload authorization event kind.
+pub const BLOSSOM_AUTH_KIND: u16 = 24242;
 
 /// Runtime configuration for `WavefuncCore`.
 #[derive(Debug, Clone)]

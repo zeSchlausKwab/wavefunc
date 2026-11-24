@@ -5,9 +5,9 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::config::{
-    APP_DATA_KIND, COMMENT_KIND, COMMUNITY_POST_KIND, COMMUNITY_TOPIC, FAVORITES_LIST_LABEL,
-    LISTENING_STATUS_KIND, NUTZAP_KIND, REACTION_KIND, SONG_KIND, SONG_LIST_LABEL, STATION_KIND,
-    ZAP_RECEIPT_KIND, ZAP_REQUEST_KIND,
+    APP_DATA_KIND, BLOSSOM_AUTH_KIND, COMMENT_KIND, COMMUNITY_POST_KIND, COMMUNITY_TOPIC,
+    FAVORITES_LIST_LABEL, LISTENING_STATUS_KIND, NUTZAP_KIND, REACTION_KIND, SONG_KIND,
+    SONG_LIST_LABEL, STATION_KIND, ZAP_RECEIPT_KIND, ZAP_REQUEST_KIND,
 };
 use crate::error::{Result, WavefuncError};
 use crate::models::{
@@ -751,6 +751,162 @@ pub fn build_song_event_builder(
     Ok((
         song_id,
         EventBuilder::new(Kind::Custom(SONG_KIND), "").tags(tags),
+    ))
+}
+
+/// Replace/attach a Blossom `r` audio URL and optional `i:youtube:<id>` reference on an existing `kind 31337` song event.
+pub fn build_song_audio_update_builder(
+    existing: &Event,
+    audio_url: &str,
+    youtube_id: Option<&str>,
+) -> Result<EventBuilder> {
+    let cleaned_url = audio_url.trim();
+    if cleaned_url.is_empty() {
+        return Err(WavefuncError::InvalidInput(
+            "Audio URL cannot be empty".to_string(),
+        ));
+    }
+
+    let mut tags: Vec<Tag> = existing
+        .tags
+        .iter()
+        .filter(|tag| {
+            let s = tag.as_slice();
+            let k = s.first().map(|x| x.as_str());
+            let v = s.get(1).map(|x| x.as_str()).unwrap_or("");
+            !(k == Some("r") || (k == Some("i") && v.starts_with("youtube:")))
+        })
+        .cloned()
+        .collect();
+
+    tags.push(Tag::parse(["r", cleaned_url])?);
+    if let Some(yt) = youtube_id.map(str::trim).filter(|s| !s.is_empty()) {
+        tags.push(Tag::parse(["i", &format!("youtube:{yt}")])?);
+    }
+
+    Ok(EventBuilder::new(Kind::Custom(SONG_KIND), &existing.content).tags(tags))
+}
+
+/// Build a BUD-02 Blossom upload authorization event (`kind 24242`).
+pub fn build_blossom_auth_builder(
+    sha256: &str,
+    blossom_url: &str,
+    format: &str,
+) -> Result<EventBuilder> {
+    let parsed = url::Url::parse(blossom_url.trim())
+        .map_err(|e| WavefuncError::InvalidInput(format!("Invalid Blossom URL: {e}")))?;
+    if parsed.scheme() != "https" {
+        return Err(WavefuncError::InvalidInput(
+            "Blossom uploads require an HTTPS server".to_string(),
+        ));
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| WavefuncError::InvalidInput("Blossom URL missing host".to_string()))?
+        .to_ascii_lowercase();
+
+    let now = Timestamp::now().as_secs();
+    let expiration = now.saturating_add(600).to_string();
+    let content = format!("Upload {format} to {host}");
+    let tags = vec![
+        Tag::parse(["t", "upload"])?,
+        Tag::parse(["x", sha256.trim()])?,
+        Tag::parse(["expiration", &expiration])?,
+        Tag::parse(["server", &host])?,
+    ];
+
+    Ok(EventBuilder::new(Kind::Custom(BLOSSOM_AUTH_KIND), content).tags(tags))
+}
+
+/// Build a NIP-XX Internet Radio station event (`kind 31237`) for publishing a new station.
+#[allow(clippy::too_many_arguments)]
+pub fn build_station_event_builder(
+    name: &str,
+    stream_url: &str,
+    format: &str,
+    bitrate_bps: u32,
+    description: Option<&str>,
+    website: Option<&str>,
+    country_code: Option<&str>,
+    thumbnail: Option<&str>,
+    genres: &[String],
+) -> Result<(String, EventBuilder)> {
+    let trimmed_name = name.trim();
+    if trimmed_name.is_empty() {
+        return Err(WavefuncError::InvalidInput(
+            "Station name cannot be empty".to_string(),
+        ));
+    }
+    let trimmed_stream = stream_url.trim();
+    if !(trimmed_stream.starts_with("http://") || trimmed_stream.starts_with("https://")) {
+        return Err(WavefuncError::InvalidInput(
+            "Stream URL must start with http:// or https://".to_string(),
+        ));
+    }
+
+    let station_id = {
+        let base = slugify(trimmed_name);
+        let suffix = &uuid::Uuid::new_v4().to_string()[..6];
+        if base.is_empty() {
+            format!("station-{suffix}")
+        } else {
+            format!("{base}-{suffix}")
+        }
+    };
+
+    let codec = match format.trim().to_ascii_lowercase().as_str() {
+        "audio/aac" | "aac" => "aac",
+        "audio/ogg" | "ogg" | "opus" => "ogg",
+        "application/vnd.apple.mpegurl" | "hls" => "hls",
+        _ => "mp3",
+    };
+    let mime = match codec {
+        "aac" => "audio/aac",
+        "ogg" => "audio/ogg",
+        "hls" => "application/vnd.apple.mpegurl",
+        _ => "audio/mpeg",
+    };
+    let quality_json = serde_json::json!({
+        "bitrate": if bitrate_bps > 0 { bitrate_bps } else { 128000 },
+        "codec": codec,
+        "sampleRate": 44100,
+    })
+    .to_string();
+
+    let mut tags = vec![
+        Tag::parse(["d", &station_id])?,
+        Tag::parse(["name", trimmed_name])?,
+        Tag::parse(["stream", trimmed_stream, mime, &quality_json, "primary"])?,
+    ];
+
+    if let Some(desc) = description.map(str::trim).filter(|s| !s.is_empty()) {
+        tags.push(Tag::parse(["description", desc])?);
+    }
+    if let Some(web) = website
+        .map(str::trim)
+        .filter(|s| s.starts_with("http://") || s.starts_with("https://"))
+    {
+        tags.push(Tag::parse(["website", web])?);
+    }
+    if let Some(cc) = country_code.map(str::trim).filter(|s| !s.is_empty()) {
+        tags.push(Tag::parse(["c", &cc.to_ascii_uppercase(), "ISO 3166-1"])?);
+    }
+    if let Some(thumb) = thumbnail
+        .map(str::trim)
+        .filter(|s| s.starts_with("http://") || s.starts_with("https://"))
+    {
+        tags.push(Tag::parse(["thumbnail", thumb])?);
+    }
+    for g in genres.iter().take(6) {
+        let clean = g.trim().to_ascii_lowercase();
+        if !clean.is_empty() {
+            tags.push(Tag::parse(["c", &clean, "genre"])?);
+        }
+    }
+
+    Ok((
+        station_id,
+        EventBuilder::new(Kind::Custom(STATION_KIND), "").tags(tags),
     ))
 }
 

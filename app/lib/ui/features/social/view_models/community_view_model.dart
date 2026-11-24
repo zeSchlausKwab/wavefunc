@@ -15,17 +15,36 @@ class CommunityViewModel extends ChangeNotifier {
   final AuthViewModel _authViewModel;
 
   List<CommunityPost> _allPosts = const [];
+  List<SavedSong> _signalSongs = const [];
   String _selectedCategory = 'all';
   bool _isLoading = false;
+  bool _isLoadingSignals = false;
   bool _isPosting = false;
   String? _errorMessage;
 
   static const categories = ['all', 'general', 'greeting', 'feature', 'bug'];
 
   String get selectedCategory => _selectedCategory;
+  List<SavedSong> get signalSongs => _signalSongs;
   bool get isLoading => _isLoading;
+  bool get isLoadingSignals => _isLoadingSignals;
   bool get isPosting => _isPosting;
   String? get errorMessage => _errorMessage;
+
+  Future<NostrProfile> fetchUserProfile(String pubkey) =>
+      _backend.fetchUserProfile(pubkey);
+
+  Future<void> refreshSignals() async {
+    _isLoadingSignals = true;
+    notifyListeners();
+    try {
+      _signalSongs = await _backend.fetchSignalSongs(limit: 80);
+    } catch (_) {
+    } finally {
+      _isLoadingSignals = false;
+      notifyListeners();
+    }
+  }
 
   List<CommunityPost> get rootPosts {
     final roots = _allPosts.where((p) => !p.isReply).toList();

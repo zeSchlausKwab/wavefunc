@@ -56,3 +56,6 @@ app/macos/Runner/Frameworks/libwavefunc_bridge.dylib
 app/linux/lib/libwavefunc_bridge.so
 app/windows/lib/wavefunc_bridge.dll
 app/android/app/src/main/jniLibs/*/libwavefunc_bridge.so
+app/android/keystore.properties
+app/android/*.keystore
+app/android/*.jks

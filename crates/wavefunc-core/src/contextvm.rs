@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 
 use crate::config::CONTEXTVM_KIND;
 use crate::error::{Result, WavefuncError};
-use crate::models::NowPlayingMetadata;
+use crate::models::{
+    MusicBrainzRecording, NowPlayingMetadata, PreparedMedia, UploadedMedia, YouTubeSearchResult,
+};
 
 #[derive(Debug, Serialize)]
 struct JsonRpcRequest {
@@ -167,6 +169,335 @@ pub fn parse_metadata_response(content: &str) -> Result<NowPlayingMetadata> {
         duration_ms: enriched.as_ref().and_then(|e| e.duration),
         mbid: enriched.as_ref().and_then(|e| e.mbid.clone()),
         confidence: enriched.and_then(|e| e.confidence),
+    })
+}
+
+/// Parse a generic ContextVM JSON-RPC tool response, returning its structured JSON value.
+pub fn parse_tool_response_value(content: &str) -> Result<Value> {
+    let response: JsonRpcResponse = serde_json::from_str(content)?;
+
+    if let Some(err) = response.error {
+        return Err(WavefuncError::ContextVm(err.message));
+    }
+
+    let result = response
+        .result
+        .ok_or_else(|| WavefuncError::ContextVm("Empty ContextVM response".to_string()))?;
+
+    if result.get("isError").and_then(Value::as_bool) == Some(true) {
+        let message = result
+            .get("content")
+            .and_then(Value::as_array)
+            .and_then(|arr| arr.first())
+            .and_then(|item| item.get("text"))
+            .and_then(Value::as_str)
+            .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+            .and_then(|v| v.get("error").and_then(Value::as_str).map(str::to_string))
+            .unwrap_or_else(|| "ContextVM tool returned an error".to_string());
+        return Err(WavefuncError::ContextVm(message));
+    }
+
+    if let Some(structured) = result.get("structuredContent") {
+        return Ok(structured.clone());
+    }
+    if let Some(text) = result
+        .get("content")
+        .and_then(Value::as_array)
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("text"))
+        .and_then(Value::as_str)
+    {
+        return Ok(serde_json::from_str(text)?);
+    }
+
+    Err(WavefuncError::ContextVm(
+        "Missing structuredContent or text payload".to_string(),
+    ))
+}
+
+/// Generic ContextVM `tools/call` invocation over Nostr kind `25910`.
+pub async fn call_tool(
+    client: &Client,
+    client_keys: &Keys,
+    server_pubkey_hex: &str,
+    tool_name: &str,
+    arguments: Value,
+    timeout_secs: u64,
+) -> Result<Value> {
+    let server_pubkey = PublicKey::from_hex(server_pubkey_hex)?;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let rpc = JsonRpcRequest {
+        jsonrpc: "2.0",
+        id: request_id,
+        method: "tools/call",
+        params: json!({
+            "name": tool_name,
+            "arguments": arguments,
+        }),
+    };
+    let payload = serde_json::to_string(&rpc)?;
+
+    let request_event = EventBuilder::new(Kind::Custom(CONTEXTVM_KIND), payload)
+        .tag(Tag::public_key(server_pubkey))
+        .finalize(client_keys)?;
+    let request_event_id = request_event.id;
+
+    let filter = Filter::new()
+        .kind(Kind::Custom(CONTEXTVM_KIND))
+        .author(server_pubkey)
+        .pubkey(client_keys.public_key())
+        .event(request_event_id);
+
+    let sub_output = client.subscribe(filter).await?;
+    let sub_id = sub_output.value;
+    let mut notifications = client.notifications();
+
+    client.send_event(&request_event).await?;
+
+    let deadline = Duration::from_secs(timeout_secs);
+    let outcome = tokio::time::timeout(deadline, async {
+        while let Some(notification) = notifications.next().await {
+            if let ClientNotification::Event {
+                subscription_id,
+                event,
+                ..
+            } = notification
+            {
+                if subscription_id == sub_id && event.pubkey == server_pubkey {
+                    // Skip progress notifications (JSON-RPC notifications have "method", no "result"/"error").
+                    if let Ok(v) = serde_json::from_str::<Value>(&event.content) {
+                        if v.get("result").is_none() && v.get("error").is_none() {
+                            continue;
+                        }
+                    }
+                    return parse_tool_response_value(&event.content);
+                }
+            }
+        }
+        Err(WavefuncError::ContextVm(
+            "Notification stream ended before response".to_string(),
+        ))
+    })
+    .await;
+
+    let _ = client.unsubscribe(&sub_id).await;
+
+    match outcome {
+        Ok(result) => result,
+        Err(_) => Err(WavefuncError::Timeout(timeout_secs)),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawRecordingsWrapper {
+    #[serde(default)]
+    result: Vec<RawRecordingItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawRecordingItem {
+    id: String,
+    title: String,
+    artist: String,
+    artist_id: Option<String>,
+    release: Option<String>,
+    release_id: Option<String>,
+    release_date: Option<String>,
+    duration: Option<u64>,
+    #[serde(default)]
+    score: u32,
+    #[serde(default)]
+    tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawYouTubeWrapper {
+    #[serde(default)]
+    results: Vec<RawYouTubeItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawYouTubeItem {
+    video_id: String,
+    url: String,
+    title: String,
+    duration: Option<u64>,
+    channel: Option<String>,
+    thumbnail_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawPrepareDownload {
+    temp_id: String,
+    sha256: String,
+    size: u64,
+    mime_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawUploadBlossom {
+    url: String,
+    sha256: String,
+    size: u64,
+    mime_type: String,
+}
+
+/// Search MusicBrainz recordings via ContextVM `search_recordings`.
+pub async fn search_recordings(
+    client: &Client,
+    client_keys: &Keys,
+    server_pubkey_hex: &str,
+    query: &str,
+    artist: Option<&str>,
+    limit: u32,
+    timeout_secs: u64,
+) -> Result<Vec<MusicBrainzRecording>> {
+    let mut args = serde_json::Map::new();
+    args.insert("query".to_string(), json!(query.trim()));
+    if let Some(a) = artist.map(str::trim).filter(|s| !s.is_empty()) {
+        args.insert("artist".to_string(), json!(a));
+    }
+    args.insert("limit".to_string(), json!(limit.clamp(1, 25)));
+
+    let val = call_tool(
+        client,
+        client_keys,
+        server_pubkey_hex,
+        "search_recordings",
+        Value::Object(args),
+        timeout_secs,
+    )
+    .await?;
+
+    let parsed: RawRecordingsWrapper = serde_json::from_value(val)?;
+    Ok(parsed
+        .result
+        .into_iter()
+        .map(|r| MusicBrainzRecording {
+            id: r.id,
+            title: r.title,
+            artist: r.artist,
+            artist_id: r.artist_id,
+            release: r.release,
+            release_id: r.release_id,
+            release_date: r.release_date,
+            duration_ms: r.duration,
+            score: r.score,
+            tags: r.tags,
+        })
+        .collect())
+}
+
+/// Search YouTube videos via ContextVM `search_youtube`.
+pub async fn search_youtube(
+    client: &Client,
+    client_keys: &Keys,
+    server_pubkey_hex: &str,
+    query: &str,
+    limit: u32,
+    timeout_secs: u64,
+) -> Result<Vec<YouTubeSearchResult>> {
+    let val = call_tool(
+        client,
+        client_keys,
+        server_pubkey_hex,
+        "search_youtube",
+        json!({
+            "query": query.trim(),
+            "limit": limit.clamp(1, 10),
+        }),
+        timeout_secs,
+    )
+    .await?;
+
+    let parsed: RawYouTubeWrapper = serde_json::from_value(val)?;
+    Ok(parsed
+        .results
+        .into_iter()
+        .map(|y| YouTubeSearchResult {
+            video_id: y.video_id,
+            url: y.url,
+            title: y.title,
+            duration_secs: y.duration,
+            channel: y.channel,
+            thumbnail_url: y.thumbnail_url,
+        })
+        .collect())
+}
+
+/// Prepare a YouTube download remotely via ContextVM `prepare_download` (used on Android or when local yt-dlp is absent).
+pub async fn prepare_download_remote(
+    client: &Client,
+    client_keys: &Keys,
+    server_pubkey_hex: &str,
+    video_id: &str,
+    format: &str,
+    timeout_secs: u64,
+) -> Result<PreparedMedia> {
+    let normalized_fmt = match format {
+        "p360" | "360p" => "360p",
+        "p480" | "480p" => "480p",
+        "p720" | "720p" => "720p",
+        _ => "audio",
+    };
+    let val = call_tool(
+        client,
+        client_keys,
+        server_pubkey_hex,
+        "prepare_download",
+        json!({
+            "videoId": video_id.trim(),
+            "format": normalized_fmt,
+        }),
+        timeout_secs,
+    )
+    .await?;
+
+    let parsed: RawPrepareDownload = serde_json::from_value(val)?;
+    Ok(PreparedMedia {
+        job_id: format!("remote:{}", parsed.temp_id),
+        sha256: parsed.sha256,
+        size: parsed.size,
+        mime_type: parsed.mime_type,
+    })
+}
+
+/// Upload a remotely prepared file to Blossom via ContextVM `upload_to_blossom`.
+pub async fn upload_to_blossom_remote(
+    client: &Client,
+    client_keys: &Keys,
+    server_pubkey_hex: &str,
+    temp_id: &str,
+    blossom_url: &str,
+    signed_auth_event: &str,
+    timeout_secs: u64,
+) -> Result<UploadedMedia> {
+    let val = call_tool(
+        client,
+        client_keys,
+        server_pubkey_hex,
+        "upload_to_blossom",
+        json!({
+            "tempId": temp_id,
+            "blossomUrl": blossom_url.trim(),
+            "signedAuthEvent": signed_auth_event,
+        }),
+        timeout_secs,
+    )
+    .await?;
+
+    let parsed: RawUploadBlossom = serde_json::from_value(val)?;
+    Ok(UploadedMedia {
+        url: parsed.url,
+        sha256: parsed.sha256,
+        size: parsed.size,
+        mime_type: parsed.mime_type,
     })
 }
 

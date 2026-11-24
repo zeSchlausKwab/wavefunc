@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../domain/models/social.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
+import '../../../core/widgets/qr_scanner_sheet.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../view_models/auth_view_model.dart';
 
@@ -548,9 +549,32 @@ class _LoginSheetState extends State<LoginSheet> {
                       const SizedBox(height: 10),
                       TextField(
                         controller: _bunkerController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'bunker://<pubkey>?relay=wss://...',
-                          prefixIcon: Icon(Icons.link, color: SonicColors.ink),
+                          prefixIcon:
+                              const Icon(Icons.link, color: SonicColors.ink),
+                          suffixIcon: QrScannerSheet.isSupported
+                              ? IconButton(
+                                  tooltip: 'Scan Bunker QR',
+                                  icon: const Icon(
+                                    Icons.qr_code_scanner,
+                                    color: SonicColors.ink,
+                                  ),
+                                  onPressed: () async {
+                                    final scanned = await QrScannerSheet.scan(
+                                      context,
+                                      title: 'Scan NIP-46 Bunker QR',
+                                      hint:
+                                          'POINT AT A BUNKER:// QR CODE FROM YOUR SIGNER',
+                                    );
+                                    if (scanned != null && mounted) {
+                                      setState(
+                                        () => _bunkerController.text = scanned,
+                                      );
+                                    }
+                                  },
+                                )
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 14),

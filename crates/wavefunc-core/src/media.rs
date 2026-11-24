@@ -56,13 +56,7 @@ impl MediaAcquisitionManager {
             .await
             .map_err(|e| WavefuncError::InvalidInput(format!("Cache dir error: {e}")))?;
 
-        let ytdlp = std::env::var("WAVEFUNC_YTDLP_PATH").unwrap_or_else(|_| {
-            if cfg!(windows) {
-                "yt-dlp.exe".to_string()
-            } else {
-                "yt-dlp".to_string()
-            }
-        });
+        let ytdlp = resolve_ytdlp_binary();
         let output_template = dir.join("media.%(ext)s");
         let video_url = format!("https://www.youtube.com/watch?v={video_id}");
 
@@ -84,9 +78,15 @@ impl MediaAcquisitionManager {
         }
 
         let fmt_spec = match format {
-            "p360" => "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]/best",
-            "p480" => "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best",
-            "p720" => "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best",
+            "p360" | "360p" => {
+                "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]/best"
+            }
+            "p480" | "480p" => {
+                "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best"
+            }
+            "p720" | "720p" => {
+                "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best"
+            }
             _ => "bestaudio[ext=m4a]/bestaudio",
         };
         cmd.arg("--format").arg(fmt_spec).arg(&video_url);
@@ -226,6 +226,31 @@ impl MediaAcquisitionManager {
         }
         Ok(())
     }
+}
+
+fn resolve_ytdlp_binary() -> String {
+    if let Ok(explicit) = std::env::var("WAVEFUNC_YTDLP_PATH") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if cfg!(windows) {
+        return "yt-dlp.exe".to_string();
+    }
+    for candidate in [
+        "/opt/homebrew/bin/yt-dlp",
+        "/usr/local/bin/yt-dlp",
+        "/usr/bin/yt-dlp",
+        "/Library/Frameworks/Python.framework/Versions/3.13/bin/yt-dlp",
+        "/Library/Frameworks/Python.framework/Versions/3.12/bin/yt-dlp",
+        "/Library/Frameworks/Python.framework/Versions/3.11/bin/yt-dlp",
+    ] {
+        if Path::new(candidate).is_file() {
+            return candidate.to_string();
+        }
+    }
+    "yt-dlp".to_string()
 }
 
 fn validate_video_id(video_id: &str) -> Result<()> {

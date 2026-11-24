@@ -395,6 +395,7 @@ class _AppShellState extends State<AppShell> {
             discoverViewModel: widget.discoverViewModel,
             playerViewModel: widget.playerViewModel,
             authViewModel: widget.authViewModel,
+            crateViewModel: widget.crateViewModel,
             searchFocusNode: _searchFocusNode,
             isWideLayout: isWide,
             isExpandedDesktop: isDesktop,
@@ -414,6 +415,8 @@ class _AppShellState extends State<AppShell> {
           CommunityView(
             communityViewModel: widget.communityViewModel,
             authViewModel: widget.authViewModel,
+            playerViewModel: widget.playerViewModel,
+            crateViewModel: widget.crateViewModel,
             onRequestLogin: _openLoginSheet,
           ),
           LibraryView(
@@ -533,6 +536,7 @@ class _AppShellState extends State<AppShell> {
                           navItems: navItems,
                           discoverViewModel: widget.discoverViewModel,
                           authViewModel: widget.authViewModel,
+                          playerViewModel: widget.playerViewModel,
                           onSelectTab: _selectTab,
                           onSelectList: _openFeaturedList,
                           onOpenSessionMenu: _openSessionMenu,

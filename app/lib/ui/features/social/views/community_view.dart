@@ -5,20 +5,30 @@ import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
+import '../../crate/view_models/crate_view_model.dart';
+import '../../crate/views/media_forge_sheet.dart';
+import '../../player/view_models/player_view_model.dart';
 import '../view_models/community_view_model.dart';
+import 'user_profile_sheet.dart';
 
-/// `#wavefunc` Community Feed view (NIP-10 kind-1 notes + legacy kind-1111 replies).
+enum _FeedSegment { notes, signals }
+
+/// `#wavefunc` Community Feed + Global Song Signals (`kind 31337`) view.
 class CommunityView extends StatefulWidget {
   const CommunityView({
     super.key,
     required this.communityViewModel,
     required this.authViewModel,
     required this.onRequestLogin,
+    this.playerViewModel,
+    this.crateViewModel,
   });
 
   final CommunityViewModel communityViewModel;
   final AuthViewModel authViewModel;
   final VoidCallback onRequestLogin;
+  final PlayerViewModel? playerViewModel;
+  final CrateViewModel? crateViewModel;
 
   @override
   State<CommunityView> createState() => _CommunityViewState();
@@ -28,6 +38,7 @@ class _CommunityViewState extends State<CommunityView> {
   final _composerController = TextEditingController();
   String _composerCategory = 'general';
   CommunityPost? _replyTarget;
+  _FeedSegment _segment = _FeedSegment.notes;
 
   @override
   void dispose() {
@@ -92,15 +103,41 @@ class _CommunityViewState extends State<CommunityView> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'COMMUNITY',
+                        _segment == _FeedSegment.notes
+                            ? 'COMMUNITY'
+                            : 'SONG SIGNALS',
                         style: Theme.of(context)
                             .textTheme
                             .displayMedium
                             ?.copyWith(fontSize: 30),
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          SonicTag(
+                            label: 'COMMUNITY NOTES',
+                            highlighted: _segment == _FeedSegment.notes,
+                            onTap: () =>
+                                setState(() => _segment = _FeedSegment.notes),
+                          ),
+                          const SizedBox(width: 8),
+                          SonicTag(
+                            label:
+                                'SONG SIGNALS (${vm.signalSongs.length})',
+                            highlighted: _segment == _FeedSegment.signals,
+                            onTap: () {
+                              setState(() => _segment = _FeedSegment.signals);
+                              if (vm.signalSongs.isEmpty) {
+                                vm.refreshSignals();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 14),
 
-                      // ── Composer plate ──
+                      if (_segment == _FeedSegment.notes) ...[
+                        // ── Composer plate ──
                       SonicPlate(
                         backgroundColor: SonicColors.surfacePlate,
                         shadowOffset: const Offset(4, 4),
@@ -220,6 +257,18 @@ class _CommunityViewState extends State<CommunityView> {
                           ),
                         ),
                       ),
+                      ] else
+                        SonicSectionHeader(
+                          title: 'RECENT_SONG_SIGNALS',
+                          accent: true,
+                          trailing: Text(
+                            '${vm.signalSongs.length} TRACKS',
+                            style: SonicMachineTheme.labelTech(
+                              fontSize: 10,
+                              color: SonicColors.seamOutline,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -244,7 +293,127 @@ class _CommunityViewState extends State<CommunityView> {
                     ),
                   ),
                 ),
-              if (vm.isLoading && posts.isEmpty)
+              if (_segment == _FeedSegment.signals) ...[
+                if (vm.isLoadingSignals && vm.signalSongs.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: SonicColors.signalRed,
+                      ),
+                    ),
+                  )
+                else if (vm.signalSongs.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Text('NO GLOBAL SONG SIGNALS FOUND YET'),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+                    sliver: SliverList.separated(
+                      itemCount: vm.signalSongs.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final song = vm.signalSongs[index];
+                        final hasAudio = song.audioUrl != null &&
+                            song.audioUrl!.trim().isNotEmpty;
+                        return SonicPlate(
+                          shadowOffset: const Offset(3, 3),
+                          shadowColor: hasAudio
+                              ? SonicColors.voltageCyan
+                              : SonicColors.ink,
+                          padding: const EdgeInsets.all(10),
+                          child: Row(
+                            children: [
+                              StationThumbnail(
+                                url: song.thumb ?? song.coverArt,
+                                size: 44,
+                                highlight: hasAudio,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      song.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      song.subtitle.toUpperCase(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: SonicMachineTheme.labelTech(
+                                        fontSize: 9,
+                                        color: SonicColors.seamOutline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'View saver profile',
+                                icon: const Icon(
+                                  Icons.person_outline,
+                                  size: 18,
+                                  color: SonicColors.ink,
+                                ),
+                                onPressed: () => UserProfileSheet.open(
+                                  context,
+                                  pubkey: song.pubkey,
+                                  loadProfile: vm.fetchUserProfile,
+                                ),
+                              ),
+                              if (hasAudio && widget.playerViewModel != null)
+                                IconButton(
+                                  tooltip: 'Play Blossom audio',
+                                  icon: const Icon(
+                                    Icons.play_arrow,
+                                    size: 22,
+                                    color: SonicColors.signalRed,
+                                  ),
+                                  onPressed: () => widget.playerViewModel!
+                                      .playSavedSong(song),
+                                ),
+                              if (widget.crateViewModel != null)
+                                IconButton(
+                                  tooltip: 'Backup to Blossom',
+                                  icon: Icon(
+                                    hasAudio
+                                        ? Icons.cloud_done_outlined
+                                        : Icons.cloud_upload_outlined,
+                                    size: 18,
+                                    color: SonicColors.ink,
+                                  ),
+                                  onPressed: () {
+                                    if (!widget.authViewModel.isLoggedIn) {
+                                      widget.onRequestLogin();
+                                      return;
+                                    }
+                                    MediaForgeSheet.open(
+                                      context,
+                                      crateViewModel: widget.crateViewModel!,
+                                      authViewModel: widget.authViewModel,
+                                      onRequestLogin: widget.onRequestLogin,
+                                      existingSong: song,
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ] else if (vm.isLoading && posts.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
@@ -273,6 +442,13 @@ class _CommunityViewState extends State<CommunityView> {
                         post: post,
                         replies: replies,
                         onReply: () => setState(() => _replyTarget = post),
+                        onOpenAuthor: () => UserProfileSheet.open(
+                          context,
+                          pubkey: post.pubkey,
+                          loadProfile: vm.fetchUserProfile,
+                          initialName: post.authorName,
+                          initialPicture: post.authorPicture,
+                        ),
                       );
                     },
                   ),
@@ -290,11 +466,13 @@ class _CommunityPostCard extends StatelessWidget {
     required this.post,
     required this.replies,
     required this.onReply,
+    required this.onOpenAuthor,
   });
 
   final CommunityPost post;
   final List<CommunityPost> replies;
   final VoidCallback onReply;
+  final VoidCallback onOpenAuthor;
 
   @override
   Widget build(BuildContext context) {
@@ -307,26 +485,32 @@ class _CommunityPostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              StationThumbnail(url: post.authorPicture, size: 32),
+              GestureDetector(
+                onTap: onOpenAuthor,
+                child: StationThumbnail(url: post.authorPicture, size: 32),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.authorName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    Text(
-                      _relativeTime(post.createdAt),
-                      style: SonicMachineTheme.labelTech(
-                        fontSize: 9,
-                        color: SonicColors.seamOutline,
+                child: GestureDetector(
+                  onTap: onOpenAuthor,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                    ),
-                  ],
+                      Text(
+                        _relativeTime(post.createdAt),
+                        style: SonicMachineTheme.labelTech(
+                          fontSize: 9,
+                          color: SonicColors.seamOutline,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               ...post.categories.take(2).map(

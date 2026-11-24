@@ -3,9 +3,11 @@ import 'package:material_ui/material_ui.dart';
 import '../../../domain/models/station.dart';
 import '../../core/theme/sonic_machine_theme.dart';
 import '../../core/widgets/sonic_plate.dart';
+import '../../core/widgets/sonic_wf_cube.dart';
 import '../../core/widgets/station_thumbnail.dart';
 import '../auth/view_models/auth_view_model.dart';
 import '../discover/view_models/discover_view_model.dart';
+import '../player/view_models/player_view_model.dart';
 
 /// Left structural console rail for Desktop (`228px` expanded with pinned Curated
 /// & User Favorites Lists + Account/NWC badge) and Tablet (`72px` compact icon rail).
@@ -17,6 +19,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.navItems,
     required this.discoverViewModel,
     required this.authViewModel,
+    required this.playerViewModel,
     required this.onSelectTab,
     required this.onSelectList,
     required this.onOpenSessionMenu,
@@ -27,6 +30,7 @@ class DesktopSidebar extends StatelessWidget {
   final List<(IconData, String)> navItems;
   final DiscoverViewModel discoverViewModel;
   final AuthViewModel authViewModel;
+  final PlayerViewModel playerViewModel;
   final ValueChanged<int> onSelectTab;
   final ValueChanged<FeaturedList> onSelectList;
   final VoidCallback onOpenSessionMenu;
@@ -34,17 +38,18 @@ class DesktopSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([discoverViewModel, authViewModel]),
+      listenable: Listenable.merge([
+        discoverViewModel,
+        authViewModel,
+        playerViewModel,
+      ]),
       builder: (context, _) {
         final status = discoverViewModel.relayStatus;
         final session = authViewModel.session;
-        final nwc = authViewModel.nwcStatus;
-        final cashu = authViewModel.cashuStatus;
-        final hasWalletSats =
-            nwc.connected || (cashu.initialized && cashu.totalBalanceSats > 0);
-        final totalWalletSats =
-            (nwc.connected ? (nwc.balanceSats ?? 0) : 0) +
-                (cashu.initialized ? cashu.totalBalanceSats : 0);
+        final isPlaying = playerViewModel.isPlaying;
+        final walletSats = authViewModel.displayWalletBalanceSats;
+        final isWalletSyncing = authViewModel.isNip60Syncing;
+        final hasWalletSats = walletSats != null || isWalletSyncing;
 
         return Container(
           width: expanded ? 228 : 74,
@@ -73,29 +78,12 @@ class DesktopSidebar extends StatelessWidget {
                         ? MainAxisAlignment.start
                         : MainAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: SonicColors.signalRed,
-                          border: Border.all(color: SonicColors.ink, width: 2),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: SonicColors.ink,
-                              offset: Offset(2, 2),
-                              blurRadius: 0,
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.radio,
-                          color: SonicColors.onSignal,
-                          size: 20,
-                        ),
+                      SonicWfCube(
+                        isPlaying: isPlaying,
+                        size: expanded ? 48 : 44,
                       ),
                       if (expanded) ...[
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,11 +263,13 @@ class DesktopSidebar extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      hasWalletSats
-                                          ? '⚡ $totalWalletSats SATS'
-                                          : (session != null
-                                              ? session.signerBadge
-                                              : 'NOSTR IDENTITY'),
+                                      isWalletSyncing && walletSats == null
+                                          ? '⚡ SYNCING...'
+                                          : walletSats != null
+                                              ? '⚡ $walletSats SATS'
+                                              : (session != null
+                                                  ? session.signerBadge
+                                                  : 'NOSTR IDENTITY'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: SonicMachineTheme.labelTech(

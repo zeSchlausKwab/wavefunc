@@ -79,6 +79,39 @@ class PlayerViewModel extends ChangeNotifier {
     await _engine.playStation(station, streamIndex: streamIndex);
   }
 
+  /// Play a Blossom-backed saved song directly through the native audio engine.
+  Future<void> playSavedSong(SavedSong song) async {
+    final url = song.audioUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    final pseudoStation = Station(
+      id: song.id,
+      pubkey: song.pubkey,
+      stationId: song.songId,
+      address: song.address,
+      naddr: song.address,
+      createdAt: song.createdAt,
+      name: song.artist != null && song.artist!.isNotEmpty
+          ? '${song.title} — ${song.artist}'
+          : song.title,
+      description: song.album ?? 'Blossom Audio Backup',
+      thumbnail: song.thumb ?? song.coverArt,
+      genres: song.genres,
+      streams: [
+        StationStream(
+          url: url,
+          format: 'audio/mp4',
+          quality: const StreamQuality(
+            bitrate: 128000,
+            codec: 'aac',
+            sampleRate: 44100,
+          ),
+          primary: true,
+        ),
+      ],
+    );
+    await _engine.playStation(pseudoStation);
+  }
+
   Future<void> togglePlayStation(Station station) async {
     if (_snapshot.station?.address == station.address) {
       if (_snapshot.isPlaying || _snapshot.isBusy) {

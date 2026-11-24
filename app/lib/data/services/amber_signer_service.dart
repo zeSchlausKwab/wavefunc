@@ -15,12 +15,22 @@ class AmberSignerService {
   static const _channel = MethodChannel('live.wavefunc.app/amber');
 
   static final String _defaultPermissionsJson = jsonEncode([
+    {'type': 'sign_event', 'kind': 0},
     {'type': 'sign_event', 'kind': 1},
+    {'type': 'sign_event', 'kind': 5},
     {'type': 'sign_event', 'kind': 7},
     {'type': 'sign_event', 'kind': 1111},
+    {'type': 'sign_event', 'kind': 7375},
+    {'type': 'sign_event', 'kind': 9321},
+    {'type': 'sign_event', 'kind': 9734},
+    {'type': 'sign_event', 'kind': 17375},
+    {'type': 'sign_event', 'kind': 24242},
     {'type': 'sign_event', 'kind': 30078},
     {'type': 'sign_event', 'kind': 30315},
+    {'type': 'sign_event', 'kind': 31237},
     {'type': 'sign_event', 'kind': 31337},
+    {'type': 'nip44_encrypt'},
+    {'type': 'nip44_decrypt'},
   ]);
 
   Future<bool> isAvailable() async {
@@ -61,5 +71,41 @@ class AmberSignerService {
       throw const FormatException('Amber did not return a signed event.');
     }
     return signed;
+  }
+
+  Future<String> nip44Decrypt({
+    required String ciphertext,
+    required String pubkey,
+    String? currentUser,
+    String? signerPackage,
+  }) async {
+    final plain = await _channel.invokeMethod<String>('nip44Decrypt', {
+      'payload': ciphertext,
+      'pubkey': pubkey,
+      'currentUser': currentUser ?? pubkey,
+      'signerPackage': signerPackage,
+    });
+    if (plain == null || plain.trim().isEmpty) {
+      throw const FormatException('Amber did not return NIP-44 plaintext.');
+    }
+    return plain;
+  }
+
+  Future<String> nip44Encrypt({
+    required String plaintext,
+    required String pubkey,
+    String? currentUser,
+    String? signerPackage,
+  }) async {
+    final cipher = await _channel.invokeMethod<String>('nip44Encrypt', {
+      'payload': plaintext,
+      'pubkey': pubkey,
+      'currentUser': currentUser ?? pubkey,
+      'signerPackage': signerPackage,
+    });
+    if (cipher == null || cipher.trim().isEmpty) {
+      throw const FormatException('Amber did not return NIP-44 ciphertext.');
+    }
+    return cipher;
   }
 }

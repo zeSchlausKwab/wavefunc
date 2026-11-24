@@ -223,6 +223,7 @@ class _LibraryViewState extends State<LibraryView> {
                   ? CrateView(
                       crateViewModel: widget.crateViewModel,
                       authViewModel: widget.authViewModel,
+                      playerViewModel: widget.playerViewModel,
                       onRequestLogin: widget.onRequestLogin,
                     )
                   : _buildListsBody(context, vm, auth),

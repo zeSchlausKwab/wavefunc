@@ -1,14 +1,15 @@
 import 'dart:math' as math;
 
+import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/sonic_machine_theme.dart';
 
-/// 60fps Constructivist 16x8 mechanical signal spectrogram rendered via `CustomPainter`.
+/// High-frequency 60fps Constructivist LED matrix spectrometer (`CustomPainter`).
 ///
-/// Mirrors `src/components/Spectrogram.tsx` without DOM repaints. When live audio
-/// is playing, harmonic oscillators animate across 16 frequency bands; when paused
-/// or idle, cells settle cleanly to the baseline grid.
+/// Uses per-frame envelope physics (fast transient attack, musical beat pulses,
+/// exponential release, and gravity-driven peak-hold caps) so bars respond
+/// briskly and energetically during playback and settle cleanly when paused.
 class SonicVisualizer extends StatefulWidget {
   const SonicVisualizer({
     super.key,
@@ -18,6 +19,7 @@ class SonicVisualizer extends StatefulWidget {
     this.columns = 16,
     this.rows = 8,
     this.height = 72,
+    this.subtleBackground = false,
   });
 
   final bool isPlaying;
@@ -27,46 +29,139 @@ class SonicVisualizer extends StatefulWidget {
   final int rows;
   final double height;
 
+  /// When true, renders softly behind player chrome (e.g. mobile bottom bar)
+  /// with translucent bars and no heavy inactive cell grid.
+  final bool subtleBackground;
+
   @override
   State<SonicVisualizer> createState() => _SonicVisualizerState();
 }
 
 class _SonicVisualizerState extends State<SonicVisualizer>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+  late final Ticker _ticker;
+  Duration _lastElapsed = Duration.zero;
+  double _time = 0.0;
+  late List<double> _levels;
+  late List<double> _peaks;
+  late List<double> _peakVelocities;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
-    );
-    _syncAnimation();
+    _initBands(widget.columns);
+    _ticker = createTicker(_onTick);
+    _syncTicker();
+  }
+
+  void _initBands(int count) {
+    _levels = List<double>.filled(count, 0.0);
+    _peaks = List<double>.filled(count, 0.0);
+    _peakVelocities = List<double>.filled(count, 0.0);
   }
 
   @override
   void didUpdateWidget(covariant SonicVisualizer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.columns != widget.columns) {
+      _initBands(widget.columns);
+    }
     if (oldWidget.isPlaying != widget.isPlaying ||
         oldWidget.isBuffering != widget.isBuffering) {
-      _syncAnimation();
+      _syncTicker();
     }
   }
 
-  void _syncAnimation() {
+  void _syncTicker() {
     if (widget.isPlaying || widget.isBuffering) {
-      if (!_controller.isAnimating) {
-        _controller.repeat();
+      if (!_ticker.isActive) {
+        _lastElapsed = Duration.zero;
+        _ticker.start();
       }
     } else {
-      _controller.stop();
+      if (_ticker.isActive) {
+        _ticker.stop();
+      }
+      setState(() {
+        for (var i = 0; i < _levels.length; i++) {
+          _levels[i] = 0.0;
+          _peaks[i] = 0.0;
+          _peakVelocities[i] = 0.0;
+        }
+      });
     }
+  }
+
+  void _onTick(Duration elapsed) {
+    final dt = _lastElapsed == Duration.zero
+        ? 0.016
+        : ((elapsed - _lastElapsed).inMicroseconds / 1e6).clamp(0.004, 0.05);
+    _lastElapsed = elapsed;
+    _time += dt;
+
+    final cols = widget.columns;
+    final t = _time;
+
+    // Punchy ~128 BPM kick/snare pulse + fast harmonic shimmer across bands.
+    final beatPhase = (t * 2.13) % 1.0;
+    final kick = math.exp(-beatPhase * 9.5);
+    final offBeatPhase = ((t * 2.13) + 0.5) % 1.0;
+    final snare = math.exp(-offBeatPhase * 11.0);
+    final hatPhase = (t * 8.52) % 1.0;
+    final hiHat = math.exp(-hatPhase * 14.0);
+
+    for (var col = 0; col < cols; col++) {
+      final norm = cols <= 1 ? 0.0 : col / (cols - 1);
+      final double target;
+
+      if (widget.isPlaying) {
+        // Frequency-shaped band response: bass -> mids -> highs.
+        final bassWeight = math.max(0.0, 1.0 - norm * 2.4);
+        final midWeight = math.exp(-math.pow((norm - 0.45) * 3.4, 2));
+        final highWeight = math.max(0.0, (norm - 0.45) * 1.85);
+
+        // High-frequency polyrhythmic modulation per column so adjacent bars dance crisply.
+        final fast1 = (math.sin(t * 14.5 + col * 1.37) + 1.0) * 0.5;
+        final fast2 = (math.cos(t * 21.3 - col * 2.19) + 1.0) * 0.5;
+        final fast3 = (math.sin(t * 9.1 + col * 0.73) + 1.0) * 0.5;
+        final energy = fast1 * 0.45 + fast2 * 0.35 + fast3 * 0.20;
+
+        final bandHit = bassWeight * (0.48 * kick + 0.52 * energy) +
+            midWeight * (0.42 * snare + 0.58 * energy) +
+            highWeight * (0.36 * hiHat + 0.50 * fast2);
+
+        final floor = 0.14 * (1.0 - norm * 0.3);
+        target = (floor + bandHit * 0.92).clamp(0.08, 1.0);
+      } else if (widget.isBuffering) {
+        final sweep = (t * cols * 1.4) % cols;
+        final dist = (col - sweep).abs();
+        target = dist < 2.2 ? (1.0 - dist / 2.4) * 0.72 : 0.08;
+      } else {
+        target = 0.0;
+      }
+
+      // Crisp fast attack, smooth musical decay.
+      final cur = _levels[col];
+      final rate = target > cur ? 28.0 : 10.5;
+      final next = cur + (target - cur) * (1.0 - math.exp(-rate * dt));
+      _levels[col] = next;
+
+      // Gravity peak-hold indicator.
+      if (next >= _peaks[col]) {
+        _peaks[col] = next;
+        _peakVelocities[col] = 0.0;
+      } else {
+        _peakVelocities[col] += 1.65 * dt;
+        _peaks[col] = math.max(next, _peaks[col] - _peakVelocities[col] * dt);
+      }
+    }
+
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
@@ -75,20 +170,16 @@ class _SonicVisualizerState extends State<SonicVisualizer>
     return SizedBox(
       height: widget.height,
       width: double.infinity,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return CustomPaint(
-            painter: _SpectrogramPainter(
-              phase: _controller.value * math.pi * 2,
-              isPlaying: widget.isPlaying,
-              isBuffering: widget.isBuffering,
-              activeColor: widget.activeColor,
-              columns: widget.columns,
-              rows: widget.rows,
-            ),
-          );
-        },
+      child: CustomPaint(
+        painter: _SpectrogramPainter(
+          levels: _levels,
+          peaks: _peaks,
+          isPlaying: widget.isPlaying,
+          isBuffering: widget.isBuffering,
+          activeColor: widget.activeColor,
+          rows: widget.rows,
+          subtleBackground: widget.subtleBackground,
+        ),
       ),
     );
   }
@@ -96,24 +187,29 @@ class _SonicVisualizerState extends State<SonicVisualizer>
 
 class _SpectrogramPainter extends CustomPainter {
   const _SpectrogramPainter({
-    required this.phase,
+    required this.levels,
+    required this.peaks,
     required this.isPlaying,
     required this.isBuffering,
     required this.activeColor,
-    required this.columns,
     required this.rows,
+    required this.subtleBackground,
   });
 
-  final double phase;
+  final List<double> levels;
+  final List<double> peaks;
   final bool isPlaying;
   final bool isBuffering;
   final Color activeColor;
-  final int columns;
   final int rows;
+  final bool subtleBackground;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const gap = 2.0;
+    final columns = levels.length;
+    if (columns == 0) return;
+
+    final gap = subtleBackground ? 2.5 : 2.0;
     final cellW = (size.width - gap * (columns - 1)) / columns;
     final cellH = (size.height - gap * (rows - 1)) / rows;
     if (cellW <= 0 || cellH <= 0) return;
@@ -121,33 +217,35 @@ class _SpectrogramPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     for (var col = 0; col < columns; col++) {
-      final double level;
-      if (isPlaying) {
-        // Multi-harmonic signal envelope shaped like a real radio spectrum
-        // (stronger bass/mids, livelier treble).
-        final bassBias = 1.0 - (col / columns) * 0.35;
-        final w1 = math.sin(phase * 3.0 + col * 0.55);
-        final w2 = math.sin(phase * 5.0 - col * 0.92) * 0.5;
-        final w3 = math.cos(phase * 8.0 + col * 1.45) * 0.3;
-        level = (((w1 + w2 + w3) * 0.3 + 0.55) * bassBias).clamp(0.12, 1.0);
-      } else if (isBuffering) {
-        final sweep = ((phase / (math.pi * 2)) * columns) % columns;
-        final dist = (col - sweep).abs();
-        level = dist < 2.2 ? (1.0 - dist / 2.5) * 0.65 : 0.08;
-      } else {
-        level = 0.0;
-      }
-
-      final activeRows = (level * rows).round();
+      final level = levels[col];
+      final peak = peaks[col];
+      final activeRows = (level * rows).round().clamp(0, rows);
+      final peakRow =
+          peak > 0.12 ? (rows - (peak * rows).round().clamp(1, rows)) : -1;
 
       for (var row = 0; row < rows; row++) {
         final isActive = row >= rows - activeRows;
-        final isPeak = isActive && row == rows - activeRows && level > 0.72;
-        if (isPeak) {
+        final isPeakCap = !subtleBackground &&
+            isPlaying &&
+            row == peakRow &&
+            peak > 0.58;
+        final isSubtlePeak =
+            subtleBackground && isPlaying && row == peakRow && peak > 0.72;
+
+        if (isPeakCap) {
           paint.color = SonicColors.signalRed;
+        } else if (isSubtlePeak) {
+          paint.color = SonicColors.signalRed.withValues(alpha: 0.34);
         } else if (isActive) {
-          paint.color = activeColor.withValues(alpha: 0.35 + level * 0.65);
+          if (subtleBackground) {
+            final heightRatio = (rows - row) / rows;
+            paint.color =
+                activeColor.withValues(alpha: 0.08 + heightRatio * 0.16);
+          } else {
+            paint.color = activeColor.withValues(alpha: 0.38 + level * 0.62);
+          }
         } else {
+          if (subtleBackground) continue;
           paint.color = SonicColors.ink.withValues(alpha: 0.07);
         }
 
@@ -163,10 +261,5 @@ class _SpectrogramPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SpectrogramPainter oldDelegate) {
-    return oldDelegate.phase != phase ||
-        oldDelegate.isPlaying != isPlaying ||
-        oldDelegate.isBuffering != isBuffering ||
-        oldDelegate.activeColor != activeColor;
-  }
+  bool shouldRepaint(covariant _SpectrogramPainter oldDelegate) => true;
 }
