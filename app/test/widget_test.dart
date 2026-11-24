@@ -859,6 +859,11 @@ class _FakeBackend implements WavefuncBackend {
     );
   }
 
+  SignalChartsData signalChartsData = const SignalChartsData();
+
+  @override
+  Future<SignalChartsData> fetchSignalCharts() async => signalChartsData;
+
   @override
   Future<void> dispose() async {}
 }
@@ -1710,6 +1715,130 @@ void main() {
       backend.publishedStations,
       ['Pirate Dub FM|https://stream.piratedub.fm/live.mp3'],
     );
+
+    await playerVm.stop();
+    await audioEngine.disposeEngine();
+    playerVm.dispose();
+    discoverVm.dispose();
+    communityVm.dispose();
+    crateVm.dispose();
+    authVm.dispose();
+  });
+
+  testWidgets(
+      'main page renders observer SIGNAL_CHARTS aggregate lists and Blossom recent downloads',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefService = PreferencesService(prefs);
+    final backend = _FakeBackend(testStations);
+    backend.signalChartsData = SignalChartsData(
+      rankings: [
+        StationRankingSnapshot(
+          metric: 'best-signal',
+          window: '24h',
+          generatedAt: 1760000100,
+          entries: [
+            StationRankingEntry(
+              stationAddress: testStations.first.address,
+              value: 98,
+            ),
+          ],
+        ),
+        StationRankingSnapshot(
+          metric: 'most-zapped',
+          window: '7d',
+          generatedAt: 1760000100,
+          entries: [
+            StationRankingEntry(
+              stationAddress: testStations.last.address,
+              value: 42,
+            ),
+          ],
+        ),
+      ],
+      stations: testStations,
+      health: [
+        StationHealthSummary(
+          stationAddress: testStations.first.address,
+          status: 'up',
+          score: 98,
+          checkedAt: 1760000100,
+        ),
+      ],
+      recentDownloads: const [
+        SavedSong(
+          id: 'dl-1',
+          pubkey: 'pk-1',
+          songId: 'mb-roygbiv',
+          address: '31337:pk-1:mb-roygbiv',
+          title: 'Roygbiv',
+          artist: 'Boards of Canada',
+          audioUrl: 'https://blossom.band/roygbiv.m4a',
+        ),
+      ],
+    );
+
+    final authRepo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: AmberSignerService(),
+      preferences: prefService,
+    );
+    final authVm = AuthViewModel(
+      authRepository: authRepo,
+      cashuBaseDir: '/tmp/wavefunc-test-charts',
+    );
+    final stationRepo = StationRepository(
+      backend: backend,
+      preferences: prefService,
+    );
+    final discoverVm = DiscoverViewModel(
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final audioEngine = _FakeAudioEngine();
+    final playerVm = PlayerViewModel(
+      engine: audioEngine,
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final communityVm = CommunityViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+    final crateVm = CrateViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+
+    await discoverVm.initialize();
+
+    await tester.pumpWidget(
+      WavefuncApp(
+        discoverViewModel: discoverVm,
+        playerViewModel: playerVm,
+        authViewModel: authVm,
+        communityViewModel: communityVm,
+        crateViewModel: crateVm,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SIGNAL_CHARTS'), findsOneWidget);
+    expect(find.text('SIGNED_NETWORK_FEED'), findsOneWidget);
+    expect(find.text('BEST_SIGNAL'), findsOneWidget);
+    expect(find.text('98 SIGNAL_SCORE'), findsOneWidget);
+    expect(find.text('UP 98'), findsOneWidget);
+    expect(find.text('MOST_ZAPPED'), findsOneWidget);
+    expect(find.text('42 ZAPS'), findsOneWidget);
+    expect(find.text('RECENT_DOWNLOADS'), findsOneWidget);
+    expect(find.text('ROYGBIV'), findsOneWidget);
+    expect(find.text('BLOSSOM_ARCHIVE'), findsOneWidget);
 
     await playerVm.stop();
     await audioEngine.disposeEngine();

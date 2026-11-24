@@ -749,6 +749,10 @@ class RelayWebSocketBackend implements WavefuncBackend {
   }) async =>
       _signingUnsupported();
 
+  @override
+  Future<SignalChartsData> fetchSignalCharts() async =>
+      const SignalChartsData();
+
   Future<void> _closeSocket() async {
     await _socketSub?.cancel();
     _socketSub = null;

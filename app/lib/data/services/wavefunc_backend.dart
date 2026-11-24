@@ -321,5 +321,7 @@ abstract class WavefuncBackend {
     List<String> genres = const [],
   });
 
+  Future<SignalChartsData> fetchSignalCharts();
+
   Future<void> dispose();
 }

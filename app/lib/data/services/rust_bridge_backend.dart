@@ -1085,6 +1085,69 @@ class RustBridgeBackend implements WavefuncBackend {
         banner: v.banner,
         stationAddresses: v.stationAddresses,
       );
+
+  @override
+  Future<SignalChartsData> fetchSignalCharts() async {
+    final res = await frb.fetchSignalCharts();
+    return SignalChartsData(
+      rankings: res.rankings
+          .map(
+            (s) => StationRankingSnapshot(
+              metric: s.metric,
+              window: s.window,
+              generatedAt: s.generatedAt.toInt(),
+              entries: s.entries
+                  .map(
+                    (e) => StationRankingEntry(
+                      stationAddress: e.stationAddress,
+                      value: e.value,
+                      label: e.label,
+                      title: e.title,
+                      artist: e.artist,
+                      observedAt: e.observedAt?.toInt(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
+          .toList(),
+      stations: res.stations.map(_mapStation).toList(),
+      health: res.health
+          .map(
+            (h) => StationHealthSummary(
+              stationAddress: h.stationAddress,
+              status: h.status,
+              score: h.score,
+              checkedAt: h.checkedAt.toInt(),
+              latencyMs: h.latencyMs,
+              consecutiveFailures: h.consecutiveFailures,
+              insecure: h.insecure,
+            ),
+          )
+          .toList(),
+      recentDownloads: res.recentDownloads
+          .map(
+            (s) => SavedSong(
+              id: s.id,
+              pubkey: s.pubkey,
+              songId: s.songId,
+              address: s.address,
+              title: s.title,
+              artist: s.artist,
+              album: s.album,
+              coverArt: s.coverArt,
+              thumb: s.thumb,
+              durationSecs: s.durationSecs,
+              releaseYear: s.releaseYear,
+              mbid: s.mbid,
+              audioUrl: s.audioUrl,
+              genres: s.genres,
+              createdAt: s.createdAt.toInt(),
+            ),
+          )
+          .toList(),
+    );
+  }
 }
 
 /// Initializes the Rust `wavefunc-core` FFI library when present for this platform,

@@ -23,6 +23,10 @@ class DiscoverViewModel extends ChangeNotifier {
   List<Station> _displayedStations = const [];
   List<FeaturedList> _featuredLists = const [];
   List<FeaturedList> _userFavoriteLists = const [];
+  SignalChartsData _signalCharts = const SignalChartsData();
+  final Map<String, Station> _chartStationsByAddress = {};
+  final Map<String, StationHealthSummary> _healthByAddress = {};
+  bool _isLoadingSignalCharts = false;
   StationFacets _facets = const StationFacets();
   RelayStatus? _relayStatus;
   Set<String> _bookmarkedAddresses = const {};
@@ -50,6 +54,17 @@ class DiscoverViewModel extends ChangeNotifier {
   List<Station> get allStations => _allStations;
   List<FeaturedList> get featuredLists => _featuredLists;
   List<FeaturedList> get userFavoriteLists => _userFavoriteLists;
+  SignalChartsData get signalCharts => _signalCharts;
+  bool get isLoadingSignalCharts => _isLoadingSignalCharts;
+  Station? chartStationFor(String address) {
+    final resolved = _chartStationsByAddress[address];
+    if (resolved != null) return resolved;
+    for (final s in _allStations) {
+      if (s.address == address) return s;
+    }
+    return null;
+  }
+  StationHealthSummary? healthFor(String address) => _healthByAddress[address];
   FeaturedList? get activeList => _activeList;
   bool get isLoadingActiveList => _isLoadingActiveList;
   bool get tableViewMode => _tableViewMode;
@@ -129,6 +144,27 @@ class DiscoverViewModel extends ChangeNotifier {
     } else {
       _displayedStations = stations;
       unawaited(_hydrateSocialCounts(stations));
+      unawaited(_loadSignalCharts());
+    }
+  }
+
+  Future<void> _loadSignalCharts() async {
+    _isLoadingSignalCharts = true;
+    notifyListeners();
+    try {
+      final data = await _repository.loadSignalCharts();
+      _signalCharts = data;
+      _chartStationsByAddress
+        ..clear()
+        ..addEntries(data.stations.map((s) => MapEntry(s.address, s)));
+      _healthByAddress
+        ..clear()
+        ..addEntries(data.health.map((h) => MapEntry(h.stationAddress, h)));
+    } catch (_) {
+      // Non-fatal: discover page still renders cleanly without observer charts.
+    } finally {
+      _isLoadingSignalCharts = false;
+      notifyListeners();
     }
   }
 

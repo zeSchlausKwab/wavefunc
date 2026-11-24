@@ -499,3 +499,48 @@ pub struct SongCrate {
     pub song_addresses: Vec<String>,
     pub songs: Vec<SavedSong>,
 }
+
+/// Single ranked station entry inside an observer `kind 31240` ranking snapshot.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StationRankingEntry {
+    pub station_address: String,
+    pub value: f64,
+    pub label: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub observed_at: Option<u64>,
+}
+
+/// Signed observer aggregate ranking chart (`kind 31240`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StationRankingSnapshot {
+    pub metric: String,
+    pub window: String,
+    pub generated_at: u64,
+    pub entries: Vec<StationRankingEntry>,
+}
+
+/// Signed observer station health snapshot (`kind 31238`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StationHealthSummary {
+    pub station_address: String,
+    pub status: String,
+    pub score: u32,
+    pub checked_at: u64,
+    pub latency_ms: Option<u32>,
+    pub consecutive_failures: u32,
+    pub insecure: bool,
+}
+
+/// Combined payload powering the main-page `SIGNAL_CHARTS` aggregate section.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignalChartsData {
+    pub rankings: Vec<StationRankingSnapshot>,
+    pub stations: Vec<Station>,
+    pub health: Vec<StationHealthSummary>,
+    pub recent_downloads: Vec<SavedSong>,
+}

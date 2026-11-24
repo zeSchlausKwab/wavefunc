@@ -50,6 +50,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
   FrbAccountSessionInfo dco_decode_frb_account_session_info(dynamic raw);
 
   @protected
@@ -127,6 +130,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbSavedSong dco_decode_frb_saved_song(dynamic raw);
 
   @protected
+  FrbSignalChartsData dco_decode_frb_signal_charts_data(dynamic raw);
+
+  @protected
   FrbSignerKind dco_decode_frb_signer_kind(dynamic raw);
 
   @protected
@@ -143,6 +149,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FrbStationFacets dco_decode_frb_station_facets(dynamic raw);
+
+  @protected
+  FrbStationHealthSummary dco_decode_frb_station_health_summary(dynamic raw);
+
+  @protected
+  FrbStationRankingEntry dco_decode_frb_station_ranking_entry(dynamic raw);
+
+  @protected
+  FrbStationRankingSnapshot dco_decode_frb_station_ranking_snapshot(
+    dynamic raw,
+  );
 
   @protected
   FrbStationSocialSummary dco_decode_frb_station_social_summary(dynamic raw);
@@ -210,6 +227,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<FrbStationComment> dco_decode_list_frb_station_comment(dynamic raw);
+
+  @protected
+  List<FrbStationHealthSummary> dco_decode_list_frb_station_health_summary(
+    dynamic raw,
+  );
+
+  @protected
+  List<FrbStationRankingEntry> dco_decode_list_frb_station_ranking_entry(
+    dynamic raw,
+  );
+
+  @protected
+  List<FrbStationRankingSnapshot> dco_decode_list_frb_station_ranking_snapshot(
+    dynamic raw,
+  );
 
   @protected
   List<FrbStationStream> dco_decode_list_frb_station_stream(dynamic raw);
@@ -288,6 +320,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
   FrbAccountSessionInfo sse_decode_frb_account_session_info(
@@ -399,6 +434,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FrbSavedSong sse_decode_frb_saved_song(SseDeserializer deserializer);
 
   @protected
+  FrbSignalChartsData sse_decode_frb_signal_charts_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   FrbSignerKind sse_decode_frb_signer_kind(SseDeserializer deserializer);
 
   @protected
@@ -419,6 +459,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FrbStationFacets sse_decode_frb_station_facets(SseDeserializer deserializer);
+
+  @protected
+  FrbStationHealthSummary sse_decode_frb_station_health_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbStationRankingEntry sse_decode_frb_station_ranking_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FrbStationRankingSnapshot sse_decode_frb_station_ranking_snapshot(
+    SseDeserializer deserializer,
+  );
 
   @protected
   FrbStationSocialSummary sse_decode_frb_station_social_summary(
@@ -506,6 +561,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<FrbStationComment> sse_decode_list_frb_station_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbStationHealthSummary> sse_decode_list_frb_station_health_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbStationRankingEntry> sse_decode_list_frb_station_ranking_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FrbStationRankingSnapshot> sse_decode_list_frb_station_ranking_snapshot(
     SseDeserializer deserializer,
   );
 
@@ -598,6 +668,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_frb_account_session_info(
@@ -744,6 +817,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_frb_saved_song(FrbSavedSong self, SseSerializer serializer);
 
   @protected
+  void sse_encode_frb_signal_charts_data(
+    FrbSignalChartsData self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_frb_signer_kind(FrbSignerKind self, SseSerializer serializer);
 
   @protected
@@ -767,6 +846,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_frb_station_facets(
     FrbStationFacets self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_station_health_summary(
+    FrbStationHealthSummary self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_station_ranking_entry(
+    FrbStationRankingEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_frb_station_ranking_snapshot(
+    FrbStationRankingSnapshot self,
     SseSerializer serializer,
   );
 
@@ -881,6 +978,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_frb_station_comment(
     List<FrbStationComment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_station_health_summary(
+    List<FrbStationHealthSummary> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_station_ranking_entry(
+    List<FrbStationRankingEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_frb_station_ranking_snapshot(
+    List<FrbStationRankingSnapshot> self,
     SseSerializer serializer,
   );
 

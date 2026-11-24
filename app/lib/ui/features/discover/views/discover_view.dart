@@ -12,6 +12,7 @@ import '../../crate/views/crate_view.dart';
 import '../../crate/views/media_forge_sheet.dart';
 import '../../player/view_models/player_view_model.dart';
 import '../view_models/discover_view_model.dart';
+import '../widgets/signal_charts_section.dart';
 import 'station_card.dart';
 import 'station_table_row.dart';
 
@@ -423,6 +424,23 @@ class _DiscoverViewState extends State<DiscoverView> {
                         ),
                       ],
                     ),
+                  ),
+                ),
+
+              // ── Signed Observer Aggregate Lists (SIGNAL_CHARTS) ──
+              if (!_songSearchMode &&
+                  vm.activeList == null &&
+                  !vm.hasActiveFilters &&
+                  !vm.signalCharts.isEmpty)
+                SliverToBoxAdapter(
+                  child: SignalChartsSection(
+                    discoverViewModel: vm,
+                    playerViewModel: player,
+                    authViewModel: auth,
+                    crateViewModel: crate,
+                    onOpenStationDetail: widget.onOpenStationDetail,
+                    onRequestLogin: widget.onRequestLogin,
+                    isWideLayout: widget.isWideLayout,
                   ),
                 ),
 

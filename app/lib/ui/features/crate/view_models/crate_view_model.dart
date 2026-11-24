@@ -207,6 +207,32 @@ class CrateViewModel extends ChangeNotifier {
     }
   }
 
+  bool containsAddress(String songAddress) =>
+      _crate.songAddresses.contains(songAddress);
+
+  Future<bool> toggleSongAddress(String songAddress) async {
+    final exists = containsAddress(songAddress);
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _authViewModel.executeSignedAction(
+        (backend) => backend.updateSongCrate(
+          songAddress: songAddress,
+          add: !exists,
+        ),
+      );
+      await refresh();
+      return true;
+    } catch (e) {
+      _errorMessage = '$e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
   // ── Media Backup to Blossom (MEDIA_FORGE) ─────────────────────────────────
 
   Future<List<YouTubeSearchResult>> searchYouTube(String query) =>

@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FrbRelayStatus> connectRelay({required String relayUrl}) =>
     RustLib.instance.api.crateApiWavefuncConnectRelay(relayUrl: relayUrl);
@@ -517,6 +517,9 @@ Future<FrbActionOutcome> publishStation({
   thumbnail: thumbnail,
   genres: genres,
 );
+
+Future<FrbSignalChartsData> fetchSignalCharts() =>
+    RustLib.instance.api.crateApiWavefuncFetchSignalCharts();
 
 class FrbAccountSessionInfo {
   final String pubkey;
@@ -1385,6 +1388,37 @@ class FrbSavedSong {
           createdAt == other.createdAt;
 }
 
+class FrbSignalChartsData {
+  final List<FrbStationRankingSnapshot> rankings;
+  final List<FrbStation> stations;
+  final List<FrbStationHealthSummary> health;
+  final List<FrbSavedSong> recentDownloads;
+
+  const FrbSignalChartsData({
+    required this.rankings,
+    required this.stations,
+    required this.health,
+    required this.recentDownloads,
+  });
+
+  @override
+  int get hashCode =>
+      rankings.hashCode ^
+      stations.hashCode ^
+      health.hashCode ^
+      recentDownloads.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbSignalChartsData &&
+          runtimeType == other.runtimeType &&
+          rankings == other.rankings &&
+          stations == other.stations &&
+          health == other.health &&
+          recentDownloads == other.recentDownloads;
+}
+
 enum FrbSignerKind { localKey, bunker, amber }
 
 class FrbSongCrate {
@@ -1617,6 +1651,119 @@ class FrbStationFacets {
           genres == other.genres &&
           languages == other.languages &&
           countries == other.countries;
+}
+
+class FrbStationHealthSummary {
+  final String stationAddress;
+  final String status;
+  final int score;
+  final BigInt checkedAt;
+  final int? latencyMs;
+  final int consecutiveFailures;
+  final bool insecure;
+
+  const FrbStationHealthSummary({
+    required this.stationAddress,
+    required this.status,
+    required this.score,
+    required this.checkedAt,
+    this.latencyMs,
+    required this.consecutiveFailures,
+    required this.insecure,
+  });
+
+  @override
+  int get hashCode =>
+      stationAddress.hashCode ^
+      status.hashCode ^
+      score.hashCode ^
+      checkedAt.hashCode ^
+      latencyMs.hashCode ^
+      consecutiveFailures.hashCode ^
+      insecure.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbStationHealthSummary &&
+          runtimeType == other.runtimeType &&
+          stationAddress == other.stationAddress &&
+          status == other.status &&
+          score == other.score &&
+          checkedAt == other.checkedAt &&
+          latencyMs == other.latencyMs &&
+          consecutiveFailures == other.consecutiveFailures &&
+          insecure == other.insecure;
+}
+
+class FrbStationRankingEntry {
+  final String stationAddress;
+  final double value;
+  final String? label;
+  final String? title;
+  final String? artist;
+  final BigInt? observedAt;
+
+  const FrbStationRankingEntry({
+    required this.stationAddress,
+    required this.value,
+    this.label,
+    this.title,
+    this.artist,
+    this.observedAt,
+  });
+
+  @override
+  int get hashCode =>
+      stationAddress.hashCode ^
+      value.hashCode ^
+      label.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      observedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbStationRankingEntry &&
+          runtimeType == other.runtimeType &&
+          stationAddress == other.stationAddress &&
+          value == other.value &&
+          label == other.label &&
+          title == other.title &&
+          artist == other.artist &&
+          observedAt == other.observedAt;
+}
+
+class FrbStationRankingSnapshot {
+  final String metric;
+  final String window;
+  final BigInt generatedAt;
+  final List<FrbStationRankingEntry> entries;
+
+  const FrbStationRankingSnapshot({
+    required this.metric,
+    required this.window,
+    required this.generatedAt,
+    required this.entries,
+  });
+
+  @override
+  int get hashCode =>
+      metric.hashCode ^
+      window.hashCode ^
+      generatedAt.hashCode ^
+      entries.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbStationRankingSnapshot &&
+          runtimeType == other.runtimeType &&
+          metric == other.metric &&
+          window == other.window &&
+          generatedAt == other.generatedAt &&
+          entries == other.entries;
 }
 
 class FrbStationSocialSummary {

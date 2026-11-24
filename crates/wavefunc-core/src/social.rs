@@ -7,11 +7,13 @@ use serde_json::json;
 use crate::config::{
     APP_DATA_KIND, BLOSSOM_AUTH_KIND, COMMENT_KIND, COMMUNITY_POST_KIND, COMMUNITY_TOPIC,
     FAVORITES_LIST_LABEL, LISTENING_STATUS_KIND, NUTZAP_KIND, REACTION_KIND, SONG_KIND,
-    SONG_LIST_LABEL, STATION_KIND, ZAP_RECEIPT_KIND, ZAP_REQUEST_KIND,
+    SONG_LIST_LABEL, STATION_HEALTH_KIND, STATION_KIND, STATION_RANKING_KIND, ZAP_RECEIPT_KIND,
+    ZAP_REQUEST_KIND,
 };
 use crate::error::{Result, WavefuncError};
 use crate::models::{
     CommunityPost, NostrProfile, SavedSong, StationCardCounts, StationComment,
+    StationHealthSummary, StationRankingEntry, StationRankingSnapshot,
 };
 
 #[derive(Debug, Deserialize)]
@@ -1462,4 +1464,197 @@ mod tests {
             .unwrap();
         assert_eq!(clear_ev.content, "");
     }
+
+    #[test]
+    fn parses_observer_ranking_and_health_snapshots() {
+        let keys = Keys::generate();
+        let addr = format!("31237:{}:soma", keys.public_key().to_hex());
+        let ranking_content = serde_json::json!({
+            "metric": "best-signal",
+            "window": "24h",
+            "generatedAt": 1760000000,
+            "entries": [
+                {
+                    "stationAddress": addr,
+                    "value": 98,
+                    "artist": "Boards of Canada",
+                    "title": "Roygbiv"
+                }
+            ]
+        })
+        .to_string();
+
+        let ranking_ev = EventBuilder::new(Kind::Custom(STATION_RANKING_KIND), ranking_content)
+            .tags([
+                Tag::identifier("best-signal:24h"),
+                Tag::parse(["expiration", "9999999999"]).unwrap(),
+            ])
+            .finalize(&keys)
+            .unwrap();
+
+        let snap = parse_station_ranking_event(&ranking_ev, 1760000100).expect("valid ranking");
+        assert_eq!(snap.metric, "best-signal");
+        assert_eq!(snap.entries.len(), 1);
+        assert_eq!(snap.entries[0].value, 98.0);
+
+        // Expired snapshot must be ignored.
+        assert!(parse_station_ranking_event(&ranking_ev, 9999999999).is_none());
+
+        let health_content = serde_json::json!({
+            "stationAddress": addr,
+            "status": "up",
+            "score": 96,
+            "checkedAt": 1760000000,
+            "latencyMs": 142,
+            "consecutiveFailures": 0,
+            "insecure": false
+        })
+        .to_string();
+        let health_ev = EventBuilder::new(Kind::Custom(STATION_HEALTH_KIND), health_content)
+            .tags([
+                Tag::identifier(&addr),
+                Tag::parse(["a", &addr]).unwrap(),
+                Tag::parse(["expiration", "9999999999"]).unwrap(),
+            ])
+            .finalize(&keys)
+            .unwrap();
+
+        let health = parse_station_health_event(&health_ev, 1760000100).expect("valid health");
+        assert_eq!(health.status, "up");
+        assert_eq!(health.score, 96);
+        assert_eq!(health.latency_ms, Some(142));
+    }
+}
+
+// ─── Observer Signal Charts (kind 31240 rankings + kind 31238 health) ────────
+
+pub const VALID_RANKING_METRICS: &[&str] = &[
+    "best-signal",
+    "has-now-playing",
+    "most-listened",
+    "most-liked",
+    "most-zapped",
+    "on-air-now",
+];
+
+fn event_is_expired(event: &Event, now_secs: u64) -> bool {
+    event.tags.iter().any(|tag| {
+        let s = tag.as_slice();
+        s.first().map(|x| x.as_str()) == Some("expiration")
+            && s.get(1)
+                .and_then(|v| v.parse::<u64>().ok())
+                .is_some_and(|exp| exp <= now_secs)
+    })
+}
+
+fn first_tag_value<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
+    event.tags.iter().find_map(|tag| {
+        let s = tag.as_slice();
+        (s.first().map(|x| x.as_str()) == Some(key))
+            .then(|| s.get(1).map(|v| v.as_str()))
+            .flatten()
+    })
+}
+
+/// Parse a signed observer `kind 31240` station ranking snapshot.
+pub fn parse_station_ranking_event(
+    event: &Event,
+    now_secs: u64,
+) -> Option<StationRankingSnapshot> {
+    if event.kind != Kind::Custom(STATION_RANKING_KIND) || event_is_expired(event, now_secs) {
+        return None;
+    }
+    let d_tag = first_tag_value(event, "d")?;
+    let val: serde_json::Value = serde_json::from_str(&event.content).ok()?;
+    let metric = val.get("metric")?.as_str()?.trim().to_string();
+    if !VALID_RANKING_METRICS.contains(&metric.as_str()) {
+        return None;
+    }
+    let window = val.get("window")?.as_str()?.trim().to_string();
+    if window.is_empty() || format!("{metric}:{window}") != d_tag {
+        return None;
+    }
+    let generated_at = val.get("generatedAt")?.as_u64()?;
+    let raw_entries = val.get("entries")?.as_array()?;
+    let prefix = format!("{STATION_KIND}:");
+    let mut entries = Vec::new();
+    for item in raw_entries.iter().take(50) {
+        let Some(station_address) = item.get("stationAddress").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        if !station_address.starts_with(&prefix) {
+            continue;
+        }
+        let Some(value) = item.get("value").and_then(|v| v.as_f64()) else {
+            continue;
+        };
+        if !value.is_finite() || value < 0.0 {
+            continue;
+        }
+        entries.push(StationRankingEntry {
+            station_address: station_address.to_string(),
+            value,
+            label: item.get("label").and_then(|v| v.as_str()).map(str::to_string),
+            title: item.get("title").and_then(|v| v.as_str()).map(str::to_string),
+            artist: item.get("artist").and_then(|v| v.as_str()).map(str::to_string),
+            observed_at: item.get("observedAt").and_then(|v| v.as_u64()),
+        });
+    }
+    Some(StationRankingSnapshot {
+        metric,
+        window,
+        generated_at,
+        entries,
+    })
+}
+
+/// Parse a signed observer `kind 31238` station health snapshot.
+pub fn parse_station_health_event(
+    event: &Event,
+    now_secs: u64,
+) -> Option<StationHealthSummary> {
+    if event.kind != Kind::Custom(STATION_HEALTH_KIND) || event_is_expired(event, now_secs) {
+        return None;
+    }
+    let a_tag = first_tag_value(event, "a")?;
+    let d_tag = first_tag_value(event, "d")?;
+    if a_tag != d_tag || !a_tag.starts_with(&format!("{STATION_KIND}:")) {
+        return None;
+    }
+    let val: serde_json::Value = serde_json::from_str(&event.content).ok()?;
+    let station_address = val.get("stationAddress")?.as_str()?;
+    if station_address != a_tag {
+        return None;
+    }
+    let status = val.get("status")?.as_str()?.to_string();
+    if !matches!(status.as_str(), "up" | "degraded" | "down" | "unknown") {
+        return None;
+    }
+    let score = val
+        .get("score")
+        .and_then(|v| v.as_f64())
+        .map(|n| n.clamp(0.0, 100.0).round() as u32)?;
+    let checked_at = val.get("checkedAt")?.as_u64()?;
+    let latency_ms = val
+        .get("latencyMs")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as u32);
+    let consecutive_failures = val
+        .get("consecutiveFailures")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+    let insecure = val
+        .get("insecure")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    Some(StationHealthSummary {
+        station_address: station_address.to_string(),
+        status,
+        score,
+        checked_at,
+        latency_ms,
+        consecutive_failures,
+        insecure,
+    })
 }

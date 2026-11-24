@@ -7,9 +7,10 @@ use wavefunc_core::{
     CoreConfig, FacetCount, FeaturedList, GeneratedAccount, MusicBrainzRecording,
     Nip60DecryptedTokenEvent, Nip60RawEvents, Nip60RawTokenEvent, NostrConnectChallenge,
     NostrProfile, NowPlayingMetadata, NwcWalletStatus, PreparedMedia, RecipientNutzapInfo,
-    RelayStatus, SavedSong, SignerKind, SongCrate, Station, StationCardCounts, StationComment,
-    StationFacets, StationSocialSummary, StationStream, StreamQuality, UploadedMedia, WavefuncCore,
-    YouTubeSearchResult, ZapInvoiceResult, ZapPaymentResult,
+    RelayStatus, SavedSong, SignalChartsData, SignerKind, SongCrate, Station, StationCardCounts,
+    StationComment, StationFacets, StationHealthSummary, StationRankingEntry,
+    StationRankingSnapshot, StationSocialSummary, StationStream, StreamQuality, UploadedMedia,
+    WavefuncCore, YouTubeSearchResult, ZapInvoiceResult, ZapPaymentResult,
 };
 
 static CORE: OnceCell<Arc<WavefuncCore>> = OnceCell::new();
@@ -1586,6 +1587,98 @@ pub async fn publish_station(
             thumbnail.as_deref(),
             &genres,
         )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+// ─── Observer Signal Charts (kind 31240 + kind 31238 + recent Blossom songs) ─
+
+pub struct FrbStationRankingEntry {
+    pub station_address: String,
+    pub value: f64,
+    pub label: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub observed_at: Option<u64>,
+}
+
+impl From<StationRankingEntry> for FrbStationRankingEntry {
+    fn from(e: StationRankingEntry) -> Self {
+        Self {
+            station_address: e.station_address,
+            value: e.value,
+            label: e.label,
+            title: e.title,
+            artist: e.artist,
+            observed_at: e.observed_at,
+        }
+    }
+}
+
+pub struct FrbStationRankingSnapshot {
+    pub metric: String,
+    pub window: String,
+    pub generated_at: u64,
+    pub entries: Vec<FrbStationRankingEntry>,
+}
+
+impl From<StationRankingSnapshot> for FrbStationRankingSnapshot {
+    fn from(s: StationRankingSnapshot) -> Self {
+        Self {
+            metric: s.metric,
+            window: s.window,
+            generated_at: s.generated_at,
+            entries: s.entries.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+pub struct FrbStationHealthSummary {
+    pub station_address: String,
+    pub status: String,
+    pub score: u32,
+    pub checked_at: u64,
+    pub latency_ms: Option<u32>,
+    pub consecutive_failures: u32,
+    pub insecure: bool,
+}
+
+impl From<StationHealthSummary> for FrbStationHealthSummary {
+    fn from(h: StationHealthSummary) -> Self {
+        Self {
+            station_address: h.station_address,
+            status: h.status,
+            score: h.score,
+            checked_at: h.checked_at,
+            latency_ms: h.latency_ms,
+            consecutive_failures: h.consecutive_failures,
+            insecure: h.insecure,
+        }
+    }
+}
+
+pub struct FrbSignalChartsData {
+    pub rankings: Vec<FrbStationRankingSnapshot>,
+    pub stations: Vec<FrbStation>,
+    pub health: Vec<FrbStationHealthSummary>,
+    pub recent_downloads: Vec<FrbSavedSong>,
+}
+
+impl From<SignalChartsData> for FrbSignalChartsData {
+    fn from(d: SignalChartsData) -> Self {
+        Self {
+            rankings: d.rankings.into_iter().map(Into::into).collect(),
+            stations: d.stations.into_iter().map(Into::into).collect(),
+            health: d.health.into_iter().map(Into::into).collect(),
+            recent_downloads: d.recent_downloads.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+pub async fn fetch_signal_charts() -> Result<FrbSignalChartsData, String> {
+    core()
+        .fetch_signal_charts()
         .await
         .map(Into::into)
         .map_err(|e| e.to_string())

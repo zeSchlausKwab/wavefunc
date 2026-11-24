@@ -58,6 +58,8 @@ class StationRepository {
     return lists;
   }
 
+  Future<SignalChartsData> loadSignalCharts() => _backend.fetchSignalCharts();
+
   Future<List<Station>> searchStations({
     String? query,
     String? genre,

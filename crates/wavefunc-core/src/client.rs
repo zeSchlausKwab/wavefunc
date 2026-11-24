@@ -15,8 +15,9 @@ use crate::config::{
     CoreConfig, ADMIN_FEATURED_LISTS_LABEL, APP_DATA_KIND, COMMENT_KIND, COMMUNITY_POST_KIND,
     COMMUNITY_TOPIC, DEFAULT_IDENTITY_RELAYS, DEFAULT_SOCIAL_RELAYS, DEFAULT_WALLET_RELAYS,
     DELETION_KIND, DEV_ADMIN_PUBKEY, FAVORITES_LIST_LABEL, NUTZAP_INFO_KIND, NUTZAP_KIND,
-    PROD_ADMIN_PUBKEYS, REACTION_KIND, RELAY_LIST_KIND, SONG_KIND, SONG_LIST_LABEL, STATION_KIND,
-    WALLET_KIND, WALLET_TOKEN_KIND, ZAP_RECEIPT_KIND,
+    PROD_ADMIN_PUBKEYS, REACTION_KIND, RELAY_LIST_KIND, SONG_KIND, SONG_LIST_LABEL,
+    STATION_HEALTH_KIND, STATION_KIND, STATION_RANKING_KIND, WALLET_KIND, WALLET_TOKEN_KIND,
+    ZAP_RECEIPT_KIND,
 };
 use crate::contextvm;
 use crate::error::{Result, WavefuncError};
@@ -26,8 +27,9 @@ use crate::models::{
     CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost, FeaturedList,
     GeneratedAccount, MusicBrainzRecording, Nip60DecryptedTokenEvent, Nip60RawEvents,
     Nip60RawTokenEvent, NostrConnectChallenge, NostrProfile, NowPlayingMetadata, NwcWalletStatus,
-    PreparedMedia, RecipientNutzapInfo, RelayStatus, SavedSong, SignerKind, SongCrate, Station,
-    StationCardCounts, StationFacets, StationSocialSummary, UploadedMedia, YouTubeSearchResult,
+    PreparedMedia, RecipientNutzapInfo, RelayStatus, SavedSong, SignalChartsData, SignerKind,
+    SongCrate, Station, StationCardCounts, StationFacets, StationHealthSummary,
+    StationRankingSnapshot, StationSocialSummary, UploadedMedia, YouTubeSearchResult,
     ZapInvoiceResult, ZapPaymentResult,
 };
 use crate::parser::{
@@ -41,7 +43,8 @@ use crate::social::{
     build_song_audio_update_builder, build_song_event_builder, build_song_list_builder,
     build_station_comment_builder, build_station_event_builder, build_station_reaction_builder,
     build_update_favorites_list_builder, build_zap_request_builder, parse_community_posts,
-    parse_profile_event, parse_song_event, summarize_station_social_counts,
+    parse_profile_event, parse_song_event, parse_station_health_event, parse_station_ranking_event,
+    summarize_station_social_counts, VALID_RANKING_METRICS,
 };
 use crate::wallet::{fetch_lnurl_pay_params, request_lnurl_invoice, ActiveNwcSession};
 
@@ -3120,6 +3123,181 @@ impl WavefuncCore {
         )?;
         let address = format!("{STATION_KIND}:{}:{station_id}", pubkey.to_hex());
         self.sign_or_prepare(builder, Some(address)).await
+    }
+
+    /// Fetch observer-signed aggregate station rankings (`kind 31240`), resolved `kind 31237`
+    /// stations, `kind 31238` health snapshots, and recent Blossom-backed `kind 31337` downloads
+    /// for the main-page `SIGNAL_CHARTS` section.
+    pub async fn fetch_signal_charts(&self) -> Result<SignalChartsData> {
+        let cfg = self.config.read().await.clone();
+        let timeout = Duration::from_secs(cfg.request_timeout_secs);
+        let observer_pk = PublicKey::from_hex(&cfg.metadata_server_pubkey).ok();
+
+        let ranking_fut = async {
+            let Some(pk) = observer_pk else {
+                return Vec::new();
+            };
+            let filter = Filter::new()
+                .kind(Kind::Custom(STATION_RANKING_KIND))
+                .author(pk)
+                .limit(30);
+            match self.client.fetch_events(filter).timeout(timeout).await {
+                Ok(events) => events.into_iter().collect::<Vec<_>>(),
+                Err(_) => Vec::new(),
+            }
+        };
+
+        let songs_fut = async {
+            let filter = Filter::new().kind(Kind::Custom(SONG_KIND)).limit(100);
+            match self.client.fetch_events(filter).timeout(timeout).await {
+                Ok(events) => events.into_iter().collect::<Vec<_>>(),
+                Err(_) => Vec::new(),
+            }
+        };
+
+        let (mut ranking_events, song_events) = tokio::join!(ranking_fut, songs_fut);
+
+        let now_secs = Timestamp::now().as_secs();
+        ranking_events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        let mut by_metric: HashMap<String, StationRankingSnapshot> = HashMap::new();
+        for ev in &ranking_events {
+            if let Some(pk) = observer_pk {
+                if ev.pubkey != pk {
+                    continue;
+                }
+            }
+            if let Some(snap) = parse_station_ranking_event(ev, now_secs) {
+                by_metric.entry(snap.metric.clone()).or_insert(snap);
+            }
+        }
+
+        let mut rankings = Vec::new();
+        for metric in VALID_RANKING_METRICS {
+            if let Some(snap) = by_metric.remove(*metric) {
+                rankings.push(snap);
+            }
+        }
+
+        // Collect all referenced station addresses across rankings (top 8 per chart).
+        let mut needed_addresses: Vec<String> = Vec::new();
+        let mut seen_addrs: HashSet<String> = HashSet::new();
+        for snap in &rankings {
+            for entry in snap.entries.iter().take(8) {
+                if seen_addrs.insert(entry.station_address.clone()) {
+                    needed_addresses.push(entry.station_address.clone());
+                }
+            }
+        }
+
+        let mut stations: Vec<Station> = Vec::new();
+        let mut health: Vec<StationHealthSummary> = Vec::new();
+
+        if !needed_addresses.is_empty() {
+            let authors: Vec<PublicKey> = needed_addresses
+                .iter()
+                .filter_map(|a| a.split(':').nth(1))
+                .filter_map(|pk| PublicKey::from_hex(pk).ok())
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect();
+            let identifiers: Vec<String> = needed_addresses
+                .iter()
+                .filter_map(|a| a.splitn(3, ':').nth(2).map(str::to_string))
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            let station_fut = async {
+                if authors.is_empty() || identifiers.is_empty() {
+                    return Vec::new();
+                }
+                let filter = Filter::new()
+                    .kind(Kind::Custom(STATION_KIND))
+                    .authors(authors)
+                    .identifiers(identifiers)
+                    .limit(200);
+                match self.client.fetch_events(filter).timeout(timeout).await {
+                    Ok(events) => events.into_iter().collect::<Vec<_>>(),
+                    Err(_) => Vec::new(),
+                }
+            };
+
+            let health_fut = async {
+                let Some(pk) = observer_pk else {
+                    return Vec::new();
+                };
+                let filter = Filter::new()
+                    .kind(Kind::Custom(STATION_HEALTH_KIND))
+                    .author(pk)
+                    .custom_tags(
+                        SingleLetterTag::from_char('a').unwrap(),
+                        needed_addresses.clone(),
+                    )
+                    .limit(200);
+                match self.client.fetch_events(filter).timeout(timeout).await {
+                    Ok(events) => events.into_iter().collect::<Vec<_>>(),
+                    Err(_) => Vec::new(),
+                }
+            };
+
+            let (station_events, mut health_events) = tokio::join!(station_fut, health_fut);
+
+            let relay_hints = vec![cfg.relay_url.clone()];
+            let mut station_by_addr: HashMap<String, Station> = HashMap::new();
+            for ev in &station_events {
+                if let Some(st) = parse_station_event(ev, &relay_hints) {
+                    if !seen_addrs.contains(&st.address) {
+                        continue;
+                    }
+                    match station_by_addr.get(&st.address) {
+                        Some(existing) if existing.created_at >= st.created_at => {}
+                        _ => {
+                            station_by_addr.insert(st.address.clone(), st);
+                        }
+                    }
+                }
+            }
+            stations = station_by_addr.into_values().collect();
+
+            health_events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            let mut health_by_addr: HashMap<String, StationHealthSummary> = HashMap::new();
+            for ev in &health_events {
+                if let Some(h) = parse_station_health_event(ev, now_secs) {
+                    health_by_addr.entry(h.station_address.clone()).or_insert(h);
+                }
+            }
+            health = health_by_addr.into_values().collect();
+        }
+
+        // Recent Blossom-backed songs (`kind 31337` with `audio_url`).
+        let mut downloads_by_addr: HashMap<String, SavedSong> = HashMap::new();
+        for ev in &song_events {
+            if let Some(song) = parse_song_event(ev) {
+                let has_audio = song
+                    .audio_url
+                    .as_deref()
+                    .is_some_and(|u| !u.trim().is_empty());
+                if !has_audio {
+                    continue;
+                }
+                match downloads_by_addr.get(&song.address) {
+                    Some(existing) if existing.created_at >= song.created_at => {}
+                    _ => {
+                        downloads_by_addr.insert(song.address.clone(), song);
+                    }
+                }
+            }
+        }
+        let mut recent_downloads: Vec<SavedSong> = downloads_by_addr.into_values().collect();
+        recent_downloads.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        recent_downloads.truncate(6);
+
+        Ok(SignalChartsData {
+            rankings,
+            stations,
+            health,
+            recent_downloads,
+        })
     }
 
     /// Gracefully shut down relay connections.

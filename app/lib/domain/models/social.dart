@@ -1,5 +1,7 @@
 // Phase 2 domain models: identity, social interactions, community feed, song crates.
 
+import 'station.dart';
+
 enum SignerKind { localKey, bunker, amber }
 
 class GeneratedAccount {
@@ -571,4 +573,72 @@ class BlossomAuthResult {
 
   final String? signedEventJson;
   final String? unsignedEventJson;
+}
+
+class StationRankingEntry {
+  const StationRankingEntry({
+    required this.stationAddress,
+    required this.value,
+    this.label,
+    this.title,
+    this.artist,
+    this.observedAt,
+  });
+
+  final String stationAddress;
+  final double value;
+  final String? label;
+  final String? title;
+  final String? artist;
+  final int? observedAt;
+}
+
+class StationRankingSnapshot {
+  const StationRankingSnapshot({
+    required this.metric,
+    required this.window,
+    required this.generatedAt,
+    this.entries = const [],
+  });
+
+  final String metric;
+  final String window;
+  final int generatedAt;
+  final List<StationRankingEntry> entries;
+}
+
+class StationHealthSummary {
+  const StationHealthSummary({
+    required this.stationAddress,
+    required this.status,
+    required this.score,
+    required this.checkedAt,
+    this.latencyMs,
+    this.consecutiveFailures = 0,
+    this.insecure = false,
+  });
+
+  final String stationAddress;
+  final String status;
+  final int score;
+  final int checkedAt;
+  final int? latencyMs;
+  final int consecutiveFailures;
+  final bool insecure;
+}
+
+class SignalChartsData {
+  const SignalChartsData({
+    this.rankings = const [],
+    this.stations = const [],
+    this.health = const [],
+    this.recentDownloads = const [],
+  });
+
+  final List<StationRankingSnapshot> rankings;
+  final List<Station> stations;
+  final List<StationHealthSummary> health;
+  final List<SavedSong> recentDownloads;
+
+  bool get isEmpty => rankings.isEmpty && recentDownloads.isEmpty;
 }

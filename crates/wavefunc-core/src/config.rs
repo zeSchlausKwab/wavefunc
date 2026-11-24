@@ -42,6 +42,15 @@ pub const DEVELOPMENT_METADATA_SERVER_PUBKEY: &str =
 /// Nostr addressable event kind for NIP-XX Internet Radio stations.
 pub const STATION_KIND: u16 = 31237;
 
+/// Signed observer station health snapshot (`kind 31238`).
+pub const STATION_HEALTH_KIND: u16 = 31238;
+
+/// Signed observer station now-playing snapshot (`kind 31239`).
+pub const STATION_NOW_PLAYING_KIND: u16 = 31239;
+
+/// Signed observer station aggregate ranking snapshot (`kind 31240`).
+pub const STATION_RANKING_KIND: u16 = 31240;
+
 /// Nostr addressable event kind for WaveFunc favorites lists, song lists, and admin features.
 pub const APP_DATA_KIND: u16 = 30078;
 
