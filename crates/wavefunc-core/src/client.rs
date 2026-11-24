@@ -41,11 +41,12 @@ use crate::social::{
     build_delete_favorites_list_builder, build_favorites_list_builder,
     build_listening_status_builder, build_new_favorites_list_builder, build_profile_event_builder,
     build_song_audio_update_builder, build_song_event_builder, build_song_list_builder,
-    build_station_comment_builder, build_station_event_builder, build_station_reaction_builder,
-    build_update_favorites_list_builder, build_zap_request_builder, parse_community_posts,
-    parse_profile_event, parse_song_event, parse_station_health_event, parse_station_ranking_event,
-    summarize_station_social_counts, VALID_RANKING_METRICS,
+    build_song_share_note_builder, build_station_comment_builder, build_station_event_builder,
+    build_station_reaction_builder, build_update_favorites_list_builder, build_zap_request_builder,
+    parse_community_posts, parse_profile_event, parse_song_event, parse_station_health_event,
+    parse_station_ranking_event, summarize_station_social_counts, VALID_RANKING_METRICS,
 };
+use crate::spectrum::{AudioSpectrumProxy, AudioSpectrumSnapshot};
 use crate::wallet::{fetch_lnurl_pay_params, request_lnurl_invoice, ActiveNwcSession};
 
 enum ActiveSigner {
@@ -101,6 +102,7 @@ pub struct WavefuncCore {
     nwc: RwLock<Option<ActiveNwcSession>>,
     cashu: RwLock<Option<CashuWalletManager>>,
     media: MediaAcquisitionManager,
+    spectrum: AudioSpectrumProxy,
 }
 
 impl WavefuncCore {
@@ -109,6 +111,13 @@ impl WavefuncCore {
         let http = reqwest::Client::builder()
             .user_agent("WaveFunc-Native/0.2")
             .timeout(Duration::from_secs(15))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+
+        // Live radio streams must NOT have a total request timeout.
+        let stream_http = reqwest::Client::builder()
+            .user_agent("WaveFunc Radio Native/0.2.0")
+            .connect_timeout(Duration::from_secs(12))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -126,6 +135,7 @@ impl WavefuncCore {
             nwc: RwLock::new(None),
             cashu: RwLock::new(None),
             media: MediaAcquisitionManager::new(),
+            spectrum: AudioSpectrumProxy::new(stream_http),
         })
     }
 
@@ -2854,7 +2864,8 @@ impl WavefuncCore {
         Ok(out)
     }
 
-    /// Search YouTube videos via ContextVM `search_youtube` for Blossom media backup.
+    /// Search YouTube videos via ContextVM `search_youtube`, with desktop local `yt-dlp`
+    /// and direct YouTube search fallback so results return reliably on every platform.
     pub async fn search_youtube(
         &self,
         query: &str,
@@ -2865,15 +2876,31 @@ impl WavefuncCore {
             return Ok(Vec::new());
         }
         let cfg = self.config.read().await.clone();
-        contextvm::search_youtube(
+        if let Ok(results) = contextvm::search_youtube(
             &self.client,
             &self.ephemeral_keys,
             &cfg.metadata_server_pubkey,
             trimmed,
             limit,
-            20,
+            15,
         )
         .await
+        {
+            if !results.is_empty() {
+                return Ok(results);
+            }
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            if let Ok(results) = self.media.search_youtube_local(trimmed, limit).await {
+                if !results.is_empty() {
+                    return Ok(results);
+                }
+            }
+        }
+
+        contextvm::search_youtube_web_fallback(&self.http, trimmed, limit).await
     }
 
     /// Download a YouTube video/audio locally via `yt-dlp` when available (desktop),
@@ -3298,6 +3325,34 @@ impl WavefuncCore {
             health,
             recent_downloads,
         })
+    }
+
+    /// Publish a `kind 1` song share note (`#wavefunc #songstr #tunestr`) with Blossom media URL.
+    pub async fn publish_song_share_note(
+        &self,
+        content: &str,
+        song_address: Option<&str>,
+        audio_url: Option<&str>,
+        hashtags: &[String],
+    ) -> Result<ActionOutcome> {
+        let builder = build_song_share_note_builder(content, song_address, audio_url, hashtags)?;
+        self.sign_or_prepare(builder, song_address.map(str::to_string))
+            .await
+    }
+
+    /// Return a localhost proxy URL for real-time FFT spectrum analysis while playing audio.
+    pub async fn prepare_audio_proxy_url(&self, upstream_url: &str) -> String {
+        self.spectrum.prepare_proxy_url(upstream_url).await
+    }
+
+    /// Reset real-time audio spectrum bands when playback pauses or stops.
+    pub fn reset_audio_spectrum(&self) {
+        self.spectrum.reset_spectrum();
+    }
+
+    /// Read the current 16-band FFT spectrum magnitudes (`0.0..1.0`) without blocking.
+    pub fn get_audio_spectrum(&self) -> AudioSpectrumSnapshot {
+        self.spectrum.snapshot()
     }
 
     /// Gracefully shut down relay connections.

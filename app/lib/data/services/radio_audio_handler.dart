@@ -6,6 +6,8 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../domain/models/now_playing.dart';
 import '../../domain/models/station.dart';
+import '../../src/rust/api/wavefunc.dart' as frb;
+import '../../src/rust/frb_generated.dart';
 
 /// Abstract audio engine interface so tests can inject a lightweight fake while
 /// production uses `RadioAudioHandler` backed by `audio_service` + `just_audio`.
@@ -216,8 +218,17 @@ class RadioAudioHandler extends BaseAudioHandler
     _updateOsMediaItem(station, null);
 
     try {
+      String playbackUrl = stream.url;
+      if (RustLib.instance.initialized) {
+        try {
+          playbackUrl = await frb.prepareAudioProxyUrl(upstreamUrl: stream.url);
+        } catch (_) {
+          playbackUrl = stream.url;
+        }
+      }
+      if (gen != _generation) return;
       await _player.setUrl(
-        stream.url,
+        playbackUrl,
         headers: const {'Icy-MetaData': '1'},
       );
       if (gen != _generation) return;
@@ -288,9 +299,17 @@ class RadioAudioHandler extends BaseAudioHandler
     await _player.play();
   }
 
+  void _resetNativeSpectrum() {
+    if (!RustLib.instance.initialized) return;
+    try {
+      frb.resetAudioSpectrum();
+    } catch (_) {}
+  }
+
   @override
   Future<void> pause() async {
     await _player.pause();
+    _resetNativeSpectrum();
     if (_snapshot.station != null) {
       _emit(_snapshot.copyWith(phase: PlayerPhase.paused));
     }
@@ -304,6 +323,7 @@ class RadioAudioHandler extends BaseAudioHandler
     _generation++;
     setSleepTimer(null);
     await _player.stop();
+    _resetNativeSpectrum();
     _emit(
       _snapshot.copyWith(
         phase: PlayerPhase.idle,

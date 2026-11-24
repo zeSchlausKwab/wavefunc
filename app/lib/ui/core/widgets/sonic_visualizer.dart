@@ -3,13 +3,16 @@ import 'dart:math' as math;
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../src/rust/api/wavefunc.dart' as frb;
+import '../../../src/rust/frb_generated.dart';
 import '../theme/sonic_machine_theme.dart';
 
-/// High-frequency 60fps Constructivist LED matrix spectrometer (`CustomPainter`).
+/// 60fps Constructivist LED matrix spectrometer (`CustomPainter`).
 ///
-/// Uses per-frame envelope physics (fast transient attack, musical beat pulses,
-/// exponential release, and gravity-driven peak-hold caps) so bars respond
-/// briskly and energetically during playback and settle cleanly when paused.
+/// Driven by real-time 16-band logarithmic FFT audio data decoded from the live
+/// radio stream by `wavefunc-core`'s pure-Rust `symphonia` audio proxy (zero
+/// microphone permission required across macOS, Android, Linux, and Windows).
+/// Falls back cleanly to a calm carrier wave when playing HLS or in tests.
 class SonicVisualizer extends StatefulWidget {
   const SonicVisualizer({
     super.key,
@@ -92,6 +95,17 @@ class _SonicVisualizerState extends State<SonicVisualizer>
     }
   }
 
+  frb.FrbAudioSpectrum? _readLiveSpectrum() {
+    if (!widget.isPlaying || !RustLib.instance.initialized) return null;
+    try {
+      final snap = frb.getAudioSpectrum();
+      if (snap.isLive && snap.bands.isNotEmpty) {
+        return snap;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   void _onTick(Duration elapsed) {
     final dt = _lastElapsed == Duration.zero
         ? 0.016
@@ -100,49 +114,40 @@ class _SonicVisualizerState extends State<SonicVisualizer>
     _time += dt;
 
     final cols = widget.columns;
-    final t = _time;
-
-    // Punchy ~128 BPM kick/snare pulse + fast harmonic shimmer across bands.
-    final beatPhase = (t * 2.13) % 1.0;
-    final kick = math.exp(-beatPhase * 9.5);
-    final offBeatPhase = ((t * 2.13) + 0.5) % 1.0;
-    final snare = math.exp(-offBeatPhase * 11.0);
-    final hatPhase = (t * 8.52) % 1.0;
-    final hiHat = math.exp(-hatPhase * 14.0);
+    final live = _readLiveSpectrum();
 
     for (var col = 0; col < cols; col++) {
-      final norm = cols <= 1 ? 0.0 : col / (cols - 1);
       final double target;
-
-      if (widget.isPlaying) {
-        // Frequency-shaped band response: bass -> mids -> highs.
-        final bassWeight = math.max(0.0, 1.0 - norm * 2.4);
-        final midWeight = math.exp(-math.pow((norm - 0.45) * 3.4, 2));
-        final highWeight = math.max(0.0, (norm - 0.45) * 1.85);
-
-        // High-frequency polyrhythmic modulation per column so adjacent bars dance crisply.
-        final fast1 = (math.sin(t * 14.5 + col * 1.37) + 1.0) * 0.5;
-        final fast2 = (math.cos(t * 21.3 - col * 2.19) + 1.0) * 0.5;
-        final fast3 = (math.sin(t * 9.1 + col * 0.73) + 1.0) * 0.5;
-        final energy = fast1 * 0.45 + fast2 * 0.35 + fast3 * 0.20;
-
-        final bandHit = bassWeight * (0.48 * kick + 0.52 * energy) +
-            midWeight * (0.42 * snare + 0.58 * energy) +
-            highWeight * (0.36 * hiHat + 0.50 * fast2);
-
-        final floor = 0.14 * (1.0 - norm * 0.3);
-        target = (floor + bandHit * 0.92).clamp(0.08, 1.0);
+      if (live != null) {
+        // Linearly resample the 16 real FFT bands across `cols`.
+        final bands = live.bands;
+        final pos = cols <= 1
+            ? 0.0
+            : (col / (cols - 1)) * (bands.length - 1);
+        final lo = pos.floor().clamp(0, bands.length - 1);
+        final hi = pos.ceil().clamp(0, bands.length - 1);
+        final frac = pos - lo;
+        final raw = bands[lo] * (1.0 - frac) + bands[hi] * frac;
+        target = raw.clamp(0.0, 1.0);
       } else if (widget.isBuffering) {
-        final sweep = (t * cols * 1.4) % cols;
+        final sweep = (_time * cols * 1.4) % cols;
         final dist = (col - sweep).abs();
         target = dist < 2.2 ? (1.0 - dist / 2.4) * 0.72 : 0.08;
+      } else if (widget.isPlaying) {
+        // Gentle carrier indicator for streams without raw PCM tap (e.g. HLS).
+        final norm = cols <= 1 ? 0.0 : col / (cols - 1);
+        final carrier =
+            0.22 + 0.14 * math.sin(_time * 4.5 + norm * math.pi * 2.0);
+        target = carrier.clamp(0.08, 0.42);
       } else {
         target = 0.0;
       }
 
-      // Crisp fast attack, smooth musical decay.
+      // Crisp fast attack for real transients, smooth natural release.
       final cur = _levels[col];
-      final rate = target > cur ? 28.0 : 10.5;
+      final rate = live != null
+          ? (target > cur ? 42.0 : 14.0)
+          : (target > cur ? 18.0 : 9.0);
       final next = cur + (target - cur) * (1.0 - math.exp(-rate * dt));
       _levels[col] = next;
 

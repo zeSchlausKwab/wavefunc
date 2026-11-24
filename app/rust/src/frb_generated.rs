@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1160144806;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -340631490;
 
 // Section: executor
 
@@ -1368,6 +1368,35 @@ fn wire__crate__api__wavefunc__generate_account_impl(
         },
     )
 }
+fn wire__crate__api__wavefunc__get_audio_spectrum_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_audio_spectrum",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::wavefunc::get_audio_spectrum())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__wavefunc__get_cashu_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1882,6 +1911,44 @@ fn wire__crate__api__wavefunc__post_station_comment_impl(
         },
     )
 }
+fn wire__crate__api__wavefunc__prepare_audio_proxy_url_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_audio_proxy_url",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_upstream_url = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Ok::<_, ()>(
+                            crate::api::wavefunc::prepare_audio_proxy_url(api_upstream_url).await,
+                        )?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__wavefunc__prepare_station_zap_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2098,6 +2165,51 @@ fn wire__crate__api__wavefunc__publish_signed_event_impl(
         },
     )
 }
+fn wire__crate__api__wavefunc__publish_song_share_note_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "publish_song_share_note",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_content = <String>::sse_decode(&mut deserializer);
+            let api_song_address = <Option<String>>::sse_decode(&mut deserializer);
+            let api_audio_url = <Option<String>>::sse_decode(&mut deserializer);
+            let api_hashtags = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::api::wavefunc::publish_song_share_note(
+                            api_content,
+                            api_song_address,
+                            api_audio_url,
+                            api_hashtags,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__wavefunc__publish_station_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2265,6 +2377,37 @@ fn wire__crate__api__wavefunc__refresh_nwc_balance_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__wavefunc__reset_audio_spectrum_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "reset_audio_spectrum",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>({
+                    crate::api::wavefunc::reset_audio_spectrum();
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -2830,6 +2973,13 @@ impl SseDecode for bool {
     }
 }
 
+impl SseDecode for f32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_f32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2866,6 +3016,18 @@ impl SseDecode for crate::api::wavefunc::FrbActionOutcome {
             event_id: var_eventId,
             unsigned_event_json: var_unsignedEventJson,
             target_address: var_targetAddress,
+        };
+    }
+}
+
+impl SseDecode for crate::api::wavefunc::FrbAudioSpectrum {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_bands = <Vec<f32>>::sse_decode(deserializer);
+        let mut var_isLive = <bool>::sse_decode(deserializer);
+        return crate::api::wavefunc::FrbAudioSpectrum {
+            bands: var_bands,
+            is_live: var_isLive,
         };
     }
 }
@@ -3887,6 +4049,18 @@ impl SseDecode for Vec<crate::api::wavefunc::FrbYouTubeSearchResult> {
     }
 }
 
+impl SseDecode for Vec<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<f32>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4148,92 +4322,104 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__wavefunc__fetch_user_profile_impl(port, ptr, rust_vec_len, data_len)
         }
         34 => wire__crate__api__wavefunc__generate_account_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__wavefunc__get_cashu_status_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__wavefunc__get_nwc_status_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__wavefunc__get_relay_status_impl(port, ptr, rust_vec_len, data_len),
-        38 => {
+        36 => wire__crate__api__wavefunc__get_cashu_status_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__wavefunc__get_nwc_status_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__wavefunc__get_relay_status_impl(port, ptr, rust_vec_len, data_len),
+        39 => {
             wire__crate__api__wavefunc__get_station_facets_impl(port, ptr, rust_vec_len, data_len)
         }
-        39 => wire__crate__api__wavefunc__init_cashu_wallet_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__wavefunc__login_with_amber_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__wavefunc__login_with_bunker_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__wavefunc__login_with_nsec_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__wavefunc__logout_account_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__wavefunc__pay_invoice_cashu_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__wavefunc__pay_invoice_nwc_impl(port, ptr, rust_vec_len, data_len),
-        46 => {
+        40 => wire__crate__api__wavefunc__init_cashu_wallet_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__wavefunc__login_with_amber_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__wavefunc__login_with_bunker_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__wavefunc__login_with_nsec_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__wavefunc__logout_account_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__wavefunc__pay_invoice_cashu_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__wavefunc__pay_invoice_nwc_impl(port, ptr, rust_vec_len, data_len),
+        47 => {
             wire__crate__api__wavefunc__post_community_note_impl(port, ptr, rust_vec_len, data_len)
         }
-        47 => {
+        48 => {
             wire__crate__api__wavefunc__post_station_comment_impl(port, ptr, rust_vec_len, data_len)
         }
-        48 => {
+        49 => wire__crate__api__wavefunc__prepare_audio_proxy_url_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        50 => {
             wire__crate__api__wavefunc__prepare_station_zap_impl(port, ptr, rust_vec_len, data_len)
         }
-        49 => wire__crate__api__wavefunc__prepare_youtube_media_impl(
+        51 => wire__crate__api__wavefunc__prepare_youtube_media_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__wavefunc__publish_listening_status_impl(
+        52 => wire__crate__api__wavefunc__publish_listening_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__wavefunc__publish_profile_impl(port, ptr, rust_vec_len, data_len),
-        52 => {
+        53 => wire__crate__api__wavefunc__publish_profile_impl(port, ptr, rust_vec_len, data_len),
+        54 => {
             wire__crate__api__wavefunc__publish_signed_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        53 => wire__crate__api__wavefunc__publish_station_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__wavefunc__react_to_station_impl(port, ptr, rust_vec_len, data_len),
-        55 => {
+        55 => wire__crate__api__wavefunc__publish_song_share_note_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        56 => wire__crate__api__wavefunc__publish_station_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__wavefunc__react_to_station_impl(port, ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__wavefunc__receive_cashu_token_impl(port, ptr, rust_vec_len, data_len)
         }
-        56 => {
+        59 => {
             wire__crate__api__wavefunc__refresh_nwc_balance_impl(port, ptr, rust_vec_len, data_len)
         }
-        57 => wire__crate__api__wavefunc__search_recordings_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__wavefunc__search_stations_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__wavefunc__search_youtube_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__wavefunc__send_cashu_token_impl(port, ptr, rust_vec_len, data_len),
-        61 => {
+        61 => wire__crate__api__wavefunc__search_recordings_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__wavefunc__search_stations_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__wavefunc__search_youtube_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__wavefunc__send_cashu_token_impl(port, ptr, rust_vec_len, data_len),
+        65 => {
             wire__crate__api__wavefunc__send_station_nutzap_impl(port, ptr, rust_vec_len, data_len)
         }
-        62 => wire__crate__api__wavefunc__sign_blossom_upload_auth_impl(
+        66 => wire__crate__api__wavefunc__sign_blossom_upload_auth_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__wavefunc__start_nostr_connect_session_impl(
+        67 => wire__crate__api__wavefunc__start_nostr_connect_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__wavefunc__sync_nip60_wallet_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__wavefunc__toggle_favorite_station_impl(
+        68 => wire__crate__api__wavefunc__sync_nip60_wallet_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__wavefunc__toggle_favorite_station_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__wavefunc__toggle_station_in_favorites_list_impl(
+        70 => wire__crate__api__wavefunc__toggle_station_in_favorites_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__wavefunc__update_favorites_list_impl(
+        71 => wire__crate__api__wavefunc__update_favorites_list_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__wavefunc__update_song_crate_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__wavefunc__upload_media_to_blossom_impl(
+        72 => wire__crate__api__wavefunc__update_song_crate_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__wavefunc__upload_media_to_blossom_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4251,6 +4437,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
+        35 => wire__crate__api__wavefunc__get_audio_spectrum_impl(ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__wavefunc__reset_audio_spectrum_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4300,6 +4488,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::wavefunc::FrbActionOutcome>
     for crate::api::wavefunc::FrbActionOutcome
 {
     fn into_into_dart(self) -> crate::api::wavefunc::FrbActionOutcome {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::wavefunc::FrbAudioSpectrum {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.bands.into_into_dart().into_dart(),
+            self.is_live.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::wavefunc::FrbAudioSpectrum
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::wavefunc::FrbAudioSpectrum>
+    for crate::api::wavefunc::FrbAudioSpectrum
+{
+    fn into_into_dart(self) -> crate::api::wavefunc::FrbAudioSpectrum {
         self
     }
 }
@@ -5302,6 +5511,13 @@ impl SseEncode for bool {
     }
 }
 
+impl SseEncode for f32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_f32::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5326,6 +5542,14 @@ impl SseEncode for crate::api::wavefunc::FrbActionOutcome {
         <Option<String>>::sse_encode(self.event_id, serializer);
         <Option<String>>::sse_encode(self.unsigned_event_json, serializer);
         <Option<String>>::sse_encode(self.target_address, serializer);
+    }
+}
+
+impl SseEncode for crate::api::wavefunc::FrbAudioSpectrum {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<f32>>::sse_encode(self.bands, serializer);
+        <bool>::sse_encode(self.is_live, serializer);
     }
 }
 
@@ -5980,6 +6204,16 @@ impl SseEncode for Vec<crate::api::wavefunc::FrbYouTubeSearchResult> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::wavefunc::FrbYouTubeSearchResult>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <f32>::sse_encode(item, serializer);
         }
     }
 }

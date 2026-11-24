@@ -132,14 +132,18 @@ export interface AudioUploadResult {
  */
 export async function searchYouTube(query: string, limit = 5): Promise<YouTubeResult[]> {
   const bin = await ensureYtDlp();
-  const commonArgs = getCommonYtDlpArgs();
+  const proxy = process.env.YTDLP_PROXY?.trim() || "";
+  const cookiesFile = process.env.YTDLP_COOKIES_FILE?.trim() || "";
+  const searchArgs: string[] = [];
+  if (proxy) searchArgs.push("--proxy", proxy);
+  if (cookiesFile) searchArgs.push("--cookies", cookiesFile);
   const proc = Bun.spawn(
     [
       bin,
       "--flat-playlist",
       "--dump-single-json",
       "--no-warnings",
-      ...commonArgs,
+      ...searchArgs,
       `ytsearch${limit}:${query}`,
     ],
     { stdout: "pipe", stderr: "pipe" }
@@ -174,7 +178,7 @@ export async function searchYouTube(query: string, limit = 5): Promise<YouTubeRe
     videoId: e.id,
     url: e.url?.startsWith("http") ? e.url : `https://www.youtube.com/watch?v=${e.id}`,
     title: e.title ?? "",
-    duration: typeof e.duration === "number" ? e.duration : undefined,
+    duration: typeof e.duration === "number" ? Math.round(e.duration) : undefined,
     channel: e.channel ?? e.uploader ?? undefined,
     thumbnailUrl: e.thumbnail ?? e.thumbnails?.at(-1)?.url ?? undefined,
     viewCount: typeof e.view_count === "number" ? e.view_count : undefined,

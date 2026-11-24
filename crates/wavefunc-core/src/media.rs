@@ -13,7 +13,7 @@ use tokio_util::io::ReaderStream;
 use url::Url;
 
 use crate::error::{Result, WavefuncError};
-use crate::models::{PreparedMedia, UploadedMedia};
+use crate::models::{PreparedMedia, UploadedMedia, YouTubeSearchResult};
 
 #[derive(Clone)]
 struct MediaJob {
@@ -41,6 +41,94 @@ impl MediaAcquisitionManager {
         Self {
             jobs: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Fast local `yt-dlp --flat-playlist --dump-single-json ytsearchN:<query>` search on desktop.
+    pub async fn search_youtube_local(
+        &self,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<YouTubeSearchResult>> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ytdlp = resolve_ytdlp_binary();
+        let count = limit.clamp(1, 10);
+        let output = Command::new(&ytdlp)
+            .kill_on_drop(true)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .arg("--flat-playlist")
+            .arg("--dump-single-json")
+            .arg("--no-warnings")
+            .arg(format!("ytsearch{count}:{trimmed}"))
+            .output()
+            .await
+            .map_err(|e| WavefuncError::InvalidInput(format!("yt-dlp search failed: {e}")))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(WavefuncError::InvalidInput(format!(
+                "yt-dlp search failed: {}",
+                stderr.lines().last().unwrap_or("unknown error")
+            )));
+        }
+
+        let val: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        let entries = val
+            .get("entries")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        let mut results = Vec::new();
+        for e in entries {
+            let Some(id) = e.get("id").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let title = e
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let url = e
+                .get("url")
+                .and_then(|v| v.as_str())
+                .filter(|u| u.starts_with("http"))
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("https://www.youtube.com/watch?v={id}"));
+            let duration_secs = e
+                .get("duration")
+                .and_then(|v| v.as_f64())
+                .map(|d| d.max(0.0).round() as u64);
+            let channel = e
+                .get("channel")
+                .or_else(|| e.get("uploader"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let thumbnail_url = e
+                .get("thumbnail")
+                .and_then(|v| v.as_str())
+                .or_else(|| {
+                    e.get("thumbnails")
+                        .and_then(|v| v.as_array())
+                        .and_then(|arr| arr.last())
+                        .and_then(|t| t.get("url"))
+                        .and_then(|v| v.as_str())
+                })
+                .map(str::to_string);
+            results.push(YouTubeSearchResult {
+                video_id: id.to_string(),
+                url,
+                title,
+                duration_secs,
+                channel,
+                thumbnail_url,
+            });
+        }
+        Ok(results)
     }
 
     pub async fn prepare_youtube_media(

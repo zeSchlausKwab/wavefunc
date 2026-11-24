@@ -753,6 +753,15 @@ class RelayWebSocketBackend implements WavefuncBackend {
   Future<SignalChartsData> fetchSignalCharts() async =>
       const SignalChartsData();
 
+  @override
+  Future<ActionOutcome> publishSongShareNote({
+    required String content,
+    String? songAddress,
+    String? audioUrl,
+    List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
+  }) async =>
+      _signingUnsupported();
+
   Future<void> _closeSocket() async {
     await _socketSub?.cancel();
     _socketSub = null;

@@ -864,6 +864,23 @@ class _FakeBackend implements WavefuncBackend {
   @override
   Future<SignalChartsData> fetchSignalCharts() async => signalChartsData;
 
+  final List<String> sharedSongNotes = [];
+
+  @override
+  Future<ActionOutcome> publishSongShareNote({
+    required String content,
+    String? songAddress,
+    String? audioUrl,
+    List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
+  }) async {
+    sharedSongNotes.add(content);
+    return ActionOutcome(
+      published: true,
+      eventId: 'ev-share-song-1',
+      targetAddress: songAddress,
+    );
+  }
+
   @override
   Future<void> dispose() async {}
 }
@@ -1839,6 +1856,90 @@ void main() {
     expect(find.text('RECENT_DOWNLOADS'), findsOneWidget);
     expect(find.text('ROYGBIV'), findsOneWidget);
     expect(find.text('BLOSSOM_ARCHIVE'), findsOneWidget);
+
+    await playerVm.stop();
+    await audioEngine.disposeEngine();
+    playerVm.dispose();
+    discoverVm.dispose();
+    communityVm.dispose();
+    crateVm.dispose();
+    authVm.dispose();
+  });
+
+  testWidgets('crate song share sheet publishes kind-1 note and feed renders video cards',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefService = PreferencesService(prefs);
+    final backend = _FakeBackend(testStations);
+    final authRepo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: AmberSignerService(),
+      preferences: prefService,
+    );
+    final authVm = AuthViewModel(
+      authRepository: authRepo,
+      cashuBaseDir: '/tmp/wavefunc-test-share',
+    );
+    final stationRepo = StationRepository(
+      backend: backend,
+      preferences: prefService,
+    );
+    final discoverVm = DiscoverViewModel(
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final audioEngine = _FakeAudioEngine();
+    final playerVm = PlayerViewModel(
+      engine: audioEngine,
+      repository: stationRepo,
+      authViewModel: authVm,
+    );
+    final communityVm = CommunityViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+    final crateVm = CrateViewModel(
+      backend: backend,
+      authViewModel: authVm,
+    );
+
+    await discoverVm.initialize();
+    await authVm.loginWithNsec('nsec1test');
+    await crateVm.refresh();
+
+    await tester.pumpWidget(
+      WavefuncApp(
+        discoverViewModel: discoverVm,
+        playerViewModel: playerVm,
+        authViewModel: authVm,
+        communityViewModel: communityVm,
+        crateViewModel: crateVm,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Navigate to LIBRARY -> SONG CRATE -> tap Share on Roygbiv.
+    await tester.tap(find.text('LIBRARY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('SONG CRATE'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Share song to Nostr').first);
+    await tester.pumpAndSettle();
+    expect(find.text('SHARE_NOTE // KIND 1'), findsOneWidget);
+
+    await tester.tap(find.text('PUBLISH SHARE NOTE'));
+    await tester.pumpAndSettle();
+
+    expect(backend.sharedSongNotes, hasLength(1));
+    expect(backend.sharedSongNotes.first, contains('Roygbiv'));
+    expect(backend.sharedSongNotes.first, contains('#wavefunc'));
 
     await playerVm.stop();
     await audioEngine.disposeEngine();

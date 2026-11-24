@@ -4,10 +4,12 @@ import '../../../../domain/models/social.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
+import '../../../core/widgets/video_player_sheet.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../player/view_models/player_view_model.dart';
 import '../view_models/crate_view_model.dart';
 import 'media_forge_sheet.dart';
+import 'share_song_sheet.dart';
 
 /// User's synced Nostr Song Crate (`kind 31337` songs + `kind 30078` list),
 /// integrated MusicBrainz Song Search, and Blossom Media Backup (`MEDIA_FORGE`).
@@ -298,6 +300,7 @@ class _CrateViewState extends State<CrateView> {
                       final song = vm.songs[index];
                       final hasAudio = song.audioUrl != null &&
                           song.audioUrl!.trim().isNotEmpty;
+                      final isVideo = isVideoMediaUrl(song.audioUrl);
                       return SonicPlate(
                         shadowOffset: const Offset(3, 3),
                         shadowColor: hasAudio
@@ -330,8 +333,8 @@ class _CrateViewState extends State<CrateView> {
                                       ),
                                       if (hasAudio) ...[
                                         const SizedBox(width: 6),
-                                        const SonicTag(
-                                          label: 'BLOSSOM',
+                                        SonicTag(
+                                          label: isVideo ? 'VIDEO' : 'BLOSSOM',
                                           highlighted: true,
                                         ),
                                       ],
@@ -350,17 +353,65 @@ class _CrateViewState extends State<CrateView> {
                                 ],
                               ),
                             ),
-                            if (hasAudio && widget.playerViewModel != null)
+                            if (hasAudio &&
+                                (isVideo || widget.playerViewModel != null))
                               IconButton(
-                                tooltip: 'Play Blossom audio',
-                                onPressed: () =>
-                                    widget.playerViewModel!.playSavedSong(song),
-                                icon: const Icon(
-                                  Icons.play_arrow,
+                                tooltip: isVideo
+                                    ? 'Play Blossom video'
+                                    : 'Play Blossom audio',
+                                onPressed: () {
+                                  if (isVideo) {
+                                    VideoPlayerSheet.open(
+                                      context,
+                                      url: song.audioUrl!,
+                                      title: song.title,
+                                      subtitle: song.artist,
+                                      onBeforeOpen: () async {
+                                        if (widget.playerViewModel != null &&
+                                            widget.playerViewModel!.snapshot
+                                                .isPlaying) {
+                                          await widget.playerViewModel!.pause();
+                                        }
+                                      },
+                                    );
+                                  } else {
+                                    widget.playerViewModel!.playSavedSong(song);
+                                  }
+                                },
+                                icon: Icon(
+                                  isVideo
+                                      ? Icons.smart_display
+                                      : Icons.play_arrow,
                                   color: SonicColors.signalRed,
                                   size: 22,
                                 ),
                               ),
+                            IconButton(
+                              tooltip: 'Share song to Nostr',
+                              onPressed: () async {
+                                if (!widget.authViewModel.isLoggedIn) {
+                                  widget.onRequestLogin();
+                                  return;
+                                }
+                                final shared = await ShareSongSheet.open(
+                                  context,
+                                  song: song,
+                                  authViewModel: widget.authViewModel,
+                                );
+                                if (shared == true && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Shared song to Nostr'),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.share_outlined,
+                                color: SonicColors.ink,
+                                size: 19,
+                              ),
+                            ),
                             IconButton(
                               tooltip: hasAudio
                                   ? 'Re-backup to Blossom'

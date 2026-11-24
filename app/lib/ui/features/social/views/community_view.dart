@@ -2,8 +2,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../domain/models/social.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
+import '../../../core/widgets/rich_note_content.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
+import '../../../core/widgets/video_player_sheet.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../crate/view_models/crate_view_model.dart';
 import '../../crate/views/media_forge_sheet.dart';
@@ -372,16 +374,41 @@ class _CommunityViewState extends State<CommunityView> {
                                   loadProfile: vm.fetchUserProfile,
                                 ),
                               ),
-                              if (hasAudio && widget.playerViewModel != null)
+                              if (hasAudio &&
+                                  (isVideoMediaUrl(song.audioUrl) ||
+                                      widget.playerViewModel != null))
                                 IconButton(
-                                  tooltip: 'Play Blossom audio',
-                                  icon: const Icon(
-                                    Icons.play_arrow,
+                                  tooltip: isVideoMediaUrl(song.audioUrl)
+                                      ? 'Play Blossom video'
+                                      : 'Play Blossom audio',
+                                  icon: Icon(
+                                    isVideoMediaUrl(song.audioUrl)
+                                        ? Icons.smart_display
+                                        : Icons.play_arrow,
                                     size: 22,
                                     color: SonicColors.signalRed,
                                   ),
-                                  onPressed: () => widget.playerViewModel!
-                                      .playSavedSong(song),
+                                  onPressed: () {
+                                    if (isVideoMediaUrl(song.audioUrl)) {
+                                      VideoPlayerSheet.open(
+                                        context,
+                                        url: song.audioUrl!,
+                                        title: song.title,
+                                        subtitle: song.artist,
+                                        onBeforeOpen: () async {
+                                          if (widget.playerViewModel != null &&
+                                              widget.playerViewModel!.snapshot
+                                                  .isPlaying) {
+                                            await widget.playerViewModel!
+                                                .pause();
+                                          }
+                                        },
+                                      );
+                                    } else {
+                                      widget.playerViewModel!
+                                          .playSavedSong(song);
+                                    }
+                                  },
                                 ),
                               if (widget.crateViewModel != null)
                                 IconButton(
@@ -449,6 +476,7 @@ class _CommunityViewState extends State<CommunityView> {
                           initialName: post.authorName,
                           initialPicture: post.authorPicture,
                         ),
+                        playerViewModel: widget.playerViewModel,
                       );
                     },
                   ),
@@ -467,12 +495,36 @@ class _CommunityPostCard extends StatelessWidget {
     required this.replies,
     required this.onReply,
     required this.onOpenAuthor,
+    this.playerViewModel,
   });
 
   final CommunityPost post;
   final List<CommunityPost> replies;
   final VoidCallback onReply;
   final VoidCallback onOpenAuthor;
+  final PlayerViewModel? playerViewModel;
+
+  void _playAttachedAudio(String url) {
+    final p = playerViewModel;
+    if (p == null) return;
+    p.playSavedSong(
+      SavedSong(
+        id: url.hashCode.toString(),
+        pubkey: post.pubkey,
+        songId: url.hashCode.toString(),
+        address: 'audio:$url',
+        title: 'Attached Audio',
+        artist: post.authorName,
+        audioUrl: url,
+      ),
+    );
+  }
+
+  Future<void> _pauseBeforeVideo() async {
+    if (playerViewModel != null && playerViewModel!.snapshot.isPlaying) {
+      await playerViewModel!.pause();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -522,9 +574,10 @@ class _CommunityPostCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            post.content,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.4),
+          RichNoteContent(
+            content: post.content,
+            onPlayAudioUrl: playerViewModel != null ? _playAttachedAudio : null,
+            onBeforePlayVideo: _pauseBeforeVideo,
           ),
           const SizedBox(height: 10),
           Row(
@@ -560,9 +613,12 @@ class _CommunityPostCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          r.content,
-                          style: Theme.of(context).textTheme.bodySmall,
+                        RichNoteContent(
+                          content: r.content,
+                          textStyle: Theme.of(context).textTheme.bodySmall,
+                          onPlayAudioUrl:
+                              playerViewModel != null ? _playAttachedAudio : null,
+                          onBeforePlayVideo: _pauseBeforeVideo,
                         ),
                       ],
                     ),

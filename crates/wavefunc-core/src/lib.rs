@@ -14,9 +14,11 @@ pub mod media;
 pub mod models;
 pub mod parser;
 pub mod social;
+pub mod spectrum;
 pub mod wallet;
 
 pub use client::WavefuncCore;
+pub use spectrum::AudioSpectrumSnapshot;
 pub use config::{
     CoreConfig, APP_DATA_KIND, BLOSSOM_AUTH_KIND, COMMENT_KIND, COMMUNITY_POST_KIND,
     COMMUNITY_TOPIC, CONTEXTVM_KIND, DEFAULT_CASHU_MINTS, DEFAULT_DEV_RELAY,

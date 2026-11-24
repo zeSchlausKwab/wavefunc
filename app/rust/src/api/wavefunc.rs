@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use wavefunc_core::{
-    AccountSessionInfo, ActionOutcome, BlossomAuthResult, BunkerLoginResult, CashuMintBalance,
-    CashuMintQuoteInfo, CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost,
-    CoreConfig, FacetCount, FeaturedList, GeneratedAccount, MusicBrainzRecording,
+    AccountSessionInfo, ActionOutcome, AudioSpectrumSnapshot, BlossomAuthResult, BunkerLoginResult,
+    CashuMintBalance, CashuMintQuoteInfo, CashuReceiveResult, CashuSendResult, CashuWalletStatus,
+    CommunityPost, CoreConfig, FacetCount, FeaturedList, GeneratedAccount, MusicBrainzRecording,
     Nip60DecryptedTokenEvent, Nip60RawEvents, Nip60RawTokenEvent, NostrConnectChallenge,
     NostrProfile, NowPlayingMetadata, NwcWalletStatus, PreparedMedia, RecipientNutzapInfo,
     RelayStatus, SavedSong, SignalChartsData, SignerKind, SongCrate, Station, StationCardCounts,
@@ -1682,4 +1682,50 @@ pub async fn fetch_signal_charts() -> Result<FrbSignalChartsData, String> {
         .await
         .map(Into::into)
         .map_err(|e| e.to_string())
+}
+
+pub async fn publish_song_share_note(
+    content: String,
+    song_address: Option<String>,
+    audio_url: Option<String>,
+    hashtags: Vec<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .publish_song_share_note(
+            &content,
+            song_address.as_deref(),
+            audio_url.as_deref(),
+            &hashtags,
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub struct FrbAudioSpectrum {
+    pub bands: Vec<f32>,
+    pub is_live: bool,
+}
+
+impl From<AudioSpectrumSnapshot> for FrbAudioSpectrum {
+    fn from(s: AudioSpectrumSnapshot) -> Self {
+        Self {
+            bands: s.bands,
+            is_live: s.is_live,
+        }
+    }
+}
+
+pub async fn prepare_audio_proxy_url(upstream_url: String) -> String {
+    core().prepare_audio_proxy_url(&upstream_url).await
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn reset_audio_spectrum() {
+    core().reset_audio_spectrum();
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_audio_spectrum() -> FrbAudioSpectrum {
+    core().get_audio_spectrum().into()
 }

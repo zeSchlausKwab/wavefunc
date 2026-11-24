@@ -3,7 +3,7 @@
 // Timeline data uses the shared cache; per-card reactions use Applesauce's
 // batched reaction loader instead of opening one relay request per card.
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Filter } from "applesauce-core/helpers/filter";
 import { TimelineModel } from "applesauce-core/models";
 import { useEventModel } from "applesauce-react/hooks";
@@ -11,6 +11,7 @@ import { storeEvents } from "applesauce-relay/operators";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { getAppDataRelayUrls, getSocialRelayUrls } from "../config/nostr";
+import { RichNoteContent } from "../components/RichNoteContent";
 import { shareOrCopy } from "../lib/share";
 import { useCurrentAccount, useProfile } from "../lib/nostr/auth";
 import {
@@ -25,9 +26,8 @@ import {
   type ParsedCommunityPost,
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { useCommunityOutboxes } from "../lib/nostr/hooks/useCommunityOutboxes";
-import { useWindowedTimeline } from "../lib/nostr/hooks/useWindowedTimeline";
-import { loadReactions } from "../lib/nostr/store";
+import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
+import { loadReactions, relayPool } from "../lib/nostr/store";
 import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/community")({
@@ -53,24 +53,59 @@ const categoryOptions: CategoryOption[] = [
 
 function Community() {
   const currentUser = useCurrentAccount();
-  const { signAndPublish } = useWavefuncNostr();
+  const { signAndPublish, eventStore } = useWavefuncNostr();
   const [activeFilter, setActiveFilter] = useState<ShoutboxCategory>("all");
   const [inputText, setInputText] = useState("");
   const [transmitError, setTransmitError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] =
     useState<CommunityCategory>("general");
+  const [limit, setLimit] = useState(150);
 
   // Subscribe to both kind 1 root notes and kind 1111 replies tagged #wavefunc
   const filters: Filter[] = useMemo(
     () => [
-      { kinds: [COMMUNITY_POST_KIND, LEGACY_COMMUNITY_REPLY_KIND], "#t": [COMMUNITY_TOPIC] },
+      {
+        kinds: [COMMUNITY_POST_KIND, LEGACY_COMMUNITY_REPLY_KIND],
+        "#t": [COMMUNITY_TOPIC],
+        limit,
+      },
+    ],
+    [limit],
+  );
+  const readFilters: Filter[] = useMemo(
+    () => [
+      {
+        kinds: [COMMUNITY_POST_KIND, LEGACY_COMMUNITY_REPLY_KIND],
+        "#t": [COMMUNITY_TOPIC],
+      },
     ],
     [],
   );
 
-  const { events: rawEvents, isLoading, incomplete, retry, loadOlder, since } = useWindowedTimeline(filters, getAppDataRelayUrls());
+  const { events: rawEvents, isLoading, error } = useAppDataTimeline(filters, readFilters);
 
-  const discoveryError = useCommunityOutboxes(currentUser?.pubkey ?? null, rawEvents, since);
+  // Live subscription so newly transmitted posts appear immediately.
+  useEffect(() => {
+    const relays = getAppDataRelayUrls();
+    const sinceNow = Math.floor(Date.now() / 1000) - 5;
+    const sub = relayPool
+      .subscription(
+        relays,
+        [
+          {
+            kinds: [COMMUNITY_POST_KIND, LEGACY_COMMUNITY_REPLY_KIND],
+            "#t": [COMMUNITY_TOPIC],
+            since: sinceNow,
+          },
+        ],
+        { waitForAuth: false },
+      )
+      .subscribe({
+        next: (event) => eventStore.add(event),
+        error: () => {},
+      });
+    return () => sub.unsubscribe();
+  }, [eventStore]);
 
   const allPosts: ParsedCommunityPost[] = useMemo(
     () => rawEvents.map((event) => parseCommunityPostEvent(event)),
@@ -184,7 +219,6 @@ function Community() {
   return (
     <div className="space-y-6">
 
-      {discoveryError && <p role="status" className="text-xs">{discoveryError}</p>}
       {/* Page header */}
       <div className="border-4 border-on-background bg-surface-container-high p-5 sm:p-6 shadow-[8px_8px_0px_0px_rgba(29,28,19,1)] flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
@@ -318,11 +352,18 @@ function Community() {
           </form>
 
           {/* Message feed */}
-          {incomplete && <p role="status" className="text-sm mb-3">Some history could not be loaded. <button className="underline" onClick={retry}>Retry</button></p>}
-          <div className="flex gap-4 text-xs mb-4 items-center">
-            <span>History since {new Date(since * 1000).toLocaleDateString()}</span>
-            <button className="underline" disabled={isLoading || since === 0} onClick={loadOlder}>{isLoading ? "Loading…" : "Load older posts"}</button>
-          </div>
+          {error && (
+            <div role="status" className="px-4 py-2.5 bg-primary/10 border-b-2 border-on-background text-xs font-bold flex items-center justify-between gap-2">
+              <span>Relay history warning: {error.message}</span>
+              <button
+                type="button"
+                className="underline font-black uppercase tracking-wider"
+                onClick={() => setLimit((n) => n + 50)}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {filteredMessages.length === 0 ? (
             <div className="p-12 text-center">
               <span className="material-symbols-outlined text-5xl text-on-background/20 block mb-4">
@@ -541,9 +582,13 @@ function CommunityMessageCard({
 
           {/* Header */}
           <div className="flex justify-between items-center mb-2 border-b-2 border-outline/50 pb-1.5 flex-wrap gap-1">
-            <span className="text-[10px] font-bold tracking-widest text-primary uppercase">
-              {opId}
-            </span>
+            <Link
+              to="/profile/$pubkey"
+              params={{ pubkey: message.pubkey }}
+              className="text-[10px] font-bold tracking-widest text-primary uppercase hover:underline"
+            >
+              {profile?.display_name || profile?.name || opId}
+            </Link>
             <div className="flex items-center gap-2 flex-wrap">
               {message.categories.map((cat) => (
                 <span
@@ -560,9 +605,7 @@ function CommunityMessageCard({
           </div>
 
           {/* Content */}
-          <p className="text-sm font-medium tracking-tight break-words">
-            {message.content}
-          </p>
+          <RichNoteContent content={message.content} />
 
           {/* Social action bar */}
           <div className="mt-3 pt-2 border-t-2 border-outline/30 flex items-center justify-between">
@@ -780,13 +823,19 @@ function ReplyCard({
         <div className="flex-1 border-2 border-on-background bg-background p-4 shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] group-hover:-translate-y-0.5 transition-transform min-w-0">
 
           <div className="flex justify-between items-center mb-2 border-b-2 border-outline/50 pb-1.5 flex-wrap gap-1">
-            <span className="text-[10px] font-bold tracking-widest text-primary uppercase">{opId}</span>
+            <Link
+              to="/profile/$pubkey"
+              params={{ pubkey: reply.pubkey }}
+              className="text-[10px] font-bold tracking-widest text-primary uppercase hover:underline"
+            >
+              {profile?.display_name || profile?.name || opId}
+            </Link>
             <span className="text-[10px] font-bold opacity-50 uppercase">
               {timestamp.toUpperCase().replace(/ /g, "_")}
             </span>
           </div>
 
-          <p className="text-sm font-medium tracking-tight break-words">{reply.content}</p>
+          <RichNoteContent content={reply.content} />
 
           <div className="mt-3 pt-2 border-t-2 border-outline/30 flex items-center justify-between">
             <div className="flex gap-4">

@@ -323,5 +323,12 @@ abstract class WavefuncBackend {
 
   Future<SignalChartsData> fetchSignalCharts();
 
+  Future<ActionOutcome> publishSongShareNote({
+    required String content,
+    String? songAddress,
+    String? audioUrl,
+    List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
+  });
+
   Future<void> dispose();
 }

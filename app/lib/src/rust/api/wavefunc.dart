@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FrbRelayStatus> connectRelay({required String relayUrl}) =>
     RustLib.instance.api.crateApiWavefuncConnectRelay(relayUrl: relayUrl);
@@ -521,6 +521,29 @@ Future<FrbActionOutcome> publishStation({
 Future<FrbSignalChartsData> fetchSignalCharts() =>
     RustLib.instance.api.crateApiWavefuncFetchSignalCharts();
 
+Future<FrbActionOutcome> publishSongShareNote({
+  required String content,
+  String? songAddress,
+  String? audioUrl,
+  required List<String> hashtags,
+}) => RustLib.instance.api.crateApiWavefuncPublishSongShareNote(
+  content: content,
+  songAddress: songAddress,
+  audioUrl: audioUrl,
+  hashtags: hashtags,
+);
+
+Future<String> prepareAudioProxyUrl({required String upstreamUrl}) => RustLib
+    .instance
+    .api
+    .crateApiWavefuncPrepareAudioProxyUrl(upstreamUrl: upstreamUrl);
+
+void resetAudioSpectrum() =>
+    RustLib.instance.api.crateApiWavefuncResetAudioSpectrum();
+
+FrbAudioSpectrum getAudioSpectrum() =>
+    RustLib.instance.api.crateApiWavefuncGetAudioSpectrum();
+
 class FrbAccountSessionInfo {
   final String pubkey;
   final String npub;
@@ -578,6 +601,24 @@ class FrbActionOutcome {
           eventId == other.eventId &&
           unsignedEventJson == other.unsignedEventJson &&
           targetAddress == other.targetAddress;
+}
+
+class FrbAudioSpectrum {
+  final Float32List bands;
+  final bool isLive;
+
+  const FrbAudioSpectrum({required this.bands, required this.isLive});
+
+  @override
+  int get hashCode => bands.hashCode ^ isLive.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbAudioSpectrum &&
+          runtimeType == other.runtimeType &&
+          bands == other.bands &&
+          isLive == other.isLive;
 }
 
 class FrbBlossomAuthResult {

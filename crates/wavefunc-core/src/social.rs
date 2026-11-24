@@ -583,6 +583,49 @@ pub fn build_community_post_builder(
     Ok(EventBuilder::new(Kind::Custom(COMMUNITY_POST_KIND), trimmed).tags(tags))
 }
 
+/// Build a `kind 1` song share note matching web's `buildShareSongNoteTemplate`.
+pub fn build_song_share_note_builder(
+    content: &str,
+    song_address: Option<&str>,
+    audio_url: Option<&str>,
+    hashtags: &[String],
+) -> Result<EventBuilder> {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Err(WavefuncError::InvalidInput(
+            "Note content cannot be empty.".to_string(),
+        ));
+    }
+    let mut final_content = trimmed.to_string();
+    if let Some(url) = audio_url.map(str::trim).filter(|u| !u.is_empty()) {
+        if !final_content.contains(url) {
+            final_content.push_str("\n\n");
+            final_content.push_str(url);
+        }
+    }
+
+    let mut tags: Vec<Tag> = Vec::new();
+    let mut seen_t: HashSet<String> = HashSet::new();
+    for tag in hashtags {
+        let clean = tag.trim().trim_start_matches('#').to_ascii_lowercase();
+        if !clean.is_empty() && seen_t.insert(clean.clone()) {
+            tags.push(Tag::hashtag(clean));
+        }
+    }
+    if let Some(addr) = song_address.map(str::trim).filter(|a| !a.is_empty()) {
+        if let Ok(t) = Tag::parse(["a", addr]) {
+            tags.push(t);
+        }
+    }
+    if let Some(url) = audio_url.map(str::trim).filter(|u| !u.is_empty()) {
+        if let Ok(t) = Tag::parse(["r", url]) {
+            tags.push(t);
+        }
+    }
+
+    Ok(EventBuilder::new(Kind::Custom(COMMUNITY_POST_KIND), final_content).tags(tags))
+}
+
 // ─── Songs (kind 31337) & Song Crates (kind 30078, wavefunc_user_song_list) ──
 
 fn slugify(input: &str) -> String {

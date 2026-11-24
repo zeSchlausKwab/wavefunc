@@ -305,7 +305,7 @@ struct RawRecordingItem {
     release: Option<String>,
     release_id: Option<String>,
     release_date: Option<String>,
-    duration: Option<u64>,
+    duration: Option<f64>,
     #[serde(default)]
     score: u32,
     #[serde(default)]
@@ -322,11 +322,16 @@ struct RawYouTubeWrapper {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawYouTubeItem {
+    #[serde(alias = "id")]
     video_id: String,
+    #[serde(default)]
     url: String,
+    #[serde(default)]
     title: String,
-    duration: Option<u64>,
+    duration: Option<f64>,
+    #[serde(alias = "uploader")]
     channel: Option<String>,
+    #[serde(alias = "thumbnail")]
     thumbnail_url: Option<String>,
 }
 
@@ -387,7 +392,7 @@ pub async fn search_recordings(
             release: r.release,
             release_id: r.release_id,
             release_date: r.release_date,
-            duration_ms: r.duration,
+            duration_ms: r.duration.map(|d| d.max(0.0).round() as u64),
             score: r.score,
             tags: r.tags,
         })
@@ -420,15 +425,152 @@ pub async fn search_youtube(
     Ok(parsed
         .results
         .into_iter()
-        .map(|y| YouTubeSearchResult {
-            video_id: y.video_id,
-            url: y.url,
-            title: y.title,
-            duration_secs: y.duration,
-            channel: y.channel,
-            thumbnail_url: y.thumbnail_url,
+        .filter(|y| !y.video_id.trim().is_empty())
+        .map(|y| {
+            let url = if y.url.starts_with("http") {
+                y.url
+            } else {
+                format!("https://www.youtube.com/watch?v={}", y.video_id)
+            };
+            YouTubeSearchResult {
+                video_id: y.video_id,
+                url,
+                title: y.title,
+                duration_secs: y.duration.map(|d| d.max(0.0).round() as u64),
+                channel: y.channel,
+                thumbnail_url: y.thumbnail_url,
+            }
         })
         .collect())
+}
+
+/// Direct HTTPS fallback that scrapes `ytInitialData` from YouTube search results
+/// when ContextVM and local `yt-dlp` are unavailable (works on Android & Desktop).
+pub async fn search_youtube_web_fallback(
+    http: &reqwest::Client,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<YouTubeSearchResult>> {
+    let mut url = reqwest::Url::parse("https://www.youtube.com/results")
+        .map_err(|e| WavefuncError::InvalidInput(e.to_string()))?;
+    url.query_pairs_mut().append_pair("search_query", query.trim());
+
+    let html = http
+        .get(url)
+        .header(
+            reqwest::header::USER_AGENT,
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        )
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    let marker = "var ytInitialData = ";
+    let start = html
+        .find(marker)
+        .map(|i| i + marker.len())
+        .or_else(|| {
+            html.find("ytInitialData = ")
+                .map(|i| i + "ytInitialData = ".len())
+        })
+        .ok_or_else(|| WavefuncError::ContextVm("YouTube search page returned no data".into()))?;
+    let rest = &html[start..];
+    let end = rest
+        .find(";</script>")
+        .or_else(|| rest.find(";\n"))
+        .ok_or_else(|| WavefuncError::ContextVm("Could not parse YouTube search JSON".into()))?;
+
+    let root: Value = serde_json::from_str(&rest[..end])?;
+    let mut out = Vec::new();
+    let max_items = limit.clamp(1, 10) as usize;
+    collect_video_renderers(&root, &mut out, max_items);
+    Ok(out)
+}
+
+fn parse_duration_text(text: &str) -> Option<u64> {
+    let parts: Vec<u64> = text
+        .trim()
+        .split(':')
+        .map(|p| p.trim().parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    match parts.as_slice() {
+        [m, s] => Some(m * 60 + s),
+        [h, m, s] => Some(h * 3600 + m * 60 + s),
+        _ => None,
+    }
+}
+
+fn collect_video_renderers(val: &Value, out: &mut Vec<YouTubeSearchResult>, max_items: usize) {
+    if out.len() >= max_items {
+        return;
+    }
+    match val {
+        Value::Object(map) => {
+            if let Some(vr) = map.get("videoRenderer").and_then(Value::as_object) {
+                if let Some(video_id) = vr.get("videoId").and_then(Value::as_str) {
+                    if !video_id.is_empty() && !out.iter().any(|x| x.video_id == video_id) {
+                        let title = vr
+                            .get("title")
+                            .and_then(|t| t.get("runs"))
+                            .and_then(Value::as_array)
+                            .and_then(|arr| arr.first())
+                            .and_then(|r| r.get("text"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string();
+                        if !title.is_empty() {
+                            let channel = vr
+                                .get("ownerText")
+                                .and_then(|t| t.get("runs"))
+                                .and_then(Value::as_array)
+                                .and_then(|arr| arr.first())
+                                .and_then(|r| r.get("text"))
+                                .and_then(Value::as_str)
+                                .map(str::to_string);
+                            let duration_secs = vr
+                                .get("lengthText")
+                                .and_then(|t| t.get("simpleText"))
+                                .and_then(Value::as_str)
+                                .and_then(parse_duration_text);
+                            let thumbnail_url = vr
+                                .get("thumbnail")
+                                .and_then(|t| t.get("thumbnails"))
+                                .and_then(Value::as_array)
+                                .and_then(|arr| arr.last())
+                                .and_then(|t| t.get("url"))
+                                .and_then(Value::as_str)
+                                .map(str::to_string);
+                            out.push(YouTubeSearchResult {
+                                video_id: video_id.to_string(),
+                                url: format!("https://www.youtube.com/watch?v={video_id}"),
+                                title,
+                                duration_secs,
+                                channel,
+                                thumbnail_url,
+                            });
+                        }
+                    }
+                }
+            }
+            for child in map.values() {
+                if out.len() >= max_items {
+                    break;
+                }
+                collect_video_renderers(child, out, max_items);
+            }
+        }
+        Value::Array(arr) => {
+            for child in arr {
+                if out.len() >= max_items {
+                    break;
+                }
+                collect_video_renderers(child, out, max_items);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Prepare a YouTube download remotely via ContextVM `prepare_download` (used on Android or when local yt-dlp is absent).

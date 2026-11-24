@@ -1148,6 +1148,22 @@ class RustBridgeBackend implements WavefuncBackend {
           .toList(),
     );
   }
+
+  @override
+  Future<ActionOutcome> publishSongShareNote({
+    required String content,
+    String? songAddress,
+    String? audioUrl,
+    List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
+  }) async {
+    final res = await frb.publishSongShareNote(
+      content: content,
+      songAddress: songAddress,
+      audioUrl: audioUrl,
+      hashtags: hashtags,
+    );
+    return _mapOutcome(res);
+  }
 }
 
 /// Initializes the Rust `wavefunc-core` FFI library when present for this platform,

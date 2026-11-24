@@ -5,6 +5,7 @@ import '../../../../domain/models/station.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
+import '../../../core/widgets/video_player_sheet.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../crate/view_models/crate_view_model.dart';
 import '../../player/view_models/player_view_model.dart';
@@ -746,7 +747,23 @@ class _RecentDownloadRow extends StatelessWidget {
               ),
             ),
           InkWell(
-            onTap: () => playerViewModel.playSavedSong(song),
+            onTap: () {
+              if (isVideoMediaUrl(song.audioUrl)) {
+                VideoPlayerSheet.open(
+                  context,
+                  url: song.audioUrl!,
+                  title: song.title,
+                  subtitle: song.artist,
+                  onBeforeOpen: () async {
+                    if (playerViewModel.snapshot.isPlaying) {
+                      await playerViewModel.pause();
+                    }
+                  },
+                );
+              } else {
+                playerViewModel.playSavedSong(song);
+              }
+            },
             child: Container(
               width: 46,
               decoration: const BoxDecoration(
@@ -756,8 +773,10 @@ class _RecentDownloadRow extends StatelessWidget {
                 ),
               ),
               alignment: Alignment.center,
-              child: const Icon(
-                Icons.play_arrow,
+              child: Icon(
+                isVideoMediaUrl(song.audioUrl)
+                    ? Icons.smart_display
+                    : Icons.play_arrow,
                 color: SonicColors.onSignal,
                 size: 20,
               ),
