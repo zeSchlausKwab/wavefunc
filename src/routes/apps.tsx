@@ -29,29 +29,27 @@ const PLATFORMS: Platform[] = [
     id: "macos",
     name: "macOS",
     icon: "laptop_mac",
-    description: "Unsigned .dmg — right-click the app and select 'Open' to bypass Gatekeeper on first launch.",
+    description: "Unsigned .app bundle — unzip, move to Applications, then right-click and select 'Open' on first launch.",
     files: [
-      { label: "DMG (Universal)", suffix: ".dmg" },
+      { label: "macOS Archive (Apple Silicon)", suffix: "-macos-arm64.zip", arch: "arm64" },
     ],
   },
   {
     id: "windows",
     name: "WINDOWS",
     icon: "desktop_windows",
-    description: "Unsigned installer — click 'More info' then 'Run anyway' if SmartScreen appears.",
+    description: "Portable unsigned bundle — unzip and run wavefunc_app.exe. Click 'More info' then 'Run anyway' if SmartScreen appears.",
     files: [
-      { label: "MSI Installer", suffix: ".msi", arch: "x64" },
-      { label: "EXE Installer", suffix: ".exe", arch: "x64" },
+      { label: "Windows Portable ZIP", suffix: "-windows-x64.zip", arch: "x64" },
     ],
   },
   {
     id: "linux",
     name: "LINUX",
     icon: "terminal",
-    description: "AppImage is portable and runs on most distros. Deb package for Debian/Ubuntu.",
+    description: "Portable Linux x64 bundle — extract the tarball and run ./wavefunc_app.",
     files: [
-      { label: "AppImage", suffix: ".AppImage", arch: "x86_64" },
-      { label: "Deb Package", suffix: ".deb", arch: "amd64" },
+      { label: "Linux Tarball", suffix: "-linux-x64.tar.gz", arch: "x86_64" },
     ],
   },
 ];
