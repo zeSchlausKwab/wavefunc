@@ -1,0 +1,28 @@
+[package]
+name = "wavefunc-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Rust protocol engine for WaveFunc Radio (Nostr, ContextVM, Cashu)"
+license = "MIT"
+
+[dependencies]
+base64 = "0.22"
+cdk = { version = "0.18.3", default-features = false, features = ["wallet"] }
+cdk-redb = "0.18.3"
+futures-util = "0.3"
+nostr = "0.45"
+nostr-connect = "0.45.3"
+nostr-sdk = "0.45.6"
+nwc = "0.45.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "fs", "process", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

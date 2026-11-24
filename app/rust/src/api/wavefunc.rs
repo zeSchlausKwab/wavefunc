@@ -1,0 +1,1332 @@
+use std::sync::Arc;
+
+use once_cell::sync::OnceCell;
+use wavefunc_core::{
+    AccountSessionInfo, ActionOutcome, BunkerLoginResult, CashuMintBalance, CashuMintQuoteInfo,
+    CashuReceiveResult, CashuSendResult, CashuWalletStatus, CommunityPost, CoreConfig, FacetCount,
+    FeaturedList, GeneratedAccount, NostrConnectChallenge, NostrProfile, NowPlayingMetadata,
+    NwcWalletStatus, PreparedMedia, RecipientNutzapInfo, RelayStatus, SavedSong, SignerKind,
+    SongCrate, Station, StationCardCounts, StationComment, StationFacets, StationSocialSummary,
+    StationStream, StreamQuality, UploadedMedia, WavefuncCore, ZapInvoiceResult, ZapPaymentResult,
+};
+
+static CORE: OnceCell<Arc<WavefuncCore>> = OnceCell::new();
+
+fn core() -> Arc<WavefuncCore> {
+    CORE.get_or_init(|| WavefuncCore::new(CoreConfig::default()))
+        .clone()
+}
+
+// ─── Phase 1 DTOs ────────────────────────────────────────────────────────────
+
+pub struct FrbStreamQuality {
+    pub bitrate: u32,
+    pub codec: String,
+    pub sample_rate: u32,
+}
+
+pub struct FrbStationStream {
+    pub url: String,
+    pub format: String,
+    pub quality: FrbStreamQuality,
+    pub primary: bool,
+}
+
+pub struct FrbStation {
+    pub id: String,
+    pub pubkey: String,
+    pub station_id: String,
+    pub address: String,
+    pub naddr: String,
+    pub created_at: u64,
+    pub name: String,
+    pub description: Option<String>,
+    pub thumbnail: Option<String>,
+    pub website: Option<String>,
+    pub location: Option<String>,
+    pub country_code: Option<String>,
+    pub genres: Vec<String>,
+    pub languages: Vec<String>,
+    pub streams: Vec<FrbStationStream>,
+    pub streaming_server_url: Option<String>,
+}
+
+pub struct FrbFacetCount {
+    pub name: String,
+    pub count: u32,
+}
+
+pub struct FrbStationFacets {
+    pub genres: Vec<FrbFacetCount>,
+    pub languages: Vec<FrbFacetCount>,
+    pub countries: Vec<FrbFacetCount>,
+}
+
+pub struct FrbFeaturedList {
+    pub id: String,
+    pub pubkey: String,
+    pub favorites_id: String,
+    pub address: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub image: Option<String>,
+    pub banner: Option<String>,
+    pub station_addresses: Vec<String>,
+}
+
+pub struct FrbNowPlayingMetadata {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub song: Option<String>,
+    pub station: Option<String>,
+    pub genre: Option<String>,
+    pub bitrate: Option<String>,
+    pub description: Option<String>,
+    pub listeners: Option<u32>,
+    pub source: Option<String>,
+    pub album: Option<String>,
+    pub release_date: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub mbid: Option<String>,
+    pub confidence: Option<String>,
+}
+
+pub struct FrbRelayStatus {
+    pub relay_url: String,
+    pub connected: bool,
+    pub total_station_count: Option<u64>,
+}
+
+// ─── Phase 2 DTOs ────────────────────────────────────────────────────────────
+
+pub enum FrbSignerKind {
+    LocalKey,
+    Bunker,
+    Amber,
+}
+
+pub struct FrbGeneratedAccount {
+    pub pubkey: String,
+    pub npub: String,
+    pub nsec: String,
+}
+
+pub struct FrbNostrProfile {
+    pub pubkey: String,
+    pub npub: String,
+    pub name: Option<String>,
+    pub display_name: Option<String>,
+    pub picture: Option<String>,
+    pub nip05: Option<String>,
+    pub about: Option<String>,
+    pub lud16: Option<String>,
+    pub lud06: Option<String>,
+}
+
+pub struct FrbAccountSessionInfo {
+    pub pubkey: String,
+    pub npub: String,
+    pub signer_kind: FrbSignerKind,
+    pub profile: Option<FrbNostrProfile>,
+}
+
+pub struct FrbBunkerLoginResult {
+    pub session: FrbAccountSessionInfo,
+    pub bunker_uri: String,
+    pub app_nsec: String,
+}
+
+pub struct FrbNostrConnectChallenge {
+    pub session_id: String,
+    pub connect_uri: String,
+    pub app_nsec: String,
+}
+
+pub struct FrbActionOutcome {
+    pub published: bool,
+    pub event_id: Option<String>,
+    pub unsigned_event_json: Option<String>,
+    pub target_address: Option<String>,
+}
+
+pub struct FrbStationComment {
+    pub id: String,
+    pub pubkey: String,
+    pub author_name: String,
+    pub author_picture: Option<String>,
+    pub content: String,
+    pub created_at: u64,
+    pub parent_id: Option<String>,
+    pub depth: u32,
+}
+
+pub struct FrbStationSocialSummary {
+    pub station_address: String,
+    pub reaction_count: u32,
+    pub user_reacted: bool,
+    pub comment_count: u32,
+    pub zap_count: u32,
+    pub zap_sats: u64,
+    pub user_zapped: bool,
+    pub comments: Vec<FrbStationComment>,
+}
+
+pub struct FrbStationCardCounts {
+    pub station_address: String,
+    pub reaction_count: u32,
+    pub user_reacted: bool,
+    pub comment_count: u32,
+    pub zap_count: u32,
+    pub zap_sats: u64,
+    pub user_zapped: bool,
+}
+
+pub struct FrbNwcWalletStatus {
+    pub connected: bool,
+    pub wallet_pubkey: Option<String>,
+    pub relay: Option<String>,
+    pub lud16: Option<String>,
+    pub balance_sats: Option<u64>,
+}
+
+pub struct FrbZapInvoiceResult {
+    pub bolt11: Option<String>,
+    pub amount_sats: u64,
+    pub recipient_lud16: String,
+    pub allows_nostr: bool,
+    pub callback_url: String,
+    pub unsigned_zap_request_json: Option<String>,
+}
+
+pub struct FrbZapPaymentResult {
+    pub preimage: String,
+    pub amount_sats: u64,
+    pub bolt11: String,
+}
+
+pub struct FrbCommunityPost {
+    pub id: String,
+    pub pubkey: String,
+    pub author_name: String,
+    pub author_picture: Option<String>,
+    pub content: String,
+    pub created_at: u64,
+    pub categories: Vec<String>,
+    pub is_reply: bool,
+    pub parent_id: Option<String>,
+    pub root_id: Option<String>,
+    pub reply_count: u32,
+}
+
+pub struct FrbSavedSong {
+    pub id: String,
+    pub pubkey: String,
+    pub song_id: String,
+    pub address: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub cover_art: Option<String>,
+    pub thumb: Option<String>,
+    pub duration_secs: Option<u32>,
+    pub release_year: Option<u32>,
+    pub mbid: Option<String>,
+    pub audio_url: Option<String>,
+    pub genres: Vec<String>,
+    pub created_at: u64,
+}
+
+pub struct FrbSongCrate {
+    pub list_id: String,
+    pub address: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub song_addresses: Vec<String>,
+    pub songs: Vec<FrbSavedSong>,
+}
+
+// ─── Conversions ─────────────────────────────────────────────────────────────
+
+impl From<StreamQuality> for FrbStreamQuality {
+    fn from(v: StreamQuality) -> Self {
+        Self {
+            bitrate: v.bitrate,
+            codec: v.codec,
+            sample_rate: v.sample_rate,
+        }
+    }
+}
+
+impl From<StationStream> for FrbStationStream {
+    fn from(v: StationStream) -> Self {
+        Self {
+            url: v.url,
+            format: v.format,
+            quality: v.quality.into(),
+            primary: v.primary,
+        }
+    }
+}
+
+impl From<Station> for FrbStation {
+    fn from(v: Station) -> Self {
+        Self {
+            id: v.id,
+            pubkey: v.pubkey,
+            station_id: v.station_id,
+            address: v.address,
+            naddr: v.naddr,
+            created_at: v.created_at,
+            name: v.name,
+            description: v.description,
+            thumbnail: v.thumbnail,
+            website: v.website,
+            location: v.location,
+            country_code: v.country_code,
+            genres: v.genres,
+            languages: v.languages,
+            streams: v.streams.into_iter().map(Into::into).collect(),
+            streaming_server_url: v.streaming_server_url,
+        }
+    }
+}
+
+impl From<FacetCount> for FrbFacetCount {
+    fn from(v: FacetCount) -> Self {
+        Self {
+            name: v.name,
+            count: v.count,
+        }
+    }
+}
+
+impl From<StationFacets> for FrbStationFacets {
+    fn from(v: StationFacets) -> Self {
+        Self {
+            genres: v.genres.into_iter().map(Into::into).collect(),
+            languages: v.languages.into_iter().map(Into::into).collect(),
+            countries: v.countries.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<FeaturedList> for FrbFeaturedList {
+    fn from(v: FeaturedList) -> Self {
+        Self {
+            id: v.id,
+            pubkey: v.pubkey,
+            favorites_id: v.favorites_id,
+            address: v.address,
+            name: v.name,
+            description: v.description,
+            image: v.image,
+            banner: v.banner,
+            station_addresses: v.station_addresses,
+        }
+    }
+}
+
+impl From<NowPlayingMetadata> for FrbNowPlayingMetadata {
+    fn from(v: NowPlayingMetadata) -> Self {
+        Self {
+            title: v.title,
+            artist: v.artist,
+            song: v.song,
+            station: v.station,
+            genre: v.genre,
+            bitrate: v.bitrate,
+            description: v.description,
+            listeners: v.listeners,
+            source: v.source,
+            album: v.album,
+            release_date: v.release_date,
+            duration_ms: v.duration_ms,
+            mbid: v.mbid,
+            confidence: v.confidence,
+        }
+    }
+}
+
+impl From<RelayStatus> for FrbRelayStatus {
+    fn from(v: RelayStatus) -> Self {
+        Self {
+            relay_url: v.relay_url,
+            connected: v.connected,
+            total_station_count: v.total_station_count,
+        }
+    }
+}
+
+impl From<SignerKind> for FrbSignerKind {
+    fn from(v: SignerKind) -> Self {
+        match v {
+            SignerKind::LocalKey => Self::LocalKey,
+            SignerKind::Bunker => Self::Bunker,
+            SignerKind::Amber => Self::Amber,
+        }
+    }
+}
+
+impl From<GeneratedAccount> for FrbGeneratedAccount {
+    fn from(v: GeneratedAccount) -> Self {
+        Self {
+            pubkey: v.pubkey,
+            npub: v.npub,
+            nsec: v.nsec,
+        }
+    }
+}
+
+impl From<NostrProfile> for FrbNostrProfile {
+    fn from(v: NostrProfile) -> Self {
+        Self {
+            pubkey: v.pubkey,
+            npub: v.npub,
+            name: v.name,
+            display_name: v.display_name,
+            picture: v.picture,
+            nip05: v.nip05,
+            about: v.about,
+            lud16: v.lud16,
+            lud06: v.lud06,
+        }
+    }
+}
+
+impl From<AccountSessionInfo> for FrbAccountSessionInfo {
+    fn from(v: AccountSessionInfo) -> Self {
+        Self {
+            pubkey: v.pubkey,
+            npub: v.npub,
+            signer_kind: v.signer_kind.into(),
+            profile: v.profile.map(Into::into),
+        }
+    }
+}
+
+impl From<BunkerLoginResult> for FrbBunkerLoginResult {
+    fn from(v: BunkerLoginResult) -> Self {
+        Self {
+            session: v.session.into(),
+            bunker_uri: v.bunker_uri,
+            app_nsec: v.app_nsec,
+        }
+    }
+}
+
+impl From<NostrConnectChallenge> for FrbNostrConnectChallenge {
+    fn from(v: NostrConnectChallenge) -> Self {
+        Self {
+            session_id: v.session_id,
+            connect_uri: v.connect_uri,
+            app_nsec: v.app_nsec,
+        }
+    }
+}
+
+impl From<ActionOutcome> for FrbActionOutcome {
+    fn from(v: ActionOutcome) -> Self {
+        Self {
+            published: v.published,
+            event_id: v.event_id,
+            unsigned_event_json: v.unsigned_event_json,
+            target_address: v.target_address,
+        }
+    }
+}
+
+impl From<StationComment> for FrbStationComment {
+    fn from(v: StationComment) -> Self {
+        Self {
+            id: v.id,
+            pubkey: v.pubkey,
+            author_name: v.author_name,
+            author_picture: v.author_picture,
+            content: v.content,
+            created_at: v.created_at,
+            parent_id: v.parent_id,
+            depth: v.depth,
+        }
+    }
+}
+
+impl From<StationSocialSummary> for FrbStationSocialSummary {
+    fn from(v: StationSocialSummary) -> Self {
+        Self {
+            station_address: v.station_address,
+            reaction_count: v.reaction_count,
+            user_reacted: v.user_reacted,
+            comment_count: v.comment_count,
+            zap_count: v.zap_count,
+            zap_sats: v.zap_sats,
+            user_zapped: v.user_zapped,
+            comments: v.comments.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<StationCardCounts> for FrbStationCardCounts {
+    fn from(v: StationCardCounts) -> Self {
+        Self {
+            station_address: v.station_address,
+            reaction_count: v.reaction_count,
+            user_reacted: v.user_reacted,
+            comment_count: v.comment_count,
+            zap_count: v.zap_count,
+            zap_sats: v.zap_sats,
+            user_zapped: v.user_zapped,
+        }
+    }
+}
+
+impl From<NwcWalletStatus> for FrbNwcWalletStatus {
+    fn from(v: NwcWalletStatus) -> Self {
+        Self {
+            connected: v.connected,
+            wallet_pubkey: v.wallet_pubkey,
+            relay: v.relay,
+            lud16: v.lud16,
+            balance_sats: v.balance_sats,
+        }
+    }
+}
+
+impl From<ZapInvoiceResult> for FrbZapInvoiceResult {
+    fn from(v: ZapInvoiceResult) -> Self {
+        Self {
+            bolt11: v.bolt11,
+            amount_sats: v.amount_sats,
+            recipient_lud16: v.recipient_lud16,
+            allows_nostr: v.allows_nostr,
+            callback_url: v.callback_url,
+            unsigned_zap_request_json: v.unsigned_zap_request_json,
+        }
+    }
+}
+
+impl From<ZapPaymentResult> for FrbZapPaymentResult {
+    fn from(v: ZapPaymentResult) -> Self {
+        Self {
+            preimage: v.preimage,
+            amount_sats: v.amount_sats,
+            bolt11: v.bolt11,
+        }
+    }
+}
+
+impl From<CommunityPost> for FrbCommunityPost {
+    fn from(v: CommunityPost) -> Self {
+        Self {
+            id: v.id,
+            pubkey: v.pubkey,
+            author_name: v.author_name,
+            author_picture: v.author_picture,
+            content: v.content,
+            created_at: v.created_at,
+            categories: v.categories,
+            is_reply: v.is_reply,
+            parent_id: v.parent_id,
+            root_id: v.root_id,
+            reply_count: v.reply_count,
+        }
+    }
+}
+
+impl From<SavedSong> for FrbSavedSong {
+    fn from(v: SavedSong) -> Self {
+        Self {
+            id: v.id,
+            pubkey: v.pubkey,
+            song_id: v.song_id,
+            address: v.address,
+            title: v.title,
+            artist: v.artist,
+            album: v.album,
+            cover_art: v.cover_art,
+            thumb: v.thumb,
+            duration_secs: v.duration_secs,
+            release_year: v.release_year,
+            mbid: v.mbid,
+            audio_url: v.audio_url,
+            genres: v.genres,
+            created_at: v.created_at,
+        }
+    }
+}
+
+impl From<SongCrate> for FrbSongCrate {
+    fn from(v: SongCrate) -> Self {
+        Self {
+            list_id: v.list_id,
+            address: v.address,
+            name: v.name,
+            description: v.description,
+            song_addresses: v.song_addresses,
+            songs: v.songs.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+// ─── Phase 1 Functions ───────────────────────────────────────────────────────
+
+pub async fn connect_relay(relay_url: String) -> Result<FrbRelayStatus, String> {
+    core()
+        .set_relay(&relay_url)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn get_relay_status() -> Result<FrbRelayStatus, String> {
+    core()
+        .relay_status()
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_stations(limit: u32) -> Result<Vec<FrbStation>, String> {
+    core()
+        .fetch_stations(limit as usize)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn search_stations(
+    query: Option<String>,
+    genre: Option<String>,
+    country: Option<String>,
+    language: Option<String>,
+    limit: u32,
+) -> Result<Vec<FrbStation>, String> {
+    core()
+        .search_stations(
+            query.as_deref(),
+            genre.as_deref(),
+            country.as_deref(),
+            language.as_deref(),
+            limit as usize,
+        )
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_station_by_address(address: String) -> Result<Option<FrbStation>, String> {
+    core()
+        .fetch_station_by_address(&address)
+        .await
+        .map(|opt| opt.map(Into::into))
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_stations_by_addresses(addresses: Vec<String>) -> Result<Vec<FrbStation>, String> {
+    core()
+        .fetch_stations_by_addresses(&addresses)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_featured_lists() -> Result<Vec<FrbFeaturedList>, String> {
+    core()
+        .fetch_featured_lists()
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn get_station_facets() -> FrbStationFacets {
+    core().get_facets().await.into()
+}
+
+pub async fn extract_stream_metadata(
+    stream_url: String,
+    station_address: Option<String>,
+    session_id: Option<String>,
+) -> Result<FrbNowPlayingMetadata, String> {
+    core()
+        .extract_stream_metadata(
+            &stream_url,
+            station_address.as_deref(),
+            session_id.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+// ─── Phase 2 Functions: Auth, Favorites, Social, Community, Crate, NIP-38 ───
+
+pub fn generate_account() -> Result<FrbGeneratedAccount, String> {
+    WavefuncCore::generate_account()
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn login_with_nsec(secret: String) -> Result<FrbAccountSessionInfo, String> {
+    core()
+        .login_with_nsec(&secret)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn login_with_bunker(
+    bunker_uri: String,
+    app_nsec: Option<String>,
+) -> Result<FrbBunkerLoginResult, String> {
+    core()
+        .login_with_bunker(&bunker_uri, app_nsec.as_deref())
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn login_with_amber(pubkey_or_npub: String) -> Result<FrbAccountSessionInfo, String> {
+    core()
+        .login_with_amber(&pubkey_or_npub)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn start_nostr_connect_session(
+    relay_url: Option<String>,
+    client_name: Option<String>,
+) -> Result<FrbNostrConnectChallenge, String> {
+    core()
+        .start_nostr_connect_session(relay_url.as_deref(), client_name.as_deref())
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn await_nostr_connect_session(
+    session_id: String,
+) -> Result<FrbBunkerLoginResult, String> {
+    core()
+        .await_nostr_connect_session(&session_id)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn cancel_nostr_connect_session(session_id: String) {
+    core().cancel_nostr_connect_session(&session_id).await;
+}
+
+pub async fn publish_profile(
+    name: Option<String>,
+    about: Option<String>,
+    picture: Option<String>,
+    lud16: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .publish_profile(
+            name.as_deref(),
+            about.as_deref(),
+            picture.as_deref(),
+            lud16.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn logout_account() {
+    core().logout().await;
+}
+
+pub async fn current_account() -> Option<FrbAccountSessionInfo> {
+    core().current_account().await.map(Into::into)
+}
+
+pub async fn publish_signed_event(signed_event_json: String) -> Result<FrbActionOutcome, String> {
+    core()
+        .publish_signed_event(&signed_event_json)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_user_favorites() -> Result<Vec<FrbFeaturedList>, String> {
+    core()
+        .fetch_user_favorites()
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn toggle_favorite_station(
+    station_address: String,
+    add: bool,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .toggle_favorite_station(&station_address, add)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn create_favorites_list(
+    name: String,
+    description: Option<String>,
+    station_addresses: Vec<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .create_favorites_list(&name, description.as_deref(), &station_addresses)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn update_favorites_list(
+    favorites_id: String,
+    name: String,
+    description: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .update_favorites_list(&favorites_id, &name, description.as_deref())
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn delete_favorites_list(
+    event_id: String,
+    favorites_id: String,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .delete_favorites_list(&event_id, &favorites_id)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn toggle_station_in_favorites_list(
+    favorites_id: Option<String>,
+    station_address: String,
+    add: bool,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .toggle_station_in_favorites_list(favorites_id.as_deref(), &station_address, add)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_station_social(
+    station_address: String,
+    station_event_id: String,
+) -> Result<FrbStationSocialSummary, String> {
+    core()
+        .fetch_station_social(&station_address, &station_event_id)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn react_to_station(
+    station_id: String,
+    station_pubkey: String,
+    station_address: String,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .react_to_station(&station_id, &station_pubkey, &station_address)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn post_station_comment(
+    station_event_id: String,
+    station_pubkey: String,
+    station_address: String,
+    content: String,
+    reply_to_id: Option<String>,
+    reply_to_pubkey: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .post_station_comment(
+            &station_event_id,
+            &station_pubkey,
+            &station_address,
+            &content,
+            reply_to_id.as_deref(),
+            reply_to_pubkey.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_community_posts(limit: u32) -> Result<Vec<FrbCommunityPost>, String> {
+    core()
+        .fetch_community_posts(limit as usize)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn post_community_note(
+    content: String,
+    category: Option<String>,
+    reply_to_id: Option<String>,
+    reply_to_pubkey: Option<String>,
+    root_id: Option<String>,
+    root_pubkey: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .post_community_note(
+            &content,
+            category.as_deref(),
+            reply_to_id.as_deref(),
+            reply_to_pubkey.as_deref(),
+            root_id.as_deref(),
+            root_pubkey.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_song_crate() -> Result<FrbSongCrate, String> {
+    core()
+        .fetch_song_crate()
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create_song_event(
+    title: String,
+    artist: Option<String>,
+    album: Option<String>,
+    mbid: Option<String>,
+    release_id: Option<String>,
+    release_date: Option<String>,
+    duration_ms: Option<u64>,
+    genres: Vec<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .create_song_event(
+            &title,
+            artist.as_deref(),
+            album.as_deref(),
+            mbid.as_deref(),
+            release_id.as_deref(),
+            release_date.as_deref(),
+            duration_ms,
+            &genres,
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn update_song_crate(
+    song_address: String,
+    add: bool,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .update_song_crate(&song_address, add)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn publish_listening_status(
+    title: Option<String>,
+    artist: Option<String>,
+    station_address: Option<String>,
+    station_url: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .publish_listening_status(
+            title.as_deref(),
+            artist.as_deref(),
+            station_address.as_deref(),
+            station_url.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+// ─── Batch Social Counts, NWC Wallet & NIP-57 Lightning Zaps ────────────────
+
+pub async fn fetch_stations_social_counts(
+    addresses: Vec<String>,
+) -> Result<Vec<FrbStationCardCounts>, String> {
+    core()
+        .fetch_stations_social_counts(&addresses)
+        .await
+        .map(|list| list.into_iter().map(Into::into).collect())
+        .map_err(|e| e.to_string())
+}
+
+pub async fn connect_nwc(nwc_uri: String) -> Result<FrbNwcWalletStatus, String> {
+    core()
+        .connect_nwc(&nwc_uri)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn disconnect_nwc() {
+    core().disconnect_nwc().await;
+}
+
+pub async fn get_nwc_status() -> FrbNwcWalletStatus {
+    core().get_nwc_status().await.into()
+}
+
+pub async fn refresh_nwc_balance() -> Result<FrbNwcWalletStatus, String> {
+    core()
+        .refresh_nwc_balance()
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn prepare_station_zap(
+    station_pubkey: String,
+    station_address: String,
+    amount_sats: u64,
+    comment: Option<String>,
+) -> Result<FrbZapInvoiceResult, String> {
+    core()
+        .prepare_station_zap(
+            &station_pubkey,
+            &station_address,
+            amount_sats,
+            comment.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn complete_station_zap_with_signed_request(
+    callback_url: String,
+    amount_sats: u64,
+    comment: Option<String>,
+    signed_zap_request_json: String,
+    recipient_lud16: String,
+) -> Result<FrbZapInvoiceResult, String> {
+    core()
+        .complete_station_zap_with_signed_request(
+            &callback_url,
+            amount_sats,
+            comment.as_deref(),
+            &signed_zap_request_json,
+            &recipient_lud16,
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn pay_invoice_nwc(
+    bolt11: String,
+    amount_sats: u64,
+) -> Result<FrbZapPaymentResult, String> {
+    core()
+        .pay_invoice_nwc(&bolt11, amount_sats)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn check_station_zap_receipt(
+    station_address: String,
+    bolt11: String,
+    since_unix: u64,
+) -> Result<bool, String> {
+    core()
+        .check_station_zap_receipt(&station_address, &bolt11, since_unix)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ─── Phase 4 DTOs: Embedded Cashu Ecash Wallet, NIP-61 Nutzaps & Media ──────
+
+pub struct FrbCashuMintBalance {
+    pub mint_url: String,
+    pub balance_sats: u64,
+}
+
+impl From<CashuMintBalance> for FrbCashuMintBalance {
+    fn from(m: CashuMintBalance) -> Self {
+        Self {
+            mint_url: m.mint_url,
+            balance_sats: m.balance_sats,
+        }
+    }
+}
+
+pub struct FrbCashuWalletStatus {
+    pub initialized: bool,
+    pub total_balance_sats: u64,
+    pub mints: Vec<FrbCashuMintBalance>,
+}
+
+impl From<CashuWalletStatus> for FrbCashuWalletStatus {
+    fn from(s: CashuWalletStatus) -> Self {
+        Self {
+            initialized: s.initialized,
+            total_balance_sats: s.total_balance_sats,
+            mints: s.mints.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+pub struct FrbCashuMintQuoteInfo {
+    pub mint_url: String,
+    pub quote_id: String,
+    pub bolt11: String,
+    pub amount_sats: u64,
+}
+
+impl From<CashuMintQuoteInfo> for FrbCashuMintQuoteInfo {
+    fn from(q: CashuMintQuoteInfo) -> Self {
+        Self {
+            mint_url: q.mint_url,
+            quote_id: q.quote_id,
+            bolt11: q.bolt11,
+            amount_sats: q.amount_sats,
+        }
+    }
+}
+
+pub struct FrbCashuReceiveResult {
+    pub received_sats: u64,
+    pub mint_url: String,
+    pub status: FrbCashuWalletStatus,
+}
+
+impl From<CashuReceiveResult> for FrbCashuReceiveResult {
+    fn from(r: CashuReceiveResult) -> Self {
+        Self {
+            received_sats: r.received_sats,
+            mint_url: r.mint_url,
+            status: r.status.into(),
+        }
+    }
+}
+
+pub struct FrbCashuSendResult {
+    pub token: String,
+    pub amount_sats: u64,
+    pub mint_url: String,
+    pub status: FrbCashuWalletStatus,
+}
+
+impl From<CashuSendResult> for FrbCashuSendResult {
+    fn from(r: CashuSendResult) -> Self {
+        Self {
+            token: r.token,
+            amount_sats: r.amount_sats,
+            mint_url: r.mint_url,
+            status: r.status.into(),
+        }
+    }
+}
+
+pub struct FrbRecipientNutzapInfo {
+    pub pubkey: String,
+    pub p2pk_pubkey: Option<String>,
+    pub mints: Vec<String>,
+    pub relays: Vec<String>,
+}
+
+impl From<RecipientNutzapInfo> for FrbRecipientNutzapInfo {
+    fn from(i: RecipientNutzapInfo) -> Self {
+        Self {
+            pubkey: i.pubkey,
+            p2pk_pubkey: i.p2pk_pubkey,
+            mints: i.mints,
+            relays: i.relays,
+        }
+    }
+}
+
+pub struct FrbPreparedMedia {
+    pub job_id: String,
+    pub sha256: String,
+    pub size: u64,
+    pub mime_type: String,
+}
+
+impl From<PreparedMedia> for FrbPreparedMedia {
+    fn from(m: PreparedMedia) -> Self {
+        Self {
+            job_id: m.job_id,
+            sha256: m.sha256,
+            size: m.size,
+            mime_type: m.mime_type,
+        }
+    }
+}
+
+pub struct FrbUploadedMedia {
+    pub url: String,
+    pub sha256: String,
+    pub size: u64,
+    pub mime_type: String,
+}
+
+impl From<UploadedMedia> for FrbUploadedMedia {
+    fn from(m: UploadedMedia) -> Self {
+        Self {
+            url: m.url,
+            sha256: m.sha256,
+            size: m.size,
+            mime_type: m.mime_type,
+        }
+    }
+}
+
+// ─── Phase 4 Functions: Embedded Cashu Wallet, NIP-61 Nutzaps & Media ────────
+
+pub async fn init_cashu_wallet(
+    db_dir: String,
+    seed_material: String,
+    mints: Vec<String>,
+) -> Result<FrbCashuWalletStatus, String> {
+    core()
+        .init_cashu_wallet(&db_dir, &seed_material, &mints)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn get_cashu_status() -> FrbCashuWalletStatus {
+    core().get_cashu_status().await.into()
+}
+
+pub async fn add_cashu_mint(mint_url: String) -> Result<FrbCashuWalletStatus, String> {
+    core()
+        .add_cashu_mint(&mint_url)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn create_cashu_mint_quote(
+    mint_url: String,
+    amount_sats: u64,
+) -> Result<FrbCashuMintQuoteInfo, String> {
+    core()
+        .create_cashu_mint_quote(&mint_url, amount_sats)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn claim_cashu_mint_quote(
+    mint_url: String,
+    quote_id: String,
+) -> Result<FrbCashuWalletStatus, String> {
+    core()
+        .claim_cashu_mint_quote(&mint_url, &quote_id)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn receive_cashu_token(token: String) -> Result<FrbCashuReceiveResult, String> {
+    core()
+        .receive_cashu_token(&token)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn send_cashu_token(
+    mint_url: Option<String>,
+    amount_sats: u64,
+    memo: Option<String>,
+) -> Result<FrbCashuSendResult, String> {
+    core()
+        .send_cashu_token(mint_url.as_deref(), amount_sats, memo.as_deref())
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn pay_invoice_cashu(
+    mint_url: Option<String>,
+    bolt11: String,
+    amount_sats: u64,
+) -> Result<FrbZapPaymentResult, String> {
+    core()
+        .pay_invoice_cashu(mint_url.as_deref(), &bolt11, amount_sats)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn fetch_recipient_nutzap_info(
+    pubkey_hex: String,
+) -> Result<Option<FrbRecipientNutzapInfo>, String> {
+    core()
+        .fetch_recipient_nutzap_info(&pubkey_hex)
+        .await
+        .map(|opt| opt.map(Into::into))
+        .map_err(|e| e.to_string())
+}
+
+pub async fn send_station_nutzap(
+    station_event_id: String,
+    station_pubkey: String,
+    station_address: String,
+    amount_sats: u64,
+    comment: Option<String>,
+) -> Result<FrbActionOutcome, String> {
+    core()
+        .send_station_nutzap(
+            &station_event_id,
+            &station_pubkey,
+            &station_address,
+            amount_sats,
+            comment.as_deref(),
+        )
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn prepare_youtube_media(
+    cache_root: String,
+    video_id: String,
+    format: String,
+) -> Result<FrbPreparedMedia, String> {
+    core()
+        .prepare_youtube_media(&cache_root, &video_id, &format)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn upload_media_to_blossom(
+    job_id: String,
+    blossom_url: String,
+    signed_auth_event_json: String,
+) -> Result<FrbUploadedMedia, String> {
+    core()
+        .upload_media_to_blossom(&job_id, &blossom_url, &signed_auth_event_json)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
+pub async fn discard_media_job(job_id: String) -> Result<(), String> {
+    core()
+        .discard_media_job(&job_id)
+        .await
+        .map_err(|e| e.to_string())
+}
