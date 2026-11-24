@@ -23,28 +23,6 @@ const maintenanceLock = { isRunning: false, lastRun: 0 };
 
 // Define route handlers that work in both modes
 const apiRoutes: Record<string, any> = {
-  "/api/hello": {
-    async GET(_req: Request) {
-      return Response.json({
-        message: "Hello, world!",
-        method: "GET",
-      });
-    },
-    async PUT(_req: Request) {
-      return Response.json({
-        message: "Hello, world!",
-        method: "PUT",
-      });
-    },
-  },
-
-  "/api/hello/:name": async (req: Bun.BunRequest<"/api/hello/:name">) => {
-    const name = req.params.name;
-    return Response.json({
-      message: `Hello, ${name}!`,
-    });
-  },
-
   "/api/migrate": {
     async POST(req: Request) {
       // Check if migration is already running (prevent concurrent migrations)
@@ -352,8 +330,32 @@ const apiRoutes: Record<string, any> = {
   },
 };
 
-// Add debug endpoints in development only
+// Add debug/template endpoints in development only
 if (!isProduction) {
+  apiRoutes["/api/hello"] = {
+    async GET(_req: Request) {
+      return Response.json({
+        message: "Hello, world!",
+        method: "GET",
+      });
+    },
+    async PUT(_req: Request) {
+      return Response.json({
+        message: "Hello, world!",
+        method: "PUT",
+      });
+    },
+  };
+
+  apiRoutes["/api/hello/:name"] = async (
+    req: Bun.BunRequest<"/api/hello/:name">
+  ) => {
+    const name = req.params.name;
+    return Response.json({
+      message: `Hello, ${name}!`,
+    });
+  };
+
   apiRoutes["/api/debug/pubkey"] = {
     async GET() {
       return Response.json({
@@ -413,6 +415,8 @@ if (!isProduction) {
             if (await publicFile.exists()) {
               const headers: Record<string, string> = {
                 "Cache-Control": "public, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "strict-origin-when-cross-origin",
               };
               if (pathname.startsWith("/.well-known/")) {
                 headers["Access-Control-Allow-Origin"] = "*";
@@ -436,7 +440,11 @@ if (!isProduction) {
                     ? "public, max-age=31536000, immutable"
                     : "public, max-age=3600";
               return new Response(staticFile, {
-                headers: { "Cache-Control": cacheControl },
+                headers: {
+                  "Cache-Control": cacheControl,
+                  "X-Content-Type-Options": "nosniff",
+                  "Referrer-Policy": "strict-origin-when-cross-origin",
+                },
               });
             }
           }
@@ -445,12 +453,22 @@ if (!isProduction) {
           // HTML shell here makes nested routes fail with a misleading syntax
           // error when an asset path is wrong or a stale bundle is requested.
           if (isStaticAssetPath(pathname)) {
-            return new Response("Not found", { status: 404 });
+            return new Response("Not found", {
+              status: 404,
+              headers: {
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "strict-origin-when-cross-origin",
+              },
+            });
           }
 
           // If file not found, serve index.html for client-side routing
           return new Response(file(join(distRoot, "index.html")), {
-            headers: { "Cache-Control": "no-cache" },
+            headers: {
+              "Cache-Control": "no-cache",
+              "X-Content-Type-Options": "nosniff",
+              "Referrer-Policy": "strict-origin-when-cross-origin",
+            },
           });
         },
       },

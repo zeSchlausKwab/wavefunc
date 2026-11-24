@@ -340,10 +340,25 @@ func publicFilterRateLimitPolicy() func(context.Context, nostr.Filter) (bool, st
 	application := policies.FilterIPRateLimiter(5, time.Minute, 40)
 	transport := policies.FilterIPRateLimiter(5, time.Minute, 40)
 	return func(ctx context.Context, filter nostr.Filter) (bool, string) {
+		if isLoopbackRequest(ctx) {
+			return false, ""
+		}
 		if len(filter.Kinds) > 0 && allKindsIn(filter.Kinds, contextVMTransportKinds) {
 			return transport(ctx, filter)
 		}
 		return application(ctx, filter)
+	}
+}
+
+func publicEventRateLimitPolicy() func(context.Context, nostr.Event) (bool, string) {
+	limiter := policies.EventIPRateLimiter(10, time.Minute, 60)
+	return func(ctx context.Context, event nostr.Event) (bool, string) {
+		// Trusted loopback services (ContextVM server, station observer) publish
+		// observation bursts over 127.0.0.1 and should not self-throttle.
+		if isLoopbackRequest(ctx) {
+			return false, ""
+		}
+		return limiter(ctx, event)
 	}
 }
 
@@ -867,7 +882,7 @@ func main() {
 			policies.RejectEventsWithBase64Media,
 			policies.PreventLargeContent(64*1024),
 			policies.PreventTooManyIndexableTags(128, nil, nil),
-			policies.EventIPRateLimiter(10, time.Minute, 60),
+			publicEventRateLimitPolicy(),
 		)
 	}
 
@@ -991,6 +1006,22 @@ func main() {
 	if verboseTrafficLogging {
 		log.Printf("🧪 Verbose relay traffic logging enabled by RELAY_VERBOSE_LOGGING")
 	}
+
+	startedAt := time.Now()
+	relay.Router().HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		stationCount, _ := search.index.DocCount()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":            true,
+			"stations":      stationCount,
+			"uptimeSeconds": int64(time.Since(startedAt).Seconds()),
+		})
+	})
 
 	server := &http.Server{
 		Addr:              address,

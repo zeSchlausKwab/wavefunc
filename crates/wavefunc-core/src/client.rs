@@ -2749,9 +2749,49 @@ impl WavefuncCore {
             }
         }
 
-        // Direct MusicBrainz WS2 REST fallback if ContextVM is busy or offline.
-        self.search_recordings_musicbrainz_http(trimmed, artist, limit)
+        // Direct multi-provider HTTP fallback if ContextVM is busy, offline, or empty:
+        // MusicBrainz WS2 → Deezer Public API → Apple iTunes Search API.
+        self.search_recordings_direct_hop(trimmed, artist, limit)
             .await
+    }
+
+    async fn search_recordings_direct_hop(
+        &self,
+        query: &str,
+        artist: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MusicBrainzRecording>> {
+        let mut last_err: Option<WavefuncError> = None;
+
+        match self
+            .search_recordings_musicbrainz_http(query, artist, limit)
+            .await
+        {
+            Ok(results) if !results.is_empty() => return Ok(results),
+            Ok(_) => {}
+            Err(err) => {
+                last_err = Some(err);
+            }
+        }
+
+        match self
+            .search_recordings_deezer_http(query, artist, limit)
+            .await
+        {
+            Ok(results) if !results.is_empty() => return Ok(results),
+            Ok(_) => {}
+            Err(err) => {
+                last_err = Some(err);
+            }
+        }
+
+        match self
+            .search_recordings_itunes_http(query, artist, limit)
+            .await
+        {
+            Ok(results) => Ok(results),
+            Err(err) => Err(last_err.unwrap_or(err)),
+        }
     }
 
     async fn search_recordings_musicbrainz_http(
@@ -2760,9 +2800,13 @@ impl WavefuncCore {
         artist: Option<&str>,
         limit: u32,
     ) -> Result<Vec<MusicBrainzRecording>> {
+        let escaped_title = escape_lucene_phrase(query);
         let mb_query = match artist.map(str::trim).filter(|s| !s.is_empty()) {
-            Some(a) => format!("recording:\"{query}\" AND artist:\"{a}\""),
-            None => query.to_string(),
+            Some(a) => format!(
+                "recording:\"{escaped_title}\" AND artist:\"{}\"",
+                escape_lucene_phrase(a)
+            ),
+            None => format!("recording:\"{escaped_title}\""),
         };
         let mut url = url::Url::parse("https://musicbrainz.org/ws/2/recording/")
             .map_err(|e| WavefuncError::InvalidInput(e.to_string()))?;
@@ -2778,6 +2822,8 @@ impl WavefuncCore {
                 reqwest::header::USER_AGENT,
                 "WaveFuncRadio/0.2 (https://wavefunc.live)",
             )
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(7))
             .send()
             .await?;
         if !resp.status().is_success() {
@@ -2850,6 +2896,199 @@ impl WavefuncCore {
 
             out.push(MusicBrainzRecording {
                 id: id.to_string(),
+                title: title.to_string(),
+                artist: artist_name,
+                artist_id,
+                release,
+                release_id,
+                release_date,
+                duration_ms,
+                score,
+                tags,
+            });
+        }
+        Ok(out)
+    }
+
+    async fn search_recordings_deezer_http(
+        &self,
+        query: &str,
+        artist: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MusicBrainzRecording>> {
+        let q = match artist.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(a) => format!(
+                "artist:\"{}\" track:\"{}\"",
+                a.replace('"', " "),
+                query.replace('"', " ")
+            ),
+            None => query.to_string(),
+        };
+        let mut url = url::Url::parse("https://api.deezer.com/search")
+            .map_err(|e| WavefuncError::InvalidInput(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("q", &q)
+            .append_pair("limit", &limit.clamp(1, 25).to_string());
+
+        let resp = self
+            .http
+            .get(url)
+            .header(
+                reqwest::header::USER_AGENT,
+                "WaveFuncRadio/0.2 (https://wavefunc.live)",
+            )
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(7))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(WavefuncError::InvalidInput(format!(
+                "Deezer search failed (HTTP {})",
+                resp.status().as_u16()
+            )));
+        }
+        let body: serde_json::Value = resp.json().await?;
+        if let Some(err) = body.get("error") {
+            return Err(WavefuncError::InvalidInput(format!("Deezer error: {err}")));
+        }
+        let Some(items) = body.get("data").and_then(|v| v.as_array()) else {
+            return Ok(Vec::new());
+        };
+
+        let mut out = Vec::with_capacity(items.len());
+        for (idx, track) in items.iter().enumerate() {
+            let Some(title) = track.get("title").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let id = track
+                .get("id")
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("deezer:{n}"))
+                .unwrap_or_else(|| format!("deezer:idx:{idx}"));
+            let artist_name = track
+                .get("artist")
+                .and_then(|a| a.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown Artist")
+                .to_string();
+            let artist_id = track
+                .get("artist")
+                .and_then(|a| a.get("id"))
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("deezer:artist:{n}"));
+            let release = track
+                .get("album")
+                .and_then(|a| a.get("title"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let release_id = track
+                .get("album")
+                .and_then(|a| a.get("id"))
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("deezer:album:{n}"));
+            let duration_ms = track
+                .get("duration")
+                .and_then(|v| v.as_u64())
+                .map(|secs| secs * 1000);
+            let score = 95u32.saturating_sub((idx as u32) * 3).max(50);
+
+            out.push(MusicBrainzRecording {
+                id,
+                title: title.to_string(),
+                artist: artist_name,
+                artist_id,
+                release,
+                release_id,
+                release_date: None,
+                duration_ms,
+                score,
+                tags: Vec::new(),
+            });
+        }
+        Ok(out)
+    }
+
+    async fn search_recordings_itunes_http(
+        &self,
+        query: &str,
+        artist: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MusicBrainzRecording>> {
+        let term = match artist.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(a) => format!("{a} {query}"),
+            None => query.to_string(),
+        };
+        let mut url = url::Url::parse("https://itunes.apple.com/search")
+            .map_err(|e| WavefuncError::InvalidInput(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("term", &term)
+            .append_pair("entity", "song")
+            .append_pair("media", "music")
+            .append_pair("limit", &limit.clamp(1, 25).to_string());
+
+        let resp = self
+            .http
+            .get(url)
+            .header(
+                reqwest::header::USER_AGENT,
+                "WaveFuncRadio/0.2 (https://wavefunc.live)",
+            )
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(7))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(WavefuncError::InvalidInput(format!(
+                "iTunes search failed (HTTP {})",
+                resp.status().as_u16()
+            )));
+        }
+        let body: serde_json::Value = resp.json().await?;
+        let Some(items) = body.get("results").and_then(|v| v.as_array()) else {
+            return Ok(Vec::new());
+        };
+
+        let mut out = Vec::with_capacity(items.len());
+        for (idx, item) in items.iter().enumerate() {
+            let Some(title) = item.get("trackName").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let id = item
+                .get("trackId")
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("itunes:{n}"))
+                .unwrap_or_else(|| format!("itunes:idx:{idx}"));
+            let artist_name = item
+                .get("artistName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown Artist")
+                .to_string();
+            let artist_id = item
+                .get("artistId")
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("itunes:artist:{n}"));
+            let release = item
+                .get("collectionName")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let release_id = item
+                .get("collectionId")
+                .and_then(|v| v.as_u64())
+                .map(|n| format!("itunes:collection:{n}"));
+            let release_date = item
+                .get("releaseDate")
+                .and_then(|v| v.as_str())
+                .map(|d| d.chars().take(10).collect());
+            let duration_ms = item.get("trackTimeMillis").and_then(|v| v.as_u64());
+            let tags = item
+                .get("primaryGenreName")
+                .and_then(|v| v.as_str())
+                .map(|g| vec![g.to_string()])
+                .unwrap_or_default();
+            let score = 92u32.saturating_sub((idx as u32) * 3).max(50);
+
+            out.push(MusicBrainzRecording {
+                id,
                 title: title.to_string(),
                 artist: artist_name,
                 artist_id,
@@ -3365,5 +3604,51 @@ impl WavefuncCore {
         self.client.shutdown().await;
         self.identity_client.shutdown().await;
         self.wallet_client.shutdown().await;
+    }
+}
+
+/// Escape Lucene special characters inside a quoted MusicBrainz phrase query.
+fn escape_lucene_phrase(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.trim().chars() {
+        if matches!(
+            ch,
+            '+' | '-'
+                | '&'
+                | '|'
+                | '!'
+                | '('
+                | ')'
+                | '{'
+                | '}'
+                | '['
+                | ']'
+                | '^'
+                | '"'
+                | '~'
+                | '*'
+                | '?'
+                | ':'
+                | '\\'
+                | '/'
+        ) {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+#[cfg(test)]
+mod metadata_escape_tests {
+    use super::escape_lucene_phrase;
+
+    #[test]
+    fn escapes_lucene_punctuation_in_track_titles() {
+        assert_eq!(
+            escape_lucene_phrase("54-46 Was My Number (Remix)"),
+            r"54\-46 Was My Number \(Remix\)"
+        );
+        assert_eq!(escape_lucene_phrase("AC/DC: Back in Black"), r"AC\/DC\: Back in Black");
     }
 }

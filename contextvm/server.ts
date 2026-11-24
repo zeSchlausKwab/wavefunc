@@ -10,6 +10,7 @@ import {
   searchRecordings,
   searchLabels,
   searchRecordingsCombined,
+  getMusicMetadataStats,
 } from "./tools/musicbrainz.ts";
 import { searchYouTube, prepareDownload, uploadToBlossomWithSignedEvent } from "./tools/ytdlp.ts";
 import { createStationObserverFromEnvironment } from "./observer/service.ts";
@@ -50,6 +51,58 @@ const stationObserver = createStationObserverFromEnvironment({
   observerPrivateKey: SERVER_PRIVATE_KEY,
 });
 
+type StreamMetadataResult = Awaited<ReturnType<typeof extractIcecastMetadata>>;
+
+const STREAM_METADATA_CACHE_TTL_MS = 20_000;
+const STREAM_METADATA_CACHE_MAX = 250;
+const streamMetadataCache = new Map<
+  string,
+  { value: StreamMetadataResult; expiresAt: number }
+>();
+const streamMetadataInFlight = new Map<string, Promise<StreamMetadataResult>>();
+let streamMetadataCacheHits = 0;
+let streamMetadataCacheMisses = 0;
+
+async function extractIcecastMetadataCached(
+  url: string
+): Promise<StreamMetadataResult> {
+  const now = Date.now();
+  const cached = streamMetadataCache.get(url);
+  if (cached && cached.expiresAt > now) {
+    streamMetadataCacheHits++;
+    return cached.value;
+  }
+
+  const pending = streamMetadataInFlight.get(url);
+  if (pending) {
+    streamMetadataCacheHits++;
+    return pending;
+  }
+
+  streamMetadataCacheMisses++;
+  const promise = (async () => {
+    const metadata = await extractIcecastMetadata(url);
+    if (streamMetadataCache.size >= STREAM_METADATA_CACHE_MAX) {
+      const oldestKey = streamMetadataCache.keys().next().value;
+      if (oldestKey !== undefined) streamMetadataCache.delete(oldestKey);
+    }
+    streamMetadataCache.set(url, {
+      value: metadata,
+      expiresAt: Date.now() + STREAM_METADATA_CACHE_TTL_MS,
+    });
+    return metadata;
+  })();
+
+  streamMetadataInFlight.set(url, promise);
+  try {
+    return await promise;
+  } finally {
+    streamMetadataInFlight.delete(url);
+  }
+}
+
+const serverStartedAt = Date.now();
+
 async function main() {
   console.log("🎵 Starting ContextVM Metadata Server...\n");
 
@@ -83,7 +136,7 @@ async function main() {
     async ({ url, stationAddress, sessionId, observedAt }) => {
       try {
         console.log(`🎧 Extracting metadata from: ${url}`);
-        const metadata = await extractIcecastMetadata(url);
+        const metadata = await extractIcecastMetadataCached(url);
 
         try {
           await stationObserver.observeMetadata({
@@ -507,6 +560,57 @@ async function main() {
   void stationObserver.start().catch((error) => {
     console.error("❌ Station observer failed to start:", error);
   });
+
+  // Optional local HTTP health endpoint for PM2 / monitoring probes.
+  const healthPortRaw = process.env.CONTEXTVM_HEALTH_PORT ?? "3335";
+  const healthPort = Number.parseInt(healthPortRaw, 10);
+  if (
+    process.env.NODE_ENV !== "test" &&
+    Number.isFinite(healthPort) &&
+    healthPort > 0
+  ) {
+    try {
+      const healthServer = Bun.serve({
+        hostname: "127.0.0.1",
+        port: healthPort,
+        fetch(req) {
+          const { pathname } = new URL(req.url);
+          if (pathname === "/healthz" || pathname === "/health") {
+            return Response.json({
+              ok: true,
+              uptimeSeconds: Math.floor((Date.now() - serverStartedAt) / 1000),
+              serverPubkey,
+              relays: RELAYS,
+              streamMetadataCache: {
+                entries: streamMetadataCache.size,
+                inFlight: streamMetadataInFlight.size,
+                hits: streamMetadataCacheHits,
+                misses: streamMetadataCacheMisses,
+              },
+              musicMetadata: getMusicMetadataStats(),
+            });
+          }
+          return new Response("Not found", { status: 404 });
+        },
+      });
+      console.log(
+        `🩺 Health endpoint listening at http://127.0.0.1:${healthServer.port}/healthz`
+      );
+      const shutdown = () => {
+        try {
+          healthServer.stop(true);
+        } catch {}
+        process.exit(0);
+      };
+      process.once("SIGINT", shutdown);
+      process.once("SIGTERM", shutdown);
+    } catch (error) {
+      console.warn(
+        `⚠️  Could not bind ContextVM health server on 127.0.0.1:${healthPort}:`,
+        error
+      );
+    }
+  }
 }
 
 // Start the server
