@@ -39,6 +39,7 @@
     "native:build:android:aab": "cd app && flutter build appbundle --release",
     "test": "bun test tests",
     "test:production-web": "node scripts/smoke-production-web.mjs",
+    "test:public-directory": "bun scripts/smoke-public-directory.ts",
     "typecheck": "tsc --noEmit",
     "benchmark:nostr": "bun scripts/benchmark-nostr.ts"
   },

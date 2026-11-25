@@ -17,7 +17,7 @@ import { ZapDialog } from "./ZapDialog";
 import { PlayerDiagnostics, useDiagnosticsEnabled } from "./PlayerDiagnostics";
 import { StationDetail } from "./StationDetail";
 import { cn } from "@/lib/utils";
-import { SmallLogo } from "./SmallLogo";
+import { PlaybackCube } from "./PlaybackCube";
 import { MobileNavigationSidebar } from "./MobileNavigationSidebar";
 import { SongFavoriteButton } from "./SongFavoriteButton";
 import { BackupAppLink } from "./BackupAppLink";
@@ -369,7 +369,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       </div>
 
       {/* ── Persistent mobile player ── */}
-      <div className="md:hidden fixed left-0 right-0 bottom-0 z-[90] h-20 flex items-center overflow-hidden bg-background border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)]">
+      <div className="md:hidden fixed left-0 right-0 bottom-0 z-[90] h-20 flex items-center overflow-hidden bg-background shadow-[0_-4px_0_var(--color-on-background),0_-8px_0_var(--color-primary)]">
         <button
           type="button"
           disabled={!currentStation}
@@ -429,25 +429,25 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           <div
             role="group"
             aria-label="Track actions"
-            className="flex h-full w-10 shrink-0 flex-col border-l-2 border-on-background/20"
+            className="flex h-full w-10 shrink-0 flex-col"
           >
             {hasCurrentSong ? (
               <>
                 <SongFavoriteButton
                   size="md"
-                  className="min-h-10 min-w-10 flex-1 hover:bg-surface-variant"
+                  className="min-h-10 min-w-10 flex-1 border-l-2 border-on-background/20 hover:bg-surface-variant"
                 />
                 <BackupAppLink
                   size="md"
-                  className="min-h-10 min-w-10 flex-1 border-t-2 border-on-background/20 hover:bg-surface-variant"
+                  className="min-h-10 min-w-10 flex-1 border-l-2 border-t-2 border-on-background/20 hover:bg-surface-variant"
                 />
               </>
             ) : (
               <>
-                <div className="flex min-h-10 min-w-10 flex-1 items-center justify-center" aria-hidden="true">
+                <div className="flex min-h-10 min-w-10 flex-1 border-l-2 border-on-background/20 items-center justify-center" aria-hidden="true">
                   <Skeleton className="h-4 w-4" />
                 </div>
-                <div className="flex min-h-10 min-w-10 flex-1 items-center justify-center border-t-2 border-on-background/20" aria-hidden="true">
+                <div className="flex min-h-10 min-w-10 flex-1 border-l-2 border-on-background/20 items-center justify-center border-t-2 border-on-background/20" aria-hidden="true">
                   <Skeleton className="h-4 w-4" />
                 </div>
               </>
@@ -492,7 +492,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
           aria-expanded={sidebarOpen}
           aria-controls="mobile-navigation-sidebar"
         >
-          <SmallLogo size="sm" />
+          <PlaybackCube />
         </button>
       </div>
 
@@ -522,7 +522,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
             </button>
           </div>
           {/* Station detail content */}
-          <div className="flex-1 overflow-y-auto pb-[100px]">
+          <div className="flex-1 overflow-y-auto pb-[var(--desktop-player-height)]">
             {diagnosticsEnabled && <PlayerDiagnostics />}
             {sheetStation && (
               <StationDetail
@@ -536,11 +536,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
       </div>
 
       {/* ── Desktop footer (md+) ── */}
-      <footer className="hidden md:block fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-[100px] border-t-4 border-on-background shadow-[0_-8px_0px_0px_rgba(182,0,19,1)] overflow-hidden">
+      <footer className="hidden md:block fixed bottom-0 left-0 right-0 w-full z-[70] bg-background h-[var(--desktop-player-height)] border-t-4 border-on-background shadow-[0_-4px_0px_0px_rgba(182,0,19,1)] overflow-hidden">
         <div className="flex h-full items-stretch">
 
           {/* Station info — shrinks to fit, never overflows */}
-          <div className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 shrink min-w-0 w-[200px] lg:w-[250px] xl:w-[320px] border-r-4 border-on-background overflow-hidden">
+          <div className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 shrink min-w-0 w-[clamp(280px,36vw,440px)] border-r-4 border-on-background overflow-hidden">
             <div className="w-10 h-10 lg:w-12 lg:h-12 bg-on-background border-2 border-primary-fixed-dim flex items-center justify-center text-secondary-fixed-dim shrink-0">
               {currentStation?.thumbnail ? (
                 <img src={currentStation.thumbnail} alt={currentStation.name || "Station"} className="w-full h-full object-cover" />
@@ -550,7 +550,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                 </span>
               )}
             </div>
-            <div className="flex flex-col justify-center overflow-hidden min-w-0 gap-0.5">
+            <div className="flex flex-1 flex-col justify-center overflow-hidden min-w-0 gap-0.5">
               <div className="flex min-w-0 items-center gap-1.5">
                 <p className={cn(
                   "truncate font-bold uppercase text-[9px] tracking-widest leading-none",
@@ -567,6 +567,11 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                     showPending
                     className="shrink-0 border shadow-none"
                   />
+                )}
+                {currentStation && (
+                  <div className="ml-auto shrink-0">
+                    <PlayerSocialBar station={currentStation} />
+                  </div>
                 )}
               </div>
               <h4 className="font-black text-sm lg:text-base uppercase tracking-tighter truncate font-headline leading-tight">
@@ -594,11 +599,6 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   : <p className="text-[10px] lg:text-[11px] text-on-background/55">Now playing unavailable</p>
               )}
               {error && <p className="truncate text-[9px] text-destructive uppercase tracking-wider leading-tight">{error}</p>}
-              {currentStation && (
-                <div className="mt-0.5">
-                  <PlayerSocialBar station={currentStation} />
-                </div>
-              )}
             </div>
           </div>
 

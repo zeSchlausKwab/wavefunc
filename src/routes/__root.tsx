@@ -3,6 +3,7 @@ import { FloatingHeader } from "../components/FloatingHeader";
 import { FloatingPlayer } from "../components/FloatingPlayer";
 import { Toaster } from "../components/Toaster";
 import { SupportDialog } from "../components/SupportPopover";
+import { PublicPageHead } from "../components/PublicPageHead";
 import { useEffect, useState } from "react";
 
 export const Route = createRootRoute({
@@ -29,12 +30,13 @@ export const Route = createRootRoute({
 
     return (
       <>
+        <PublicPageHead />
         <FloatingHeader
           searchInput={searchInput}
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
         />
-        <div className="md:pt-14 pb-20 md:pb-[100px] min-h-screen overflow-x-clip">
+        <div className="md:pt-14 pb-20 md:pb-[var(--desktop-player-height)] min-h-screen overflow-x-clip">
           <div className="max-w-screen-2xl mx-auto px-4 md:px-8 py-6 min-h-[calc(100vh-7rem)]">
             <Outlet />
           </div>

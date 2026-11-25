@@ -24,7 +24,8 @@ describe("mobile player chrome", () => {
     expect(player).toContain("Persistent mobile player");
     expect(player).toContain("bottom-0 z-[90] h-20");
     expect(player).toContain("bottom-20 z-[70]");
-    expect(rootRoute).toContain("pb-20 md:pb-[100px]");
+    expect(rootRoute).toContain("pb-20 md:pb-[var(--desktop-player-height)]");
+    expect(player).toContain("h-[var(--desktop-player-height)]");
     expect(player).toContain(
       "flex h-full flex-1 min-w-0 flex-col justify-center",
     );

@@ -2,6 +2,7 @@
 
 @layer base {
   :root {
+    --desktop-player-height: 76px;
     @apply font-sans;
   }
 

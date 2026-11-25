@@ -17,10 +17,12 @@ import {
   getWriteRelayUrls,
 } from "./config/nostr";
 import { WavefuncNostrProvider } from "./lib/nostr/runtime";
+import { readInitialDirectory } from "./lib/publicDirectory";
 
 // Initialize config and render app
 async function startApp() {
   await initConfig();
+  readInitialDirectory();
   const readRelayUrls = getReadRelayUrls();
   const writeRelayUrls = getWriteRelayUrls();
 

@@ -402,6 +402,10 @@ export const RadioCard: React.FC<RadioCardProps> = ({
 
   // ─── TILE ────────────────────────────────────────────────────────────────────
   if (variant === "tile") {
+    const stationTitle = (
+      <Link to="/station/$naddr" params={{ naddr: station.naddr || station.id }}
+        aria-label={station.name} className="focus-visible:underline">{nameDisplay}</Link>
+    );
     return (
       <>
         <div ref={cardRef} className={cn(
@@ -423,8 +427,7 @@ export const RadioCard: React.FC<RadioCardProps> = ({
             </div>
             <div className="flex flex-1 items-center min-w-0 px-3 gap-2">
               <div className="flex flex-col justify-center min-w-0 flex-1">
-                <h3 className="text-sm font-black uppercase tracking-tighter truncate font-headline cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => openStationSheet(station)}>{nameDisplay}</h3>
+                <h3 className="text-sm font-black uppercase tracking-tighter truncate font-headline hover:text-primary transition-colors">{stationTitle}</h3>
                 {station.genres?.[0] && (
                   <span className="text-[10px] font-black text-tertiary uppercase tracking-widest truncate cursor-pointer"
                     onClick={() => toggleGenre(station.genres![0] ?? "")}>
@@ -473,9 +476,8 @@ export const RadioCard: React.FC<RadioCardProps> = ({
                 <div className="flex whitespace-nowrap animate-marquee">
                   <h3
                     className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline pr-12"
-                    onClick={() => openStationSheet(station)}
                   >
-                    {nameDisplay}
+                    {stationTitle}
                   </h3>
                   <h3
                     className="text-base font-black uppercase tracking-tighter leading-tight font-headline pr-12"
@@ -487,9 +489,8 @@ export const RadioCard: React.FC<RadioCardProps> = ({
               ) : (
                 <h3
                   className="text-base font-black uppercase tracking-tighter leading-tight cursor-pointer hover:text-primary transition-colors font-headline whitespace-nowrap"
-                  onClick={() => openStationSheet(station)}
                 >
-                  {nameDisplay}
+                  {stationTitle}
                 </h3>
               )}
             </div>

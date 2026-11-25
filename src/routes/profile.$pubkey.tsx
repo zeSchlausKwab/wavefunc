@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { decodeProfilePointer } from "applesauce-core/helpers/pointers";
+import { loadDirectory } from "../lib/publicDirectory";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Globe, Zap, Copy, Check } from "lucide-react";
@@ -6,13 +8,24 @@ import { useState } from "react";
 import { useProfile } from "../lib/nostr/auth";
 
 export const Route = createFileRoute("/profile/$pubkey")({
+  loader: ({ params, abortController }) =>
+    loadDirectory("/profile/" + encodeURIComponent(params.pubkey), abortController.signal),
+  staleTime: 60_000,
   component: ProfilePage,
 });
 
 function ProfilePage() {
-  const { pubkey } = Route.useParams();
+  const { pubkey: param } = Route.useParams();
+  const page = Route.useLoaderData();
+  const router = useRouter();
+  const pubkey = page.kind === "profile" ? page.pubkey : decodeProfilePointer(param)?.pubkey ?? (/^[a-f\d]{64}$/i.test(param) ? param.toLowerCase() : "");
   const profile = useProfile(pubkey);
   const [copied, setCopied] = useState(false);
+  if (!profile && (page.kind === "not-found" || page.kind === "unavailable")) {
+    return <main><h1>{page.kind === "not-found" ? "Profile not found" : "Profile temporarily unavailable"}</h1>
+      {page.kind === "unavailable" && <button className="underline" onClick={() => router.invalidate()}>Try again</button>}
+    </main>;
+  }
 
   const handleCopyPubkey = async () => {
     await navigator.clipboard.writeText(pubkey);
@@ -20,7 +33,7 @@ function ProfilePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const displayName = profile?.displayName || profile?.name || "Anonymous";
+  const displayName = profile?.display_name || profile?.displayName || profile?.name || "Anonymous";
   const avatarFallback = displayName.substring(0, 2).toUpperCase();
 
   return (

@@ -9,6 +9,7 @@ import { SupportTrigger } from "./SupportPopover";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { cn } from "@/lib/utils";
 import { getNavigationItems } from "../config/navigation";
+import { PlaybackCube } from "./PlaybackCube";
 
 interface FloatingHeaderProps {
   searchInput: string;
@@ -17,9 +18,9 @@ interface FloatingHeaderProps {
 }
 
 const navLinkBase =
-  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-2.5 lg:px-3 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap";
+  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-on-background px-1 lg:px-2 xl:px-2.5 py-1 hover:skew-x-6 transition-transform hover:bg-secondary-fixed-dim whitespace-nowrap";
 const navLinkActive =
-  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-surface bg-primary px-2.5 lg:px-3 py-1 -skew-x-12 transition-all whitespace-nowrap";
+  "flex items-center gap-1.5 font-bold tracking-tighter uppercase text-surface bg-primary px-1 lg:px-2 xl:px-2.5 py-1 -skew-x-12 transition-all whitespace-nowrap";
 
 export function FloatingHeader({ searchInput, setSearchInput, onSearch }: FloatingHeaderProps) {
   const currentUser = useCurrentAccount();
@@ -36,18 +37,12 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
   return (
     <header className="hidden md:flex fixed top-0 left-0 right-0 z-[60] items-center w-full h-14 bg-background border-b-4 border-on-background shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] overflow-hidden">
 
-      {/*
-        Logo + Nav: shrink-0 by content. The nav reserves its
-        natural width (icons + labels at xl+) so labels never get
-        clipped. Anything wider than the viewport would be solved by
-        the inner overflow-x-auto, but with labels deferred to xl+ in
-        practice nav always fits.
-      */}
-      <div className="flex items-center gap-2 md:gap-3 xl:gap-4 px-3 xl:px-4 shrink-0 border-r-4 border-on-background h-full">
-        <Link to="/" search={{}} className="shrink-0">
-          <div className="text-lg lg:text-xl font-black text-on-background border-4 border-on-background px-1.5 lg:px-2 py-1 rotate-[-2deg] font-headline uppercase tracking-tighter select-none shrink-0">
+      <div className="flex items-center gap-2 xl:gap-4 px-2 xl:px-4 min-w-0 border-r-4 border-on-background h-full">
+        <Link to="/" search={{}} aria-label="WaveFunc home" className="flex shrink-0 items-center gap-2">
+          <PlaybackCube />
+          <span className="hidden 2xl:block text-xl font-black text-on-background font-headline uppercase tracking-tighter select-none">
             WAVEFUNC
-          </div>
+          </span>
         </Link>
 
         <nav className="flex gap-0.5 overflow-x-auto scrollbar-none">
@@ -62,12 +57,6 @@ export function FloatingHeader({ searchInput, setSearchInput, onSearch }: Floati
                 title={item.label}
               >
                 <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                {/*
-                  Labels at xl+. The nav as a whole is shrink-0, so its
-                  labelled width is always honored; the search panel
-                  next door is the section that gives way under width
-                  pressure (it's flex-1 + min-w-0).
-                */}
                 <span className="hidden xl:inline text-xs">{item.label}</span>
               </Link>
             );
@@ -158,7 +147,7 @@ function SearchSection({ searchInput, setSearchInput, onSearch }: SearchSectionP
   return (
     <div
       ref={ref}
-      className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 h-full flex-1 min-w-0 border-r-4 border-on-background"
+      className="flex items-center gap-2 lg:gap-3 px-1 lg:px-2 h-full flex-1 min-w-14 border-r-4 border-on-background"
     >
       {collapsed ? (
         <SearchPopover
@@ -224,7 +213,7 @@ function SearchPopover({ searchInput, setSearchInput, onSearch }: SearchSectionP
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 font-bold tracking-tighter uppercase px-2.5 py-1 transition-colors hover:bg-secondary-fixed-dim",
+            "flex max-w-full items-center gap-1.5 font-bold tracking-tighter uppercase px-1.5 py-1 transition-colors hover:bg-secondary-fixed-dim",
             // Highlight the trigger when there's an active query so the
             // user knows the search filter is on even though the input
             // is collapsed.

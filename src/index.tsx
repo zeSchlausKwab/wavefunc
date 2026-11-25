@@ -4,6 +4,8 @@ import { verifyNIP98Auth } from "./lib/nip98";
 import { getPublicKey } from "nostr-tools/pure";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { isStaticAssetPath } from "./lib/http/spaFallback";
+import { createPublicCatalog } from "./lib/server/publicCatalog";
+import { servePublicRoute } from "./lib/server/publicRoutes";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -395,6 +397,8 @@ if (!isProduction) {
 
 // Start server
 (async () => {
+  const catalog = createPublicCatalog();
+  const getShell = () => file(join(process.cwd(), "dist", "index.html")).text();
   if (isProduction) {
     // Production: Serve static files from dist/ and public/ with proper caching & path guards
     const publicRoot = resolve(process.cwd(), "public");
@@ -405,12 +409,17 @@ if (!isProduction) {
         ...apiRoutes,
         "/*": async (req) => {
           const url = new URL(req.url);
-          const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+          const pathname = url.pathname;
+          if (req.method !== "GET" && req.method !== "HEAD") {
+            return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+          }
+          const page = await servePublicRoute(req, catalog, getShell);
+          if (page) return page;
           const relPath = pathname.replace(/^\/+/, "");
 
           // Try to serve from public/ first (for static assets like images)
           const publicPath = resolve(publicRoot, relPath);
-          if (publicPath.startsWith(publicRoot)) {
+          if (publicPath.startsWith(publicRoot + "/")) {
             const publicFile = file(publicPath);
             if (await publicFile.exists()) {
               const headers: Record<string, string> = {
@@ -427,7 +436,7 @@ if (!isProduction) {
 
           // Try to serve from dist/ (built assets)
           const filePath = resolve(distRoot, relPath);
-          if (filePath.startsWith(distRoot)) {
+          if (filePath.startsWith(distRoot + "/")) {
             const staticFile = file(filePath);
             if (await staticFile.exists()) {
               const isHashed =
@@ -452,7 +461,7 @@ if (!isProduction) {
           // An unknown JS/CSS/image request must be a real 404. Returning the
           // HTML shell here makes nested routes fail with a misleading syntax
           // error when an asset path is wrong or a stale bundle is requested.
-          if (isStaticAssetPath(pathname)) {
+          if (isStaticAssetPath(pathname) || pathname.startsWith("/api/")) {
             return new Response("Not found", {
               status: 404,
               headers: {
@@ -462,9 +471,14 @@ if (!isProduction) {
             });
           }
 
-          // If file not found, serve index.html for client-side routing
-          return new Response(file(join(distRoot, "index.html")), {
+          // Other SPA routes remain available without advertising private pages to search engines.
+          const knownRoute = ["/admin", "/browse/genres", "/community", "/crate", "/favorites", "/musicbrainz", "/settings", "/signals"]
+            .includes(pathname.replace(/\/+$/, ""));
+          return new Response(req.method === "HEAD" ? null : await getShell(), {
+            status: knownRoute ? 200 : 404,
             headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "X-Robots-Tag": "noindex",
               "Cache-Control": "no-cache",
               "X-Content-Type-Options": "nosniff",
               "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -482,6 +496,8 @@ if (!isProduction) {
     const server = serve({
       routes: {
         ...apiRoutes,
+        "/api/directory/*": async (req) =>
+          (await servePublicRoute(req, catalog, getShell)) ?? new Response(null, { status: 404 }),
         // Serve static files from public/ directory
         "/images/*": async (req) => {
           const url = new URL(req.url);

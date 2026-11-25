@@ -1,5 +1,5 @@
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   EventModel,
   ReplaceableModel,
@@ -10,23 +10,25 @@ import {
 } from "applesauce-core/helpers/pointers";
 import { useEventModel } from "applesauce-react/hooks";
 import { Radio } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { parseStationEvent, type ParsedStation } from "@/lib/nostr/domain";
 import { StationDetail } from "@/components/StationDetail";
 import { normalizeStationRouteParam } from "@/lib/share";
-
-const NOT_FOUND_TIMEOUT_MS = 10_000;
+import { loadDirectory } from "@/lib/publicDirectory";
+import type { PublicPage } from "@/lib/publicPageMetadata";
 
 export const Route = createFileRoute("/station/$naddr")({
+  loader: ({ params, abortController }) =>
+    loadDirectory("/station/" + encodeURIComponent(params.naddr), abortController.signal),
+  staleTime: 60_000,
   component: StationPage,
 });
 
 type StationLoadState =
-  | { status: "loading"; station: null }
   | { status: "found"; station: ParsedStation }
-  | { status: "not-found"; station: null };
+  | { status: "not-found" | "unavailable"; station: null };
 
-function useStationByNaddr(naddr: string): StationLoadState {
+function useStationByNaddr(naddr: string, page: PublicPage): StationLoadState {
   const stationPointer = useMemo(
     () => normalizeStationRouteParam(naddr),
     [naddr],
@@ -34,10 +36,16 @@ function useStationByNaddr(naddr: string): StationLoadState {
   const decoded = useMemo(() => {
     const address = decodeAddressPointer(stationPointer);
     if (address) return { kind: "address" as const, pointer: address };
+    if (page.kind === "station") {
+      const { kind, pubkey, tags } = page.event;
+      return { kind: "address" as const, pointer: { kind, pubkey, identifier: tags.find(t => t[0] === "d")?.[1] ?? "" } };
+    }
     const eventPointer = decodeEventPointer(stationPointer);
     if (eventPointer) return { kind: "event" as const, pointer: eventPointer };
-    return { kind: "event" as const, pointer: stationPointer };
-  }, [stationPointer]);
+    return /^[a-f\d]{64}$/i.test(stationPointer)
+      ? { kind: "event" as const, pointer: stationPointer.toLowerCase() }
+      : null;
+  }, [stationPointer, page]);
 
   // ReplaceableModel for naddr (AddressPointer), EventModel for note id /
   // EventPointer. Both are reactive — the runtime's event loader will pull
@@ -45,64 +53,47 @@ function useStationByNaddr(naddr: string): StationLoadState {
   // as soon as it lands in the store.
   const replaceableEvent = useEventModel(
     ReplaceableModel<NostrEvent>,
-    decoded.kind === "address" ? [decoded.pointer] : null,
+    decoded?.kind === "address" ? [decoded.pointer] : null,
   );
   const eventModelEvent = useEventModel(
     EventModel<NostrEvent>,
-    decoded.kind === "event" ? [decoded.pointer] : null,
+    decoded?.kind === "event" ? [decoded.pointer] : null,
   );
-  const event = decoded.kind === "address" ? replaceableEvent : eventModelEvent;
-
-  // Separate "still loading" from "definitely not found" via a timeout that
-  // resets when naddr changes.
-  const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    setTimedOut(false);
-    if (event) return;
-    const id = setTimeout(() => setTimedOut(true), NOT_FOUND_TIMEOUT_MS);
-    return () => clearTimeout(id);
-  }, [stationPointer, event]);
+  const event = (decoded?.kind === "address" ? replaceableEvent : eventModelEvent)
+    ?? (page.kind === "station" ? page.event : undefined);
 
   // Memoize parsed station so the same NostrEvent reference yields a stable
   // wrapper across renders.
   const station = useMemo(
-    () => (event ? parseStationEvent(event) : null),
+    () => (event?.kind === 31237 ? parseStationEvent(event) : null),
     [event],
   );
 
   if (station) return { status: "found", station };
-  if (timedOut) return { status: "not-found", station: null };
-  return { status: "loading", station: null };
+  return { status: page.kind === "not-found" ? "not-found" : "unavailable", station: null };
 }
 
 function StationPage() {
   const { naddr } = Route.useParams();
-  const result = useStationByNaddr(naddr);
+  const result = useStationByNaddr(naddr, Route.useLoaderData());
+  const router = useRouter();
 
-  if (result.status === "loading") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
-        <p className="text-muted-foreground">Loading station...</p>
-      </div>
-    );
-  }
-
-  if (result.status === "not-found") {
+  if (result.status !== "found") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
         <Radio className="w-16 h-16 text-muted-foreground/20 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Station Not Found</h2>
-        <p className="text-muted-foreground">
-          The requested station could not be found.
-        </p>
+        <h1 className="text-2xl font-bold mb-2">{result.status === "not-found" ? "Station not found" : "Station temporarily unavailable"}</h1>
+        {result.status === "unavailable" && <button className="underline" onClick={() => router.invalidate()}>Try again</button>}
       </div>
     );
   }
 
   return (
-    <div className="w-full px-4 md:px-6">
+    <main className="w-full md:px-6">
+      {result.station.genres.some(genre => genre.toLowerCase() === "rock") && (
+        <Link to="/genre/rock" className="mb-3 inline-block font-bold underline">Rock radio stations</Link>
+      )}
       <StationDetail station={result.station} withPadding={false} />
-    </div>
+    </main>
   );
 }

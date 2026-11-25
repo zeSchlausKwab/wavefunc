@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 import {
@@ -144,6 +144,9 @@ function BrowseGenres() {
       <SectionHeader label={eose && total > 0 ? `${filteredData.length}/${total}` : undefined}>
         {config.sectionTitle}
       </SectionHeader>
+      {activeTab === "genres" && !searchQuery && (
+        <Link to="/genre/rock" className="inline-block font-bold underline">Rock radio stations</Link>
+      )}
 
       {/*
         Sampling disclosure. Without this, the per-tag counts below
