@@ -47,14 +47,3 @@
   border-radius: 50%;
   transform: rotateZ(-14deg) rotateX(70deg);
 }
-
-@media (prefers-reduced-motion: no-preference) {
-  .wf-cube-body[data-playing="true"] {
-    animation: wf-cube-turn 900ms ease-out;
-  }
-
-  @keyframes wf-cube-turn {
-    from { transform: rotateZ(-6deg) rotateX(-21deg) rotateY(-393deg); }
-    to { transform: var(--rest); }
-  }
-}

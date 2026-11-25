@@ -19,7 +19,7 @@ import { Route as MusicbrainzRouteImport } from './routes/musicbrainz'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignalsRouteImport } from './routes/signals'
 import { Route as BrowseGenresRouteImport } from './routes/browse.genres'
-import { Route as GenreRockRouteImport } from './routes/genre.rock'
+import { Route as GenreSlugRouteImport } from './routes/genre.$slug'
 import { Route as ProfilePubkeyRouteImport } from './routes/profile.$pubkey'
 import { Route as StationNaddrRouteImport } from './routes/station.$naddr'
 
@@ -73,9 +73,9 @@ const BrowseGenresRoute = BrowseGenresRouteImport.update({
   path: '/browse/genres',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GenreRockRoute = GenreRockRouteImport.update({
-  id: '/genre/rock',
-  path: '/genre/rock',
+const GenreSlugRoute = GenreSlugRouteImport.update({
+  id: '/genre/$slug',
+  path: '/genre/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfilePubkeyRoute = ProfilePubkeyRouteImport.update({
@@ -100,7 +100,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
-  '/genre/rock': typeof GenreRockRoute
+  '/genre/$slug': typeof GenreSlugRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -115,7 +115,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
-  '/genre/rock': typeof GenreRockRoute
+  '/genre/$slug': typeof GenreSlugRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -131,7 +131,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signals': typeof SignalsRoute
   '/browse/genres': typeof BrowseGenresRoute
-  '/genre/rock': typeof GenreRockRoute
+  '/genre/$slug': typeof GenreSlugRoute
   '/profile/$pubkey': typeof ProfilePubkeyRoute
   '/station/$naddr': typeof StationNaddrRoute
 }
@@ -148,7 +148,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/browse/genres'
-    | '/genre/rock'
+    | '/genre/$slug'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesByTo: FileRoutesByTo
@@ -163,7 +163,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/browse/genres'
-    | '/genre/rock'
+    | '/genre/$slug'
     | '/profile/$pubkey'
     | '/station/$naddr'
   id:
@@ -178,7 +178,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signals'
     | '/browse/genres'
-    | '/genre/rock'
+    | '/genre/$slug'
     | '/profile/$pubkey'
     | '/station/$naddr'
   fileRoutesById: FileRoutesById
@@ -194,7 +194,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignalsRoute: typeof SignalsRoute
   BrowseGenresRoute: typeof BrowseGenresRoute
-  GenreRockRoute: typeof GenreRockRoute
+  GenreSlugRoute: typeof GenreSlugRoute
   ProfilePubkeyRoute: typeof ProfilePubkeyRoute
   StationNaddrRoute: typeof StationNaddrRoute
 }
@@ -271,11 +271,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrowseGenresRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/genre/rock': {
-      id: '/genre/rock'
-      path: '/genre/rock'
-      fullPath: '/genre/rock'
-      preLoaderRoute: typeof GenreRockRouteImport
+    '/genre/$slug': {
+      id: '/genre/$slug'
+      path: '/genre/$slug'
+      fullPath: '/genre/$slug'
+      preLoaderRoute: typeof GenreSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile/$pubkey': {
@@ -306,7 +306,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignalsRoute: SignalsRoute,
   BrowseGenresRoute: BrowseGenresRoute,
-  GenreRockRoute: GenreRockRoute,
+  GenreSlugRoute: GenreSlugRoute,
   ProfilePubkeyRoute: ProfilePubkeyRoute,
   StationNaddrRoute: StationNaddrRoute,
 }

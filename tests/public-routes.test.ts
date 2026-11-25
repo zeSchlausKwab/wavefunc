@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { servePublicRoute } from "../src/lib/server/publicRoutes";
-import type { PublicCatalog } from "../src/lib/server/publicCatalog";
 
 const unavailable = async () => ({ status: "unavailable" } as const);
-const catalog: PublicCatalog = { station: unavailable, profile: unavailable, genre: unavailable, close() {} };
+const catalog = { station: unavailable, profile: unavailable, genre: unavailable, genres: unavailable, sitemapBuckets: unavailable, sitemapPaths: unavailable };
 const shell = async () => '<html><head></head><body><div id="root"></div></body></html>';
 
 describe("public directory HTTP responses", () => {

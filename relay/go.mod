@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	fiatjaf.com/nostr v0.0.0-20260701134336-94cc8043858a
+	github.com/PowerDNS/lmdb-go v1.9.3
 	github.com/blevesearch/bleve/v2 v2.4.4
 	github.com/btcsuite/btcd/btcutil v1.1.5
 )
@@ -12,7 +13,6 @@ require (
 	fiatjaf.com/lib v0.3.7 // indirect
 	github.com/FastFilter/xorfilter v0.2.1 // indirect
 	github.com/ImVexed/fasturl v0.0.0-20230304231329-4e41488060f3 // indirect
-	github.com/PowerDNS/lmdb-go v1.9.3 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect

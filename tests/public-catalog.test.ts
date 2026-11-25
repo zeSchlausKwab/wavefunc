@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
 import { naddrEncode, neventEncode, noteEncode, npubEncode, nprofileEncode } from "nostr-tools/nip19";
 import { matchFilter, type Filter } from "nostr-tools/filter";
+import { importStations } from "../src/lib/server/directoryIndex";
 import { createPublicCatalog } from "../src/lib/server/publicCatalog";
 
 const key = generateSecretKey();
@@ -61,18 +62,19 @@ function catalog(relay: ReturnType<typeof fakeRelay>, opts: Parameters<typeof cr
 }
 
 describe("public station catalog", () => {
-  test("discovers signed stations from a bounded genre without using that sample for detail misses", async () => {
+  test("a snapshot serves all indexed genre and station pages without relay lookups", async () => {
     const relay = fakeRelay();
-    relay.state.events = [first, jazz];
-    const c = catalog(relay);
-    expect(await Promise.all([c.genre("rock"), c.genre("rock")])).toEqual([
-      { status: "found", value: [signed(first)] }, { status: "found", value: [signed(first)] },
-    ]);
-    expect(relay.requests).toHaveLength(1);
-    expect(relay.requests[0]?.limit).toBe(32);
-    expect(await c.genre("jazz")).toEqual({ status: "missing" });
+    const dir = mkdtempSync(join(tmpdir(), "wavefunc-directory-"));
+    cleanups.push(() => rmSync(dir, { recursive: true }));
+    const directoryDatabasePath = join(dir, "index.sqlite");
+    const c = catalog(relay, { directoryDatabasePath });
+    expect(await c.genres(1, "")).toEqual({ status: "unavailable" });
+    await importStations(directoryDatabasePath, [first, jazz]);
+    expect(await c.genres(1, "")).toMatchObject({ status: "found", value: {genres:[{slug:"jazz",count:1},{slug:"rock",count:1}],total:2} });
+    expect(await c.genre("jazz", 1)).toMatchObject({ status: "found", value: { events: [signed(jazz)] } });
+    expect(await c.genre("blues", 1)).toEqual({ status: "missing" });
     expect(await c.station(jazzAddress)).toEqual({ status: "found", value: signed(jazz) });
-    expect(relay.requests[1]).toMatchObject({ "#d": ["jazz"], authors: [jazz.pubkey] });
+    expect(relay.requests).toHaveLength(0);
     expect(await c.station("e".repeat(64))).toEqual({ status: "missing" });
     expect(relay.requests.at(-1)).toMatchObject({ ids: ["e".repeat(64)] });
   });
@@ -84,7 +86,7 @@ describe("public station catalog", () => {
     const relay = fakeRelay();
     const old = createPublicCatalog({ databasePath, relayUrl: relay.url });
     try {
-      expect(await old.genre("rock")).toEqual({ status: "found", value: [signed(first)] });
+      expect(await old.station(rockAddress)).toEqual({ status: "found", value: signed(first) });
     } finally {
       old.close();
     }
@@ -98,7 +100,6 @@ describe("public station catalog", () => {
     expect(relay.requests.slice(1).every((filter) => filter["#d"]?.[0] === "radio")).toBe(true);
     relay.state.mode = "timeout";
     expect(await c.station(rockAddress)).toEqual({ status: "found", value: signed(latest) });
-    expect(await c.genre("rock")).toEqual({ status: "found", value: [signed(latest)] });
     expect(await c.station(jazzAddress)).toEqual({ status: "unavailable" });
     // A subsequent exact, complete empty read honors deletion under both forms.
     relay.state.mode = "complete";
@@ -117,18 +118,14 @@ describe("public station catalog", () => {
     expect(relay.requests[1]).toMatchObject({ "#d": ["radio"], authors: [first.pubkey] });
   });
 
-  test("rejects unverified relay data and incomplete reads, accepts complete empty genres", async () => {
+  test("rejects unverified or incomplete station lookups", async () => {
     const relay = fakeRelay();
-    const c = catalog(relay);
     relay.state.events = [{ ...latest, content: "forged" }];
-    expect(await c.genre("rock")).toEqual({ status: "unavailable" });
+    const c = catalog(relay);
     expect(await c.station(latest.id)).toEqual({ status: "unavailable" });
     relay.state.events = [first];
     relay.state.mode = "closed";
-    expect(await c.genre("rock")).toEqual({ status: "unavailable" });
-    relay.state.events = [];
-    relay.state.mode = "complete";
-    expect(await c.genre("rock")).toEqual({ status: "found", value: [] });
+    expect(await c.station(rockAddress)).toEqual({ status: "unavailable" });
   });
 
   test("uses configured identity relays and shares one profile across hex/npub/hinted nprofile", async () => {

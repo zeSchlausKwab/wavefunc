@@ -90,10 +90,8 @@ function StationPage() {
 
   return (
     <main className="w-full md:px-6">
-      {result.station.genres.some(genre => genre.toLowerCase() === "rock") && (
-        <Link to="/genre/rock" className="mb-3 inline-block font-bold underline">Rock radio stations</Link>
-      )}
-      <StationDetail station={result.station} withPadding={false} />
+      <Link to="/browse/genres" className="mb-3 inline-block font-bold underline">Browse genres</Link>
+      <StationDetail station={result.station} withPadding={false} linkGenres />
     </main>
   );
 }

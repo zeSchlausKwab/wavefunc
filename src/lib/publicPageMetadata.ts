@@ -3,6 +3,8 @@ import { naddrEncode, npubEncode } from "nostr-tools/nip19";
 import { parseJsonContent } from "./nostr/domain/shared";
 import { parseStationEvent } from "./nostr/domain/station";
 
+import { genrePath, genresPath, type GenreEntry } from "./genres";
+
 const SITE = "https://wavefunc.live";
 const DEFAULT_IMAGE = SITE + "/images/og-image.png";
 
@@ -10,7 +12,8 @@ export type PublicPage =
   | { kind: "home" }
   | { kind: "apps" }
   | { kind: "station"; event: NostrEvent }
-  | { kind: "genre"; events: NostrEvent[] }
+  | { kind: "genres"; genres: GenreEntry[]; page: number; query: string; total: number }
+  | { kind: "genre"; genre: GenreEntry; page: number; events: NostrEvent[] }
   | { kind: "profile"; pubkey: string; event?: NostrEvent }
   | { kind: "unavailable" | "not-found"; path: string };
 
@@ -61,8 +64,18 @@ export function describePublicPage(page: PublicPage): PublicPageMetadata {
       return metadata("WaveFunc Radio", "WaveFunc Radio | Discover live internet radio", "Explore internet radio stations by genre, listen live, and share your favorite stations on Nostr.", "/");
     case "apps":
       return metadata("WaveFunc apps", "Download WaveFunc for Android and desktop | WaveFunc Radio", "Listen to internet radio and back up songs from your Crate with WaveFunc on Android, macOS, Windows, or Linux.", "/apps");
-    case "genre":
-      return metadata("Rock radio stations", "Rock radio stations | WaveFunc Radio", "Browse rock radio stations on WaveFunc and open a station to listen live.", "/genre/rock");
+    case "genres": {
+      const name = page.query ? `Radio genres matching “${page.query}”` : "Browse radio stations by genre";
+      const title = name + (page.page === 1 ? "" : " – Page " + page.page) + " | WaveFunc Radio";
+      return { ...metadata("Radio genres", title, "Find a genre and explore its live radio stations.", genresPath(page.page, page.query)), indexable: !page.query };
+    }
+    case "genre": {
+      const heading = page.genre.name + " radio stations";
+      const pageSuffix = page.page === 1 ? "" : " – Page " + page.page;
+      const count = page.genre.count;
+      const description = `Browse ${count} ${page.genre.name} radio ${count === 1 ? "station" : "stations"} and listen live on WaveFunc.`;
+      return metadata(heading, heading + pageSuffix + " | WaveFunc Radio", description, genrePath(page.genre.slug, page.page));
+    }
     case "station": {
       const station = parseStationEvent(page.event);
       const name = text(station.name) || "Radio station";

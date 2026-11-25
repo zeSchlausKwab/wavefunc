@@ -1,5 +1,6 @@
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { parseRouterSearch, stringifyRouterSearch } from "./lib/routerSearch";
 import { routeTree } from "./routeTree.gen";
 import { useWavefuncNostr } from "./lib/nostr/runtime";
 import { installTauriBridge } from "./lib/tauriBridge";
@@ -9,7 +10,7 @@ import { useSleepTimerStore } from "./stores/sleepTimerStore";
 import "./index.css";
 
 // Create a new router instance
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, parseSearch: parseRouterSearch, stringifySearch: stringifyRouterSearch });
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {

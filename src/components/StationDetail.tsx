@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+import { stationGenres } from "../lib/genres";
 import React, { useEffect, useState } from "react";
 import {
   buildStationCommentTemplate,
@@ -33,6 +35,7 @@ interface StationDetailProps {
   focusCommentForm?: boolean;
   onCommentFormFocused?: () => void;
   withPadding?: boolean;
+  linkGenres?: boolean;
 }
 
 function formatCount(n: number): string {
@@ -80,6 +83,7 @@ export const StationDetail: React.FC<StationDetailProps> = ({
   focusCommentForm = false,
   onCommentFormFocused,
   withPadding = true,
+  linkGenres = false,
 }) => {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
@@ -242,9 +246,11 @@ export const StationDetail: React.FC<StationDetailProps> = ({
 
             {station.genres && station.genres.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {station.genres.map((genre) => (
-                  <span key={genre} className="text-[10px] font-black uppercase tracking-widest px-2 py-1 border-2 border-on-background bg-surface-container-low">
-                    {genre}
+                {stationGenres(station.genres).map(genre => (
+                  <span key={genre.slug} className="text-[10px] font-black uppercase tracking-widest px-2 py-1 border-2 border-on-background bg-surface-container-low">
+                    {linkGenres
+                      ? <Link to="/genre/$slug" params={{ slug: genre.slug }} className="underline">{genre.name}</Link>
+                      : genre.name}
                   </span>
                 ))}
               </div>

@@ -5,6 +5,7 @@ import { getPublicKey } from "nostr-tools/pure";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { isStaticAssetPath } from "./lib/http/spaFallback";
 import { createPublicCatalog } from "./lib/server/publicCatalog";
+import { scheduleDirectoryRefresh } from "./lib/server/refreshDirectory";
 import { servePublicRoute } from "./lib/server/publicRoutes";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -398,6 +399,7 @@ if (!isProduction) {
 // Start server
 (async () => {
   const catalog = createPublicCatalog();
+  scheduleDirectoryRefresh(catalog.directoryCompleted);
   const getShell = () => file(join(process.cwd(), "dist", "index.html")).text();
   if (isProduction) {
     // Production: Serve static files from dist/ and public/ with proper caching & path guards
@@ -472,7 +474,7 @@ if (!isProduction) {
           }
 
           // Other SPA routes remain available without advertising private pages to search engines.
-          const knownRoute = ["/admin", "/browse/genres", "/community", "/crate", "/favorites", "/musicbrainz", "/settings", "/signals"]
+          const knownRoute = ["/admin", "/community", "/crate", "/favorites", "/musicbrainz", "/settings", "/signals"]
             .includes(pathname.replace(/\/+$/, ""));
           return new Response(req.method === "HEAD" ? null : await getShell(), {
             status: knownRoute ? 200 : 404,

@@ -8,10 +8,10 @@ import { createRelayPolicy } from "../../config/relayPolicy";
 import { normalizeStationRouteParam } from "../share";
 import { readCatalogRelay } from "./catalogRelay";
 
+import { directoryPath, openDirectoryIndex, DIRECTORY_REFRESH_MS } from "./directoryIndex";
+
 const stationKind = 31237;
 const hex = /^[a-f\d]{64}$/i;
-const pilotGenre = "rock";
-const genreLimit = 32;
 const maxConcurrentReads = 8;
 
 export type CatalogResult<T> =
@@ -21,6 +21,7 @@ export type CatalogResult<T> =
 
 type Options = {
   databasePath?: string;
+  directoryDatabasePath?: string;
   relayUrl?: string;
   profileRelays?: string[];
   timeoutMs?: number;
@@ -51,6 +52,8 @@ export function createPublicCatalog(options: Options = {}) {
     [policy.identityRead[0]!, policy.generalRead[0]!];
   const profileRelays = [...new Set(configuredProfiles.map((url) => url.trim()).filter(Boolean))].slice(0, 3);
   const path = options.databasePath ?? process.env.PUBLIC_CATALOG_DB ?? join(process.cwd(), ".cache", "public-catalog.sqlite");
+  const directory = openDirectoryIndex(options.directoryDatabasePath ??
+    (options.databasePath ? (path === ":memory:" ? path : path + ".directory") : directoryPath()));
   const timeout = options.timeoutMs ?? 2500;
   const ttl = options.freshMs ?? 5 * 60_000;
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -97,9 +100,12 @@ export function createPublicCatalog(options: Options = {}) {
     return task;
   }
 
-  function detail(key: string, filter: Filter, relays: string[]): Promise<CatalogResult<NostrEvent>> {
+  function detail(key: string, filter: Filter, relays: string[], snapshotEvent?: NostrEvent): Promise<CatalogResult<NostrEvent>> {
     const saved = get.get(key);
-    const fallback = saved ? found(JSON.parse(saved.json) as NostrEvent) : unavailable;
+    const known = [snapshotEvent, saved ? JSON.parse(saved.json) as NostrEvent : undefined]
+      .filter((event): event is NostrEvent => !!event);
+    const fallback = known.length ? found(sortEvents(known)[0]!) : unavailable;
+    if (snapshotEvent && directory.completed() > Date.now() - DIRECTORY_REFRESH_MS - 5 * 60_000) return Promise.resolve(fallback);
     if (saved && saved.checked > Date.now() - ttl) return Promise.resolve(fallback);
     return singleFlight(key, async () => {
       const responses = await Promise.allSettled(relays.map((url) => readCatalogRelay(url, filter, timeout)));
@@ -120,7 +126,7 @@ export function createPublicCatalog(options: Options = {}) {
   function byAddress(input: { pubkey: string; identifier: string }) {
     const { pubkey, identifier } = input;
     const address = naddrEncode({ kind: stationKind, pubkey, identifier });
-    return detail(address, { kinds: [stationKind], authors: [pubkey], "#d": [identifier], limit: 1 }, [relay]);
+    return detail(address, { kinds: [stationKind], authors: [pubkey], "#d": [identifier], limit: 1 }, [relay], directory.station(address));
   }
 
   async function station(param: string): Promise<CatalogResult<NostrEvent>> {
@@ -134,8 +140,8 @@ export function createPublicCatalog(options: Options = {}) {
     // nevent's optional author and kind are hints; the signed event is authoritative.
     else if (pointer?.type === "nevent") id = pointer.data.id;
     else return missing;
-    const alias = getAlias.get(id);
-    if (alias) return byAddress(decode(alias.address as `naddr1${string}`).data);
+    const alias = getAlias.get(id)?.address ?? directory.addressForId(id);
+    if (alias) return byAddress(decode(alias as `naddr1${string}`).data);
 
     // An exact event lookup learns the stable address even for an older version.
     // Then ask for the current addressable event regardless of that version's age.
@@ -151,40 +157,6 @@ export function createPublicCatalog(options: Options = {}) {
     return byAddress(decode(result.value as `naddr1${string}`).data);
   }
 
-  async function genre(name: string): Promise<CatalogResult<NostrEvent[]>> {
-    if (name !== pilotGenre) return missing;
-    const key = "genre:" + name;
-    const saved = get.get(key);
-    const belongs = (event: NostrEvent) => event.tags.some(([tag, value, role]) =>
-      tag === "c" && role === "genre" && value?.toLowerCase() === name);
-    const loadStations = (addresses: string[]) => addresses.flatMap((addr) => {
-      const record = get.get(addr);
-      if (!record) return [];
-      const event = JSON.parse(record.json) as NostrEvent;
-      return belongs(event) ? [event] : [];
-    });
-    const fallback = saved ? found(loadStations(JSON.parse(saved.json))) : unavailable;
-    if (saved && saved.checked > Date.now() - ttl) return fallback;
-    return singleFlight(key, async () => {
-      const events = await readCatalogRelay(relay, {
-        kinds: [stationKind], "#c": ["rock", "Rock", "ROCK"], limit: genreLimit,
-      }, timeout);
-      const addresses = new Set<string>();
-      db.transaction(() => {
-        const checked = Date.now();
-        for (const event of sortEvents(events)) {
-          const address = stationAddress(event);
-          if (address && belongs(event)) {
-            remember(address, event, checked);
-            addresses.add(address);
-          }
-        }
-        put.run(key, JSON.stringify([...addresses]), checked);
-      })();
-      return found(loadStations([...addresses]));
-    }, fallback);
-  }
-
   async function profile(param: string): Promise<CatalogResult<NostrEvent>> {
     const pointer = routePointer(param);
     let pubkey: string;
@@ -194,7 +166,12 @@ export function createPublicCatalog(options: Options = {}) {
     return detail("profile:" + pubkey, { kinds: [0], authors: [pubkey], limit: 1 }, profileRelays);
   }
 
-  return { station, genre, profile, close: () => db.close() };
+  return {
+    station, profile, genre: directory.genre, genres: directory.genres,
+    sitemapBuckets: directory.sitemapBuckets, sitemapPaths: directory.sitemapPaths,
+    directoryCompleted: directory.completed,
+    close() { db.close(); directory.close(); },
+  };
 }
 
 export type PublicCatalog = ReturnType<typeof createPublicCatalog>;

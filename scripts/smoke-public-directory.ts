@@ -2,10 +2,16 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { matchFilters, type Filter } from "nostr-tools/filter";
 import { generateSecretKey, finalizeEvent, type NostrEvent } from "nostr-tools/pure";
 import { naddrEncode, npubEncode, neventEncode } from "nostr-tools/nip19";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
+import { importStations } from "../src/lib/server/directoryIndex";
+import { publicStationPath } from "../src/lib/publicPageMetadata";
+import { genrePath as pathForGenre, genreSlug } from "../src/lib/genres";
 
 const stationName = "Directory Test Radio";
 const profileName = "Directory Test DJ";
@@ -61,13 +67,34 @@ const station = finalizeEvent({
 const profile = finalizeEvent({
   kind: 0, created_at: station.created_at, tags: [], content: JSON.stringify({ name: profileName, about: "Local fixture DJ" }),
 }, key);
-events.push(station, profile);
+const jazz = Array.from({ length: 34 }, (_, index) => finalizeEvent({
+  kind: 31237, created_at: station.created_at,
+  tags: [["d", "jazz-" + index], ["name", "Jazz fixture " + index], ["c", "Jazz", "genre"]],
+  content: station.content,
+}, key));
+const untagged = finalizeEvent({
+  kind: 31237, created_at: station.created_at, tags: [["d", "untagged"], ["name", "Untagged Radio"]],
+  content: station.content,
+}, key);
+const worldGenres = Array.from({ length: 101 }, (_, index) => "World mix " + String(index).padStart(3, "0"));
+const international = "日本/Alternative & Rock";
+const internationalPath = pathForGenre(genreSlug(international));
+const worldStation = finalizeEvent({
+  kind: 31237, created_at: station.created_at, content: station.content,
+  tags: [["d", "world"], ["name", "World Radio"], ...[...worldGenres, international].map(name => ["c", name, "genre"])],
+}, key);
+const stations = [station, ...jazz, untagged, worldStation];
+const allGenrePaths = ["/genre/rock", "/genre/jazz", internationalPath, ...worldGenres.map(name => pathForGenre(genreSlug(name)))];
+events.push(...stations, profile);
 const stationPath = "/station/" + naddrEncode({ kind: station.kind, identifier: "directory-test", pubkey: station.pubkey });
 const aliasPath = "/station/" + neventEncode({ id: station.id, relays: ["wss://ignored.invalid"] });
 const profilePath = "/profile/" + npubEncode(profile.pubkey);
 
+const directory = mkdtempSync(join(tmpdir(), "wavefunc-directory-smoke-"));
+const databasePath = join(directory, "directory.sqlite");
+await importStations(databasePath, stations);
 const server = spawn(process.execPath, ["src/index.tsx"], {
-  env: { ...process.env, NODE_ENV: "production", PORT: "0", PUBLIC_CATALOG_RELAY_URL: relay, PUBLIC_CATALOG_PROFILE_RELAYS: relay, PUBLIC_CATALOG_DB: ":memory:" },
+  env: { ...process.env, NODE_ENV: "production", PORT: "0", PUBLIC_DIRECTORY_DB: databasePath, PUBLIC_CATALOG_RELAY_URL: relay, PUBLIC_CATALOG_PROFILE_RELAYS: relay, PUBLIC_CATALOG_DB: ":memory:" },
   stdio: ["ignore", "pipe", "inherit"],
 });
 const exit = once(server, "exit");
@@ -98,6 +125,7 @@ async function open(page: Page, origin: string, path: string) {
 }
 
 async function assertMetadata(page: Page, canonical: string, name: string) {
+  await page.locator('link[rel="canonical"][href="' + site + canonical + '"]').waitFor({ state: "attached" });
   const tags = [
     ['link[rel="canonical"]', "href", site + canonical],
     ['meta[property="og:url"]', "content", site + canonical],
@@ -109,7 +137,7 @@ async function assertMetadata(page: Page, canonical: string, name: string) {
   }
   for (const tag of ["og:title", "twitter:title", "telegram:title"]) {
     const value = await page.locator(`meta[property="${tag}"],meta[name="${tag}"]`).getAttribute("content");
-    assert.ok(value?.includes(name), tag);
+    assert.ok(value?.includes(name), `${canonical} ${tag}: expected "${name}" in "${value}"`);
   }
 }
 
@@ -124,25 +152,64 @@ try {
       ["/", "/", "WaveFunc Radio"], ["/apps", "/apps", "WaveFunc apps"],
       [genrePath, genrePath, "Rock radio stations"], [aliasPath, stationPath, stationName],
       [profilePath, profilePath, profileName],
+      ["/browse/genres", "/browse/genres", "Radio genres"],
+      ["/genre/jazz", "/genre/jazz", "Jazz radio stations"],
     ] as const) {
       await open(crawler, origin, path);
       await crawler.getByRole("heading", { level: 1, name: heading, exact: true }).waitFor();
-      await assertMetadata(crawler, canonical, path === "/apps" ? "Download WaveFunc" : heading);
+      const title = path === "/apps" ? "Download WaveFunc" : path === "/browse/genres" ? "Browse radio stations by genre" : heading;
+      await assertMetadata(crawler, canonical, title);
     }
+    await open(crawler, origin, "/browse/genres");
+    const genreLinks = crawler.locator('main li a[href^="/genre/"]');
+    const firstGenres = await genreLinks.evaluateAll(links => links.map(link => link.getAttribute("href")));
+    await crawler.getByRole("link", { name: "Next page", exact: true }).click();
+    await assertMetadata(crawler, "/browse/genres?page=2", "Browse radio stations by genre");
+    const lastGenres = await genreLinks.evaluateAll(links => links.map(link => link.getAttribute("href")));
+    assert.deepEqual([...firstGenres, ...lastGenres].sort(), [...allGenrePaths].sort());
+    const search = crawler.getByRole("searchbox", { name: "Search genres" });
+    await search.fill("日本");
+    await search.press("Enter");
+    await crawler.locator('meta[name="robots"][content*="noindex"]').waitFor({ state: "attached" });
+    await crawler.locator('a[href="' + internationalPath + '"]').click();
+    await assertMetadata(crawler, internationalPath, international);
+    await open(crawler, origin, "/browse/genres");
+    await crawler.locator('a[href="/genre/jazz"]').first().click();
+    const firstJazzPage = await crawler.locator('main a[href^="/station/"]').evaluateAll(links => links.map(link => link.getAttribute("href")));
+    await crawler.getByRole("link", { name: "Next page", exact: true }).click();
+    await assertMetadata(crawler, "/genre/jazz?page=2", "Jazz radio stations");
+    const lastJazzPage = await crawler.locator('main a[href^="/station/"]').evaluateAll(links => links.map(link => link.getAttribute("href")));
+    assert.deepEqual([...firstJazzPage, ...lastJazzPage].sort(), jazz.map(publicStationPath).sort());
+    await crawler.getByRole("link", { name: "Previous page", exact: true }).click();
+    assert.equal(new URL(crawler.url()).search, "");
     await open(crawler, origin, genrePath);
     await crawler.getByRole("link", { name: stationName }).click();
     assert.equal(new URL(crawler.url()).pathname, stationPath);
     assert.equal(await crawler.getByRole("link", { name: "Listen live" }).getAttribute("href"), stream);
-    const sitemap = await (await fetch(origin + "/sitemap.xml")).text();
-    assert.ok(sitemap.includes(site + stationPath));
+    async function sitemapUrls(path: string) {
+      const res = await fetch(origin + path);
+      assert.equal(res.status, 200, path);
+      assert.match(res.headers.get("content-type") ?? "", /application\/xml/);
+      return Array.from((await res.text()).matchAll(/<loc>([^<]+)<\/loc>/g), match => {
+        const url = new URL(match[1]!);
+        assert.equal(url.origin, site);
+        return url.pathname;
+      });
+    }
+    const children = await sitemapUrls("/sitemap.xml");
+    const urls = (await Promise.all(children.map(sitemapUrls))).flat();
+    assert.deepEqual(urls.sort(), ["/", "/apps", "/browse/genres", ...allGenrePaths, ...stations.map(publicStationPath)].sort());
     assert.equal((await fetch(origin + "/station/" + "f".repeat(64))).status, 404);
-    console.log("Verified crawler HTML, no-JS listening link, social previews, sitemap, and exact 404.");
+    for (const path of ["/genre/unknown", "/genre/jazz?page=99999"]) {
+      assert.equal((await fetch(origin + path)).status, 404, path);
+    }
+    console.log("Verified all stations and genres in the sitemap, no-JS pagination, previews, and exact 404s.");
     await disabled.close();
 
     for (const mobile of [false, true]) {
       const context = await browser.newContext({
         viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
-        isMobile: mobile, hasTouch: mobile, serviceWorkers: "block",
+        isMobile: mobile, hasTouch: mobile, reducedMotion: "no-preference", serviceWorkers: "block",
       });
       await isolate(context, origin);
       const page = await context.newPage();
@@ -154,12 +221,21 @@ try {
       await page.getByRole("link", { name: stationName }).click();
       await page.getByRole("heading", { level: 1, name: stationName, exact: true }).waitFor();
       await assertMetadata(page, stationPath, stationName);
+      const cube = page.locator(".wf-cube-body:visible").first();
+      const rotation = await cube.evaluateHandle(el => el.getAnimations()[0]!);
+      assert.equal(await rotation.evaluate(animation => animation.playbackRate), 1);
+      assert.equal(await rotation.evaluate(animation => animation.effect?.getTiming().iterations === Infinity), true);
+      const period = await rotation.evaluate(animation => Number(animation.effect?.getTiming().duration));
+      assert.ok(Math.abs(2 * Math.PI / (period / 1000) - 0.52) < 0.01, "idle cube speed");
       const play = page.locator('button[title="Play"]:visible:enabled').first();
       await play.click();
       await page.waitForFunction(() => {
         const audio = document.querySelector("audio");
         return audio && !audio.paused && audio.currentTime > 0;
       });
+      await page.waitForFunction(animation => animation.playState === "running" && animation.playbackRate > 1, rotation);
+      const rate = await rotation.evaluate(animation => animation.playbackRate);
+      assert.ok(Math.abs(2 * Math.PI * rate / (period / 1000) - 2.25) < 0.01, "playing cube speed");
       const before = await page.evaluate(() => document.querySelector("audio")!.currentTime);
       await page.goBack();
       await page.getByRole("link", { name: "Browse genres" }).waitFor();
@@ -171,6 +247,7 @@ try {
       if (mobile) {
         const pause = page.locator('button[title="Pause"]:visible');
         await pause.click();
+        await page.waitForFunction(animation => animation.playbackRate === 1, rotation);
         const resume = page.locator('button[title="Play"]:visible:enabled');
         const bounds = await resume.boundingBox();
         assert.ok(bounds && bounds.width >= 44 && bounds.x >= 0 && bounds.x + bounds.width <= 390, "mobile Play must fit");
@@ -178,16 +255,21 @@ try {
         await page.waitForFunction(() => document.querySelector("audio")?.paused === false);
       }
       await page.getByRole("link", { name: "Browse genres" }).click();
-      await page.getByRole("heading", { name: "OSCILLATION_TYPES", exact: true }).waitFor();
-      await page.locator('meta[name="robots"][content="noindex"]').waitFor({ state: "attached" });
-      assert.equal(await page.locator('link[rel="canonical"],meta[property="og:url"]').count(), 0);
+      await page.getByRole("heading", { name: "Radio genres", exact: true }).waitFor();
+      await assertMetadata(page, "/browse/genres", "Browse radio stations by genre");
+      await page.locator('a[href="/genre/jazz"]').first().click();
+      await page.getByRole("link", { name: "Next page", exact: true }).click();
+      await assertMetadata(page, "/genre/jazz?page=2", "Jazz radio stations");
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.waitForFunction(() => Array.from(document.querySelectorAll(".wf-cube-body")).every(el => el.getAnimations().length === 0));
+      await rotation.dispose();
       await open(page, origin, profilePath);
       await page.locator("audio").waitFor({ state: "attached" }); // Same heading on both renderers.
       await page.getByRole("heading", { level: 1, name: profileName, exact: true }).waitFor();
       await assertMetadata(page, profilePath, profileName);
       assert.deepEqual(errors, []);
       await context.close();
-      console.log(`Verified ${mobile ? "mobile" : "desktop"} directory, station, Back during playback, and profile.`);
+      console.log(`Verified ${mobile ? "mobile" : "desktop"} genre navigation, cube motion, Back during playback, and profile.`);
     }
   } finally {
     await browser.close();
@@ -196,4 +278,5 @@ try {
   server.kill();
   await exit;
   await fixture.stop(true);
+  rmSync(directory, { recursive: true, force: true });
 }

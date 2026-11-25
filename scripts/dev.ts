@@ -36,10 +36,13 @@ try {
   if (androidSession) { devEnv.ANDROID_SERIAL = androidSession.serial; devEnv.TAURI_DEV_HOST = "127.0.0.1"; }
   buildDir = await mkdtemp(join(tmpdir(), "wavefunc-dev-"));
   const relay = join(buildDir, "wavefunc-relay");
+  const stationDb = join(root, "relay/data/events");
+  devEnv.PUBLIC_DIRECTORY_EXPORTER = relay;
+  devEnv.PUBLIC_DIRECTORY_LMDB = stationDb;
   console.log("Building relay; existing data is preserved. Ctrl+C stops this session's services.");
   await services.run("Relay build", ["go", "-C", join(root, "relay"), "build", "-o", relay, "."]);
   // Run the binary directly so compiler exit cannot orphan the relay.
-  services.start("Relay", [relay, "--host", "127.0.0.1", "--port", "3334", "--db-path", join(root, "relay/data/events"), "--search-path", join(root, "relay/data/search")]);
+  services.start("Relay", [relay, "--host", "127.0.0.1", "--port", "3334", "--db-path", stationDb, "--search-path", join(root, "relay/data/search")]);
   await waitUntilReady(async signal => {
     try {
       const response = await fetch("http://127.0.0.1:3334", { headers: { Accept: "application/nostr+json" }, signal });

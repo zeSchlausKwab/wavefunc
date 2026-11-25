@@ -28,14 +28,15 @@ import (
 )
 
 var (
-	host       = flag.String("host", "127.0.0.1", "Host address to bind (use 0.0.0.0 only for isolated development)")
-	port       = flag.String("port", "3334", "Port to listen on")
-	dbPath     = flag.String("db-path", "./data/events", "Path to LMDB database directory")
-	searchPath = flag.String("search-path", "./data/search", "Path to bleve search index")
-	resetDB    = flag.Bool("reset-db", false, "Reset the database")
-	resetIndex = flag.Bool("reset-index", false, "Reset the search index")
-	resetAll   = flag.Bool("reset-all", false, "Reset both database and index")
-	reindex    = flag.Bool("reindex", false, "Rebuild search index from existing LMDB data then exit")
+	host           = flag.String("host", "127.0.0.1", "Host address to bind (use 0.0.0.0 only for isolated development)")
+	port           = flag.String("port", "3334", "Port to listen on")
+	dbPath         = flag.String("db-path", "./data/events", "Path to LMDB database directory")
+	searchPath     = flag.String("search-path", "./data/search", "Path to bleve search index")
+	resetDB        = flag.Bool("reset-db", false, "Reset the database")
+	resetIndex     = flag.Bool("reset-index", false, "Reset the search index")
+	resetAll       = flag.Bool("reset-all", false, "Reset both database and index")
+	reindex        = flag.Bool("reindex", false, "Rebuild search index from existing LMDB data then exit")
+	exportStations = flag.Bool("export-stations", false, "Stream the current station events as NDJSON from a read-only LMDB snapshot, then exit")
 )
 
 const (
@@ -736,6 +737,13 @@ func (s *stationSearch) QueryEvents(filter nostr.Filter, maxLimit int) iter.Seq[
 
 func main() {
 	flag.Parse()
+
+	if *exportStations {
+		if err := exportStationSnapshot(*dbPath, os.Stdout); err != nil {
+			log.Fatalf("Station export failed: %v", err)
+		}
+		return
+	}
 
 	if *resetAll {
 		*resetDB = true

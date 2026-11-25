@@ -16,7 +16,8 @@ export function PublicPageHead() {
         case "/apps": return apps;
         case "/station/$naddr":
         case "/profile/$pubkey":
-        case "/genre/rock":
+        case "/browse/genres":
+        case "/genre/$slug":
           return match.loaderData;
         default: return null;
       }
