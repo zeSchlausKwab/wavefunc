@@ -44,9 +44,10 @@ import {
   getWalletRelayUrls,
 } from "../../config/nostr";
 import { relayPreferences } from "../../config/relayPreferences";
-import { selectPublishRelays } from "../../config/relayPolicy";
+import { isPublicSocialEvent, selectPublishRelays } from "../../config/relayPolicy";
 import { getInboxes, getOutboxes } from "applesauce-core/helpers/mailboxes";
-import { publishAccepted, relayAuthentication } from "./transport";
+import { resolvePublicDelivery } from "./publicDelivery";
+import { publishAccepted, publishWithMirrors, relayAuthentication } from "./transport";
 import { SOCIAL_EVENT_KINDS } from "./social";
 import { IndexedDBEventCache } from "./eventCache";
 import { attachEventLoading } from "./eventLoading";
@@ -253,22 +254,35 @@ if (!g.__wavefuncNostr.accountListenersAttached) {
 }
 
 /** Shared publication boundary for actions and React callers. */
-export async function publishEvent(event: NostrEvent, relays?: string[]) {
+export async function publishEvent(event: NostrEvent, relays?: string[], stillAllowed?: () => boolean) {
   const active = accounts.active;
   if (!active || active.pubkey !== event.pubkey) throw new Error("The signing account is no longer active");
-  const mailbox = eventStore.getReplaceable(10002, event.pubkey);
-  const personal = relayPreferences.state$.value.relays;
-  const outboxes = personal?.filter(r => r.write).map(r => r.url) ?? (mailbox ? getOutboxes(mailbox) : []);
-  const inboxes = event.tags.filter(([name]) => name === "p").flatMap(([, pubkey]) => {
-    const recipient = pubkey && eventStore.getReplaceable(10002, pubkey);
-    return recipient ? getInboxes(recipient) : [];
-  });
-  const wallet = eventStore.getReplaceable(WALLET_KIND, event.pubkey);
-  const walletEvent = [17375, 7375, 7376, 10019].includes(event.kind);
-  const targets = relays ?? (walletEvent
-    ? (wallet ? getWalletRelays(wallet) ?? getWalletRelayUrls() : getWalletRelayUrls())
-    : selectPublishRelays(getRelayPolicy(), event, outboxes, inboxes));
-  const responses = await publishAccepted(relayPool, targets, event, relayAuthentication(active.signer, active.pubkey));
+  if (event.kind === 9321) throw new Error("Send nutzaps through the recipient’s payment relays");
+  if (event.kind === 9734) throw new Error("Send zap requests to the recipient’s Lightning endpoint");
+  const policy = getRelayPolicy();
+  const auth = relayAuthentication(active.signer, active.pubkey);
+  let responses;
+  if (isPublicSocialEvent(event)) {
+    const plan = await resolvePublicDelivery(eventStore, relayPool, policy, event, relays);
+    if (accounts.active !== active) throw new Error("The signing account is no longer active");
+    if (stillAllowed && !stillAllowed()) return [];
+    responses = await publishWithMirrors(relayPool, event, plan.writeRelays,
+      () => stillAllowed && !stillAllowed() ? [] : plan.targets, auth);
+  } else {
+    const mailbox = eventStore.getReplaceable(10002, event.pubkey);
+    const personal = relayPreferences.state$.value.relays;
+    const outboxes = personal?.filter(r => r.write).map(r => r.url) ?? (mailbox ? getOutboxes(mailbox) : []);
+    const inboxes = event.tags.filter(([name]) => name === "p").flatMap(([, pubkey]) => {
+      const recipient = pubkey && eventStore.getReplaceable(10002, pubkey);
+      return recipient ? getInboxes(recipient) : [];
+    });
+    const wallet = eventStore.getReplaceable(WALLET_KIND, event.pubkey);
+    const walletEvent = [17375, 7375, 7376, 10019].includes(event.kind);
+    const targets = relays ?? (walletEvent
+      ? (wallet ? getWalletRelays(wallet) ?? getWalletRelayUrls() : getWalletRelayUrls())
+      : selectPublishRelays(policy, event, outboxes, inboxes));
+    responses = await publishAccepted(relayPool, targets, event, auth);
+  }
   for (const response of responses) if (response.ok) eventStore.add(event, response.from);
   publishedEvents$.next(event);
   return responses;

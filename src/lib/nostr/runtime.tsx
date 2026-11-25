@@ -149,8 +149,7 @@ export function WavefuncNostrProvider({
 
   const { wallet, error: walletError, restart: restartWallet } = useActiveWallet(activeAccount);
 
-  // Keep the active author's NIP-65 mailbox metadata warm. Publishing reads
-  // this synchronously, so route actions never wait for a relay round trip.
+  // Warm the author's NIP-65 list so most publications can reuse cached outboxes.
   useEffect(() => {
     if (!currentPubkey) return;
     const query = relayQueries.query({

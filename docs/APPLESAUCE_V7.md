@@ -22,7 +22,7 @@ The follow-up upgrades `@contextvm/sdk` to 0.14.3 and both endpoints to its supp
 | `src/lib/nostr/queryRegistry.ts` | Shared query lifecycle, cached results, live updates, and visible relay errors. |
 | `src/lib/nostr/eventCache.ts` | Batched IndexedDB wire-event persistence and bounded retention. |
 
-Public reads explicitly avoid interactive AUTH. Account-bound writes and wallet operations capture their signer instead of consulting a mutable active-account proxy during an authentication challenge. Publishing succeeds only when at least one relay accepts the event; an all-rejected result is an error, including in the wallet's pool view. Only actual accepting/receiving relays are recorded as provenance.
+Public reads avoid interactive AUTH. Account-bound writes and wallet operations capture their signer for authentication challenges. In production, social posts, replies, comments, reactions and listening updates go to the author's outboxes, the configured general write relays, tagged recipients' inboxes and the WaveFunc relay. Event-specific relay hints add destinations. The UI confirms publication after an author or general write relay accepts the event. Only actual accepting or receiving relays are recorded as provenance.
 
 The EventStore insertion/removal boundary owns event persistence. Query callers do not write the same event again or invent provenance. Pending writes and deletes are ordered; retention is capped at 20,000 events with a 30-day TTL, pruned on writes at most once per minute. The wallet operation couch is separate and is not pruned.
 
@@ -50,10 +50,11 @@ The wallet couch retains the `wavefunc-cashu` database, version 1, `operation-co
 
 ### Wallet and signing
 
+- Lightning zap requests go to the recipient's LNURL callback. Their relay hints tell the provider where to publish the paid receipt. Cashu nutzaps require acknowledgement from a recipient payment relay before the signed event is mirrored to social relays.
 - NWC uses `applesauce-wallet-connect` for URI interpretation, encryption negotiation, requests, and response validation. The adapter validates WebSocket relays and keys, rejects failed publication, bounds payment waits, and releases transport subscriptions. It does not automatically retry a payment.
 - Lightning deposits use `wallet.deposit` with an abort signal allocated before quote creation. Closing/resetting during quote creation prevents a late quote from starting a payment waiter; later cancellation aborts the waiter.
 - Wallet mutations reject overlapping operations at the wallet boundary, before UI busy state renders. Quote reads, unlocking, and relay backups can still overlap. NIP-61 sends now belong to this same wallet instance and signer, rather than UI-owned action orchestration.
-- NIP-61 sends commit a combined backup of the swapped outgoing proofs and change before publishing. The backup survives publication failure; the SDK action's unconditional couch cleanup is bypassed. Successful completion clears it only after the outgoing event and spend bookkeeping are accepted.
+- Web NIP-61 sends save the prepared swap in an account-encrypted IndexedDB record before contacting the mint. The record also preserves the recipient's payment relays, the signed outgoing event and the sender's accounting as each becomes available. A retry resumes the saved payment. The wallet clears the record after the recipient relay and the sender's wallet relay confirm delivery.
 - Startup/operation errors are visible; reconnect and existing recovery controls remain accessible. Maintenance displays remaining local backup entries after incomplete recovery, and mutations are disabled while the wallet is busy.
 - QR NIP-46 pairing uses `connectSecret`; bunker authorization remains a separate secret. Requests have a deadline, late QR completion cannot log in after cancellation, and logout closes the local signer transport.
 

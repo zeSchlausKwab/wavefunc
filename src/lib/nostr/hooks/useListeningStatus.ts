@@ -5,7 +5,6 @@ import {
   getAccountOptions,
   useAccountOptions,
 } from "../../../config/accountOptions";
-import { getSocialRelayUrls } from "../../../config/nostr";
 import { usePlayerStore } from "../../../stores/playerStore";
 import { useMetadataStore } from "../../../stores/metadataStore";
 import { accounts, publishEvent } from "../store";
@@ -37,7 +36,7 @@ export function useListeningStatus(account: IAccount | null | undefined) {
         if (!allowed()) return;
         const signed = await account.signer.signEvent(template);
         if (!allowed()) return;
-        await publishEvent(signed, getSocialRelayUrls());
+        await publishEvent(signed, undefined, allowed);
       },
     );
     const report = (error: unknown) => {

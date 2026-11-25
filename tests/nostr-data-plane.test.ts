@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { EventStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { Subject } from "rxjs";
+import { Subject, of } from "rxjs";
+import { PrivateKeySigner } from "applesauce-signers";
+import { eventZapTargetTags, resolvePublicDelivery, resolveZapReceiptRelays } from "../src/lib/nostr/publicDelivery";
 import {
   createRelayPolicy,
   selectPublishRelays,
@@ -152,6 +154,43 @@ describe("relay policy", () => {
     expect(mailboxRelays).toContain("wss://purplepag.es");
   });
 
+  test("public events include author writes, configured general writes, p/P inboxes, and origin hints", async () => {
+    const policy = createRelayPolicy({ stage: "production", appRelay: "wss://app.example" });
+    policy.generalWriteFallback = ["wss://personal.example"];
+    const sender = PrivateKeySigner.fromKey("1".repeat(64));
+    const parent = PrivateKeySigner.fromKey("2".repeat(64));
+    const root = PrivateKeySigner.fromKey("3".repeat(64));
+    const author = await sender.getPublicKey(), p = await parent.getPublicKey(), P = await root.getPublicKey();
+    const mailbox = (signer: PrivateKeySigner, url: string, mode: "read" | "write") => signer.signEvent({
+      kind: 10002, tags: [["r", url, mode]], content: "", created_at: 1,
+    });
+    const lists = await Promise.all([
+      mailbox(sender, "wss://author.example", "write"), mailbox(parent, "wss://parent.example", "read"),
+      mailbox(root, "wss://root.example", "read"),
+    ]);
+    const store = new EventStore();
+    let reads = 0;
+    const pool = { request: () => { reads++; return of(...lists); } };
+    try {
+      for (const kind of [1, 7, 1111, 1985, 30315]) {
+        const event = { ...cachedEvent, kind, pubkey: author, tags: [
+          ["P", P], ["p", p], ["p", P], ["e", "a".repeat(64), "wss://thread.example:7443"],
+        ] };
+        const plan = await resolvePublicDelivery(store, pool, policy, event, ["wss://origin.example"]);
+        expect(plan.writeRelays).toEqual(["wss://author.example", "wss://personal.example"]);
+        expect(plan.targets).toEqual([...plan.writeRelays, "wss://root.example", "wss://parent.example", "wss://app.example", "wss://origin.example", "wss://thread.example:7443"]);
+      }
+      expect(reads).toBe(1);
+      const receipts = await resolveZapReceiptRelays(store, pool, policy, author, p);
+      expect(receipts).toEqual(["wss://app.example", "wss://parent.example", "wss://author.example", "wss://personal.example"]);
+      expect(reads).toBe(1);
+      const follows = await resolvePublicDelivery(store, pool, policy, {
+        ...cachedEvent, kind: 3, pubkey: author, tags: [["p", p, "wss://follow.example"]],
+      });
+      expect(follows.targets).toEqual([...follows.writeRelays, "wss://app.example"]);
+    } finally { store.dispose(); }
+  });
+
   test("development publishing cannot escape the app-data relay", () => {
     const policy = createRelayPolicy({
       stage: "development",
@@ -163,6 +202,26 @@ describe("relay policy", () => {
       ["wss://author.example"],
     );
     expect(relays).toEqual(["ws://localhost:3334"]);
+  });
+
+  test("development zap receipts use externally reachable relays", async () => {
+    const policy = createRelayPolicy({ stage: "development", appRelay: "ws://localhost:3334" });
+    policy.generalWriteFallback = ["wss://personal.example:7443", "wss://test.local", "ws://localhost:4444"];
+    const store = new EventStore();
+    try {
+      expect(await resolveZapReceiptRelays(store, { request: () => of() }, policy, "", ""))
+        .toEqual(["wss://personal.example:7443"]);
+    } finally { store.dispose(); }
+  });
+
+  test("station and feed zaps identify the exact event being paid", () => {
+    const station = { ...cachedEvent, kind: 31237, tags: [["d", "station"]] };
+    expect(eventZapTargetTags(station)).toContainEqual(["a", `31237:${station.pubkey}:station`]);
+    expect(eventZapTargetTags(station)).toContainEqual(["e", station.id]);
+    const note = { ...station, kind: 1 };
+    expect(eventZapTargetTags(note)).toEqual([["e", note.id], ["p", note.pubkey], ["k", "1"]]);
+    const other = { ...note, id: "d".repeat(64) };
+    expect(eventZapTargetTags(other)).toContainEqual(["e", other.id]);
   });
 });
 

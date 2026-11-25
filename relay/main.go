@@ -10,12 +10,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	bleve "github.com/blevesearch/bleve/v2"
 	bleveMapping "github.com/blevesearch/bleve/v2/mapping"
 	bleveQuery "github.com/blevesearch/bleve/v2/search/query"
+	"github.com/btcsuite/btcd/btcutil/bech32"
 
 	"fiatjaf.com/nostr"
 	"fiatjaf.com/nostr/eventstore"
@@ -38,11 +40,17 @@ var (
 
 const (
 	productionMetadataServerPubKey = "bb0707242a17a4be881919b3dcfea63f42aacedc3ff898a66be30af195ff32b2"
-	maxPublicIDs                   = 20
-	maxPublicAuthors               = 100
-	maxPublicTagValues             = 200
-	maxPublicSubscriptions         = 24
+	// Match the support recipient, label and historical window in src/lib/nostr/support.ts.
+	supportPubKey          = "3aa5817273c3b2f94f491840e0472f049d0f10009e23de63006166bca9b36ea3"
+	supportNamespace       = "live.wavefunc.support"
+	legacyProfileZapCutoff = 1792573093
+	maxPublicIDs           = 20
+	maxPublicAuthors       = 100
+	maxPublicTagValues     = 200
+	maxPublicSubscriptions = 24
 )
+
+var supportInvoicePrefix = regexp.MustCompile(`^lnbc[1-9][0-9]*[munp]?$`)
 
 var publicReadableKinds = map[nostr.Kind]struct{}{
 	1: {}, 5: {}, 7: {}, 1059: {}, 1111: {}, 1985: {}, 9321: {}, 9735: {},
@@ -253,6 +261,56 @@ func eventTargetsWaveFunc(event nostr.Event) bool {
 		(eventHasTag(event, "e") && eventHasTagValue(event, "k", "1", "31237", "31337", "30078"))
 }
 
+// singleTagValue rejects ambiguous recipients and ambiguous signed descriptions.
+func singleTagValue(tags nostr.Tags, key string) string {
+	var value string
+	for _, tag := range tags {
+		if len(tag) == 0 || tag[0] != key {
+			continue
+		}
+		if len(tag) < 2 || tag[1] == "" || value != "" {
+			return ""
+		}
+		value = tag[1]
+	}
+	return value
+}
+
+// Profile zaps lack a station address. Scope their storage using the sender's
+// signed request. The leaderboard separately verifies the Lightning provider and payment.
+func isAppSupportReceipt(event nostr.Event) bool {
+	if singleTagValue(event.Tags, "p") != supportPubKey || event.Tags.Has("e") || event.Tags.Has("a") {
+		return false
+	}
+	var request nostr.Event
+	if err := json.Unmarshal([]byte(singleTagValue(event.Tags, "description")), &request); err != nil ||
+		request.Kind != 9734 || singleTagValue(request.Tags, "p") != supportPubKey ||
+		request.Tags.Has("e") || request.Tags.Has("a") || request.Tags.Find("relays") == nil ||
+		!request.CheckID() || !request.VerifySignature() {
+		return false
+	}
+	if event.Tags.Has("P") && singleTagValue(event.Tags, "P") != request.PubKey.Hex() {
+		return false
+	}
+	if request.Tags.Has("P") && singleTagValue(request.Tags, "P") != event.PubKey.Hex() {
+		return false
+	}
+	hrp, data, err := bech32.DecodeNoLimit(singleTagValue(event.Tags, "bolt11"))
+	// Seven timestamp words, a payment hash field, and the 104-word invoice signature.
+	if err != nil || !supportInvoicePrefix.MatchString(hrp) || len(data) < 7+3+52+104 {
+		return false
+	}
+	if request.Tags.FindWithValue("L", supportNamespace) != nil {
+		for tag := range request.Tags.FindAll("l") {
+			if len(tag) >= 3 && tag[1] == "app-support" && tag[2] == supportNamespace {
+				return true
+			}
+		}
+	}
+	return event.CreatedAt > 0 && event.CreatedAt < legacyProfileZapCutoff &&
+		request.CreatedAt > 0 && request.CreatedAt < legacyProfileZapCutoff
+}
+
 func rejectPublicEvent(metadataAuthor nostr.PubKey) func(context.Context, nostr.Event) (bool, string) {
 	return func(_ context.Context, event nostr.Event) (bool, string) {
 		switch event.Kind {
@@ -278,7 +336,11 @@ func rejectPublicEvent(metadataAuthor nostr.PubKey) func(context.Context, nostr.
 			if eventHasTagValue(event, "t", "wavefunc", "tunestr") {
 				return false, ""
 			}
-		case 7, 1111, 9321, 9735:
+		case 9735:
+			if eventTargetsWaveFunc(event) || isAppSupportReceipt(event) {
+				return false, ""
+			}
+		case 7, 1111, 9321:
 			if eventTargetsWaveFunc(event) {
 				return false, ""
 			}

@@ -3,7 +3,7 @@ import { RelayLiveness, RelayPool } from "applesauce-relay";
 import { PrivateKeySigner } from "applesauce-signers";
 import { firstValueFrom, lastValueFrom, filter, toArray } from "rxjs";
 import type { ServerWebSocket } from "bun";
-import { publishAccepted, relayAuthentication, withRelayAuthentication } from "../src/lib/nostr/transport";
+import { publishAccepted, publishWithMirrors, relayAuthentication, withRelayAuthentication } from "../src/lib/nostr/transport";
 
 function relay(mode: "accept" | "reject" | "auth" | "deny-auth") {
   const authenticated: string[] = [];
@@ -71,6 +71,21 @@ describe("v7 relay boundaries", () => {
       const walletPool = withRelayAuthentication(pool, signer, await signer.getPublicKey());
       await expect(walletPool.publish([bad.url], signed)).rejects.toThrow("test rejection");
     } finally { pool.close(); good.server.stop(true); bad.server.stop(true); }
+  });
+
+  test("social delivery confirms a write relay before mirroring the same signed event", async () => {
+    const writer = relay("accept"), app = relay("accept"), offline = relay("reject");
+    const pool = new RelayPool();
+    const signed = await event();
+    try {
+      await expect(publishWithMirrors(pool, signed, [offline.url], () => [app.url]))
+        .rejects.toThrow("test rejection");
+      expect(app.frames).toHaveLength(0);
+      const responses = await publishWithMirrors(pool, signed, [writer.url], () => [writer.url + "/", app.url, offline.url]);
+      expect(responses.filter(r => r.ok)).toHaveLength(2);
+      for (const peer of [writer, app]) expect(peer.frames.filter(([type]) => type === "EVENT"))
+        .toEqual([["EVENT", JSON.parse(JSON.stringify(signed))]]);
+    } finally { pool.close(); writer.server.stop(true); app.server.stop(true); offline.server.stop(true); }
   });
 
   test("AUTH challenges use the captured account and rejected authentication fails", async () => {

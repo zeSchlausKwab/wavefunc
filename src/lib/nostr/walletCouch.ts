@@ -3,9 +3,8 @@ import type { Couch } from "applesauce-wallet/helpers";
 
 type StoredToken = { id: string; encodedToken: string; keysetIds?: string[] };
 
-/** Keeps the SDK's v1 database format, but acknowledges writes only after commit.
- * This backup is independent of the disposable event cache and is never pruned. */
-export class WalletCouch implements Couch {
+/** A write is acknowledged only after its IndexedDB transaction commits. */
+export class WalletRecordStore {
   private opening?: Promise<IDBDatabase>;
 
   constructor(
@@ -36,7 +35,7 @@ export class WalletCouch implements Couch {
     return this.opening;
   }
 
-  private async transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  async transaction<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
     const database = await this.open();
     return new Promise<T>((resolve, reject) => {
       const transaction = database.transaction(this.storeName, mode, { durability: "strict" });
@@ -53,6 +52,10 @@ export class WalletCouch implements Couch {
     });
   }
 
+}
+
+/** Keeps the SDK's v1 token database format. Recovery never touches pending nutzaps. */
+export class WalletCouch extends WalletRecordStore implements Couch {
   async store(token: Token): Promise<() => Promise<void>> {
     const record: StoredToken = {
       id: crypto.randomUUID(),

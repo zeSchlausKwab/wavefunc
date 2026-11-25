@@ -7,7 +7,7 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 import { verifyEvent } from "nostr-tools";
 
 /** Discovery only proposes public secure URLs. Explicit personal settings remain independent. */
-export function publicRelayUrl(value: string): string | null {
+export function publicDeliveryRelayUrl(value: string): string | null {
   try {
     const url = new URL(value);
     if (
@@ -15,7 +15,6 @@ export function publicRelayUrl(value: string): string | null {
       url.username ||
       url.password ||
       url.hash ||
-      url.port ||
       !url.hostname.includes(".") ||
       /(^localhost$|\.(local|localhost|internal)$|^\[|^[\d.]+$)/i.test(
         url.hostname,
@@ -26,6 +25,11 @@ export function publicRelayUrl(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function publicRelayUrl(value: string): string | null {
+  const relay = publicDeliveryRelayUrl(value);
+  return relay && !new URL(relay).port ? relay : null;
 }
 export function selectAuthorOutboxes(
   authors: string[],

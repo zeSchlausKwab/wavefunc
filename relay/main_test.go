@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"fiatjaf.com/nostr"
@@ -29,6 +30,73 @@ func TestEnvEnabled(t *testing.T) {
 			t.Parallel()
 			if got := envEnabled(tt.value); got != tt.want {
 				t.Fatalf("envEnabled(%q) = %v, want %v", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSupportReceiptScope(t *testing.T) {
+	t.Parallel()
+	// Mainnet BOLT11 fixture from the Nostr library's nip60 invoice tests.
+	const invoice = "lnbc50n1pne523ypp57rn4l2ne673c093g72nm4pum2mkxjm0v2c0pjc9je909axyutdlqdq2f38xy6t5wvcqzpgxqrrssrzjq0nfr7qlprzkl2rke380tj0gkunm66pv7dtqt0396jrq02qz2fs98apyqqqqqqqqqgqqqqqqqqqqqzsqxgsp5rgp9fa9d8unmg949ztty48dgptke8f8zflt7af8d4yknamp2ymdq9p4gqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpqysgqmatchtjjsyvk45mwwg2mvf8xshxhk2gveslvc27dda6dkp0kfc3hhs06e3c966h3z9j9aran0q8ncm6n458xdca3j5nsrke4saxrfmsqu7suv5"
+	sender, provider := nostr.Generate(), nostr.Generate()
+	marked := nostr.Tags{{"L", supportNamespace}, {"l", "app-support", supportNamespace}}
+	cases := []struct {
+		name          string
+		add           nostr.Tags
+		requestAt     nostr.Timestamp
+		receiptAt     nostr.Timestamp
+		modifyRequest func(*nostr.Event)
+		modifyReceipt func(*nostr.Event)
+		allow         bool
+	}{
+		{name: "marked", add: marked, allow: true},
+		{name: "legacy profile zap", requestAt: 1, receiptAt: 2, allow: true},
+		{name: "unmarked after rollout"},
+		{name: "old request observed after cutoff", requestAt: 1, receiptAt: legacyProfileZapCutoff},
+		{name: "old receipt with newer request", requestAt: legacyProfileZapCutoff, receiptAt: 2},
+		{name: "legacy post zap", requestAt: 1, receiptAt: 2, add: nostr.Tags{{"e", "post"}}},
+		{name: "wrong namespace", add: nostr.Tags{{"L", supportNamespace}, {"l", "app-support", "other"}}},
+		{name: "ambiguous recipient", add: append(marked.Clone(), nostr.Tag{"p", "other"})},
+		{name: "wrong provider for request", add: append(marked.Clone(), nostr.Tag{"P", "other"})},
+		{name: "tampered request", add: marked, modifyRequest: func(e *nostr.Event) { e.Content = "changed" }},
+		{name: "unsigned request", add: marked, modifyRequest: func(e *nostr.Event) { e.Sig = [64]byte{} }},
+		{name: "wrong receipt recipient", add: marked, modifyReceipt: func(e *nostr.Event) { e.Tags[0][1] = "other" }},
+		{name: "invalid description", add: marked, modifyReceipt: func(e *nostr.Event) { e.Tags[2][1] = "{}" }},
+		{name: "invalid invoice", add: marked, modifyReceipt: func(e *nostr.Event) { e.Tags[3][1] = "lnbc1invalid" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.requestAt == 0 {
+				tc.requestAt = legacyProfileZapCutoff + 1
+			}
+			if tc.receiptAt == 0 {
+				tc.receiptAt = legacyProfileZapCutoff + 2
+			}
+			request := nostr.Event{Kind: 9734, CreatedAt: tc.requestAt,
+				Tags: append(nostr.Tags{{"p", supportPubKey}, {"relays", "wss://relay.example"}}, tc.add...)}
+			if err := request.Sign(sender); err != nil {
+				t.Fatal(err)
+			}
+			if tc.modifyRequest != nil {
+				tc.modifyRequest(&request)
+			}
+			description, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			receipt := nostr.Event{Kind: 9735, CreatedAt: tc.receiptAt, Tags: nostr.Tags{
+				{"p", supportPubKey}, {"P", request.PubKey.Hex()}, {"description", string(description)}, {"bolt11", invoice},
+			}}
+			if tc.modifyReceipt != nil {
+				tc.modifyReceipt(&receipt)
+			}
+			if err := receipt.Sign(provider); err != nil {
+				t.Fatal(err)
+			}
+			reject, reason := rejectPublicEvent(nostr.PubKey{})(context.Background(), receipt)
+			if reject == tc.allow {
+				t.Fatalf("allowed: %v, want %v (%s)", !reject, tc.allow, reason)
 			}
 		})
 	}

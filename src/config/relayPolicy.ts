@@ -28,7 +28,8 @@ const WALLET_RELAYS = [
 ] as const;
 
 const APP_DATA_KINDS = new Set([31237, 31238, 31239, 31240, 31337]);
-const SOCIAL_KINDS = new Set([1, 7, 1111, 1985, 9321]);
+// Public social events emitted by WaveFunc, including opt-in NIP-38 statuses.
+const SOCIAL_KINDS = new Set([0, 1, 3, 7, 1111, 1985, 9321, 10002, 30315]);
 
 function unique(relays: readonly string[]): string[] {
   return Array.from(new Set(relays.map(normalizeRelayUrl).filter(Boolean)));
@@ -119,27 +120,28 @@ function isWavefuncList(event: NostrEvent): boolean {
   );
 }
 
-function isWavefuncSocialEvent(event: NostrEvent): boolean {
-  if (!SOCIAL_KINDS.has(event.kind)) return false;
-  if (
-    event.kind === 7 ||
-    event.kind === 1111 ||
-    event.kind === 1985 ||
-    event.kind === 9321
-  ) {
-    return true;
-  }
-  return event.tags.some(
-    ([name, value]) =>
-      (name === "t" && (value === "wavefunc" || value === "tunestr")) ||
-      ((name === "a" || name === "A") &&
-        Boolean(
-          value &&
-            (value.startsWith("31237:") ||
-              value.startsWith("31337:") ||
-              value.startsWith("30078:")),
-        )),
-  );
+export function isPublicSocialEvent(event: Pick<NostrEvent, "kind">): boolean {
+  return SOCIAL_KINDS.has(event.kind);
+}
+
+export function socialPublishRelays(
+  policy: RelayPolicy,
+  kind: number,
+  authorOutboxes: readonly string[],
+  recipientInboxes: readonly string[],
+  hints: readonly string[] = [],
+) {
+  if (policy.stage === "development") return { targets: policy.appData, writeRelays: policy.appData };
+  const writeRelays = unique([
+    ...authorOutboxes, ...policy.generalWriteFallback,
+  ]);
+  return {
+    writeRelays,
+    targets: unique([
+      ...writeRelays, ...recipientInboxes, ...policy.appData, ...hints,
+      ...(kind === 0 || kind === 10002 ? IDENTITY_RELAYS : []),
+    ]),
+  };
 }
 
 /**
@@ -157,6 +159,8 @@ export function selectPublishRelays(
 ): string[] {
   if (policy.stage === "development") return [...policy.appData];
 
+  if (isPublicSocialEvent(event)) return socialPublishRelays(policy, event.kind, authorOutboxes, recipientInboxes).targets;
+
   if (APP_DATA_KINDS.has(event.kind) || isWavefuncList(event)) {
     return [...policy.appData];
   }
@@ -167,14 +171,6 @@ export function selectPublishRelays(
     compatibleOutboxes.length > 0
       ? compatibleOutboxes
       : policy.generalWriteFallback;
-
-  if (event.kind === 0 || event.kind === 10002) {
-    return unique([...authorTargets, ...IDENTITY_RELAYS]);
-  }
-
-  if (isWavefuncSocialEvent(event)) {
-    return unique([...policy.appData, ...authorTargets, ...compatibleInboxes]);
-  }
 
   return unique([...authorTargets, ...compatibleInboxes]);
 }

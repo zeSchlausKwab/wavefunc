@@ -236,6 +236,7 @@ export function buildStationReactionTemplate(
     tags: [
       ...(address ? [["a", address]] : []),
       ["e", station.id],
+      ["p", station.pubkey],
       ["k", String(station.kind)],
     ],
   };

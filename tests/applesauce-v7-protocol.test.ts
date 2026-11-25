@@ -7,7 +7,7 @@ import { getNip10References } from "applesauce-common/helpers/threading";
 import { PrivateKeySigner } from "applesauce-signers";
 import { createCountService } from "applesauce-loaders/loaders";
 import { firstValueFrom, filter, of, Subject, throwError } from "rxjs";
-import { buildStationCommentTemplate, buildCommentReplyTemplate } from "../src/lib/nostr/domain/station";
+import { buildStationCommentTemplate, buildCommentReplyTemplate, buildStationReactionTemplate } from "../src/lib/nostr/domain/station";
 import { buildCommunityReplyTemplate, parseCommunityPostEvent } from "../src/lib/nostr/domain/community-post";
 import { buildCommentTree } from "../src/lib/nostr/domain/comment-tree";
 import { RelayPreferences, normalizePersonalRelays } from "../src/config/relayPreferences";
@@ -17,6 +17,13 @@ const signer = PrivateKeySigner.fromKey("1".repeat(64));
 const sign = (draft: { kind: number; tags: string[][]; content?: string; created_at?: number }) => signer.signEvent({ content: "", created_at: 1, ...draft });
 
 describe("v7 protocol compatibility", () => {
+  test("station reactions name the station author's inbox recipient", async () => {
+    const station = await sign({ kind: 31237, tags: [["d", "station"]] });
+    const reaction = buildStationReactionTemplate(station);
+    expect(reaction.tags.filter(([name]) => name === "p")).toEqual([["p", station.pubkey]]);
+    expect(reaction.tags).toContainEqual(["e", station.id]);
+    expect(reaction.tags).toContainEqual(["a", `31237:${station.pubkey}:station`]);
+  });
   test("station roots and nested replies contain valid NIP-22 pointers", async () => {
     const station = await sign({ kind: 31237, tags: [["d", "test:station"]] });
     const comment = await sign(buildStationCommentTemplate(station, "Hello"));
@@ -42,10 +49,14 @@ describe("v7 protocol compatibility", () => {
   });
 
   test("community replies use NIP-10 and retain the original root across nesting", async () => {
-    const root = await sign({ kind: 1, tags: [["t", "wavefunc"]] });
-    const reply = await sign(buildCommunityReplyTemplate(root, "one"));
+    const mentioned = "3".repeat(64);
+    const root = await sign({ kind: 1, tags: [["t", "wavefunc"], ["p", mentioned]] });
+    const otherSigner = PrivateKeySigner.fromKey("2".repeat(64));
+    const reply = await otherSigner.signEvent({ created_at: 2, ...buildCommunityReplyTemplate(root, "one") });
     const nested = await sign(buildCommunityReplyTemplate(reply, "two"));
     expect(reply.kind).toBe(1);
+    expect(reply.tags.filter(([name]) => name === "e")).toHaveLength(1);
+    expect(nested.tags.filter(([name]) => name === "p").map(([, key]) => key)).toEqual([reply.pubkey, root.pubkey, mentioned]);
     expect(getNip10References(nested).root?.e?.id).toBe(root.id);
     expect(getNip10References(nested).reply?.e?.id).toBe(reply.id);
     expect(parseCommunityPostEvent(reply).isReply).toBe(true);

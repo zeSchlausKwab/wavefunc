@@ -7,14 +7,16 @@ import { Check, Copy, ExternalLink, QrCode, Zap } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { merge } from "rxjs";
+import { verifyEvent } from "nostr-tools";
+import { eventZapTargetTags, resolveZapReceiptRelays } from "../lib/nostr/publicDelivery";
 import { openUrl, toLightningUri } from "../lib/openUrl";
 import { platformFetch } from "../lib/platformFetch";
 import {
   getIdentityRelayUrls,
-  getPublicContentRelayUrls,
+  getRelayPolicy,
   getWalletRelayUrls,
 } from "../config/nostr";
-import { getAddressableIdentity, getFirstTagValue } from "../lib/nostr/domain";
+import { getFirstTagValue } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { nwcPayInvoice, parseNWCConnectionString } from "../lib/nostr/nwc";
@@ -86,8 +88,6 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   );
   const recipientNutzapInfo = use$(recipientUser.nutzap$);
 
-  const stationAddress =
-    getAddressableIdentity(station) ?? `${station.kind}:${station.pubkey}`;
   const stationName =
     station.name ?? getFirstTagValue(station, "name") ?? "Station";
 
@@ -146,15 +146,13 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     return { lud16: ownerProfile.lud16, lud06: ownerProfile.lud06 };
   };
 
-  // Public, externally reachable relays the LNURL endpoint can publish the
-  // zap receipt to. We can't use writeRelays directly because in dev that's
-  // just localhost — and an external LNURL service can't reach our laptop.
-  const zapReceiptRelays = getPublicContentRelayUrls().slice(0, 5);
+  const [receiptRoute, setReceiptRoute] = useState<{ relays: string[]; provider: string } | null>(null);
 
   // Build and sign a NIP-57 zap request (kind 9734)
   const buildZapRequest = async (
     amountMsat: number,
     allowsNostr: boolean,
+    relays: string[],
   ): Promise<NostrEvent | null> => {
     if (!signer || !allowsNostr) return null;
 
@@ -163,10 +161,9 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       content: comment || "",
       created_at: Math.floor(Date.now() / 1000),
       tags: [
-        ["relays", ...zapReceiptRelays],
+        ["relays", ...relays],
         ["amount", amountMsat.toString()],
-        ["p", station.pubkey],
-        ["a", stationAddress],
+        ...eventZapTargetTags(station),
       ],
     };
 
@@ -209,7 +206,10 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       throw new Error(`Amount too high. Maximum: ${maxSendable / 1000} sats`);
     }
 
-    const zapRequest = await buildZapRequest(amountMsat, lnurlData.allowsNostr);
+    const relays = signer && lnurlData.allowsNostr
+      ? await resolveZapReceiptRelays(eventStore, relayPool, getRelayPolicy(), currentUser?.pubkey ?? "", station.pubkey)
+      : [];
+    const zapRequest = await buildZapRequest(amountMsat, lnurlData.allowsNostr, relays);
 
     const callbackUrl = new URL(callback);
     callbackUrl.searchParams.set("amount", amountMsat.toString());
@@ -231,6 +231,8 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     }
 
     if (!invoiceData.pr) throw new Error("No invoice in response");
+    setReceiptRoute(zapRequest && typeof lnurlData.nostrPubkey === "string"
+      ? { relays, provider: lnurlData.nostrPubkey } : null);
     return invoiceData.pr;
   };
 
@@ -280,8 +282,20 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   // We intersect our wallet's positive-balance mints with the recipient's
   // accepted mints and prefer the user's preferred mint if it's in that
   // intersection, otherwise pick the highest balance.
+  const [pendingNutzaps, setPendingNutzaps] = useState<number[]>([]);
+  useEffect(() => {
+    let active = true;
+    setPendingNutzaps([]);
+    if (open && wallet) {
+      void wallet.pendingNutzapAmounts(station as NostrEvent).then(amounts => {
+        if (active) setPendingNutzaps(amounts);
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [open, wallet, station, zapState]);
+
   const acceptedMints = useMemo(
-    () => recipientNutzapInfo?.mints.map((m) => m.mint) ?? [],
+    () => recipientNutzapInfo?.mints.filter(m => !m.units?.length || m.units.includes("sat")).map(m => m.mint) ?? [],
     [recipientNutzapInfo]
   );
 
@@ -294,6 +308,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     currentUser &&
       walletUnlocked &&
       recipientNutzapInfo?.p2pk &&
+      recipientNutzapInfo.relays.length > 0 &&
       acceptedMints.length > 0 &&
       nutzapMint
   );
@@ -302,6 +317,10 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     if (!currentUser) throw new Error("Not logged in");
     if (!wallet || !walletUnlocked) throw new Error("Cashu wallet is locked");
     if (walletBusy) throw new Error("Wait for the current wallet operation to finish");
+    if (pendingNutzaps.includes(amountSats)) {
+      await wallet.sendNutzap(station as NostrEvent, { amount: amountSats, resumeOnly: true });
+      return true;
+    }
     if (!recipientNutzapInfo?.p2pk) {
       throw new Error("Recipient has not published a nutzap p2pk key");
     }
@@ -379,24 +398,19 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   // ── Zap receipt monitoring ─────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!invoice || zapState !== "invoice") return;
+    if (!invoice || !receiptRoute || zapState !== "invoice") return;
 
     setWaitingForPayment(true);
     let isActive = true;
     let timeoutId: ReturnType<typeof setTimeout>;
 
-    // Listen on the union of (relays we advertised in the zap request) and
-    // (our configured read relays). The LNURL endpoint will publish the
-    // receipt to the advertised relays; including readRelays gives us a
-    // little extra coverage in case the wallet republishes elsewhere.
-    const receiptRelays = zapReceiptRelays;
-
     const sub = relayPool
-      .subscription(receiptRelays, [
+      .subscription(receiptRoute.relays, [
         {
           kinds: [9735],
-          "#a": [stationAddress],
-          since: zapStartTime,
+          authors: [receiptRoute.provider],
+          "#e": [station.id],
+          since: zapStartTime - 10,
         },
       ])
       .subscribe({
@@ -404,7 +418,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
           if (!isActive) return;
           const zapEvent = message;
           const bolt11 = zapEvent.tags.find((t) => t[0] === "bolt11")?.[1];
-          if (!bolt11 || bolt11 === invoice) {
+          if (bolt11 === invoice && zapEvent.pubkey === receiptRoute.provider && verifyEvent(zapEvent)) {
             isActive = false;
             clearTimeout(timeoutId);
             sub.unsubscribe();
@@ -426,7 +440,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
       clearTimeout(timeoutId);
       sub.unsubscribe();
     };
-  }, [invoice, zapState, stationAddress, zapStartTime, amount, relayPool]);
+  }, [invoice, zapState, station.id, zapStartTime, amount, relayPool, receiptRoute]);
 
   // ── State reset on close ────────────────────────────────────────────────────
 
@@ -434,6 +448,7 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
     if (!open) {
       setZapState("input");
       setInvoice(null);
+      setReceiptRoute(null);
       setError(null);
       setZapReceipt(null);
       setCopied(false);
@@ -456,9 +471,9 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
   const handleZap = async (
     zapMethod: (amount: number) => Promise<boolean>,
     errorMessage: string,
+    amountNum = Number(amount),
   ) => {
     if (zapInFlight.current) return;
-    const amountNum = Number(amount);
     if (!Number.isSafeInteger(amountNum) || amountNum <= 0) return;
 
     zapInFlight.current = true;
@@ -703,7 +718,14 @@ export const ZapDialog: React.FC<ZapDialogProps> = ({
         <DialogFooter className="sm:justify-between">
           {zapState === "input" && (
             <div className="w-full space-y-2">
-              {canNutzap && (
+              {currentUser && walletUnlocked && pendingNutzaps.map(sats => (
+                <Button key={sats} onClick={() => handleZap(zapWithNutzap, "Failed to resume nutzap", sats)}
+                  disabled={isProcessing || walletBusy} className="w-full">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Resume {sats.toLocaleString()} sat nutzap
+                </Button>
+              ))}
+              {canNutzap && !pendingNutzaps.includes(Number(amount)) && (
                 <Button
                   onClick={handleZapWithNutzap}
                   disabled={!amount || parseInt(amount) <= 0 || isProcessing || walletBusy}

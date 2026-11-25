@@ -78,7 +78,14 @@ export function buildCommunityReplyTemplate(
   const root = originalRoot ? { id: originalRoot.id, author: originalRoot.pubkey }
     : refs.root?.e ?? { id: parent.id, author: parent.pubkey };
   let tags = ensureMarkedEventPointerTag([["t", COMMUNITY_TOPIC]], root, "root");
-  tags = ensureMarkedEventPointerTag(tags, { id: parent.id, author: parent.pubkey }, "reply");
-  tags.push(["p", parent.pubkey]);
+  if (parent.id !== root.id) {
+    tags = ensureMarkedEventPointerTag(tags, { id: parent.id, author: parent.pubkey }, "reply");
+  }
+  const recipients = new Map<string, string[]>([[parent.pubkey, ["p", parent.pubkey]]]);
+  if (root.author) recipients.set(root.author, ["p", root.author]);
+  for (const tag of parent.tags) {
+    if (tag[0] === "p" && tag[1] && /^[a-f0-9]{64}$/i.test(tag[1])) recipients.set(tag[1], tag);
+  }
+  tags.push(...recipients.values());
   return { kind: COMMUNITY_REPLY_KIND, content, tags };
 }

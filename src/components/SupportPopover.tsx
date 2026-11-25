@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { parseBolt11 } from "applesauce-common/helpers";
 import { decode } from "light-bolt11-decoder";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { SUPPORT_PUBKEY, SUPPORT_MESSAGE_LIMIT, supportRequest, verifySupportReceipt, type SupportProvider } from "../lib/nostr/support";
+import { resolveZapReceiptRelays } from "../lib/nostr/publicDelivery";
 import { loadSupportEndpoint, supportInvoiceCallback } from "../lib/nostr/supportService";
 import { ContactsModel, ProfileModel } from "applesauce-core/models";
 import { FollowUser } from "applesauce-actions/actions";
@@ -13,7 +14,7 @@ import { merge } from "rxjs";
 import {
   getContactsRelayUrls,
   getIdentityRelayUrls,
-  getPublicContentRelayUrls,
+  getRelayPolicy,
 } from "../config/nostr";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
@@ -116,7 +117,7 @@ export function SupportDialog() {
     !currentUser || contactsReadyFor === currentUser.pubkey;
 
   const lud16 = profile?.lud16;
-  const zapReceiptRelays = useMemo(() => getPublicContentRelayUrls().slice(0, 5), []);
+  const [zapReceiptRelays, setZapReceiptRelays] = useState<string[]>([]);
 
   // Fetch profile on open
   useEffect(() => {
@@ -212,8 +213,11 @@ export function SupportDialog() {
     const endpoint = await loadSupportEndpoint(lud16);
     if (amountMsat < endpoint.minSendable || amountMsat > endpoint.maxSendable) throw new Error(`Choose between ${endpoint.minSendable / 1000} and ${endpoint.maxSendable / 1000} sats`);
     const message = comment.trim();
+    const relays = signer && endpoint.allowsNostr
+      ? await resolveZapReceiptRelays(eventStore, relayPool, getRelayPolicy(), currentUser?.pubkey ?? "", SUPPORT_PUBKEY)
+      : [];
     const request = signer && endpoint.allowsNostr
-      ? await signer.signEvent(supportRequest(amountMsat, message, zapReceiptRelays, endpoint.lnurl)) : null;
+      ? await signer.signEvent(supportRequest(amountMsat, message, relays, endpoint.lnurl)) : null;
     const callback = supportInvoiceCallback(endpoint, amountMsat, message, request);
     const response = await platformFetch(callback, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) throw new Error(`Invoice service returned ${response.status}`);
@@ -225,8 +229,8 @@ export function SupportDialog() {
       const expected = bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(request))));
       if (hash && (!("value" in hash) || hash.value !== expected)) throw new Error("Invoice does not match the signed support request");
     }
-    return { invoice: data.pr as string, provider: request ? endpoint : null };
-  }, [lud16, signer, comment, zapReceiptRelays]);
+    return { invoice: data.pr as string, provider: request ? endpoint : null, relays };
+  }, [lud16, signer, comment, currentUser?.pubkey, eventStore, relayPool]);
 
   const pay = async (method: "invoice" | "webln" | "nwc") => {
     if (paymentInFlight.current) return;
@@ -239,7 +243,7 @@ export function SupportDialog() {
       const result = await getInvoice(amount);
       if (operation !== generation.current) return;
       pendingInvoice = result.invoice;
-      setInvoice(result.invoice); setReceiptProvider(result.provider);
+      setInvoice(result.invoice); setReceiptProvider(result.provider); setZapReceiptRelays(result.relays);
       setZapStartTime(Math.floor(Date.now()/1000) - 10);
       setState(method === "invoice" ? "invoice" : "processing");
       if (method === "invoice") return;

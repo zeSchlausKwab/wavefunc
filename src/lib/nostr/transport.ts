@@ -1,7 +1,7 @@
 import type { EventSigner } from "applesauce-core/factories";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { Relay, RelayPool } from "applesauce-relay";
-import type { PublishResponse, RelayAuthOptions } from "applesauce-relay/types";
+import type { PublishOptions, PublishResponse, RelayAuthOptions } from "applesauce-relay/types";
 
 export function requireAcceptedPublish(responses: PublishResponse[]): PublishResponse[] {
   if (!responses.some((response) => response.ok)) {
@@ -69,8 +69,26 @@ export async function publishAccepted(
   pool: Pick<RelayPool, "publish">,
   relays: string[],
   event: NostrEvent,
-  auth: RelayAuthOptions = { waitForAuth: false },
+  auth: PublishOptions = { waitForAuth: false },
 ) {
   if (!relays.length) throw new Error("No write relays configured");
   return requireAcceptedPublish(await pool.publish(relays, event, auth));
+}
+
+/** Mirror the exact signed event after its write relay (or the nutzap recipient) confirms it. */
+export async function publishWithMirrors(
+  pool: Pick<RelayPool, "publish">, event: NostrEvent, writeRelays: string[],
+  getTargets: () => string[] | Promise<string[]>, auth: RelayAuthOptions = { waitForAuth: false },
+) {
+  const options = { ...auth, timeout: 8_000, retries: false };
+  const delivered = await publishAccepted(pool, writeRelays, event, options);
+  const attempted = new Set(writeRelays.map(url => url.replace(/\/$/, "")));
+  try {
+    const mirrors = (await getTargets()).filter(url => !attempted.has(url.replace(/\/$/, "")));
+    if (mirrors.length) return [...delivered, ...await pool.publish(mirrors, event, options)];
+  } catch (error) {
+    // An optional mirror must never turn an acknowledged post or payment into a retry.
+    console.warn("Additional relay broadcast failed", error);
+  }
+  return delivered;
 }
