@@ -1,6 +1,28 @@
 @import "../styles/globals.css";
 
+@font-face {
+  font-family: "Material Symbols Outlined";
+  src: url("./assets/material-symbols.woff2") format("woff2");
+  font-weight: 100 700;
+  font-display: block;
+}
+
 @layer base {
+  .material-symbols-outlined {
+    display: inline-block;
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+
   :root {
     --desktop-player-height: 76px;
     @apply font-sans;
