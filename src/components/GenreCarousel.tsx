@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { genreSlug } from "../lib/genres";
 import type { ParsedStation, StationHealthSummary } from "../lib/nostr/domain";
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
@@ -72,7 +74,8 @@ export function GenreCarousel({ genre, stations, healthByAddress }: GenreCarouse
       <div className="flex items-center gap-2 mb-4">
         <div className="flex-1 min-w-0">
           <SectionHeader label={`${shuffledStations.length}_STATIONS`}>
-            {genre.toUpperCase()}
+            <Link to="/genre/$slug" params={{ slug: genreSlug(genre) }} className="hover:underline"
+              aria-label={`Browse ${genre} stations`}>{genre.toUpperCase()}</Link>
           </SectionHeader>
         </div>
         {/* Carousel arrows — desktop only; mobile users swipe */}

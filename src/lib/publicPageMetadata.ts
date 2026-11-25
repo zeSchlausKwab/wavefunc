@@ -2,6 +2,7 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 import { naddrEncode, npubEncode } from "nostr-tools/nip19";
 import { parseJsonContent } from "./nostr/domain/shared";
 import { parseStationEvent } from "./nostr/domain/station";
+import { parseFavoritesListEvent } from "./nostr/domain/favorites-list";
 
 import { genrePath, genresPath, type GenreEntry } from "./genres";
 
@@ -12,6 +13,7 @@ export type PublicPage =
   | { kind: "home" }
   | { kind: "apps" }
   | { kind: "station"; event: NostrEvent }
+  | { kind: "collection"; event: NostrEvent; stations: NostrEvent[] }
   | { kind: "genres"; genres: GenreEntry[]; page: number; query: string; total: number }
   | { kind: "genre"; genre: GenreEntry; page: number; events: NostrEvent[] }
   | { kind: "profile"; pubkey: string; event?: NostrEvent }
@@ -42,14 +44,20 @@ export function publicWebUrl(value: unknown): string | undefined {
   }
 }
 
-/** Relay hints can vary between shares of the same station. Keep one permalink. */
-export function publicStationPointer(event: NostrEvent): string {
+/** Relay hints can vary between shares of one addressable event. Keep one permalink. */
+export function publicEventPointer(event: NostrEvent): string {
   const identifier = event.tags.find(tag => tag[0] === "d")?.[1] ?? "";
   return naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier });
 }
 
+export { publicEventPointer as publicStationPointer };
+
 export function publicStationPath(event: NostrEvent): string {
-  return "/station/" + publicStationPointer(event);
+  return "/station/" + publicEventPointer(event);
+}
+
+export function publicCollectionPath(event: NostrEvent): string {
+  return "/collection/" + publicEventPointer(event);
 }
 
 function metadata(heading: string, title: string, description: string, path?: string, image?: string): PublicPageMetadata {
@@ -71,15 +79,19 @@ export function describePublicPage(page: PublicPage): PublicPageMetadata {
     }
     case "genre": {
       const heading = page.genre.name + " radio stations";
-      const pageSuffix = page.page === 1 ? "" : " – Page " + page.page;
       const count = page.genre.count;
-      const description = `Browse ${count} ${page.genre.name} radio ${count === 1 ? "station" : "stations"} and listen live on WaveFunc.`;
-      return metadata(heading, heading + pageSuffix + " | WaveFunc Radio", description, genrePath(page.genre.slug, page.page));
+      const description = `Browse the latest ${page.genre.name} listings from a directory of ${count} radio ${count === 1 ? "station" : "stations"} and listen live on WaveFunc.`;
+      return metadata(heading, heading + " | WaveFunc Radio", description, genrePath(page.genre.slug));
     }
     case "station": {
       const station = parseStationEvent(page.event);
       const name = text(station.name) || "Radio station";
       return metadata(name, name + " | WaveFunc Radio", text(station.description) || `Listen to ${name} live on WaveFunc Radio.`, publicStationPath(page.event), publicWebUrl(station.thumbnail));
+    }
+    case "collection": {
+      const list = parseFavoritesListEvent(page.event);
+      const name = text(list.name) || "Station collection";
+      return metadata(name, name + " | WaveFunc Radio", text(list.description) || `Listen to the stations in ${name} on WaveFunc Radio.`, publicCollectionPath(page.event), publicWebUrl(list.banner) || publicWebUrl(list.image));
     }
     case "profile": {
       const profile = page.event ? parseJsonContent<Record<string, unknown>>(page.event.content) : undefined;

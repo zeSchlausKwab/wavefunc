@@ -89,9 +89,9 @@ function StationPage() {
   }
 
   return (
-    <main className="w-full md:px-6">
-      <Link to="/browse/genres" className="mb-3 inline-block font-bold underline">Browse genres</Link>
-      <StationDetail station={result.station} withPadding={false} linkGenres />
+    <main className="mx-auto w-full max-w-7xl">
+      <Link to="/browse/genres" className="mb-3 inline-block text-sm font-bold underline underline-offset-4">Browse genres</Link>
+      <StationDetail station={result.station} linkGenres />
     </main>
   );
 }

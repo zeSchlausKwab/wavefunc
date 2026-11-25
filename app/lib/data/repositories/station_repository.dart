@@ -1,4 +1,5 @@
 import '../../domain/models/now_playing.dart';
+import '../../domain/models/heard_song.dart';
 import '../../domain/models/social.dart';
 import '../../domain/models/station.dart';
 import '../services/preferences_service.dart';
@@ -151,6 +152,13 @@ class StationRepository {
     if (addresses.isEmpty) return Future.value(const []);
     return _backend.fetchStationsSocialCounts(addresses);
   }
+
+  List<HeardSong> get recentSongs => _preferences.recentSongs;
+
+  Future<void> recordSong(HeardSong song, {required bool enrich}) =>
+      _preferences.recordSong(song, enrich: enrich);
+
+  Future<void> clearRecentSongs() => _preferences.clearRecentSongs();
 
   Future<void> recordRecentStation(String stationAddress) =>
       _preferences.recordRecentAddress(stationAddress);

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { serveStationTrackHistory } from "../src/lib/server/stationTrackHistory";
 import { ObserverDatabase } from "../contextvm/observer/database";
 import { probeStreamHealth } from "../contextvm/observer/probe";
 import { withLiveBoundary } from "../contextvm/observer/service";
@@ -305,4 +309,29 @@ describe("observer aggregation database", () => {
       value: 2,
     });
   });
+});
+
+test("public station history returns ten real observed songs, newest first, and distinguishes unavailable history", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wavefunc-history-"));
+  const path = join(dir, "observer.sqlite");
+  const request = new Request("http://localhost/api/station-tracks?" + new URLSearchParams({ address: stationAddress }));
+  expect(serveStationTrackHistory(request, path).status).toBe(503);
+  const database = new ObserverDatabase(path);
+  try {
+    expect(await serveStationTrackHistory(request, path).json()).toEqual({ tracks: [] });
+    for (let i = 0; i < 13; i++) {
+      database.recordHeartbeat({
+        stationAddress, observedAt: 1_700_000_000 + i,
+        sessionId: "anonymous", streamUrl: "https://radio.example/live.mp3",
+        metadata: { song: i === 12 ? "No metadata available" : "Song " + i, artist: "Artist" },
+      });
+    }
+    const { tracks } = await serveStationTrackHistory(request, path).json();
+    expect(tracks).toHaveLength(10);
+    expect(tracks[0]).toEqual({ title: "Song 11", artist: "Artist", album: null, mbid: null, startedAt: 1_700_000_011, observedAt: 1_700_000_011 });
+    expect(tracks.at(-1).title).toBe("Song 2");
+  } finally {
+    database.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

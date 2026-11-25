@@ -1,7 +1,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
-export const GENRE_PAGE_SIZE = 32;
+export const RECENT_STATION_LIMIT = 50;
 
 export interface GenreEntry {
   slug: string;

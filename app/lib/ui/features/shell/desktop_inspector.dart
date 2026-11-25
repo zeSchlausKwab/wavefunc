@@ -13,6 +13,7 @@ import '../crate/view_models/crate_view_model.dart';
 import '../discover/view_models/discover_view_model.dart';
 import '../player/view_models/player_view_model.dart';
 import '../player/views/track_crate_button.dart';
+import '../player/views/song_history.dart';
 import '../wallet/views/zap_sheet.dart';
 
 enum InspectorKind { station, nowPlaying, zap }
@@ -146,6 +147,7 @@ class DesktopInspector extends StatelessWidget {
           Expanded(
             child: switch (state.kind) {
               InspectorKind.station => _StationInspectorBody(
+                  crateViewModel: crateViewModel,
                   key: ValueKey(
                     '${state.station!.address}:${state.requestToken}',
                   ),
@@ -193,6 +195,7 @@ class _StationInspectorBody extends StatefulWidget {
     super.key,
     required this.station,
     required this.focusComment,
+    required this.crateViewModel,
     required this.discoverViewModel,
     required this.playerViewModel,
     required this.authViewModel,
@@ -203,6 +206,7 @@ class _StationInspectorBody extends StatefulWidget {
 
   final Station station;
   final bool focusComment;
+  final CrateViewModel crateViewModel;
   final DiscoverViewModel discoverViewModel;
   final PlayerViewModel playerViewModel;
   final AuthViewModel authViewModel;
@@ -485,6 +489,9 @@ class _StationInspectorBodyState extends State<_StationInspectorBody> {
                 ),
               ),
 
+            const SizedBox(height: 16),
+            StationSongHistory(address: station.address, crate: widget.crateViewModel,
+              auth: widget.authViewModel, onRequestLogin: widget.onRequestLogin),
             const SizedBox(height: 16),
             Container(
               key: _commentKey,

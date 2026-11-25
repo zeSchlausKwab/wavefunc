@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { finalizeEvent, verifyEvent } from "nostr-tools/pure";
 import { naddrEncode, npubEncode } from "nostr-tools/nip19";
-import { genreSlug, genrePath, GENRE_PAGE_SIZE, GENRE_INDEX_PAGE_SIZE } from "../src/lib/genres";
+import { genreSlug, genrePath, RECENT_STATION_LIMIT, GENRE_INDEX_PAGE_SIZE } from "../src/lib/genres";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import { renderPublicPage, type PublicPage } from "../src/lib/server/publicPage";
 
@@ -60,9 +60,9 @@ describe("public HTML and share previews", () => {
     expect(apps).toContain('name="twitter:image" content="' + fallback + '"');
   });
 
-  test("every genre has a directory link, a stable canonical and crawlable station pagination", () => {
+  test("every genre has a directory link and a single canonical station list", () => {
     const name = "R&B / 東京";
-    const entry = { name, slug: genreSlug(name), count: 2 * GENRE_PAGE_SIZE + 1 };
+    const entry = { name, slug: genreSlug(name), count: 2 * RECENT_STATION_LIMIT + 1 };
     const index = renderPublicPage(shell, { kind: "genres", genres: [entry], query: "", total: GENRE_INDEX_PAGE_SIZE + 1, page: 1 });
     expect(index).toContain('href="' + genrePath(entry.slug) + '">R&amp;B / 東京</a>');
     expect(index).toContain('rel="canonical" href="https://wavefunc.live/browse/genres"');
@@ -71,12 +71,10 @@ describe("public HTML and share previews", () => {
     expect(filtered).toContain('rel="canonical" href="https://wavefunc.live/browse/genres?q=R%26B&amp;page=2"');
     expect(filtered).toContain('name="robots" content="noindex"');
     expect(filtered).toContain('href="/browse/genres?q=R%26B">Previous page</a>');
-    const second = renderPublicPage(shell, { kind: "genre", genre: entry, page: 2, events: [station] });
-    expect(second).toContain('href="' + genrePath(entry.slug) + '">Previous page</a>');
-    expect(second).toContain('href="' + genrePath(entry.slug, 3) + '">Next page</a>');
-    expect(second).toContain('rel="canonical" href="https://wavefunc.live' + genrePath(entry.slug, 2) + '"');
-    expect(second).toContain('property="og:title" content="R&amp;B / 東京 radio stations – Page 2 | WaveFunc Radio"');
-    expect(second).toContain('Page 2 of 3');
+    const list = renderPublicPage(shell, { kind: "genre", genre: entry, page: 1, events: [station] });
+    expect(list).not.toContain("Next page");
+    expect(list).toContain('href="' + stationPath + '"');
+    expect(list).toContain('rel="canonical" href="https://wavefunc.live' + genrePath(entry.slug) + '"');
     const detail = renderPublicPage(shell, { kind: "station", event: station });
     expect(detail).toContain('href="/genre/rock">Rock</a>');
   });

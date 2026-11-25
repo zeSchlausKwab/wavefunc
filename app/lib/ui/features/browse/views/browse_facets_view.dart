@@ -169,8 +169,10 @@ class _BrowseFacetsViewState extends State<BrowseFacetsView> {
                         onTap: () async {
                           switch (_tab) {
                             case _FacetTab.genres:
-                              await widget.discoverViewModel
-                                  .selectGenre(item.name);
+                              final loading = widget.discoverViewModel.openGenre(item.name);
+                              widget.onFacetApplied();
+                              await loading;
+                              return;
                             case _FacetTab.languages:
                               await widget.discoverViewModel
                                   .selectLanguage(item.name);

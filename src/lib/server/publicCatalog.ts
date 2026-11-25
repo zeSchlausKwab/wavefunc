@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { decode, naddrEncode } from "nostr-tools/nip19";
 import { sortEvents, type NostrEvent } from "nostr-tools/pure";
 import type { Filter } from "nostr-tools/filter";
+import { parseReplaceableAddress } from "applesauce-core/helpers/pointers";
+import { FAVORITES_LIST_LABEL, getFavoriteStationAddresses, isFavoritesListEvent, WF_FAVORITES_KIND } from "../nostr/domain/favorites-list";
 import { createRelayPolicy } from "../../config/relayPolicy";
 import { normalizeStationRouteParam } from "../share";
 import { readCatalogRelay } from "./catalogRelay";
@@ -166,8 +168,32 @@ export function createPublicCatalog(options: Options = {}) {
     return detail("profile:" + pubkey, { kinds: [0], authors: [pubkey], limit: 1 }, profileRelays);
   }
 
+  async function collection(param: string): Promise<CatalogResult<{ event: NostrEvent; stations: NostrEvent[] }>> {
+    const pointer = routePointer(param);
+    if (pointer?.type !== "naddr" || pointer.data.kind !== WF_FAVORITES_KIND) return missing;
+    const { pubkey, identifier } = pointer.data;
+    const key = naddrEncode({ kind: WF_FAVORITES_KIND, pubkey, identifier });
+    const result = await detail(key, {
+      kinds: [WF_FAVORITES_KIND], authors: [pubkey], "#d": [identifier], "#l": [FAVORITES_LIST_LABEL], limit: 1,
+    }, [relay]);
+    if (result.status !== "found") return result;
+    const event = result.value;
+    if (!isFavoritesListEvent(event) || event.tags.find(tag => tag[0] === "d")?.[1] !== identifier) return missing;
+
+    // Seed the first screen from the local directory. The client resolves remaining
+    // public station references through the same relay subscription as the Archive.
+    const stations: NostrEvent[] = [];
+    for (const address of [...new Set(getFavoriteStationAddresses(event))].slice(0, 50)) {
+      const ref = parseReplaceableAddress(address);
+      if (!ref || ref.kind !== stationKind || Buffer.byteLength(ref.identifier ?? "") > 255) continue;
+      const station = directory.station(naddrEncode({ ...ref, identifier: ref.identifier ?? "" }));
+      if (station) stations.push(station);
+    }
+    return found({ event, stations });
+  }
+
   return {
-    station, profile, genre: directory.genre, genres: directory.genres,
+    station, profile, collection, genre: directory.genre, genres: directory.genres,
     sitemapBuckets: directory.sitemapBuckets, sitemapPaths: directory.sitemapPaths,
     directoryCompleted: directory.completed,
     close() { db.close(); directory.close(); },

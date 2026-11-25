@@ -335,7 +335,10 @@ export function useFavoritesLists(
 }
 
 export function useFavoriteStations(favoritesList: ParsedFavoritesList | null) {
-  const stationAddresses = favoritesList?.stationAddresses ?? [];
+  const stationAddresses = useMemo(
+    () => [...new Set(favoritesList?.stationAddresses)],
+    [favoritesList],
+  );
 
   const filters = useMemo(
     () => addressesToParameterizedFilters(STATION_KIND, stationAddresses),

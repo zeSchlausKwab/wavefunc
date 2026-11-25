@@ -2,10 +2,10 @@ import type { PublicCatalog } from "./publicCatalog";
 import type { PublicPage } from "../publicPageMetadata";
 import { renderPublicPage } from "./publicPage";
 
-import { normalizeGenreQuery, parseGenrePage } from "../genres";
+import { genrePath, normalizeGenreQuery, parseGenrePage } from "../genres";
 import { serveSitemap } from "./sitemaps";
 
-type RouteCatalog = Pick<PublicCatalog, "station" | "profile" | "genre" | "genres" | "sitemapBuckets" | "sitemapPaths">;
+type RouteCatalog = Pick<PublicCatalog, "station" | "profile" | "collection" | "genre" | "genres" | "sitemapBuckets" | "sitemapPaths">;
 const apiPrefix = "/api/directory";
 
 async function lookup(path: string, search: URLSearchParams, catalog: RouteCatalog): Promise<PublicPage | undefined> {
@@ -26,6 +26,12 @@ async function lookup(path: string, search: URLSearchParams, catalog: RouteCatal
     try { slug = decodeURIComponent(genre[1]!); } catch { return { kind: "not-found", path }; }
     const result = await catalog.genre(slug, page);
     if (result.status === "found") return { kind: "genre", ...result.value };
+    return { kind: result.status === "missing" ? "not-found" : "unavailable", path };
+  }
+  const collection = /^\/collection\/([^/]+)$/.exec(path);
+  if (collection) {
+    const result = await catalog.collection(collection[1]!);
+    if (result.status === "found") return { kind: "collection", ...result.value };
     return { kind: result.status === "missing" ? "not-found" : "unavailable", path };
   }
   const match = /^\/(station|profile)\/([^/]+)$/.exec(path);
@@ -54,6 +60,9 @@ export async function servePublicRoute(req: Request, catalog: RouteCatalog, getS
   if (sitemap) return sitemap;
   const page = await lookup(json ? path.slice(apiPrefix.length) : path, url.searchParams, catalog);
   if (!page) return undefined;
+  if (!json && page.kind === "genre" && url.searchParams.has("page")) {
+    return new Response(null, { status: 308, headers: { Location: genrePath(page.genre.slug) } });
+  }
   const status = page.kind === "not-found" ? 404 : page.kind === "unavailable" ? 503 : 200;
   if (status === 503) headers.set("Retry-After", "60");
   if (json) headers.set("X-Robots-Tag", "noindex");

@@ -1,5 +1,6 @@
 import { LoginSessionButtons } from "./LoginSessionButtom";
 import { NavigationItems } from "./NavigationItems";
+import { HistorySheet } from "./HistorySheet";
 import { SleepTimerButton } from "./SleepTimerButton";
 import { UnifiedSearchInput } from "./UnifiedSearchInput";
 import { PlayerDiagnostics, useDiagnosticsEnabled } from "./PlayerDiagnostics";
@@ -98,6 +99,11 @@ export function MobileNavigationSidebar({
             <NavigationItems variant="mobile" onNavigate={closeSidebar} />
           </nav>
 
+          <HistorySheet trigger={
+            <button type="button" className="flex min-h-11 w-full items-center gap-3 px-4 text-sm font-bold uppercase hover:bg-surface-variant">
+              <span className="material-symbols-outlined" aria-hidden="true">history</span> Play history
+            </button>
+          } />
           <SleepTimerButton variant="full" />
 
           {diagnosticsEnabled && <PlayerDiagnostics />}

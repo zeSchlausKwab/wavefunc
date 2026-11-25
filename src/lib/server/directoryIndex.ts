@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { validateEvent, type NostrEvent } from "nostr-tools/pure";
-import { GENRE_INDEX_PAGE_SIZE, GENRE_PAGE_SIZE, genreDisplayName, genrePath, genreSlug, type GenreEntry } from "../genres";
+import { GENRE_INDEX_PAGE_SIZE, RECENT_STATION_LIMIT, genreDisplayName, genrePath, genreSlug, type GenreEntry } from "../genres";
 import { publicStationPointer } from "../publicPageMetadata";
 import type { CatalogResult } from "./publicCatalog";
 import { sitemapBucket, type SitemapBucketCount, type SitemapKind } from "./sitemaps";
@@ -93,9 +93,9 @@ export function openDirectoryIndex(path: string) {
     SELECT slug, name, count FROM genres WHERE instr(search_text, ?) > 0 ORDER BY count DESC, slug LIMIT ? OFFSET ?
   `);
   const oneGenre = db.query<GenreEntry, [string]>("SELECT slug, name, count FROM genres WHERE slug = ?");
-  const members = db.query<{ json: string }, [string, number, number]>(`
+  const members = db.query<{ json: string }, [string, number]>(`
     SELECT s.json FROM membership m JOIN stations s ON s.address = m.address WHERE m.slug = ?
-    ORDER BY s.name COLLATE NOCASE, s.address LIMIT ? OFFSET ?
+    ORDER BY s.created DESC, s.address LIMIT ?
   `);
   const oneStation = db.query<{json: string}, [string]>("SELECT json FROM stations WHERE address = ?");
   const alias = db.query<{address: string}, [string]>("SELECT address FROM aliases WHERE id = ?");
@@ -132,9 +132,11 @@ export function openDirectoryIndex(path: string) {
       // Count and page contents must refer to the same snapshot during a concurrent refresh.
       return db.transaction(() => {
         const genre = oneGenre.get(slug);
-        if (!genre || !Number.isSafeInteger(page) || page < 1 || page > Math.ceil(genre.count / GENRE_PAGE_SIZE)) return missing;
-        const events = members.all(slug, GENRE_PAGE_SIZE, (page - 1) * GENRE_PAGE_SIZE).map(row => JSON.parse(row.json) as NostrEvent);
-        return found({ genre, page, events });
+        // Previously each 32-station page had a public URL. Recognize those links
+        // so the HTTP route can redirect them to the current genre directory.
+        if (!genre || !Number.isSafeInteger(page) || page < 1 || page > Math.ceil(genre.count / 32)) return missing;
+        const events = members.all(slug, RECENT_STATION_LIMIT).map(row => JSON.parse(row.json) as NostrEvent);
+        return found({ genre, page: 1, events });
       })();
     },
     async sitemapBuckets(): Promise<CatalogResult<SitemapBucketCount[]>> {

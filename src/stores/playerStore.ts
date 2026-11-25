@@ -526,6 +526,8 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   // ─── Last station persistence ──────────────────────────────────────
 
   restoreLastStation: async (eventStore) => {
+    const initial = get().state;
+    if (initial.kind !== "idle") return;
     const lastStationId = loadLastStation();
     if (!lastStationId) return;
 
@@ -540,7 +542,9 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
           timeout(15000)
         )
       );
-      if (event) {
+      // A relay or disk lookup can finish after the listener starts or stops
+      // another station. Restoration only belongs to the original idle state.
+      if (event && get().state === initial) {
         const station = parseStationEvent(event);
         const stream = getDefaultSelectedStream(station.streams);
         if (!stream) return;

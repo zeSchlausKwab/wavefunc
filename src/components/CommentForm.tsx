@@ -48,19 +48,20 @@ export const CommentForm = forwardRef<HTMLTextAreaElement, CommentFormProps>(({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={placeholder}
-          rows={isReply ? 3 : 4}
+          aria-label={isReply ? "Reply" : "Comment"}
+          rows={3}
           autoFocus={autoFocus}
           disabled={isSubmitting || !currentUser}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="block w-full resize-y border-2 border-on-background bg-surface px-3 pt-2 pb-6 text-sm focus-visible:outline-primary disabled:bg-surface-container-low disabled:cursor-not-allowed"
         />
-        <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+        <div className="absolute bottom-2 right-2 text-xs text-on-background/60">
           {content.length}
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-2">
         {!currentUser && (
-          <p className="text-xs text-gray-500 flex-1">
+          <p className="text-xs text-on-background/70 flex-1">
             Please log in to comment
           </p>
         )}
@@ -82,7 +83,7 @@ export const CommentForm = forwardRef<HTMLTextAreaElement, CommentFormProps>(({
             type="submit"
             size="sm"
             disabled={!content.trim() || isSubmitting || !currentUser}
-            className="bg-green-500 hover:bg-green-600 text-white"
+            className="border-2 border-on-background bg-primary font-bold text-white hover:bg-on-background"
           >
             <MessageCircleIcon className="w-4 h-4 mr-2" />
             {isSubmitting ? "Posting..." : isReply ? "Reply" : "Comment"}

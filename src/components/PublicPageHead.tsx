@@ -15,6 +15,7 @@ export function PublicPageHead() {
         case "/": return home;
         case "/apps": return apps;
         case "/station/$naddr":
+        case "/collection/$naddr":
         case "/profile/$pubkey":
         case "/browse/genres":
         case "/genre/$slug":

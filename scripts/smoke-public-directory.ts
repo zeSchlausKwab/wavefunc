@@ -10,7 +10,7 @@ import { generateSecretKey, finalizeEvent, type NostrEvent } from "nostr-tools/p
 import { naddrEncode, npubEncode, neventEncode } from "nostr-tools/nip19";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import { importStations } from "../src/lib/server/directoryIndex";
-import { publicStationPath } from "../src/lib/publicPageMetadata";
+import { publicCollectionPath, publicStationPath } from "../src/lib/publicPageMetadata";
 import { genrePath as pathForGenre, genreSlug } from "../src/lib/genres";
 
 const stationName = "Directory Test Radio";
@@ -67,14 +67,14 @@ const station = finalizeEvent({
 const profile = finalizeEvent({
   kind: 0, created_at: station.created_at, tags: [], content: JSON.stringify({ name: profileName, about: "Local fixture DJ" }),
 }, key);
-const jazz = Array.from({ length: 34 }, (_, index) => finalizeEvent({
-  kind: 31237, created_at: station.created_at,
+const jazz = Array.from({ length: 56 }, (_, index) => finalizeEvent({
+  kind: 31237, created_at: station.created_at + index,
   tags: [["d", "jazz-" + index], ["name", "Jazz fixture " + index], ["c", "Jazz", "genre"]],
-  content: station.content,
+  content: station.content.replace(stream, stream + "?station=" + index),
 }, key));
 const untagged = finalizeEvent({
   kind: 31237, created_at: station.created_at, tags: [["d", "untagged"], ["name", "Untagged Radio"]],
-  content: station.content,
+  content: station.content.replace(stream, stream + "?station=untagged"),
 }, key);
 const worldGenres = Array.from({ length: 101 }, (_, index) => "World mix " + String(index).padStart(3, "0"));
 const international = "日本/Alternative & Rock";
@@ -89,6 +89,13 @@ events.push(...stations, profile);
 const stationPath = "/station/" + naddrEncode({ kind: station.kind, identifier: "directory-test", pubkey: station.pubkey });
 const aliasPath = "/station/" + neventEncode({ id: station.id, relays: ["wss://ignored.invalid"] });
 const profilePath = "/profile/" + npubEncode(profile.pubkey);
+const collectionName = "After hours selections";
+const collection = finalizeEvent({
+  kind: 30078, created_at: station.created_at, content: JSON.stringify({ name: collectionName }),
+  tags: [["d", "after:hours"], ["l", "wavefunc_user_favourite_list"], ["a", `31237:${station.pubkey}:directory-test`], ["a", `31237:${station.pubkey}:untagged`]],
+}, key);
+events.push(collection);
+const collectionPath = publicCollectionPath(collection);
 
 const directory = mkdtempSync(join(tmpdir(), "wavefunc-directory-smoke-"));
 const databasePath = join(directory, "directory.sqlite");
@@ -153,6 +160,7 @@ try {
       ["/", "/", "WaveFunc Radio"], ["/apps", "/apps", "WaveFunc apps"],
       [genrePath, genrePath, "Rock radio stations"], [aliasPath, stationPath, stationName],
       [profilePath, profilePath, profileName],
+      [collectionPath, collectionPath, collectionName],
       ["/browse/genres", "/browse/genres", "Radio genres"],
       ["/genre/jazz", "/genre/jazz", "Jazz radio stations"],
     ] as const) {
@@ -176,13 +184,12 @@ try {
     await assertMetadata(crawler, internationalPath, international);
     await open(crawler, origin, "/browse/genres");
     await crawler.locator('a[href="/genre/jazz"]').first().click();
-    const firstJazzPage = await crawler.locator('main a[href^="/station/"]').evaluateAll(links => links.map(link => link.getAttribute("href")));
-    await crawler.getByRole("link", { name: "Next page", exact: true }).click();
-    await assertMetadata(crawler, "/genre/jazz?page=2", "Jazz radio stations");
-    const lastJazzPage = await crawler.locator('main a[href^="/station/"]').evaluateAll(links => links.map(link => link.getAttribute("href")));
-    assert.deepEqual([...firstJazzPage, ...lastJazzPage].sort(), jazz.map(publicStationPath).sort());
-    await crawler.getByRole("link", { name: "Previous page", exact: true }).click();
-    assert.equal(new URL(crawler.url()).search, "");
+    const latestJazz = await crawler.locator('main a[href^="/station/"]').evaluateAll(links => links.map(link => link.getAttribute("href")));
+    assert.deepEqual(latestJazz, jazz.slice(-50).reverse().map(publicStationPath));
+    assert.equal(await crawler.getByRole("link", { name: "Next page", exact: true }).count(), 0);
+    const legacy = await fetch(origin + "/genre/jazz?page=2", { redirect: "manual" });
+    assert.equal(legacy.status, 308);
+    assert.equal(legacy.headers.get("location"), "/genre/jazz");
     await open(crawler, origin, genrePath);
     await crawler.getByRole("link", { name: stationName }).click();
     assert.equal(new URL(crawler.url()).pathname, stationPath);
@@ -259,11 +266,31 @@ try {
       await page.getByRole("heading", { name: "Radio genres", exact: true }).waitFor();
       await assertMetadata(page, "/browse/genres", "Browse radio stations by genre");
       await page.locator('a[href="/genre/jazz"]').first().click();
-      await page.getByRole("link", { name: "Next page", exact: true }).click();
-      await assertMetadata(page, "/genre/jazz?page=2", "Jazz radio stations");
+      await assertMetadata(page, "/genre/jazz", "Jazz radio stations");
+      const dial = page.getByRole("button", { name: "Play Jazz", exact: true });
+      await dial.click();
+      const expectPlayback = async (url: string) => {
+        await page.waitForFunction(expected => {
+          const audio = document.querySelector("audio");
+          return audio && !audio.paused && audio.currentTime > 0 && audio.currentSrc === expected;
+        }, url);
+      };
+      await expectPlayback(stream + "?station=" + (jazz.length - 1));
+      await page.getByRole("button", { name: "Next station", exact: true }).click();
+      await expectPlayback(stream + "?station=" + (jazz.length - 2));
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.waitForFunction(() => Array.from(document.querySelectorAll(".wf-cube-body")).every(el => el.getAnimations().length === 0));
       await rotation.dispose();
+      await open(page, origin, collectionPath);
+      await assertMetadata(page, collectionPath, collectionName);
+      const playCollection = page.getByRole("button", { name: "Play collection", exact: true });
+      await playCollection.waitFor(); // Signed-out interactive view, after the HTML preview.
+      const list = page.getByRole("list").filter({ has: page.getByRole("link", { name: stationName, exact: true }) });
+      assert.deepEqual(await list.getByRole("link").allTextContents(), [stationName, "Untagged Radio"]);
+      await playCollection.click();
+      await expectPlayback(stream);
+      await page.getByRole("button", { name: "Next station", exact: true }).click();
+      await expectPlayback(stream + "?station=untagged");
       await open(page, origin, profilePath);
       await page.locator("audio").waitFor({ state: "attached" }); // Same heading on both renderers.
       await page.getByRole("heading", { level: 1, name: profileName, exact: true }).waitFor();

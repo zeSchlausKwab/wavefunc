@@ -7,6 +7,9 @@ import { naddrEncode, neventEncode, noteEncode, npubEncode, nprofileEncode } fro
 import { matchFilter, type Filter } from "nostr-tools/filter";
 import { importStations } from "../src/lib/server/directoryIndex";
 import { createPublicCatalog } from "../src/lib/server/publicCatalog";
+import { FAVORITES_LIST_LABEL } from "../src/lib/nostr/domain/favorites-list";
+import { publicCollectionPath } from "../src/lib/publicPageMetadata";
+import { renderPublicPage } from "../src/lib/server/publicPage";
 
 const key = generateSecretKey();
 const station = (d: string, timestamp: number, genre = "Rock") => finalizeEvent({
@@ -62,6 +65,38 @@ function catalog(relay: ReturnType<typeof fakeRelay>, opts: Parameters<typeof cr
 }
 
 describe("public station catalog", () => {
+  test("collection links resolve the signed list and preserve its ordered public station references", async () => {
+    const relay = fakeRelay();
+    const dir = mkdtempSync(join(tmpdir(), "wavefunc-collection-"));
+    cleanups.push(() => rmSync(dir, { recursive: true }));
+    const directoryDatabasePath = join(dir, "index.sqlite");
+    const c = catalog(relay, { directoryDatabasePath, freshMs: 0 });
+    const other = station("station:with:colons", 15);
+    await importStations(directoryDatabasePath, [first, jazz, other]);
+    const identifier = "curator:jazz";
+    const list = finalizeEvent({
+      kind: 30078, created_at: 1,
+      tags: [["d", identifier], ["l", FAVORITES_LIST_LABEL], ["a", `31237:${jazz.pubkey}:jazz`],
+        ["a", `31237:${other.pubkey}:station:with:colons`], ["a", `31237:${jazz.pubkey}:jazz`]],
+      content: JSON.stringify({ name: "Jazz <after hours>", banner: "https://art.example/list.png" }),
+    }, key);
+    relay.state.events = [list];
+    const path = publicCollectionPath(list);
+    const result = await c.collection(path.split("/")[2]!);
+    if (result.status !== "found") throw new Error("Expected collection");
+    expect(result.value.event.id).toBe(list.id);
+    expect(result.value.stations.map(station => station.id)).toEqual([jazz.id, other.id]);
+    const html = renderPublicPage('<html><head></head><body><div id="root"></div></body></html>', { kind: "collection", ...result.value });
+    expect(html).toContain('rel="canonical" href="https://wavefunc.live' + path + '"');
+    expect(html).toContain('property="og:title" content="Jazz &lt;after hours&gt; | WaveFunc Radio"');
+    expect(html).toContain('property="og:image" content="https://art.example/list.png"');
+    expect(html).toContain('href="/station/' + jazzAddress + '"');
+    expect(html).not.toContain("AUTHENTICATION_REQUIRED");
+
+    relay.state.events = [finalizeEvent({ kind: 30078, created_at: 2, tags: [["d", identifier], ["l", "other-app-data"]], content: "unrelated data" }, key)];
+    expect(await c.collection(path.split("/")[2]!)).toEqual({ status: "missing" });
+    expect(await c.collection(jazzAddress)).toEqual({ status: "missing" });
+  });
   test("a snapshot serves all indexed genre and station pages without relay lookups", async () => {
     const relay = fakeRelay();
     const dir = mkdtempSync(join(tmpdir(), "wavefunc-directory-"));

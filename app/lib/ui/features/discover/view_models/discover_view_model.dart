@@ -9,6 +9,9 @@ import '../../auth/view_models/auth_view_model.dart';
 
 /// MVVM ViewModel for station discovery, search, filtering, and relay switching.
 class DiscoverViewModel extends ChangeNotifier {
+  static const recentStationLimit = 50;
+  static const previewGenres = ['rock', 'jazz', 'dance', 'country', 'classical', 'folk', 'punk'];
+
   DiscoverViewModel({
     required this._repository,
     this._authViewModel,
@@ -20,6 +23,8 @@ class DiscoverViewModel extends ChangeNotifier {
   final AuthViewModel? _authViewModel;
 
   List<Station> _allStations = const [];
+  List<Station> _recentStations = const [];
+  Map<String, List<Station>> _genrePreviews = const {};
   List<Station> _displayedStations = const [];
   List<FeaturedList> _featuredLists = const [];
   List<FeaturedList> _userFavoriteLists = const [];
@@ -32,6 +37,7 @@ class DiscoverViewModel extends ChangeNotifier {
   Set<String> _bookmarkedAddresses = const {};
   final Map<String, StationCardCounts> _socialCounts = {};
   int _socialHydrationToken = 0;
+  int _filterRequest = 0;
 
   String _searchQuery = '';
   String? _selectedGenre;
@@ -52,6 +58,7 @@ class DiscoverViewModel extends ChangeNotifier {
   List<Station> get stations =>
       _activeList != null ? _activeListStations : _displayedStations;
   List<Station> get allStations => _allStations;
+  Map<String, List<Station>> get genrePreviews => _genrePreviews;
   List<FeaturedList> get featuredLists => _featuredLists;
   List<FeaturedList> get userFavoriteLists => _userFavoriteLists;
   SignalChartsData get signalCharts => _signalCharts;
@@ -130,6 +137,11 @@ class DiscoverViewModel extends ChangeNotifier {
   Future<void> _loadCatalog() async {
     final stations = await _repository.loadStations(limit: 250);
     _allStations = stations;
+    _recentStations = stations.take(recentStationLimit).toList();
+    _genrePreviews = {
+      for (final genre in previewGenres)
+        genre: stations.where((s) => s.genres.any((g) => g.toLowerCase() == genre)).take(8).toList(),
+    }..removeWhere((_, matches) => matches.isEmpty);
     _facets = _repository.cachedFacets;
     _relayStatus = _repository.relayStatus;
 
@@ -142,8 +154,8 @@ class DiscoverViewModel extends ChangeNotifier {
     if (hasActiveFilters) {
       await _executeFilterQuery();
     } else {
-      _displayedStations = stations;
-      unawaited(_hydrateSocialCounts(stations));
+      _displayedStations = _recentStations;
+      unawaited(_hydrateSocialCounts(_recentStations));
       unawaited(_loadSignalCharts());
     }
   }
@@ -223,6 +235,7 @@ class DiscoverViewModel extends ChangeNotifier {
   }
 
   void setSearchQuery(String query) {
+    _filterRequest++;
     if (_activeList != null && query.trim().isNotEmpty) {
       _activeList = null;
       _activeListStations = const [];
@@ -242,6 +255,40 @@ class DiscoverViewModel extends ChangeNotifier {
     _onlyBookmarked = false;
     notifyListeners();
     await _executeFilterQuery();
+  }
+
+  Future<void> openGenre(String genre) async {
+    _searchDebounce?.cancel();
+    _activeList = null;
+    _searchQuery = '';
+    _selectedCountry = null;
+    _selectedLanguage = null;
+    _onlyBookmarked = false;
+    _selectedGenre = genre;
+    await _executeFilterQuery();
+  }
+
+  List<Station> get genreDialStations {
+    if (_selectedGenre == null || _activeList != null || _isSearching) return const [];
+    final freshAfter = DateTime.now().millisecondsSinceEpoch ~/ 1000 - 86400;
+    final healthy = <Station>[];
+    final other = <Station>[];
+    final down = <Station>[];
+    for (final station in _displayedStations) {
+      final stream = station.primaryStream;
+      if (stream == null || !{'http', 'https'}.contains(Uri.tryParse(stream.url)?.scheme)) continue;
+      final health = healthFor(station.address);
+      final recentStatus = health != null && health.checkedAt >= freshAfter ? health.status : null;
+      switch (recentStatus) {
+        case 'up':
+          healthy.add(station);
+        case 'down':
+          down.add(station);
+        default:
+          other.add(station);
+      }
+    }
+    return [...healthy, ...other, ...down];
   }
 
   Future<void> selectCountry(String? country) async {
@@ -268,6 +315,8 @@ class DiscoverViewModel extends ChangeNotifier {
   }
 
   Future<void> clearFilters() async {
+    _filterRequest++;
+    _isSearching = false;
     _searchDebounce?.cancel();
     _activeList = null;
     _activeListStations = const [];
@@ -276,13 +325,14 @@ class DiscoverViewModel extends ChangeNotifier {
     _selectedCountry = null;
     _selectedLanguage = null;
     _onlyBookmarked = false;
-    _displayedStations = _allStations;
+    _displayedStations = _recentStations;
     notifyListeners();
   }
 
   Future<void> _executeFilterQuery() async {
+    final request = ++_filterRequest;
     if (!hasActiveFilters) {
-      _displayedStations = _allStations;
+      _displayedStations = _recentStations;
       _isSearching = false;
       notifyListeners();
       return;
@@ -293,12 +343,14 @@ class DiscoverViewModel extends ChangeNotifier {
         _selectedGenre == null &&
         _selectedCountry == null &&
         _selectedLanguage == null) {
+      _isSearching = false;
       _applyLocalView();
       notifyListeners();
       return;
     }
 
     _isSearching = true;
+    _displayedStations = const [];
     _errorMessage = null;
     notifyListeners();
 
@@ -308,20 +360,23 @@ class DiscoverViewModel extends ChangeNotifier {
         genre: _selectedGenre,
         country: _selectedCountry,
         language: _selectedLanguage,
-        limit: 150,
+        limit: _selectedGenre == null ? 150 : recentStationLimit,
       );
+      if (request != _filterRequest) return;
       if (_onlyBookmarked) {
         results = results
             .where((s) => _bookmarkedAddresses.contains(s.address))
             .toList();
       }
-      _displayedStations = results;
+      _displayedStations = _selectedGenre == null ? results : results.take(recentStationLimit).toList();
       unawaited(_hydrateSocialCounts(results));
     } catch (e) {
-      _errorMessage = 'Search error: $e';
+      if (request == _filterRequest) _errorMessage = 'Search error: $e';
     } finally {
-      _isSearching = false;
-      notifyListeners();
+      if (request == _filterRequest) {
+        _isSearching = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -331,7 +386,7 @@ class DiscoverViewModel extends ChangeNotifier {
           .where((s) => _bookmarkedAddresses.contains(s.address))
           .toList();
     } else {
-      _displayedStations = _allStations;
+      _displayedStations = _recentStations;
     }
   }
 

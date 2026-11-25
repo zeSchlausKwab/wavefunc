@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import '../../domain/models/heard_song.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'wavefunc_backend.dart';
@@ -37,6 +40,35 @@ class PreferencesService {
       current.removeRange(20, current.length);
     }
     await _prefs.setStringList(_keyRecent, current);
+  }
+
+  static const _songsKey = 'wavefunc_song_history';
+  late List<HeardSong> _recentSongs = _loadRecentSongs();
+
+  List<HeardSong> get recentSongs => _recentSongs;
+
+  List<HeardSong> _loadRecentSongs() {
+    final songs = <HeardSong>[];
+    for (final row in (_prefs.getStringList(_songsKey) ?? <String>[]).take(50)) {
+      try {
+        songs.add(HeardSong.fromJson(jsonDecode(row) as Map<String, dynamic>));
+      } catch (_) {
+        // An unreadable entry should not hide the remaining listening history.
+      }
+    }
+    return songs;
+  }
+
+  Future<void> recordSong(HeardSong song, {required bool enrich}) async {
+    final history = recentSongs;
+    if (enrich && (history.isEmpty || history.first.heardAt != song.heardAt)) return;
+    _recentSongs = [song, ...history.skip(enrich ? 1 : 0).take(49)];
+    await _prefs.setStringList(_songsKey, _recentSongs.map((item) => jsonEncode(item.toJson())).toList());
+  }
+
+  Future<void> clearRecentSongs() async {
+    _recentSongs = [];
+    await _prefs.remove(_songsKey);
   }
 
   double get volume => (_prefs.getDouble(_keyVolume) ?? 1.0).clamp(0.0, 1.0);

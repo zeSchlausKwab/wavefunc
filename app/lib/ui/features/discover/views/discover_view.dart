@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../domain/models/now_playing.dart';
 import '../../../../domain/models/station.dart';
 import '../../../core/theme/sonic_machine_theme.dart';
 import '../../../core/widgets/sonic_plate.dart';
@@ -57,6 +58,8 @@ class DiscoverView extends StatefulWidget {
 class _DiscoverViewState extends State<DiscoverView> {
   late final TextEditingController _searchController;
   final TextEditingController _songQueryController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  String? _lastGenre;
   bool _songSearchMode = false;
 
   @override
@@ -65,10 +68,22 @@ class _DiscoverViewState extends State<DiscoverView> {
     _searchController = TextEditingController(
       text: widget.discoverViewModel.searchQuery,
     );
+    widget.discoverViewModel.addListener(_onGenreChanged);
+  }
+
+  void _onGenreChanged() {
+    final genre = widget.discoverViewModel.selectedGenre;
+    if (genre == _lastGenre) return;
+    _lastGenre = genre;
+    if (genre == null) return;
+    if (_songSearchMode) setState(() => _songSearchMode = false);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   @override
   void dispose() {
+    widget.discoverViewModel.removeListener(_onGenreChanged);
+    _scrollController.dispose();
     _searchController.dispose();
     _songQueryController.dispose();
     super.dispose();
@@ -89,6 +104,10 @@ class _DiscoverViewState extends State<DiscoverView> {
         final auth = widget.authViewModel;
         final crate = widget.crateViewModel;
         final status = vm.relayStatus;
+        final dial = vm.genreDialStations;
+        final current = player.snapshot.phase == PlayerPhase.paused
+            ? -1 : dial.indexWhere((s) => s.address == player.currentStation?.address);
+        final next = current >= 0 && dial.length > 1 ? dial[(current + 1) % dial.length] : null;
 
         if (!_songSearchMode && _searchController.text != vm.searchQuery) {
           _searchController.value = TextEditingValue(
@@ -102,6 +121,7 @@ class _DiscoverViewState extends State<DiscoverView> {
           backgroundColor: SonicColors.foundation,
           onRefresh: vm.refresh,
           child: CustomScrollView(
+            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // ── Header + Session Pill + Search input ──
@@ -153,7 +173,7 @@ class _DiscoverViewState extends State<DiscoverView> {
                                 Text(
                                   vm.activeList != null
                                       ? vm.activeList!.name.toUpperCase()
-                                      : 'LIVE SIGNALS',
+                                      : vm.selectedGenre?.toUpperCase() ?? 'LIVE SIGNALS',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context)
@@ -445,18 +465,49 @@ class _DiscoverViewState extends State<DiscoverView> {
                 ),
 
               // ── Section header for station list ──
+              if (!_songSearchMode && vm.activeList == null && !vm.hasActiveFilters)
+                for (final entry in vm.genrePreviews.entries)
+                  SliverToBoxAdapter(child: _GenreShelf(
+                    genre: entry.key,
+                    stations: entry.value,
+                    onBrowse: () => vm.openGenre(entry.key),
+                    onDetails: widget.onOpenStationDetail,
+                    player: player,
+                  )),
+              if (!_songSearchMode && vm.activeList == null && vm.selectedGenre != null)
+                SliverToBoxAdapter(child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Wrap(spacing: 8, runSpacing: 8, children: [
+                      SonicPowerButton(
+                        icon: Icons.play_arrow,
+                        label: 'Play ${vm.selectedGenre}',
+                        onPressed: dial.isEmpty ? null : () => player.playStation(dial.first),
+                      ),
+                      if (next != null) SonicPowerButton(
+                        icon: Icons.skip_next,
+                        label: 'Next station',
+                        primary: false,
+                        onPressed: () => player.playStation(next),
+                      ),
+                    ]),
+                  ),
+                )),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
                   child: SonicSectionHeader(
                     title: vm.onlyBookmarked
                         ? 'SAVED_FREQUENCIES'
-                        : 'LIVE_STATIONS',
+                        : vm.activeList == null && (!vm.hasActiveFilters || vm.selectedGenre != null)
+                            ? 'LATEST_STATIONS'
+                            : 'LIVE_STATIONS',
                     trailing: Text(
                       vm.isSearching
                           ? 'SCANNING...'
                           : '${vm.stations.length} SHOWN'
-                              '${status?.totalStationCount != null ? ' / ${status!.totalStationCount} TOTAL' : ''}',
+                              '${!vm.hasActiveFilters && vm.activeList == null && status?.totalStationCount != null ? ' / ${status!.totalStationCount} TOTAL' : ''}',
                       style: SonicMachineTheme.labelTech(
                         fontSize: 10,
                         color: SonicColors.seamOutline,
@@ -467,7 +518,7 @@ class _DiscoverViewState extends State<DiscoverView> {
               ),
 
               // ── Loading / Empty / Station Grid or Broadcast Table ──
-              if ((vm.isLoading || vm.isLoadingActiveList) &&
+              if ((vm.isLoading || vm.isSearching || vm.isLoadingActiveList) &&
                   vm.stations.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
@@ -681,6 +732,66 @@ class _DiscoverViewState extends State<DiscoverView> {
           vm.toggleBookmark(station);
         }
       },
+    );
+  }
+}
+
+class _GenreShelf extends StatelessWidget {
+  const _GenreShelf({
+    required this.genre, required this.stations, required this.onBrowse,
+    required this.onDetails, required this.player,
+  });
+
+  final String genre;
+  final List<Station> stations;
+  final VoidCallback onBrowse;
+  final ValueChanged<Station> onDetails;
+  final PlayerViewModel player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SonicSectionHeader(
+            title: genre.toUpperCase(),
+            trailing: TextButton(onPressed: onBrowse, child: const Text('Browse all')),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: stations.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final station = stations[index];
+                final playing = player.isPlaying && player.currentStation?.address == station.address;
+                return SizedBox(
+                  width: 236,
+                  child: SonicPlate(
+                    onTap: () => onDetails(station),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(children: [
+                      StationThumbnail(url: station.thumbnail, size: 36),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(station.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall)),
+                      IconButton(
+                        tooltip: '${playing ? 'Pause' : 'Play'} ${station.name}',
+                        onPressed: () => player.togglePlayStation(station),
+                        icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

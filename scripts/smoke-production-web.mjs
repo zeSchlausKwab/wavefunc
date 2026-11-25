@@ -5,7 +5,7 @@ const origin = new URL(process.argv[2] ?? "http://127.0.0.1:3000").origin;
 const browser = await chromium.launch();
 try {
   const routes = [
-    ["/", "LIVE_STATIONS"],
+    ["/", "LATEST_STATIONS"],
     ["/apps", "DOWNLOAD"],
     ["/browse/genres", "Radio genres"],
   ];
@@ -46,6 +46,15 @@ try {
       } catch (cause) {
         throw new Error(`${path} did not render ${heading}. ${errors.join("\n")}`, { cause });
       }
+      // External fonts are blocked. Navigation ligatures must still render as icons.
+      const iconWidth = await page.evaluate(async () => {
+        const font = '24px "Material Symbols Outlined"';
+        if (!(await document.fonts.load(font, "manage_search")).length) return 0;
+        const canvas = document.createElement("canvas").getContext("2d");
+        canvas.font = font;
+        return canvas.measureText("manage_search").width;
+      });
+      assert.ok(iconWidth >= 20 && iconWidth <= 26, `Missing bundled navigation icon on ${path}`);
       assert.deepEqual(errors, [], path);
       assert.deepEqual(assets, new Set(["script", "stylesheet"]), `Missing production assets on ${path}`);
       console.log(`${path} rendered ${heading}`);

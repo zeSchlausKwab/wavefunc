@@ -6,6 +6,7 @@ import { hexToBytes } from "@noble/hashes/utils.js";
 import { isStaticAssetPath } from "./lib/http/spaFallback";
 import { createPublicCatalog } from "./lib/server/publicCatalog";
 import { scheduleDirectoryRefresh } from "./lib/server/refreshDirectory";
+import { serveStationTrackHistory } from "./lib/server/stationTrackHistory";
 import { servePublicRoute } from "./lib/server/publicRoutes";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -26,6 +27,7 @@ const maintenanceLock = { isRunning: false, lastRun: 0 };
 
 // Define route handlers that work in both modes
 const apiRoutes: Record<string, any> = {
+  "/api/station-tracks": { GET: (request: Request) => serveStationTrackHistory(request) },
   "/api/migrate": {
     async POST(req: Request) {
       // Check if migration is already running (prevent concurrent migrations)

@@ -3,6 +3,7 @@ import { useStationsObserver, useStationCount } from "../lib/nostr/hooks/useStat
 import { RadioCard } from "./RadioCard";
 import { SectionHeader } from "./SectionHeader";
 import { GenreCarousel } from "./GenreCarousel";
+import { RECENT_STATION_LIMIT } from "../lib/genres";
 import { useMemo } from "react";
 import { useFilterStore } from "../stores/filterStore";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
@@ -69,6 +70,9 @@ export function StationView({ searchQuery }: StationViewProps) {
   );
 
   const { events: stations, eose } = useStationsObserver(filter, clientSideFilters);
+  const recentStations = useMemo(() => [...stations]
+    .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
+    .slice(0, RECENT_STATION_LIMIT), [stations]);
   const stationAddresses = useMemo(
     () => stations.flatMap((station) => (station.address ? [station.address] : [])),
     [stations],
@@ -196,7 +200,7 @@ export function StationView({ searchQuery }: StationViewProps) {
       {/* ── GENRE CAROUSELS ── */}
       {/* Only on the "default" landing — once the user has narrowed the
          feed (via /reception → setGenres([…]) etc.) the hardcoded
-         genre rows would just duplicate the LIVE_STATIONS section
+         genre rows would just duplicate the LATEST_STATIONS section
          below, with the user's chip already applied. */}
       {!isSearching && !hasActiveFilters() && genreStations && (
         <div className="space-y-8">
@@ -228,7 +232,7 @@ export function StationView({ searchQuery }: StationViewProps) {
                 : undefined
             }
           >
-            LIVE_STATIONS
+            LATEST_STATIONS
           </SectionHeader>
 
           {!eose && stations.length === 0 && <StationGridSkeleton />}
@@ -243,7 +247,7 @@ export function StationView({ searchQuery }: StationViewProps) {
             ref={tileParent}
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
           >
-            {stations.map((station) => (
+            {recentStations.map((station) => (
               <RadioCard
                 key={station.id}
                 station={station}

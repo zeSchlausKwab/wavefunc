@@ -15,6 +15,7 @@ class TrackCrateButton extends StatelessWidget {
     required this.auth,
     required this.onRequestLogin,
     this.iconOnly = false,
+    this.iconColor = SonicColors.foundation,
     this.compact = false,
   });
 
@@ -23,6 +24,7 @@ class TrackCrateButton extends StatelessWidget {
   final AuthViewModel auth;
   final VoidCallback onRequestLogin;
   final bool iconOnly;
+  final Color iconColor;
   final bool compact;
 
   @override
@@ -75,7 +77,7 @@ class TrackCrateButton extends StatelessWidget {
         icon: Icon(icon, size: 18),
         tooltip: label,
         onPressed: tap,
-        color: SonicColors.foundation,
+        color: iconColor,
         constraints: const BoxConstraints.tightFor(width: 34, height: 34),
         padding: EdgeInsets.zero,
       );

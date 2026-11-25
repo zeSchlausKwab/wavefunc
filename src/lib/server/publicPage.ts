@@ -1,5 +1,5 @@
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { GENRE_INDEX_PAGE_SIZE, GENRE_PAGE_SIZE, genrePath, genresPath, stationGenres } from "../genres";
+import { GENRE_INDEX_PAGE_SIZE, genrePath, genresPath, stationGenres } from "../genres";
 import { parseStationEvent } from "../nostr/domain/station";
 import { describePublicPage, getPublicMetaTags, publicStationPath, publicWebUrl, type PublicPage } from "../publicPageMetadata";
 
@@ -38,6 +38,11 @@ function pageDetails(page: PublicPage): string {
   switch (page.kind) {
     case "station":
       return stationDetails(page.event);
+    case "collection": {
+      const { pubkey } = page.event;
+      const links = page.stations.map(event => `<li><a href="${escape(publicStationPath(event))}">${escape(parseStationEvent(event).name || "Radio station")}</a></li>`).join("");
+      return `<p>Curated by <a href="/profile/${escape(pubkey)}">${escape(pubkey.slice(0, 12))}…</a></p><ol>${links}</ol>`;
+    }
     case "genres": {
       const links = page.genres.map(genre => `<li><a href="${escape(genrePath(genre.slug))}">${escape(genre.name)}</a> (${genre.count})</li>`).join("");
       const nav = pagination(page.page, Math.ceil(page.total / GENRE_INDEX_PAGE_SIZE), "Genre pages", n => genresPath(n, page.query));
@@ -49,8 +54,7 @@ function pageDetails(page: PublicPage): string {
         const station = parseStationEvent(event);
         return `<li><a href="${escape(publicStationPath(event))}">${escape(station.name || "Radio station")}</a></li>`;
       }).join("");
-      const pages = Math.ceil(page.genre.count / GENRE_PAGE_SIZE);
-      return `<ul>${list}</ul>${pagination(page.page, pages, "Station pages", n => genrePath(page.genre.slug, n))}`;
+      return `<ul>${list}</ul>`;
     }
     case "apps":
       return '<p><a href="https://zapstore.dev/apps/live.wavefunc.app">Get WaveFunc for Android on Zapstore</a></p><p><a href="https://github.com/zeSchlausKwab/wavefunc/releases/latest">Download WaveFunc for Android, macOS, Windows or Linux from GitHub</a></p>';
@@ -60,6 +64,7 @@ function pageDetails(page: PublicPage): string {
 }
 
 function pageEvents(page: PublicPage): NostrEvent[] {
+  if (page.kind === "collection") return [page.event, ...page.stations];
   if (page.kind === "genre") return page.events;
   if (page.kind === "station") return [page.event];
   if (page.kind === "profile" && page.event) return [page.event];

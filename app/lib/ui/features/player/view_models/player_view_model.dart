@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../data/repositories/station_repository.dart';
 import '../../../../data/services/radio_audio_handler.dart';
 import '../../../../domain/models/now_playing.dart';
+import '../../../../domain/models/heard_song.dart';
 import '../../../../domain/models/social.dart';
 import '../../../../domain/models/station.dart';
 import '../../auth/view_models/auth_view_model.dart';
@@ -35,6 +36,41 @@ class PlayerViewModel extends ChangeNotifier {
   bool _nip38Active = false;
   String? _lastNip38Fingerprint;
 
+  (String, String, String)? _lastHeardKey;
+  DateTime? _lastHeardAt;
+  String? _lastHeardMbid;
+
+  List<HeardSong> get recentSongs => _repository.recentSongs;
+  Future<void> clearRecentSongs() async {
+    await _repository.clearRecentSongs();
+    notifyListeners();
+  }
+
+  void _recordSong(PlayerSnapshot next) {
+    if (!next.isPlaying) {
+      if (next.phase != PlayerPhase.buffering) _lastHeardKey = null;
+      return;
+    }
+    final station = next.station;
+    final metadata = next.metadata;
+    final title = metadata?.displaySong;
+    if (station == null || metadata == null || title == null ||
+        title.toLowerCase() == 'no metadata available') {
+      return;
+    }
+    final key = (station.address, title.toLowerCase(), metadata.displayArtist?.toLowerCase() ?? '');
+    final enrich = key == _lastHeardKey;
+    if (enrich && (metadata.mbid == null || metadata.mbid == _lastHeardMbid)) return;
+    _lastHeardKey = key;
+    _lastHeardMbid = metadata.mbid;
+    if (!enrich) _lastHeardAt = DateTime.now();
+    final song = HeardSong(metadata: metadata, stationName: station.name,
+      heardAt: _lastHeardAt!);
+    unawaited(_repository.recordSong(song, enrich: enrich).catchError((Object error) {
+      debugPrint('Could not persist song history: $error');
+    }));
+  }
+
   PlayerSnapshot get snapshot => _snapshot;
   Station? get currentStation => _snapshot.station;
   bool get isPlaying => _snapshot.isPlaying;
@@ -55,6 +91,7 @@ class PlayerViewModel extends ChangeNotifier {
     final previousPhase = _snapshot.phase;
     final previousTrack = _snapshot.metadata?.displaySong;
     _snapshot = next;
+    _recordSong(next);
     notifyListeners();
 
     if (next.phase == PlayerPhase.playing &&
@@ -171,7 +208,8 @@ class PlayerViewModel extends ChangeNotifier {
       );
       if (enriched != null &&
           enriched.hasTrackInfo &&
-          _snapshot.station?.address == station.address) {
+          _snapshot.station?.address == station.address &&
+          _snapshot.activeStream?.url == stream.url && _snapshot.isPlaying) {
         _engine.updateEnrichedMetadata(enriched);
       }
     } catch (_) {

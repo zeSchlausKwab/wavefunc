@@ -17,6 +17,8 @@ interface Props {
   className?: string;
   metadata?: SongMetadataInput;
   showLabel?: boolean;
+  saveLabel?: string;
+  onRequestLogin?: () => void;
 }
 
 export function SongFavoriteButton({
@@ -24,6 +26,8 @@ export function SongFavoriteButton({
   className,
   metadata,
   showLabel = false,
+  saveLabel = "Favorite",
+  onRequestLogin,
 }: Props) {
   const currentUser = useCurrentAccount();
   const { signAndPublish } = useWavefuncNostr();
@@ -73,7 +77,7 @@ export function SongFavoriteButton({
     e.stopPropagation();
     if (busy || favoritesLoading) return;
     if (!isLoggedIn || !currentUser?.pubkey) {
-      pulseLogin();
+      (onRequestLogin ?? pulseLogin)();
       return;
     }
 
@@ -144,7 +148,7 @@ export function SongFavoriteButton({
               ? "SAVING"
               : isFavorited
                 ? "SAVED"
-                : "FAVORITE"}
+                : saveLabel}
         </span>
       )}
     </button>

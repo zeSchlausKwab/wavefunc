@@ -1,88 +1,68 @@
 import { create } from "zustand";
+import type { SongMetadataInput } from "../lib/nostr/domain/song";
 
 export interface HistoryEntry {
-  /** Station naddr or id */
   stationId: string;
-  /** Timestamp when the station started playing */
   timestamp: number;
 }
 
+export interface HeardSong extends HistoryEntry {
+  stationName: string;
+  metadata: SongMetadataInput;
+}
+
 interface HistoryState {
-  /** List of recently played stations (newest first) */
   history: HistoryEntry[];
-
-  /** Add a station to history */
+  songs: HeardSong[];
   addToHistory: (stationId: string) => void;
-
-  /** Clear all history */
+  recordSong: (entry: HeardSong, enrich: boolean) => void;
   clearHistory: () => void;
-
-  /** Remove a specific entry from history */
+  clearSongs: () => void;
   removeFromHistory: (timestamp: number) => void;
+  removeSong: (timestamp: number) => void;
 }
 
 const HISTORY_KEY = "wavefunc_play_history";
-const MAX_HISTORY_ENTRIES = 50;
+const SONGS_KEY = "wavefunc_song_history";
+const MAX_ENTRIES = 50;
 
-// Load initial history from localStorage
-const loadHistory = (): HistoryEntry[] => {
+function loadHistory<T>(key: string): T[] {
   try {
-    const stored = localStorage.getItem(HISTORY_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed : [];
-    }
-  } catch (err) {
-    console.error("Failed to load play history from localStorage:", err);
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_ENTRIES) : [];
+  } catch {
+    return [];
   }
-  return [];
-};
+}
 
-// Save history to localStorage
-const saveHistory = (history: HistoryEntry[]) => {
+function persist<T>(key: string, entries: T[]): T[] {
+  const history = entries.slice(0, MAX_ENTRIES);
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  } catch (err) {
-    console.error("Failed to save play history to localStorage:", err);
+    localStorage.setItem(key, JSON.stringify(history));
+  } catch {
+    // History still works in memory when browser storage is unavailable.
   }
-};
+  return history;
+}
 
 export const useHistoryStore = create<HistoryState>((set) => ({
-  history: loadHistory(),
-
-  addToHistory: (stationId: string) => {
-    set((state) => {
-      // Add new entry at the beginning
-      const newEntry: HistoryEntry = {
-        stationId,
-        timestamp: Date.now(),
-      };
-
-      // Prepend new entry and limit to MAX_HISTORY_ENTRIES
-      const newHistory = [newEntry, ...state.history].slice(
-        0,
-        MAX_HISTORY_ENTRIES
-      );
-
-      // Persist to localStorage
-      saveHistory(newHistory);
-
-      return { history: newHistory };
-    });
-  },
-
-  clearHistory: () => {
-    set({ history: [] });
-    saveHistory([]);
-  },
-
-  removeFromHistory: (timestamp: number) => {
-    set((state) => {
-      const newHistory = state.history.filter(
-        (entry) => entry.timestamp !== timestamp
-      );
-      saveHistory(newHistory);
-      return { history: newHistory };
-    });
-  },
+  history: loadHistory<HistoryEntry>(HISTORY_KEY),
+  songs: loadHistory<HeardSong>(SONGS_KEY),
+  addToHistory: stationId => set(state => ({
+    history: persist(HISTORY_KEY, [{ stationId, timestamp: Date.now() }, ...state.history]),
+  })),
+  recordSong: (entry, enrich) => set(state => {
+    // Keep the original listening time when MusicBrainz finishes. A listener
+    // may have deleted this entry while enrichment was still in flight.
+    if (enrich && state.songs[0]?.timestamp !== entry.timestamp) return state;
+    return { songs: persist(SONGS_KEY, [entry, ...(enrich ? state.songs.slice(1) : state.songs)]) };
+  }),
+  clearHistory: () => set({ history: persist(HISTORY_KEY, []) }),
+  clearSongs: () => set({ songs: persist(SONGS_KEY, []) }),
+  removeFromHistory: timestamp => set(state => ({
+    history: persist(HISTORY_KEY, state.history.filter(entry => entry.timestamp !== timestamp)),
+  })),
+  removeSong: timestamp => set(state => ({
+    songs: persist(SONGS_KEY, state.songs.filter(entry => entry.timestamp !== timestamp)),
+  })),
 }));

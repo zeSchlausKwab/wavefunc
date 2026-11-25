@@ -1,4 +1,5 @@
 import type { Filter } from "applesauce-core/helpers/filter";
+import { parseReplaceableAddress } from "applesauce-core/helpers/pointers";
 import { config, getAppStage } from "./env";
 import { relayPreferences } from "./relayPreferences";
 import { createRelayPolicy } from "./relayPolicy";
@@ -95,31 +96,16 @@ export function addressesToParameterizedFilters(
   addresses: string[],
   extra: Omit<Filter, "kinds" | "authors" | "#d"> = {}
 ): Filter[] {
-  if (addresses.length === 0) {
-    return [{ kinds: [kind], authors: [], limit: 0 }];
+  const authors = new Set<string>();
+  const identifiers = new Set<string>();
+  for (const address of addresses) {
+    const ref = parseReplaceableAddress(address);
+    if (!ref || ref.kind !== kind) continue;
+    authors.add(ref.pubkey);
+    identifiers.add(ref.identifier ?? "");
   }
-
-  const authors = [
-    ...new Set(
-      addresses
-        .map((addr) => addr.split(":")[1])
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ];
-  const dTags = [
-    ...new Set(
-      addresses
-        .map((addr) => addr.split(":")[2])
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ];
-
-  return [
-    {
-      kinds: [kind],
-      authors,
-      "#d": dTags,
-      ...extra,
-    },
-  ];
+  if (!authors.size) return [{ kinds: [kind], authors: [], limit: 0 }];
+  // Batch mixed-author lists in one relay filter. Callers resolve the response
+  // against the exact coordinates rather than assuming every combination belongs.
+  return [{ ...extra, kinds: [kind], authors: [...authors], "#d": [...identifiers] }];
 }

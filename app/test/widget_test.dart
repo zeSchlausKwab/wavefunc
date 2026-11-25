@@ -18,6 +18,7 @@ import 'package:wavefunc_app/domain/models/station.dart';
 import 'package:wavefunc_app/ui/features/auth/view_models/auth_view_model.dart';
 import 'package:wavefunc_app/ui/features/crate/view_models/crate_view_model.dart';
 import 'package:wavefunc_app/ui/features/discover/view_models/discover_view_model.dart';
+import 'package:wavefunc_app/ui/features/discover/views/discover_view.dart';
 import 'package:wavefunc_app/ui/features/player/view_models/player_view_model.dart';
 import 'package:wavefunc_app/ui/features/player/views/track_crate_button.dart';
 import 'package:wavefunc_app/ui/features/crate/views/media_forge_sheet.dart';
@@ -1149,6 +1150,90 @@ void main() {
       ],
     ),
   ];
+
+  test('heard songs persist locally, deduplicate polling and ignore paused metadata', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final repository = StationRepository(
+      backend: _FakeBackend(testStations),
+      preferences: PreferencesService(prefs),
+    );
+    final engine = _FakeAudioEngine();
+    final player = PlayerViewModel(engine: engine, repository: repository);
+    addTearDown(() async {
+      player.dispose();
+      await engine.disposeEngine();
+    });
+
+    await player.playStation(testStations.first);
+    const song = NowPlayingMetadata(song: 'So What', artist: 'Miles Davis');
+    engine.updateEnrichedMetadata(song);
+    engine.updateEnrichedMetadata(song);
+    await Future<void>.delayed(Duration.zero);
+    expect(player.recentSongs.single.stationName, testStations.first.name);
+    final heardAt = player.recentSongs.single.heardAt;
+    engine.updateEnrichedMetadata(const NowPlayingMetadata(song: 'So What', artist: 'Miles Davis', mbid: 'recording'));
+    await Future<void>.delayed(Duration.zero);
+    expect(player.recentSongs.single.heardAt, heardAt);
+    expect(PreferencesService(prefs).recentSongs.single.metadata.mbid, 'recording');
+    await player.pause();
+    engine.updateEnrichedMetadata(const NowPlayingMetadata(song: 'Next song'));
+    await Future<void>.delayed(Duration.zero);
+    expect(player.recentSongs.single.metadata.song, 'So What');
+    await player.clearRecentSongs();
+    expect(PreferencesService(prefs).recentSongs, isEmpty);
+  });
+
+  testWidgets('genre shelf opens the newest 50 and plays healthy streams first', (tester) async {
+    final stations = List.generate(56, (i) => Station(
+      id: 'id-$i', pubkey: 'publisher', stationId: '$i',
+      name: 'Station $i', address: '31237:publisher:$i', naddr: 'naddr$i',
+      createdAt: 56 - i, genres: const ['Jazz'], streams: testStations.first.streams,
+    ));
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final backend = _FakeBackend(stations)..signalChartsData = SignalChartsData(health: [
+      StationHealthSummary(stationAddress: stations[3].address, status: 'up', score: 95, checkedAt: now),
+      StationHealthSummary(stationAddress: stations[1].address, status: 'up', score: 99, checkedAt: now - 86405),
+    ]);
+    final prefs = PreferencesService(await SharedPreferences.getInstance());
+    final repo = StationRepository(backend: backend, preferences: prefs);
+    final vm = DiscoverViewModel(repository: repo);
+    final auth = AuthViewModel(authRepository: AuthRepository(
+      backend: backend, storage: _InMemoryAuthStorage(), amber: _TestAmberSigner(), preferences: prefs,
+    ));
+    final engine = _FakeAudioEngine();
+    final player = PlayerViewModel(engine: engine, repository: repo);
+    await vm.initialize();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: DiscoverView(
+      discoverViewModel: vm, playerViewModel: player, authViewModel: auth,
+      onOpenStationDetail: (_) {}, onOpenStationComment: (_) {}, onOpenStationZap: (_) {},
+      onOpenFeaturedList: (_) {}, onOpenFavoritesPicker: (_) {},
+      onOpenSessionMenu: () {}, onRequestLogin: () {},
+    ))));
+    await tester.pump();
+    expect(vm.stations.length, 50);
+    expect(vm.genrePreviews['jazz'], stations.take(8).toList());
+    await tester.ensureVisible(find.text('Browse all'));
+    await tester.tap(find.text('Browse all'));
+    await tester.pump();
+    expect(vm.stations, stations.take(50).toList());
+    await tester.tap(find.text('PLAY JAZZ'));
+    await tester.pump();
+    expect(player.currentStation, stations[3]);
+    await tester.tap(find.text('NEXT STATION'));
+    await tester.pump();
+    expect(player.currentStation, stations[0]);
+    expect(vm.genreDialStations.length, 50);
+    await vm.openGenre('missing');
+    expect(vm.genreDialStations, isEmpty);
+    await vm.clearFilters();
+    expect(vm.stations.length, 50);
+    expect(vm.genreDialStations, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    player.dispose();
+    vm.dispose();
+    auth.dispose();
+    await engine.disposeEngine();
+  });
 
   test('community post requires relay confirmation after external signing', () async {
     final backend = _FakeBackend(testStations)..rejectPublication = true;

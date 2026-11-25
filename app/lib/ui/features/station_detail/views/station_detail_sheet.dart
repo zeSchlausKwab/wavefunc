@@ -10,6 +10,8 @@ import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../discover/view_models/discover_view_model.dart';
 import '../../player/view_models/player_view_model.dart';
+import '../../crate/view_models/crate_view_model.dart';
+import '../../player/views/song_history.dart';
 
 class StationDetailSheet extends StatefulWidget {
   const StationDetailSheet({
@@ -18,6 +20,7 @@ class StationDetailSheet extends StatefulWidget {
     required this.discoverViewModel,
     required this.playerViewModel,
     required this.authViewModel,
+    required this.crateViewModel,
     required this.onRequestLogin,
     this.onOpenFavoritesPicker,
     this.onOpenZap,
@@ -28,6 +31,7 @@ class StationDetailSheet extends StatefulWidget {
   final DiscoverViewModel discoverViewModel;
   final PlayerViewModel playerViewModel;
   final AuthViewModel authViewModel;
+  final CrateViewModel crateViewModel;
   final VoidCallback onRequestLogin;
   final VoidCallback? onOpenFavoritesPicker;
   final VoidCallback? onOpenZap;
@@ -344,6 +348,10 @@ class _StationDetailSheetState extends State<StationDetailSheet> {
                           ),
                         ),
                       ),
+
+                    const SizedBox(height: 18),
+                    StationSongHistory(address: station.address, crate: widget.crateViewModel,
+                      auth: widget.authViewModel, onRequestLogin: widget.onRequestLogin),
 
                     // ── NIP-22 Comments Section ──
                     const SizedBox(height: 18),

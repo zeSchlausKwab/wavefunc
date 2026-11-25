@@ -17,6 +17,9 @@ import {
 } from "../lib/nostr/domain";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
 import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
+import { CollectionShareButton } from "./CollectionShareButton";
+import { publicEventPointer } from "../lib/publicPageMetadata";
+import { Link } from "@tanstack/react-router";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,10 +44,6 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
   const handleResonate = async () => {
     if (!currentUser) return;
     await signAndPublish(buildReactionTemplate(list.event), list.relays);
-  };
-
-  const handleShare = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/favorites`);
   };
 
   const packId = (list.favoritesId ?? "XX-00").slice(0, 8).toUpperCase();
@@ -130,20 +129,8 @@ function FeaturedListModule({ list, index }: { list: ParsedFavoritesList; index:
         {/* Social toolbar */}
         <div className="mt-auto flex items-center justify-between pt-4 border-t-4 border-on-background">
           <div className="flex gap-4">
-            <button
-              className="flex items-center gap-1 hover:text-secondary-fixed-dim transition-colors"
-              onClick={handleShare}
-              title="Share"
-            >
-              <span className="material-symbols-outlined text-sm">bolt</span>
-            </button>
-            <button
-              className="flex items-center gap-1 hover:text-primary transition-colors"
-              onClick={handleShare}
-              title="Share"
-            >
-              <span className="material-symbols-outlined text-sm">share</span>
-            </button>
+            <Link to="/collection/$naddr" params={{ naddr: publicEventPointer(list.event) }} className="text-xs font-bold underline">Open collection</Link>
+            <CollectionShareButton list={list} />
           </div>
           <button
             className="bg-primary text-white px-4 py-2 flex items-center gap-2 shadow-[4px_4px_0px_0px_rgba(29,28,19,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"

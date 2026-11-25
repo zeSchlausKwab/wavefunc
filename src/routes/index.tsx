@@ -18,7 +18,7 @@ function Index() {
   const { search } = Route.useSearch();
   // Featured collections are a "discover" surface — hide them when the
   // user has narrowed the feed (search, or any genre/language/country
-  // chip) so the page is just the filtered LIVE_STATIONS list.
+  // chip) so the page is just the filtered LATEST_STATIONS list.
   const hasActiveFilters = useFilterStore((s) => s.hasActiveFilters());
   const showFeatured = !search && !hasActiveFilters;
 

@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { servePublicRoute } from "../src/lib/server/publicRoutes";
 
 const unavailable = async () => ({ status: "unavailable" } as const);
-const catalog = { station: unavailable, profile: unavailable, genre: unavailable, genres: unavailable, sitemapBuckets: unavailable, sitemapPaths: unavailable };
+const catalog = { station: unavailable, profile: unavailable, collection: unavailable, genre: unavailable, genres: unavailable, sitemapBuckets: unavailable, sitemapPaths: unavailable };
 const shell = async () => '<html><head></head><body><div id="root"></div></body></html>';
 
 describe("public directory HTTP responses", () => {
   test("a cold relay outage is retryable for readers, clients, and the sitemap", async () => {
-    for (const path of ["/station/example", "/genre/rock", "/api/directory/genre/rock", "/sitemap.xml"]) {
+    for (const path of ["/station/example", "/collection/example", "/genre/rock", "/api/directory/genre/rock", "/sitemap.xml"]) {
       const response = await servePublicRoute(new Request("http://localhost" + path), catalog, shell);
       expect(response?.status).toBe(503);
       expect(response?.headers.get("Retry-After")).toBe("60");

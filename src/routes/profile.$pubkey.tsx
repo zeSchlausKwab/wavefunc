@@ -1,11 +1,13 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { decodeProfilePointer } from "applesauce-core/helpers/pointers";
-import { loadDirectory } from "../lib/publicDirectory";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { ExternalLink, Globe, Zap, Copy, Check } from "lucide-react";
+import { getProfileContent } from "applesauce-core/helpers/profile";
+import { Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfile } from "../lib/nostr/auth";
+import { loadDirectory } from "../lib/publicDirectory";
+import { publicWebUrl } from "../lib/publicPageMetadata";
+import { showToast } from "../stores/toastStore";
 
 export const Route = createFileRoute("/profile/$pubkey")({
   loader: ({ params, abortController }) =>
@@ -14,132 +16,90 @@ export const Route = createFileRoute("/profile/$pubkey")({
   component: ProfilePage,
 });
 
+const labelClass = "text-[11px] font-bold uppercase tracking-widest text-on-background/65";
+
+function profileText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function ProfilePage() {
   const { pubkey: param } = Route.useParams();
   const page = Route.useLoaderData();
   const router = useRouter();
   const pubkey = page.kind === "profile" ? page.pubkey : decodeProfilePointer(param)?.pubkey ?? (/^[a-f\d]{64}$/i.test(param) ? param.toLowerCase() : "");
-  const profile = useProfile(pubkey);
-  const [copied, setCopied] = useState(false);
+  const liveProfile = useProfile(pubkey);
+  const [failedBanner, setFailedBanner] = useState<string>();
+  const profile = liveProfile ?? (page.kind === "profile" && page.event ? getProfileContent(page.event) : undefined);
+
   if (!profile && (page.kind === "not-found" || page.kind === "unavailable")) {
-    return <main><h1>{page.kind === "not-found" ? "Profile not found" : "Profile temporarily unavailable"}</h1>
-      {page.kind === "unavailable" && <button className="underline" onClick={() => router.invalidate()}>Try again</button>}
+    return <main className="mx-auto max-w-4xl space-y-4 border-4 border-on-background bg-surface-container-low p-6">
+      <h1 className="font-headline text-2xl font-bold">{page.kind === "not-found" ? "Profile not found" : "Profile temporarily unavailable"}</h1>
+      {page.kind === "unavailable" && <button className="font-bold underline" onClick={() => router.invalidate()}>Try again</button>}
     </main>;
   }
 
-  const handleCopyPubkey = async () => {
-    await navigator.clipboard.writeText(pubkey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const displayName = profileText(profile?.display_name) || profileText(profile?.displayName) || profileText(profile?.name) || pubkey.slice(0, 12) || "Anonymous";
+  const about = profileText(profile?.about);
+  const nip05 = profileText(profile?.nip05);
+  const banner = publicWebUrl(profile?.banner);
+  const website = publicWebUrl(profile?.website);
+  const lightning = profileText(profile?.lud16) || profileText(profile?.lud06);
 
-  const displayName = profile?.display_name || profile?.displayName || profile?.name || "Anonymous";
-  const avatarFallback = displayName.substring(0, 2).toUpperCase();
+  async function copyKey() {
+    try {
+      await navigator.clipboard.writeText(pubkey);
+      showToast({ message: "Public key copied.", tone: "success" });
+    } catch {
+      showToast({ message: "Select the public key to copy it manually.", tone: "error" });
+    }
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Banner */}
-      <div className="relative w-full h-48 md:h-64 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-lg overflow-hidden">
-        {profile?.banner && (
-          <img
-            src={profile.banner}
-            alt="Profile banner"
-            className="w-full h-full object-cover"
-          />
-        )}
-      </div>
-
-      {/* Profile Info */}
-      <div className="relative px-4 md:px-6 -mt-20">
-        <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
-          {/* Avatar */}
-          <Avatar className="w-32 h-32 border-4 border-background">
-            <AvatarImage src={profile?.picture || profile?.image} />
-            <AvatarFallback className="text-3xl">{avatarFallback}</AvatarFallback>
+    <main className="mx-auto max-w-5xl border-4 border-on-background bg-surface shadow-[5px_5px_0_var(--foreground)]">
+      <header>
+        {banner && banner !== failedBanner && <div className="h-28 border-b-4 border-on-background bg-surface-variant sm:h-44 lg:h-52">
+          <img src={banner} alt="" onError={() => setFailedBanner(banner)} className="block size-full object-cover" />
+        </div>}
+        <div className="flex items-center gap-4 bg-surface-container-low px-4 py-4 sm:gap-6 sm:px-6">
+          <Avatar className="size-16 rounded-none border-2 border-on-background bg-surface sm:size-24">
+            <AvatarImage src={publicWebUrl(profile?.picture) || publicWebUrl(profile?.image)} alt="" className="object-cover" />
+            <AvatarFallback className="rounded-none bg-secondary-fixed-dim text-xl font-black sm:text-3xl">{Array.from(displayName).slice(0, 2).join("").toUpperCase()}</AvatarFallback>
           </Avatar>
-
-          {/* Name and Actions */}
-          <div className="flex-1 space-y-2">
-            <div>
-              <h1 className="text-3xl font-bold">{displayName}</h1>
-              {profile?.nip05 && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Check className="w-4 h-4 text-green-500" />
-                  {profile.nip05}
-                </p>
-              )}
-            </div>
+          <div className="min-w-0">
+            <p className={labelClass}>Nostr profile</p>
+            <h1 className="break-words font-headline text-3xl font-black leading-tight tracking-tight sm:text-5xl">{displayName}</h1>
+            {nip05 && <p className="mt-1 break-all text-sm font-medium">{nip05}</p>}
           </div>
         </div>
+      </header>
 
-        {/* Bio & Details */}
-        <div className="mt-6 space-y-4">
-          {(profile?.about) && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <p className="text-sm whitespace-pre-wrap">
-                {profile?.about}
-              </p>
-            </div>
-          )}
-
-          {/* Additional Info Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Website */}
-            {profile?.website && (
-              <div className="flex items-center gap-2 text-sm">
-                <Globe className="w-4 h-4 text-muted-foreground" />
-                <a
-                  href={profile.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline flex items-center gap-1"
-                >
-                  {profile.website.replace(/^https?:\/\//, "")}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            )}
-
-            {/* Lightning Address */}
-            {(profile?.lud16 || profile?.lud06) && (
-              <div className="flex items-center gap-2 text-sm">
-                <Zap className="w-4 h-4 text-yellow-500" />
-                <span className="text-muted-foreground">
-                  {profile?.lud16 || profile?.lud06}
-                </span>
-              </div>
-            )}
+      <div className={about ? "grid border-t-4 border-on-background md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : "border-t-4 border-on-background"}>
+        {about && <section className="border-b-2 border-on-background p-4 sm:p-6 md:border-r-2 md:border-b-0">
+          <h2 className={labelClass}>About</h2>
+          <p className="mt-3 max-w-prose whitespace-pre-wrap break-words leading-relaxed">{about}</p>
+        </section>}
+        <dl className="min-w-0 divide-y-2 divide-on-background/20">
+          {website && <div className="px-4 py-3 sm:px-6">
+            <dt className={labelClass}>Website</dt>
+            <dd><a href={website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 break-all font-bold text-primary underline underline-offset-4">
+              {website.replace(/^https?:\/\//, "")}<ExternalLink aria-hidden="true" className="size-4 shrink-0" />
+            </a></dd>
+          </div>}
+          {lightning && <div className="px-4 py-3 sm:px-6">
+            <dt className={labelClass}>Lightning address</dt>
+            <dd className="mt-1 break-all text-sm font-medium">{lightning}</dd>
+          </div>}
+          <div className="px-4 py-3 sm:px-6">
+            <dt className={labelClass}>Public key</dt>
+            <dd className="mt-1 space-y-3">
+              <code className="block select-all break-all text-sm">{pubkey}</code>
+              <button type="button" onClick={copyKey} className="inline-flex min-h-9 items-center gap-2 border-2 border-on-background px-3 text-xs font-bold uppercase hover:bg-secondary-fixed-dim">
+                <Copy aria-hidden="true" className="size-4" /> Copy key
+              </button>
+            </dd>
           </div>
-
-          {/* Public Key */}
-          <div className="bg-muted/50 rounded-lg p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground mb-1">Public Key</p>
-                <p className="text-sm font-mono break-all">{pubkey}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyPubkey}
-                className="flex-shrink-0"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 mr-2" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </dl>
       </div>
-    </div>
+    </main>
   );
 }

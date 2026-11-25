@@ -1,7 +1,8 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import * as metadataClient from "../src/ctxcn/WavefuncMetadataServerClient";
 import { parseStationEvent } from "../src/lib/nostr/domain";
-import { idleState, playingState } from "../src/lib/player/state";
+import { useHistoryStore } from "../src/stores/historyStore";
+import { bufferingState, idleState, playingState } from "../src/lib/player/state";
 import { installMetadataSubscription, useMetadataStore } from "../src/stores/metadataStore";
 import { usePlayerStore } from "../src/stores/playerStore";
 
@@ -17,6 +18,7 @@ afterEach(() => {
   while (disposals.length) disposals.pop()?.();
   usePlayerStore.setState({ state: idleState() });
   useMetadataStore.getState()._reset();
+  useHistoryStore.setState({ songs: [] });
 });
 
 test("shows received now-playing metadata while the optional recording lookup is still pending", async () => {
@@ -95,4 +97,27 @@ test("failed extraction ends the loading state", async () => {
   expect(useMetadataStore.getState().status).toBe("error");
   expect(useMetadataStore.getState().lastFetchAt).not.toBeNull();
   expect(useMetadataStore.getState().lastError).toBe("Request timed out");
+});
+
+test("song history starts at audible playback and enriches one entry across polls", async () => {
+  const lookup = deferred<metadataClient.SearchRecordingsOutput>();
+  installClient({
+    ExtractStreamMetadata: async () => ({ result: { song: "Pace or the Patience", artist: "Love of Diagrams" } }),
+    SearchRecordings: () => lookup.promise,
+  });
+  usePlayerStore.setState({ state: bufferingState(station, station.streams[0]!) });
+  await settle();
+  expect(useHistoryStore.getState().songs).toHaveLength(0);
+  usePlayerStore.setState({ state: playingState(station, station.streams[0]!) });
+  const first = useHistoryStore.getState().songs[0]!;
+  expect(first.metadata.song).toBe("Pace or the Patience");
+  expect(first.stationName).toBe("BAGeL RADIO");
+  lookup.resolve({ result: [{ id: "recording", type: "recording", title: "Pace or the Patience", artist: "Love of Diagrams", artistId: "artist", score: 100 }] });
+  await settle();
+  expect(useHistoryStore.getState().songs).toHaveLength(1);
+  expect(useHistoryStore.getState().songs[0]?.timestamp).toBe(first.timestamp);
+  expect(useHistoryStore.getState().songs[0]?.metadata.musicBrainz?.id).toBe("recording");
+  useHistoryStore.getState().clearSongs();
+  useMetadataStore.setState({ currentMetadata: { ...useMetadataStore.getState().currentMetadata } });
+  expect(useHistoryStore.getState().songs).toHaveLength(0);
 });

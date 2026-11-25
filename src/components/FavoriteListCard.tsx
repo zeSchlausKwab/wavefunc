@@ -12,7 +12,9 @@ import {
 } from "../lib/nostr/domain";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useWavefuncNostr } from "../lib/nostr/runtime";
-import { shareOrCopy } from "../lib/share";
+import { CollectionShareButton } from "./CollectionShareButton";
+import { publicEventPointer } from "../lib/publicPageMetadata";
+import { Link } from "@tanstack/react-router";
 import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 
 function formatCount(n: number): string {
@@ -68,14 +70,6 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
       banner,
     });
     setIsEditing(false);
-  };
-
-  const handleShare = () => {
-    void shareOrCopy({
-      url: `${window.location.origin}/favorites`,
-      title: list.name || "WaveFunc favorites",
-      text: "Check out this station list on WaveFunc",
-    });
   };
 
   if (isEditing) {
@@ -235,13 +229,8 @@ export function FavoriteListCard({ list, isOwner, onDeleteList }: FavoriteListCa
                 <span className="text-[10px] font-bold">{formatCount(zaps)}</span>
               )}
             </button>
-            <button
-              className="flex items-center gap-1 hover:text-primary transition-colors"
-              onClick={handleShare}
-              title="Share"
-            >
-              <span className="material-symbols-outlined text-[15px]">share</span>
-            </button>
+            <Link to="/collection/$naddr" params={{ naddr: publicEventPointer(list.event) }} className="text-xs font-bold underline">Open collection</Link>
+            <CollectionShareButton list={list} />
           </div>
           <button
             className={cn(

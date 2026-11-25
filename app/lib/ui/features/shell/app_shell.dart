@@ -267,6 +267,7 @@ class _AppShellState extends State<AppShell> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => StationDetailSheet(
+        crateViewModel: widget.crateViewModel,
         station: station,
         discoverViewModel: widget.discoverViewModel,
         playerViewModel: widget.playerViewModel,

@@ -18,6 +18,7 @@
 import { create } from "zustand";
 
 import { getMetadataClient } from "../ctxcn/WavefuncMetadataServerClient";
+import { useHistoryStore } from "./historyStore";
 import { usePlayerStore } from "./playerStore";
 
 export const METADATA_POLL_MS = 15000;
@@ -199,6 +200,31 @@ function stopPolling(): void {
  * playing to reconnecting pauses it.
  */
 export function installMetadataSubscription(): () => void {
+  let lastSong: { key: string; timestamp: number; mbid?: string } | undefined;
+  const recordHeardSong = () => {
+    const playback = usePlayerStore.getState().state;
+    if (playback.kind !== "playing") return;
+    const { currentMetadata: metadata, _currentStationAddress, _currentStreamUrl } = useMetadataStore.getState();
+    const station = playback.station;
+    if (_currentStationAddress !== station.address || _currentStreamUrl !== playback.stream.url) return;
+    const song = metadata?.song?.trim();
+    if (!song || song.toLowerCase() === "no metadata available") return;
+    const artist = metadata?.artist?.trim();
+    const stationId = station.naddr || station.id;
+    const key = JSON.stringify([stationId, song.toLowerCase(), artist?.toLowerCase()]);
+    const mbid = metadata?.musicBrainz?.id;
+    const previous = lastSong?.key === key ? lastSong : undefined;
+    if (previous && (!mbid || previous.mbid === mbid)) return;
+    const timestamp = previous?.timestamp ?? Date.now();
+    lastSong = { key, timestamp, mbid };
+    useHistoryStore.getState().recordSong({
+      stationId, stationName: station.name ?? stationId, timestamp,
+      metadata: { song, artist, musicBrainz: metadata?.musicBrainz },
+    }, Boolean(previous));
+  };
+  const unsubMetadata = useMetadataStore.subscribe((store, previous) => {
+    if (store.currentMetadata !== previous.currentMetadata) recordHeardSong();
+  });
   const unsub = usePlayerStore.subscribe((store, prev) => {
     const state = store.state;
     const prevState = prev.state;
@@ -209,6 +235,7 @@ export function installMetadataSubscription(): () => void {
     const nowActive = state.kind === "playing" || state.kind === "buffering";
 
     if (wasActive && !nowActive) {
+      lastSong = undefined;
       stopPolling();
     }
 
@@ -224,6 +251,7 @@ export function installMetadataSubscription(): () => void {
           ? state.station.address
           : null;
       if (url) startPolling(url, stationAddress);
+      if (state.kind === "playing" && prevState.kind !== "playing") recordHeardSong();
     }
 
     // Idle means reset everything.
@@ -235,6 +263,7 @@ export function installMetadataSubscription(): () => void {
 
   return () => {
     unsub();
+    unsubMetadata();
     stopPolling();
   };
 }

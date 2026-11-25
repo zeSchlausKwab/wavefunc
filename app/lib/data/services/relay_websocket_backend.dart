@@ -227,7 +227,15 @@ class RelayWebSocketBackend implements WavefuncBackend {
     }
     final cleanGenre = genre?.trim();
     if (cleanGenre != null && cleanGenre.isNotEmpty) {
-      filter['#c'] = [cleanGenre];
+      // Facets use normalized labels; Nostr tag values are case-sensitive.
+      final lower = cleanGenre.toLowerCase();
+      filter['#c'] = {
+        cleanGenre,
+        lower,
+        for (final station in _cachedStations)
+          for (final label in station.genres)
+            if (label.toLowerCase() == lower) label,
+      }.toList();
     }
     final cleanLang = language?.trim();
     if (cleanLang != null && cleanLang.isNotEmpty) {

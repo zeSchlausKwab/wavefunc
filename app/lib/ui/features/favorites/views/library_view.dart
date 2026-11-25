@@ -8,9 +8,10 @@ import '../../crate/view_models/crate_view_model.dart';
 import '../../crate/views/crate_view.dart';
 import '../../discover/view_models/discover_view_model.dart';
 import '../../player/view_models/player_view_model.dart';
+import '../../player/views/song_history.dart';
 import 'favorites_sheets.dart';
 
-enum _LibrarySegment { lists, crate }
+enum _LibrarySegment { lists, crate, history }
 
 /// Mobile-first redesigned Library screen combining:
 /// 1. Compact User Favorites Lists (`kind 30078`) + Curated Collections
@@ -213,20 +214,33 @@ class _LibraryViewState extends State<LibraryView> {
                           }
                         },
                       ),
+                      const SizedBox(width: 8),
+                      _SegmentPill(
+                        label: 'HEARD SONGS',
+                        selected: _segment == _LibrarySegment.history,
+                        onTap: () => setState(() => _segment = _LibrarySegment.history),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: _segment == _LibrarySegment.crate
-                  ? CrateView(
+              child: switch (_segment) {
+                _LibrarySegment.history => PersonalSongHistory(
+                  player: widget.playerViewModel,
+                  crate: widget.crateViewModel,
+                  auth: widget.authViewModel,
+                  onRequestLogin: widget.onRequestLogin,
+                ),
+                _LibrarySegment.crate => CrateView(
                       crateViewModel: widget.crateViewModel,
                       authViewModel: widget.authViewModel,
                       playerViewModel: widget.playerViewModel,
                       onRequestLogin: widget.onRequestLogin,
-                    )
-                  : _buildListsBody(context, vm, auth),
+                    ),
+                _LibrarySegment.lists => _buildListsBody(context, vm, auth),
+              },
             ),
           ],
         );

@@ -791,7 +791,16 @@ impl WavefuncCore {
             filter = filter.search(q);
         }
         if let Some(g) = genre.map(str::trim).filter(|v| !v.is_empty()) {
-            filter = filter.custom_tag(SingleLetterTag::from_char('c').unwrap(), g);
+            // The facet directory folds case, while Nostr relays match exact tag values.
+            let lower = g.to_lowercase();
+            let cached = self.cached_stations.read().await;
+            let labels = cached
+                .iter()
+                .flat_map(|station| &station.genres)
+                .filter(|label| label.to_lowercase() == lower)
+                .cloned()
+                .chain([g.to_owned(), lower.clone()]);
+            filter = filter.custom_tags(SingleLetterTag::from_char('c').unwrap(), labels);
         }
         if let Some(l) = language.map(str::trim).filter(|v| !v.is_empty()) {
             filter = filter.custom_tag(SingleLetterTag::from_char('l').unwrap(), l);

@@ -50,7 +50,9 @@ describe("MusicBrainz recording actions", () => {
     expect(favorite).toContain("buildSongTemplateFromMetadata(resolvedMetadata)");
     expect(favorite).toContain("await addToDefaultList(address)");
     expect(favorite).toContain('? "SAVED"');
-    expect(favorite).toContain(': "FAVORITE"');
+    expect(favorite).toContain('saveLabel = "Favorite"');
+    expect(favorite).toContain(": saveLabel");
+    expect(read("src/components/StationTrackHistory.tsx")).toContain('saveLabel="Save to Crate"');
     expect(favorite).toContain("busy || favoritesLoading");
 
     expect(favorites).toContain('DEFAULT_LIST_ID = "wavefunc-liked-songs"');
