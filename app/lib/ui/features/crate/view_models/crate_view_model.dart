@@ -9,6 +9,8 @@ import '../../../../domain/models/now_playing.dart';
 import '../../../../domain/models/social.dart';
 import '../../auth/view_models/auth_view_model.dart';
 
+typedef SongBackup = ({UploadedMedia media, SavedSong song});
+
 /// MVVM ViewModel for the signed-in user's Nostr Song Crate (`kind 31337` + `kind 30078`),
 /// MusicBrainz Song Search, and Blossom Media Backup (`MEDIA_FORGE`).
 class CrateViewModel extends ChangeNotifier {
@@ -242,6 +244,7 @@ class CrateViewModel extends ChangeNotifier {
         album: album,
         mbid: mbid,
         genres: genres,
+        releaseYear: int.tryParse(releaseDate?.split('-').first ?? ''),
         durationSecs: durationMs == null ? null : durationMs ~/ 1000,
       );
       unawaited(refresh());
@@ -315,7 +318,7 @@ class CrateViewModel extends ChangeNotifier {
   /// 3. Sign BUD-02 `kind 24242` upload auth (LocalKey / Bunker / Amber).
   /// 4. Upload to Blossom server.
   /// 5. Attach `["r", blossomUrl]` + `["i", "youtube:<videoId>"]` to `kind 31337` and refresh crate.
-  Future<UploadedMedia> backupSongToBlossom({
+  Future<SongBackup> backupSongToBlossom({
     SavedSong? existingSong,
     MusicBrainzRecording? recording,
     String? fallbackTitle,
@@ -407,7 +410,7 @@ class CrateViewModel extends ChangeNotifier {
       // 5. Update `kind 31337` song event with Blossom URL.
       if (_owner != owner) throw StateError('Account changed during backup.');
       onProgress('attaching', 'Attaching Blossom URL to song event...');
-      await _authViewModel.executeSignedAction(
+      final attached = await _authViewModel.executeSignedAction(
         (backend) => backend.attachSongAudioUrl(
           songId: songId!,
           audioUrl: uploaded.url,
@@ -416,8 +419,36 @@ class CrateViewModel extends ChangeNotifier {
         expectedAuthor: owner,
       );
 
+      final address = '31337:$owner:$songId';
+      if (!attached.published || attached.targetAddress != address) {
+        throw StateError(
+          'Could not confirm the backup was attached to the song.',
+        );
+      }
       await refresh();
-      return uploaded;
+
+      // The relay may still serve an older revision. Share the URL just attached.
+      final source = owned ?? existingSong;
+      final durationMs = recording?.durationMs;
+      final song = SavedSong(
+        id: attached.eventId ?? '',
+        pubkey: owner,
+        songId: songId,
+        address: address,
+        title: source?.title ?? title!,
+        artist: source?.artist ?? artist,
+        album: source?.album ?? recording?.release,
+        releaseYear:
+            source?.releaseYear ?? int.tryParse(recording?.releaseYear ?? ''),
+        durationSecs:
+            source?.durationSecs ?? (durationMs == null ? null : durationMs ~/ 1000),
+        mbid: source?.mbid ?? recording?.id,
+        genres: source?.genres ?? recording?.tags ?? const [],
+        coverArt: source?.coverArt,
+        thumb: source?.thumb,
+        audioUrl: uploaded.url,
+      );
+      return (media: uploaded, song: song);
     } catch (_) {
       await _backend.discardMediaJob(prepared.jobId).catchError((_) {});
       rethrow;

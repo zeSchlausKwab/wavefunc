@@ -623,6 +623,22 @@ impl WavefuncCore {
         event: &Event,
         target_address: Option<String>,
     ) -> Result<ActionOutcome> {
+        let is_standalone_note = event.kind == Kind::TextNote
+            && !event.tags.iter().any(|tag| {
+                matches!(
+                    tag.as_slice().first().map(String::as_str),
+                    Some("a" | "A" | "e" | "E")
+                )
+            });
+        if is_standalone_note {
+            self.send_public_note(event).await?;
+            return Ok(ActionOutcome {
+                published: true,
+                event_id: Some(event.id.to_hex()),
+                unsigned_event_json: None,
+                target_address,
+            });
+        }
         let is_social = matches!(
             event.kind.as_u16(),
             REACTION_KIND | COMMENT_KIND | COMMUNITY_POST_KIND | NUTZAP_KIND
@@ -657,6 +673,65 @@ impl WavefuncCore {
             unsigned_event_json: None,
             target_address,
         })
+    }
+
+    async fn send_public_note(&self, event: &Event) -> Result<()> {
+        self.ensure_identity_relays().await;
+        let filter = Filter::new()
+            .author(event.pubkey)
+            .kind(Kind::RelayList)
+            .limit(1);
+        let timeout = Duration::from_secs(4);
+        let (app_lists, public_lists) = tokio::join!(
+            self.client.fetch_events(filter.clone()).timeout(timeout),
+            self.identity_client.fetch_events(filter).timeout(timeout),
+        );
+        let relay_list = [app_lists, public_lists]
+            .into_iter()
+            .flatten()
+            .flatten()
+            .max_by(|a, b| {
+                a.created_at
+                    .cmp(&b.created_at)
+                    .then_with(|| b.id.cmp(&a.id))
+            });
+        let outboxes = note_write_relays(relay_list.as_ref());
+        let rejected = |reason: String| {
+            WavefuncError::PublishRejected(format!(
+                "No write relay acknowledged your public note. {reason}"
+            ))
+        };
+        for url in &outboxes {
+            // These are this author's targets. Keep them out of general reads and broadcasts.
+            self.identity_client
+                .add_relay(url)
+                .capabilities(RelayCapabilities::GOSSIP)
+                .sleep_when_idle(SleepWhenIdle::Enabled {
+                    timeout: Duration::from_secs(60),
+                })
+                .and_connect()
+                .await
+                .map_err(|err| rejected(err.to_string()))?;
+        }
+        let result = self
+            .identity_client
+            .send_event(event)
+            .to(&outboxes)
+            .ok_timeout(Duration::from_secs(8))
+            .authentication_timeout(Duration::from_secs(8))
+            .await
+            .map_err(|err| rejected(err.to_string()))?;
+        if result.success.is_empty() {
+            let reason = result.failed.into_values().next().unwrap_or_default();
+            return Err(rejected(reason));
+        }
+        // Mirroring after public acceptance prevents app-only copies on retries.
+        let app_relay = RelayUrl::parse(&self.config.read().await.relay_url).ok();
+        if !app_relay.is_some_and(|url| result.success.contains_key(&url)) {
+            let _ =
+                tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await;
+        }
+        Ok(())
     }
 
     /// Verify and publish an already-signed event JSON (returned by Android NIP-55 Amber).
@@ -3580,7 +3655,7 @@ impl WavefuncCore {
         audio_url: Option<&str>,
         hashtags: &[String],
     ) -> Result<ActionOutcome> {
-        let builder = build_song_share_note_builder(content, song_address, audio_url, hashtags)?;
+        let builder = build_song_share_note_builder(content, audio_url, hashtags)?;
         self.sign_or_prepare(builder, song_address.map(str::to_string))
             .await
     }
@@ -3607,6 +3682,25 @@ impl WavefuncCore {
         self.client.shutdown().await;
         self.identity_client.shutdown().await;
         self.wallet_client.shutdown().await;
+    }
+}
+
+fn note_write_relays(relay_list: Option<&Event>) -> Vec<RelayUrl> {
+    let mut seen = HashSet::new();
+    let outboxes: Vec<_> = relay_list
+        .into_iter()
+        .flat_map(nip65::extract_relay_list)
+        .filter(|(url, usage)| *usage != Some(RelayMetadata::Read) && seen.insert(url.clone()))
+        .take(8)
+        .map(|(url, _)| url)
+        .collect();
+    if outboxes.is_empty() {
+        DEFAULT_SOCIAL_RELAYS
+            .iter()
+            .map(|url| RelayUrl::parse(url).expect("valid default relay"))
+            .collect()
+    } else {
+        outboxes
     }
 }
 
@@ -3660,6 +3754,75 @@ mod metadata_escape_tests {
 #[cfg(test)]
 mod song_write_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn song_share_prepares_a_standalone_note_for_the_external_signer() {
+        let core = WavefuncCore::new(CoreConfig::default());
+        let keys = Keys::generate();
+        let pubkey = keys.public_key();
+        *core.signer.write().await = Some(ActiveSigner::Amber { pubkey });
+        let address = format!("31337:{pubkey}:track");
+        let media_url = "https://blossom.example/track.mp4";
+        let hashtags = ["wavefunc".to_string(), "tunestr".to_string()];
+
+        for draft in [
+            "My favorite track".to_string(),
+            format!("My favorite track\n\n{media_url}"),
+        ] {
+            let outcome = core
+                .publish_song_share_note(&draft, Some(&address), Some(media_url), &hashtags)
+                .await
+                .unwrap();
+            assert_eq!(outcome.target_address.as_deref(), Some(address.as_str()));
+            let json = outcome.unsigned_event_json.unwrap();
+            let note = UnsignedEvent::from_json(json)
+                .unwrap()
+                .finalize(&keys)
+                .unwrap();
+            assert_eq!(note.kind, Kind::TextNote);
+            assert_eq!(note.pubkey, pubkey);
+            assert_eq!(note.content, format!("My favorite track\n\n{media_url}"));
+            let tags: Vec<_> = note.tags.iter().map(Tag::as_slice).collect();
+            assert_eq!(
+                tags,
+                [["t", "wavefunc"], ["t", "tunestr"], ["r", media_url]]
+            );
+        }
+    }
+
+    #[test]
+    fn public_note_uses_only_the_authors_write_relays_or_social_defaults() {
+        let keys = Keys::generate();
+        let build_list = |tags: Vec<Tag>| {
+            EventBuilder::new(Kind::RelayList, "")
+                .tags(tags)
+                .finalize(&keys)
+                .unwrap()
+        };
+        let read_tag = Tag::parse(["r", "wss://read.example", "read"]).unwrap();
+        let write_tags = vec![
+            read_tag.clone(),
+            Tag::parse(["r", "wss://write.example", "write"]).unwrap(),
+            Tag::parse(["r", "wss://write.example/"]).unwrap(),
+            Tag::parse(["r", "wss://both.example"]).unwrap(),
+        ];
+        assert_eq!(
+            note_write_relays(Some(&build_list(write_tags))),
+            [
+                RelayUrl::parse("wss://write.example").unwrap(),
+                RelayUrl::parse("wss://both.example").unwrap()
+            ]
+        );
+        let fallback: Vec<_> = DEFAULT_SOCIAL_RELAYS
+            .iter()
+            .map(|url| RelayUrl::parse(url).unwrap())
+            .collect();
+        assert_eq!(note_write_relays(None), fallback);
+        assert_eq!(
+            note_write_relays(Some(&build_list(vec![read_tag]))),
+            fallback
+        );
+    }
 
     #[tokio::test]
     async fn account_switch_during_crate_read_cannot_prepare_for_another_author() {

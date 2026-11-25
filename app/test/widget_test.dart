@@ -21,6 +21,7 @@ import 'package:wavefunc_app/ui/features/discover/view_models/discover_view_mode
 import 'package:wavefunc_app/ui/features/player/view_models/player_view_model.dart';
 import 'package:wavefunc_app/ui/features/player/views/track_crate_button.dart';
 import 'package:wavefunc_app/ui/features/crate/views/media_forge_sheet.dart';
+import 'package:wavefunc_app/ui/features/crate/views/share_song_sheet.dart';
 import 'package:wavefunc_app/ui/features/social/view_models/community_view_model.dart';
 import 'package:wavefunc_app/ui/features/wallet/views/zap_sheet.dart';
 
@@ -91,6 +92,15 @@ class _InMemoryAuthStorage extends SecureAuthStorage {
   Future<void> clearAll() async {
     _vault = const StoredSessionVault();
   }
+}
+
+class _TestAmberSigner extends AmberSignerService {
+  @override
+  Future<String> signEvent({
+    required String unsignedEventJson,
+    String? currentUser,
+    String? signerPackage,
+  }) async => '{"kind":1,"pubkey":"deadbeef","sig":"test"}';
 }
 
 class _FakeBackend implements WavefuncBackend {
@@ -302,7 +312,7 @@ class _FakeBackend implements WavefuncBackend {
 
   @override
   Future<ActionOutcome> publishSignedEvent(String signedEventJson) async =>
-      const ActionOutcome(published: true, eventId: 'evt-signed');
+      ActionOutcome(published: !rejectShare, eventId: 'evt-signed');
 
   @override
   Future<List<FeaturedList>> fetchUserFavorites() async =>
@@ -866,7 +876,13 @@ class _FakeBackend implements WavefuncBackend {
   @override
   Future<SignalChartsData> fetchSignalCharts() async => signalChartsData;
 
-  final List<String> sharedSongNotes = [];
+  bool rejectShare = false;
+  final sharedSongNotes = <({
+    String content,
+    String? songAddress,
+    String? audioUrl,
+    List<String> hashtags,
+  })>[];
 
   @override
   Future<ActionOutcome> publishSongShareNote({
@@ -875,7 +891,18 @@ class _FakeBackend implements WavefuncBackend {
     String? audioUrl,
     List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
   }) async {
-    sharedSongNotes.add(content);
+    if (rejectShare) {
+      return const ActionOutcome(
+        published: false,
+        unsignedEventJson: '{"kind":1,"pubkey":"deadbeef"}',
+      );
+    }
+    sharedSongNotes.add((
+      content: content,
+      songAddress: songAddress,
+      audioUrl: audioUrl,
+      hashtags: hashtags,
+    ));
     return ActionOutcome(
       published: true,
       eventId: 'ev-share-song-1',
@@ -1007,6 +1034,7 @@ class _StaleCrateBackend extends _FakeBackend {
         address: '31337:someone-else:other-id',
         title: 'Foreign track',
         album: 'Original album',
+        audioUrl: 'https://blossom.example/previous-backup.mp4',
         durationSecs: 150,
         releaseYear: 2010,
         artist: 'Artist',
@@ -1722,6 +1750,26 @@ void main() {
       expect(backend.lastCreatedAlbum, 'Original album');
       expect(backend.lastCreatedDuration, 150000);
       expect(backend.lastCreatedReleaseDate, '2010');
+      await tester.tap(find.text('SHARE TO NOSTR'));
+      await tester.pumpAndSettle();
+      final sharedSong = tester
+          .widget<ShareSongSheet>(find.byType(ShareSongSheet))
+          .song;
+      expect(sharedSong.address, '31337:deadbeef:track:identifier');
+      expect(sharedSong.title, 'Foreign track');
+      expect(sharedSong.album, 'Original album');
+      expect(sharedSong.durationSecs, 150);
+      expect(sharedSong.releaseYear, 2010);
+      expect(sharedSong.audioUrl, 'https://blossom.band/deadbeef.m4a');
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ShareSongSheet),
+          matching: find.byIcon(Icons.close),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(backend.sharedSongNotes, isEmpty);
+      expect(find.text('COPY URL'), findsOneWidget);
       await tester.tap(find.text('DONE'));
       await tester.pumpAndSettle();
       await auth.logout();
@@ -1735,7 +1783,7 @@ void main() {
   );
 
   testWidgets(
-      'song search finds MusicBrainz recordings and backs up audio to Blossom',
+      'MusicBrainz backup opens the editable Crate share composer and retries failed publishing',
       (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -1748,7 +1796,7 @@ void main() {
     final authRepo = AuthRepository(
       backend: backend,
       storage: _InMemoryAuthStorage(),
-      amber: AmberSignerService(),
+      amber: _TestAmberSigner(),
       preferences: prefService,
     );
     final authVm = AuthViewModel(
@@ -1820,7 +1868,60 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('BACKED UP TO BLOSSOM'), findsOneWidget);
-    expect(backend.attachedBlossomUrls, isNotEmpty);
+    const url = 'https://blossom.band/deadbeef.m4a';
+    expect(backend.attachedBlossomUrls, ['roygbiv->$url']);
+    expect(find.text('COPY URL'), findsOneWidget);
+    expect(find.text('DONE'), findsOneWidget);
+    expect(backend.sharedSongNotes, isEmpty);
+
+    await tester.tap(find.text('SHARE TO NOSTR'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ShareSongSheet), findsOneWidget);
+    final editor = find.descendant(
+      of: find.byType(ShareSongSheet),
+      matching: find.byType(TextField),
+    );
+    String draft() => tester.widget<TextField>(editor).controller!.text;
+    final template = draft();
+    expect(template, contains('"Roygbiv" by Boards of Canada'));
+    expect(template, contains(url));
+    expect(template, contains('Found via wavefunc.live'));
+    expect(template, contains('#wavefunc #songstr #tunestr'));
+    await tester.tap(find.text('BLOSSOM LINK'));
+    await tester.pump();
+    expect(draft(), isNot(contains(url)));
+    await tester.tap(find.text('BLOSSOM LINK'));
+    await tester.pump();
+    expect(draft(), template);
+    await tester.enterText(editor, 'My own recommendation');
+    await tester.tap(find.text('#SONGSTR'));
+    await tester.pump();
+    expect(draft(), 'My own recommendation');
+    await tester.tap(find.text('RESET TEMPLATE'));
+    await tester.pump();
+    expect(draft(), equals(template.replaceFirst('#songstr ', '')));
+
+    final edited = 'On repeat!\n\n${draft()}';
+    await tester.enterText(editor, edited);
+    backend.rejectShare = true;
+    await tester.tap(find.text('PUBLISH SHARE NOTE'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('No relay confirmed the note was published.'),
+      findsOneWidget,
+    );
+    expect(draft(), edited);
+    expect(backend.sharedSongNotes, isEmpty);
+    backend.rejectShare = false;
+    await tester.tap(find.text('PUBLISH SHARE NOTE'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ShareSongSheet), findsNothing);
+    final published = backend.sharedSongNotes.single;
+    expect(published.content, edited);
+    expect(published.songAddress, '31337:deadbeef:roygbiv');
+    expect(published.audioUrl, url);
+    expect(published.hashtags, ['wavefunc', 'tunestr']);
+    expect(backend.attachedBlossomUrls, hasLength(1));
 
     await tester.tap(find.text('DONE'));
     await tester.pumpAndSettle();
@@ -2143,8 +2244,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(backend.sharedSongNotes, hasLength(1));
-    expect(backend.sharedSongNotes.first, contains('Roygbiv'));
-    expect(backend.sharedSongNotes.first, contains('#wavefunc'));
+    expect(backend.sharedSongNotes.first.content, contains('Roygbiv'));
+    expect(backend.sharedSongNotes.first.content, contains('#wavefunc'));
 
     await playerVm.stop();
     await audioEngine.disposeEngine();

@@ -21,10 +21,16 @@ class ShareSongSheet extends StatefulWidget {
     BuildContext context, {
     required SavedSong song,
     required AuthViewModel authViewModel,
-  }) {
+    required VoidCallback onRequestLogin,
+  }) async {
+    if (!authViewModel.isLoggedIn) {
+      onRequestLogin();
+      return null;
+    }
     final sheet = ShareSongSheet(song: song, authViewModel: authViewModel);
+    final bool? shared;
     if (MediaQuery.of(context).size.width >= 720) {
-      return showDialog<bool>(
+      shared = await showDialog<bool>(
         context: context,
         builder: (_) => Dialog(
           backgroundColor: SonicColors.foundation,
@@ -37,19 +43,26 @@ class ShareSongSheet extends StatefulWidget {
           ),
         ),
       );
-    }
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: SonicColors.foundation,
-      shape: const RoundedRectangleBorder(),
-      builder: (_) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.88,
+    } else {
+      shared = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: SonicColors.foundation,
+        shape: const RoundedRectangleBorder(),
+        builder: (_) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.88,
+          ),
+          child: sheet,
         ),
-        child: sheet,
-      ),
-    );
+      );
+    }
+    if (shared == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shared song to Nostr')),
+      );
+    }
+    return shared;
   }
 
   @override
@@ -58,6 +71,7 @@ class ShareSongSheet extends StatefulWidget {
 
 class _ShareSongSheetState extends State<ShareSongSheet> {
   final _controller = TextEditingController();
+  late final String? _author;
   bool _includeMediaUrl = true;
   bool _includeWavefuncRef = true;
   bool _tagWavefunc = true;
@@ -70,6 +84,7 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
   @override
   void initState() {
     super.initState();
+    _author = widget.authViewModel.session?.pubkey;
     _controller.text = _buildAutoContent();
   }
 
@@ -133,7 +148,7 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
 
   Future<void> _publish() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (_publishing || text.isEmpty) return;
 
     setState(() {
       _publishing = true;
@@ -146,14 +161,18 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
         if (_tagSongstr) 'songstr',
         if (_tagTunestr) 'tunestr',
       ];
-      await widget.authViewModel.executeSignedAction(
+      final outcome = await widget.authViewModel.executeSignedAction(
         (backend) => backend.publishSongShareNote(
           content: text,
           songAddress: widget.song.address,
           audioUrl: _includeMediaUrl ? widget.song.audioUrl : null,
           hashtags: hashtags,
         ),
+        expectedAuthor: _author,
       );
+      if (!outcome.published) {
+        throw StateError('No relay confirmed the note was published.');
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -266,7 +285,9 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
               TextField(
                 controller: _controller,
                 maxLines: 6,
-                onChanged: (_) => _edited = true,
+                onChanged: (_) {
+                  if (!_edited) setState(() => _edited = true);
+                },
                 decoration: const InputDecoration(
                   labelText: 'NOSTR NOTE CONTENT',
                 ),

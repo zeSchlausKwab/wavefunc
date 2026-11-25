@@ -390,24 +390,12 @@ class _CrateViewState extends State<CrateView> {
                               ),
                             IconButton(
                               tooltip: 'Share song to Nostr',
-                              onPressed: () async {
-                                if (!widget.authViewModel.isLoggedIn) {
-                                  widget.onRequestLogin();
-                                  return;
-                                }
-                                final shared = await ShareSongSheet.open(
-                                  context,
-                                  song: song,
-                                  authViewModel: widget.authViewModel,
-                                );
-                                if (shared == true && context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Shared song to Nostr'),
-                                    ),
-                                  );
-                                }
-                              },
+                              onPressed: () => ShareSongSheet.open(
+                                context,
+                                song: song,
+                                authViewModel: widget.authViewModel,
+                                onRequestLogin: widget.onRequestLogin,
+                              ),
                               icon: const Icon(
                                 Icons.share_outlined,
                                 color: SonicColors.ink,

@@ -7,6 +7,7 @@ import '../../../core/widgets/sonic_plate.dart';
 import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../view_models/crate_view_model.dart';
+import 'share_song_sheet.dart';
 
 class _BlossomServerOption {
   const _BlossomServerOption({required this.label, required this.url});
@@ -112,7 +113,7 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
   String? _progressMessage;
   String? _error;
   List<YouTubeSearchResult> _results = const [];
-  UploadedMedia? _uploaded;
+  SongBackup? _backup;
 
   String get _displayTitle =>
       widget.existingSong?.title ??
@@ -187,7 +188,7 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
     });
 
     try {
-      final uploaded = await widget.crateViewModel.backupSongToBlossom(
+      final backup = await widget.crateViewModel.backupSongToBlossom(
         existingSong: widget.existingSong,
         recording: widget.recording,
         fallbackTitle: widget.fallbackTitle,
@@ -206,7 +207,7 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       setState(() {
-        _uploaded = uploaded;
+        _backup = backup;
         _transferring = false;
       });
     } catch (e) {
@@ -292,8 +293,8 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_uploaded != null)
-                      _buildSuccessView(_uploaded!)
+                    if (_backup != null)
+                      _buildSuccessView(_backup!)
                     else if (_transferring)
                       _buildProgressView()
                     else ...[
@@ -529,7 +530,8 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
     );
   }
 
-  Widget _buildSuccessView(UploadedMedia uploaded) {
+  Widget _buildSuccessView(SongBackup backup) {
+    final uploaded = backup.media;
     final sizeMb = (uploaded.size / (1024 * 1024)).toStringAsFixed(2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -576,6 +578,18 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
           ),
         ),
         const SizedBox(height: 12),
+        SonicPowerButton(
+          label: 'Share to Nostr',
+          icon: Icons.share_outlined,
+          primary: false,
+          onPressed: () => ShareSongSheet.open(
+            context,
+            song: backup.song,
+            authViewModel: widget.authViewModel,
+            onRequestLogin: widget.onRequestLogin,
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
