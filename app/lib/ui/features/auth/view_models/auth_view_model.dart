@@ -360,12 +360,14 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
   }) {
     return _authRepository.prepareStationZap(
+      stationEventId: stationEventId,
       stationPubkey: stationPubkey,
       stationAddress: stationAddress,
       amountSats: amountSats,
@@ -387,11 +389,13 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
   }) =>
       _authRepository.checkStationZapReceipt(
+        stationEventId: stationEventId,
         stationAddress: stationAddress,
         bolt11: bolt11,
         sinceUnix: sinceUnix,
@@ -477,12 +481,16 @@ class AuthViewModel extends ChangeNotifier {
   Future<RecipientNutzapInfo?> fetchRecipientNutzapInfo(String pubkeyHex) =>
       _authRepository.fetchRecipientNutzapInfo(pubkeyHex);
 
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) =>
+      _authRepository.pendingStationNutzapAmounts(stationAddress);
+
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   }) =>
       _runWallet(
         () => _authRepository.sendStationNutzap(
@@ -491,6 +499,7 @@ class AuthViewModel extends ChangeNotifier {
           stationAddress: stationAddress,
           amountSats: amountSats,
           comment: comment,
+          retryOnly: retryOnly,
         ),
       );
 

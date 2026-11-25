@@ -560,6 +560,7 @@ class RelayWebSocketBackend implements WavefuncBackend {
 
   @override
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
@@ -586,6 +587,7 @@ class RelayWebSocketBackend implements WavefuncBackend {
 
   @override
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
@@ -669,12 +671,16 @@ class RelayWebSocketBackend implements WavefuncBackend {
       null;
 
   @override
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) async => const [];
+
+  @override
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   }) async =>
       _signingUnsupported();
 

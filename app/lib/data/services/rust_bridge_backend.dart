@@ -529,12 +529,14 @@ class RustBridgeBackend implements WavefuncBackend {
 
   @override
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
   }) async {
     final res = await frb.prepareStationZap(
+      stationEventId: stationEventId,
       stationPubkey: stationPubkey,
       stationAddress: stationAddress,
       amountSats: BigInt.from(amountSats),
@@ -579,11 +581,13 @@ class RustBridgeBackend implements WavefuncBackend {
 
   @override
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
   }) =>
       frb.checkStationZapReceipt(
+        stationEventId: stationEventId,
         stationAddress: stationAddress,
         bolt11: bolt11,
         sinceUnix: BigInt.from(sinceUnix),
@@ -760,12 +764,17 @@ class RustBridgeBackend implements WavefuncBackend {
   }
 
   @override
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) =>
+      frb.pendingStationNutzapAmounts(stationAddress: stationAddress);
+
+  @override
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   }) async {
     final res = await frb.sendStationNutzap(
       stationEventId: stationEventId,
@@ -773,6 +782,7 @@ class RustBridgeBackend implements WavefuncBackend {
       stationAddress: stationAddress,
       amountSats: BigInt.from(amountSats),
       comment: comment,
+      retryOnly: retryOnly,
     );
     return _mapOutcome(res);
   }

@@ -286,11 +286,13 @@ Future<FrbNwcWalletStatus> refreshNwcBalance() =>
     RustLib.instance.api.crateApiWavefuncRefreshNwcBalance();
 
 Future<FrbZapInvoiceResult> prepareStationZap({
+  required String stationEventId,
   required String stationPubkey,
   required String stationAddress,
   required BigInt amountSats,
   String? comment,
 }) => RustLib.instance.api.crateApiWavefuncPrepareStationZap(
+  stationEventId: stationEventId,
   stationPubkey: stationPubkey,
   stationAddress: stationAddress,
   amountSats: amountSats,
@@ -320,10 +322,12 @@ Future<FrbZapPaymentResult> payInvoiceNwc({
 );
 
 Future<bool> checkStationZapReceipt({
+  required String stationEventId,
   required String stationAddress,
   required String bolt11,
   required BigInt sinceUnix,
 }) => RustLib.instance.api.crateApiWavefuncCheckStationZapReceipt(
+  stationEventId: stationEventId,
   stationAddress: stationAddress,
   bolt11: bolt11,
   sinceUnix: sinceUnix,
@@ -413,18 +417,26 @@ Future<FrbRecipientNutzapInfo?> fetchRecipientNutzapInfo({
   pubkeyHex: pubkeyHex,
 );
 
+Future<Uint64List> pendingStationNutzapAmounts({
+  required String stationAddress,
+}) => RustLib.instance.api.crateApiWavefuncPendingStationNutzapAmounts(
+  stationAddress: stationAddress,
+);
+
 Future<FrbActionOutcome> sendStationNutzap({
   required String stationEventId,
   required String stationPubkey,
   required String stationAddress,
   required BigInt amountSats,
   String? comment,
+  required bool retryOnly,
 }) => RustLib.instance.api.crateApiWavefuncSendStationNutzap(
   stationEventId: stationEventId,
   stationPubkey: stationPubkey,
   stationAddress: stationAddress,
   amountSats: amountSats,
   comment: comment,
+  retryOnly: retryOnly,
 );
 
 Future<FrbPreparedMedia> prepareYoutubeMedia({

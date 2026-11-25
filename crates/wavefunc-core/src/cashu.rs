@@ -125,6 +125,32 @@ pub fn parse_nip60_token_content(plaintext: &str) -> Option<Nip60TokenPayload> {
     Some(payload)
 }
 
+/// Locked proofs and relay destinations are kept until a recipient relay acknowledges delivery.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PendingNutzap {
+    pub unsigned: UnsignedEvent,
+    pub relays: Vec<RelayUrl>,
+}
+
+impl PendingNutzap {
+    fn key_prefix(author: PublicKey, station_address: &str) -> String {
+        format!(
+            "{:x}_",
+            Sha256::digest(format!("{author}:{station_address}").as_bytes())
+        )
+    }
+
+    pub fn key(author: PublicKey, station_address: &str, amount: u64) -> String {
+        format!("{}{amount}", Self::key_prefix(author, station_address))
+    }
+
+    pub fn builder(&self) -> EventBuilder {
+        EventBuilder::new(self.unsigned.kind, &self.unsigned.content)
+            .tags(self.unsigned.tags.clone())
+            .custom_created_at(self.unsigned.created_at)
+    }
+}
+
 /// Multi-mint Cashu wallet powered by `cdk 0.18` + pure-Rust `cdk-redb`,
 /// synchronized with NIP-60 (`kind 17375` + `kind 7375`) on Nostr relays.
 pub struct CashuWalletManager {
@@ -174,6 +200,70 @@ impl CashuWalletManager {
         }
 
         Ok(mgr)
+    }
+
+    pub(crate) async fn pending_nutzap_amounts(
+        &self,
+        author: PublicKey,
+        address: &str,
+    ) -> Result<Vec<u64>> {
+        let prefix = PendingNutzap::key_prefix(author, address);
+        let keys = self
+            .localstore
+            .kv_list("wavefunc", "pending_nutzaps")
+            .await
+            .map_err(|e| WavefuncError::Wallet(e.to_string()))?;
+        let mut amounts: Vec<_> = keys
+            .into_iter()
+            .filter_map(|key| key.strip_prefix(&prefix)?.parse().ok())
+            .collect();
+        amounts.sort_unstable();
+        Ok(amounts)
+    }
+
+    pub(crate) async fn pending_nutzap(&self, key: &str) -> Result<Option<PendingNutzap>> {
+        let data = self
+            .localstore
+            .kv_read("wavefunc", "pending_nutzaps", key)
+            .await
+            .map_err(|e| WavefuncError::Wallet(e.to_string()))?;
+        data.map(|value| serde_json::from_slice(&value))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    pub(crate) async fn save_pending_nutzap(
+        &self,
+        key: &str,
+        payment: &PendingNutzap,
+    ) -> Result<()> {
+        self.localstore
+            .kv_write(
+                "wavefunc",
+                "pending_nutzaps",
+                key,
+                &serde_json::to_vec(payment)?,
+            )
+            .await
+            .map_err(|e| {
+                WavefuncError::Wallet(format!(
+                    "Proofs issued, but saving the pending nutzap failed: {e}"
+                ))
+            })
+    }
+
+    pub(crate) async fn confirm_nutzap(&self, key: &str, id: EventId) -> Result<()> {
+        if self
+            .pending_nutzap(key)
+            .await?
+            .is_some_and(|mut payment| payment.unsigned.id() == id)
+        {
+            self.localstore
+                .kv_remove("wavefunc", "pending_nutzaps", key)
+                .await
+                .map_err(|e| WavefuncError::Wallet(e.to_string()))?;
+        }
+        Ok(())
     }
 
     pub async fn ensure_mint(&mut self, mint_url: &str) -> Result<Arc<Wallet>> {
@@ -598,8 +688,10 @@ impl CashuWalletManager {
         let clean_key = recipient_p2pk_hex.trim().to_ascii_lowercase();
         let compressed_hex = if clean_key.len() == 64 {
             format!("02{clean_key}")
-        } else {
+        } else if clean_key.starts_with("02") {
             clean_key
+        } else {
+            return Err(WavefuncError::InvalidInput("Invalid NIP-61 P2PK key".into()));
         };
         let cdk_pk = CdkPublicKey::from_hex(&compressed_hex)
             .map_err(|e| WavefuncError::Wallet(format!("Invalid recipient P2PK key: {e}")))?;
@@ -607,6 +699,9 @@ impl CashuWalletManager {
         let target_mint = self
             .pick_mint_with_balance(None, amount_sats, Some(accepted_mints))
             .await?;
+        let advertised_mint = accepted_mints.iter()
+            .find(|mint| normalize_mint_url(mint) == target_mint)
+            .ok_or_else(|| WavefuncError::Wallet("Recipient did not advertise the selected mint.".into()))?;
         let wallet = self.ensure_mint(&target_mint).await?;
 
         let opts = SendOptions {
@@ -643,14 +738,14 @@ impl CashuWalletManager {
 
         let proof_jsons: Vec<String> = proofs
             .iter()
-            .filter_map(|p| serde_json::to_string(p).ok())
-            .collect();
+            .map(serde_json::to_string)
+            .collect::<std::result::Result<_, _>>()?;
         if proof_jsons.is_empty() {
             return Err(WavefuncError::Wallet(
                 "No proofs produced for P2PK nutzap".to_string(),
             ));
         }
-        Ok((target_mint, proof_jsons))
+        Ok((advertised_mint.clone(), proof_jsons))
     }
 
     async fn pick_mint_with_balance(
@@ -665,7 +760,7 @@ impl CashuWalletManager {
         let is_allowed = |url: &str| -> bool {
             match &allowed_set {
                 None => true,
-                Some(list) => list.iter().any(|a| a.eq_ignore_ascii_case(url)),
+                Some(list) => list.iter().any(|a| a == url),
             }
         };
 
@@ -726,8 +821,8 @@ pub fn parse_nutzap_info_event(event: &Event) -> Option<RecipientNutzapInfo> {
                     p2pk_pubkey = Some(pk.to_string());
                 }
             }
-            Some("mint") => {
-                if let Some(url) = s.get(1).map(|v| normalize_mint_url(v)).filter(|v| !v.is_empty()) {
+            Some("mint") if s.len() == 2 || s.iter().skip(2).any(|unit| unit == "sat") => {
+                if let Some(url) = s.get(1).map(|v| v.trim().to_owned()).filter(|v| !v.is_empty()) {
                     if !mints.contains(&url) {
                         mints.push(url);
                     }
@@ -804,7 +899,8 @@ mod tests {
             .tags([
                 Tag::parse(["pubkey", "02deadbeef"]).unwrap(),
                 Tag::parse(["mint", "https://mint.minibits.cash/Bitcoin/"]).unwrap(),
-                Tag::parse(["mint", "https://mint.coinos.io"]).unwrap(),
+                Tag::parse(["mint", "https://mint.coinos.io", "usd", "sat"]).unwrap(),
+                Tag::parse(["mint", "https://mint.example/USD", "usd"]).unwrap(),
                 Tag::parse(["relay", "wss://relay.damus.io"]).unwrap(),
             ])
             .finalize(&keys)
@@ -816,7 +912,7 @@ mod tests {
         assert_eq!(
             parsed.mints,
             vec![
-                "https://mint.minibits.cash/Bitcoin".to_string(),
+                "https://mint.minibits.cash/Bitcoin/".to_string(),
                 "https://mint.coinos.io".to_string()
             ]
         );

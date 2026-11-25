@@ -1052,6 +1052,7 @@ pub fn build_listening_status_builder(
 
 /// Build a NIP-57 `kind 9734` zap request targeting a WaveFunc station.
 pub fn build_zap_request_builder(
+    station_event_id: EventId,
     station_pubkey: &str,
     station_address: &str,
     amount_msat: u64,
@@ -1071,7 +1072,7 @@ pub fn build_zap_request_builder(
 
     let mut relay_tag = Vec::with_capacity(relays.len() + 1);
     relay_tag.push("relays".to_string());
-    for r in relays.iter().take(6) {
+    for r in relays {
         if !r.trim().is_empty() {
             relay_tag.push(r.trim().to_string());
         }
@@ -1081,6 +1082,8 @@ pub fn build_zap_request_builder(
     if relay_tag.len() > 1 {
         tags.push(Tag::parse(relay_tag)?);
     }
+    tags.push(Tag::parse(["e", &station_event_id.to_hex()])?);
+    tags.push(Tag::parse(["k", &STATION_KIND.to_string()])?);
     tags.push(Tag::parse(["amount", &amount_msat.to_string()])?);
     tags.push(Tag::parse(["p", station_pubkey])?);
     tags.push(Tag::parse(["a", station_address])?);
@@ -1343,6 +1346,7 @@ mod tests {
         .unwrap();
 
         let zap_req = build_zap_request_builder(
+            EventId::from_hex(station_id).unwrap(),
             &station_pk,
             &station_addr,
             21_000,
@@ -1352,6 +1356,8 @@ mod tests {
         .unwrap()
         .finalize(&alice)
         .unwrap();
+        assert!(zap_req.tags.iter().any(|t| t.as_slice() == ["e", station_id]));
+        assert!(zap_req.tags.iter().any(|t| t.as_slice() == ["a", &station_addr]));
         let zap_receipt = EventBuilder::new(Kind::Custom(ZAP_RECEIPT_KIND), "")
             .tags([
                 Tag::parse(["a", &station_addr]).unwrap(),

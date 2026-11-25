@@ -9,13 +9,13 @@ use tokio::sync::RwLock;
 
 use crate::cashu::{
     build_station_nutzap_builder, parse_nip60_wallet_content, parse_nutzap_info_event,
-    CashuWalletManager,
+    CashuWalletManager, PendingNutzap,
 };
 use crate::config::{
     CoreConfig, ADMIN_FEATURED_LISTS_LABEL, APP_DATA_KIND, COMMENT_KIND, COMMUNITY_POST_KIND,
     COMMUNITY_TOPIC, DEFAULT_IDENTITY_RELAYS, DEFAULT_SOCIAL_RELAYS, DEFAULT_WALLET_RELAYS,
-    DELETION_KIND, DEV_ADMIN_PUBKEY, FAVORITES_LIST_LABEL, NUTZAP_INFO_KIND, NUTZAP_KIND,
-    PROD_ADMIN_PUBKEYS, REACTION_KIND, RELAY_LIST_KIND, SONG_KIND, SONG_LIST_LABEL,
+    DELETION_KIND, DEV_ADMIN_PUBKEY, FAVORITES_LIST_LABEL, LISTENING_STATUS_KIND, NUTZAP_INFO_KIND,
+    NUTZAP_KIND, PROD_ADMIN_PUBKEYS, REACTION_KIND, RELAY_LIST_KIND, SONG_KIND, SONG_LIST_LABEL,
     STATION_HEALTH_KIND, STATION_KIND, STATION_RANKING_KIND, WALLET_KIND, WALLET_TOKEN_KIND,
     ZAP_RECEIPT_KIND,
 };
@@ -49,6 +49,7 @@ use crate::social::{
 use crate::spectrum::{AudioSpectrumProxy, AudioSpectrumSnapshot};
 use crate::wallet::{fetch_lnurl_pay_params, request_lnurl_invoice, ActiveNwcSession};
 
+#[derive(Clone)]
 enum ActiveSigner {
     LocalKey(Keys),
     Bunker {
@@ -379,65 +380,7 @@ impl WavefuncCore {
         lud16: Option<&str>,
     ) -> Result<ActionOutcome> {
         let builder = build_profile_event_builder(name, about, picture, lud16)?;
-        let signer_mode = {
-            let guard = self.signer.read().await;
-            match guard.as_ref() {
-                None => {
-                    return Err(WavefuncError::AuthRequired(
-                        "Sign in first to update your profile.".to_string(),
-                    ));
-                }
-                Some(ActiveSigner::LocalKey(keys)) => Err(keys.clone()),
-                Some(ActiveSigner::Bunker { signer, .. }) => Ok((Some(signer.clone()), None)),
-                Some(ActiveSigner::Amber { pubkey }) => Ok((None, Some(*pubkey))),
-            }
-        };
-
-        let signed_event = match signer_mode {
-            Err(keys) => builder.finalize(&keys)?,
-            Ok((Some(bunker), _)) => builder.finalize_async(bunker.as_ref()).await?,
-            Ok((None, Some(pubkey))) => {
-                let unsigned = builder.finalize_unsigned(pubkey);
-                return Ok(ActionOutcome {
-                    published: false,
-                    event_id: None,
-                    unsigned_event_json: Some(unsigned.as_json()),
-                    target_address: None,
-                });
-            }
-            Ok((None, None)) => {
-                return Err(WavefuncError::AuthRequired("No active signer".to_string()));
-            }
-        };
-
-        // Broadcast kind 0 to public identity relays + app relay so other Nostr apps see it too.
-        self.ensure_identity_relays().await;
-        let (app_res, id_res) = tokio::join!(
-            self.client.send_event(&signed_event),
-            self.identity_client.send_event(&signed_event),
-        );
-
-        if let Some(parsed) = parse_profile_event(&signed_event) {
-            self.profile_cache
-                .write()
-                .await
-                .insert(parsed.pubkey.clone(), parsed);
-        }
-
-        let app_ok = app_res.as_ref().is_ok_and(|o| !o.success.is_empty());
-        let id_ok = id_res.as_ref().is_ok_and(|o| !o.success.is_empty());
-        if !app_ok && !id_ok {
-            return Err(WavefuncError::PublishRejected(
-                "No relay accepted the profile event".to_string(),
-            ));
-        }
-
-        Ok(ActionOutcome {
-            published: true,
-            event_id: Some(signed_event.id.to_hex()),
-            unsigned_event_json: None,
-            target_address: None,
-        })
+        self.sign_or_prepare(builder, None).await
     }
 
     /// Clear active user session.
@@ -623,49 +566,25 @@ impl WavefuncCore {
         event: &Event,
         target_address: Option<String>,
     ) -> Result<ActionOutcome> {
-        let is_standalone_note = event.kind == Kind::TextNote
-            && !event.tags.iter().any(|tag| {
-                matches!(
-                    tag.as_slice().first().map(String::as_str),
-                    Some("a" | "A" | "e" | "E")
-                )
-            });
-        if is_standalone_note {
-            self.send_public_note(event).await?;
-            return Ok(ActionOutcome {
-                published: true,
-                event_id: Some(event.id.to_hex()),
-                unsigned_event_json: None,
-                target_address,
-            });
-        }
-        let is_social = matches!(
-            event.kind.as_u16(),
-            REACTION_KIND | COMMENT_KIND | COMMUNITY_POST_KIND | NUTZAP_KIND
-        );
-
-        let output = self.client.send_event(event).await?;
-        let mut accepted = !output.success.is_empty();
-
-        // Mirror WaveFunc relayPolicy.ts: social events publish to both the app relay
-        // and public social relays so comments, likes, and nutzaps stay discoverable.
-        if is_social {
-            self.ensure_identity_relays().await;
-            if let Ok(pub_out) = self.identity_client.send_event(event).await {
-                if !pub_out.success.is_empty() {
-                    accepted = true;
-                }
+        if is_publication(event.kind) {
+            self.send_public_event(event).await?;
+            if let Some(profile) = parse_profile_event(event) {
+                self.profile_cache
+                    .write()
+                    .await
+                    .insert(profile.pubkey.clone(), profile);
             }
-        }
-
-        if !accepted {
-            let reason = output
-                .failed
-                .values()
-                .next()
-                .cloned()
-                .unwrap_or_else(|| "No relay accepted the event".to_string());
-            return Err(WavefuncError::PublishRejected(reason));
+        } else {
+            let result = self.client.send_event(event).await?;
+            if result.success.is_empty() {
+                return Err(WavefuncError::PublishRejected(
+                    result
+                        .failed
+                        .into_values()
+                        .next()
+                        .unwrap_or_else(|| "No relay accepted the event".into()),
+                ));
+            }
         }
         Ok(ActionOutcome {
             published: true,
@@ -675,35 +594,37 @@ impl WavefuncCore {
         })
     }
 
-    async fn send_public_note(&self, event: &Event) -> Result<()> {
+    /// Resolve author write relays and tagged users' read relays from their latest NIP-65 events.
+    async fn publication_relays(
+        &self,
+        author: PublicKey,
+        recipients: &[PublicKey],
+    ) -> PublicationRelays {
         self.ensure_identity_relays().await;
+        let keys: HashSet<_> = std::iter::once(author)
+            .chain(recipients.iter().copied())
+            .collect();
         let filter = Filter::new()
-            .author(event.pubkey)
             .kind(Kind::RelayList)
-            .limit(1);
+            .limit(keys.len())
+            .authors(keys);
         let timeout = Duration::from_secs(4);
-        let (app_lists, public_lists) = tokio::join!(
+        let (app, public) = tokio::join!(
             self.client.fetch_events(filter.clone()).timeout(timeout),
             self.identity_client.fetch_events(filter).timeout(timeout),
         );
-        let relay_list = [app_lists, public_lists]
-            .into_iter()
-            .flatten()
-            .flatten()
-            .max_by(|a, b| {
-                a.created_at
-                    .cmp(&b.created_at)
-                    .then_with(|| b.id.cmp(&a.id))
-            });
-        let outboxes = note_write_relays(relay_list.as_ref());
-        let rejected = |reason: String| {
-            WavefuncError::PublishRejected(format!(
-                "No write relay acknowledged your public note. {reason}"
-            ))
-        };
-        for url in &outboxes {
-            // These are this author's targets. Keep them out of general reads and broadcasts.
-            self.identity_client
+        PublicationRelays::from_lists(
+            author,
+            recipients,
+            [app, public].into_iter().flatten().flatten(),
+        )
+    }
+
+    async fn connect_delivery_relays(&self, targets: &[RelayUrl]) -> Vec<RelayUrl> {
+        let mut available = Vec::new();
+        for url in targets {
+            if self
+                .identity_client
                 .add_relay(url)
                 .capabilities(RelayCapabilities::GOSSIP)
                 .sleep_when_idle(SleepWhenIdle::Enabled {
@@ -711,25 +632,109 @@ impl WavefuncCore {
                 })
                 .and_connect()
                 .await
-                .map_err(|err| rejected(err.to_string()))?;
+                .is_ok()
+            {
+                available.push(url.clone());
+            }
+        }
+        available
+    }
+
+    /// Send the exact signed event to each selected relay and return only confirmed destinations.
+    async fn send_to_relays(
+        &self,
+        event: &Event,
+        targets: &[RelayUrl],
+    ) -> Result<HashSet<RelayUrl>> {
+        let available = self.connect_delivery_relays(targets).await;
+        if available.is_empty() {
+            return Err(WavefuncError::PublishRejected(
+                "No delivery relays are available.".into(),
+            ));
         }
         let result = self
             .identity_client
             .send_event(event)
-            .to(&outboxes)
+            .to(available)
             .ok_timeout(Duration::from_secs(8))
             .authentication_timeout(Duration::from_secs(8))
-            .await
-            .map_err(|err| rejected(err.to_string()))?;
+            .await?;
         if result.success.is_empty() {
-            let reason = result.failed.into_values().next().unwrap_or_default();
-            return Err(rejected(reason));
+            return Err(WavefuncError::PublishRejected(
+                result
+                    .failed
+                    .into_values()
+                    .next()
+                    .unwrap_or_else(|| "No acknowledgement".into()),
+            ));
         }
-        // Mirroring after public acceptance prevents app-only copies on retries.
-        let app_relay = RelayUrl::parse(&self.config.read().await.relay_url).ok();
-        if !app_relay.is_some_and(|url| result.success.contains_key(&url)) {
+        Ok(result.success.into_keys().collect())
+    }
+
+    async fn nutzap_delivery_relays(&self, event: &Event) -> Result<Vec<RelayUrl>> {
+        let key = nutzap_event_key(event)?;
+        if let Some(wallet) = self.cashu.read().await.as_ref() {
+            if let Some(mut payment) = wallet.pending_nutzap(&key).await? {
+                if payment.unsigned.id() == event.id {
+                    return Ok(payment.relays);
+                }
+            }
+        }
+        // A generic external signature must never turn unrecognized bearer proofs into a public event.
+        Err(WavefuncError::Wallet(
+            "This nutzap does not match a pending P2PK payment in the active wallet.".into(),
+        ))
+    }
+
+    async fn send_public_event(&self, event: &Event) -> Result<()> {
+        let recipients = tagged_recipients(event);
+        let relays = self.publication_relays(event.pubkey, &recipients).await;
+        let mut primary = relays.writes;
+        let mut mirrors = relays.inboxes;
+        if matches!(event.kind, Kind::Metadata | Kind::RelayList) {
+            primary.extend(
+                DEFAULT_IDENTITY_RELAYS
+                    .iter()
+                    .filter_map(|r| RelayUrl::parse(r).ok()),
+            );
+            if event.kind == Kind::RelayList {
+                primary.extend(nip65_relays(event, RelayMetadata::Write));
+            }
+        }
+        // The recipient's NIP-61 relays must receive the locked payment before we mirror it.
+        if event.kind.as_u16() == NUTZAP_KIND {
+            let destinations = self.nutzap_delivery_relays(event).await?;
+            mirrors.append(&mut primary);
+            primary = destinations;
+        }
+        let primary = unique_relays(primary);
+        let accepted = self.send_to_relays(event, &primary).await.map_err(|err| {
+            if event.kind.as_u16() == NUTZAP_KIND {
+                WavefuncError::PublishRejected(format!("Recipient relay delivery is unconfirmed. Retry the same station and amount to resend the saved payment. {err}"))
+            } else {
+                WavefuncError::PublishRejected(format!("No write relay acknowledged the public event. {err}"))
+            }
+        })?;
+        if event.kind.as_u16() == NUTZAP_KIND {
+            if let Some(wallet) = self.cashu.write().await.as_ref() {
+                let _ = wallet
+                    .confirm_nutzap(&nutzap_event_key(event)?, event.id)
+                    .await;
+            }
+        }
+        let app_relay = self.config.read().await.relay_url.clone();
+        if let Ok(url) = RelayUrl::parse(&app_relay) {
+            mirrors.push(url);
+        }
+        let mirrors = unique_relays(
+            mirrors
+                .into_iter()
+                .filter(|r| !accepted.contains(r) && !primary.contains(r)),
+        );
+        if !mirrors.is_empty() {
             let _ =
-                tokio::time::timeout(Duration::from_secs(3), self.client.send_event(event)).await;
+                tokio::time::timeout(Duration::from_secs(4), self.send_to_relays(event, &mirrors))
+                    .await;
         }
         Ok(())
     }
@@ -1615,6 +1620,7 @@ impl WavefuncCore {
     /// (used to auto-confirm external wallet payments such as Minibits / Phoenix / Zeus).
     pub async fn check_station_zap_receipt(
         &self,
+        station_event_id: &str,
         station_address: &str,
         bolt11: &str,
         since_unix: u64,
@@ -1624,17 +1630,20 @@ impl WavefuncCore {
             return Ok(false);
         }
 
-        let filter = Filter::new()
+        let base = Filter::new()
             .kind(Kind::Custom(ZAP_RECEIPT_KIND))
-            .custom_tag(SingleLetterTag::from_char('a').unwrap(), station_address)
             .since(Timestamp::from(since_unix.saturating_sub(30)))
             .limit(25);
+        let filters = vec![
+            base.clone().custom_tag(SingleLetterTag::from_char('a').unwrap(), station_address),
+            base.event(EventId::from_hex(station_event_id)?),
+        ];
 
         self.ensure_identity_relays().await;
         let timeout = Duration::from_secs(4);
         let (app_res, pub_res) = tokio::join!(
-            self.client.fetch_events(filter.clone()).timeout(timeout),
-            self.identity_client.fetch_events(filter).timeout(timeout),
+            self.client.fetch_events(filters.clone()).timeout(timeout),
+            self.identity_client.fetch_events(filters).timeout(timeout),
         );
 
         let matches_bolt11 = |ev: &Event| -> bool {
@@ -2025,6 +2034,7 @@ impl WavefuncCore {
     /// and request a BOLT11 invoice from the LNURL callback.
     pub async fn prepare_station_zap(
         &self,
+        station_event_id: &str,
         station_pubkey: &str,
         station_address: &str,
         amount_sats: u64,
@@ -2059,43 +2069,25 @@ impl WavefuncCore {
             )));
         }
 
-        let mut receipt_relays: Vec<String> = DEFAULT_SOCIAL_RELAYS
-            .iter()
-            .map(|s| (*s).to_string())
-            .collect();
-        let app_relay = self.config.read().await.relay_url.clone();
-        if app_relay.starts_with("wss://") && !receipt_relays.contains(&app_relay) {
-            receipt_relays.insert(0, app_relay);
-        }
-
-        let signed_zap_json: Option<String> = if lnurl.allows_nostr {
+        let signer = self.signer.read().await.clone();
+        let signed_zap_json = if let Some(signer) = signer.filter(|_| lnurl.allows_nostr) {
+            let recipient = PublicKey::from_hex(station_pubkey)?;
+            let routes = self.publication_relays(signer.pubkey(), &[recipient]).await;
+            let receipt_relays = routes.receipt_urls(&self.config.read().await.relay_url);
             let builder = build_zap_request_builder(
+                EventId::from_hex(station_event_id)?,
                 station_pubkey,
                 station_address,
                 amount_msat,
                 comment,
                 &receipt_relays,
             )?;
-
-            let signer_mode = {
-                let guard = self.signer.read().await;
-                match guard.as_ref() {
-                    None => None,
-                    Some(ActiveSigner::LocalKey(keys)) => Some(Err(keys.clone())),
-                    Some(ActiveSigner::Bunker { signer, .. }) => {
-                        Some(Ok((Some(signer.clone()), None)))
-                    }
-                    Some(ActiveSigner::Amber { pubkey }) => Some(Ok((None, Some(*pubkey)))),
+            match signer {
+                ActiveSigner::LocalKey(keys) => Some(builder.finalize(&keys)?.as_json()),
+                ActiveSigner::Bunker { signer, .. } => {
+                    Some(builder.finalize_async(signer.as_ref()).await?.as_json())
                 }
-            };
-
-            match signer_mode {
-                None => None, // Anonymous LNURL zap if user isn't logged in
-                Some(Err(keys)) => Some(builder.finalize(&keys)?.as_json()),
-                Some(Ok((Some(bunker), _))) => {
-                    Some(builder.finalize_async(bunker.as_ref()).await?.as_json())
-                }
-                Some(Ok((None, Some(pubkey)))) => {
+                ActiveSigner::Amber { pubkey } => {
                     // External NIP-55 Amber signing: return unsigned kind 9734 first.
                     let unsigned = builder.finalize_unsigned(pubkey);
                     return Ok(ZapInvoiceResult {
@@ -2107,7 +2099,6 @@ impl WavefuncCore {
                         unsigned_zap_request_json: Some(unsigned.as_json()),
                     });
                 }
-                Some(Ok((None, None))) => None,
             }
         } else {
             None
@@ -2758,30 +2749,71 @@ impl WavefuncCore {
             .kind(Kind::Custom(NUTZAP_INFO_KIND))
             .limit(5);
 
-        self.ensure_identity_relays().await;
-
-        let timeout = Duration::from_secs(5);
-        let (app_res, pub_res) = tokio::join!(
-            self.client.fetch_events(filter.clone()).timeout(timeout),
-            self.identity_client.fetch_events(filter).timeout(timeout),
+        let outboxes = self.publication_relays(pk, &[]).await.writes;
+        let discovery = unique_relays(
+            outboxes.into_iter().chain(
+                DEFAULT_WALLET_RELAYS
+                    .iter()
+                    .filter_map(|url| RelayUrl::parse(url).ok()),
+            ),
         );
-
-        let mut latest: Option<Event> = None;
-        for res in [app_res, pub_res] {
-            if let Ok(events) = res {
-                for ev in events.into_iter() {
-                    if latest
-                        .as_ref()
-                        .map(|cur| ev.created_at > cur.created_at)
-                        .unwrap_or(true)
-                    {
-                        latest = Some(ev);
-                    }
-                }
-            }
-        }
-
+        let targets = self
+            .connect_delivery_relays(&discovery)
+            .await
+            .into_iter()
+            .map(|url| (url, vec![filter.clone()]))
+            .collect::<Vec<_>>();
+        let timeout = Duration::from_secs(5);
+        let (app, public) = tokio::join!(
+            self.client.fetch_events(filter).timeout(timeout),
+            self.identity_client.fetch_events(targets).timeout(timeout),
+        );
+        let latest = [app, public]
+            .into_iter()
+            .flatten()
+            .flatten()
+            .max_by(|a, b| {
+                a.created_at
+                    .cmp(&b.created_at)
+                    .then_with(|| b.id.cmp(&a.id))
+            });
         Ok(latest.as_ref().and_then(parse_nutzap_info_event))
+    }
+
+    pub async fn pending_station_nutzap_amounts(&self, station_address: &str) -> Result<Vec<u64>> {
+        let Some(author) = self.signer.read().await.as_ref().map(ActiveSigner::pubkey) else {
+            return Ok(Vec::new());
+        };
+        match self.cashu.read().await.as_ref() {
+            Some(wallet) => wallet.pending_nutzap_amounts(author, station_address).await,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    pub async fn retry_station_nutzap(
+        &self,
+        station_address: &str,
+        amount_sats: u64,
+    ) -> Result<ActionOutcome> {
+        let owner = self
+            .signer
+            .read()
+            .await
+            .as_ref()
+            .map(ActiveSigner::pubkey)
+            .ok_or_else(|| WavefuncError::AuthRequired("Sign in to retry a nutzap.".into()))?;
+        let key = PendingNutzap::key(owner, station_address, amount_sats);
+        let payment = {
+            let guard = self.cashu.read().await;
+            let wallet = guard
+                .as_ref()
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".into()))?;
+            wallet.pending_nutzap(&key).await?.ok_or_else(|| {
+                WavefuncError::Wallet("No pending nutzap for this station and amount.".into())
+            })?
+        };
+        self.sign_station_nutzap(payment, station_address, owner)
+            .await
     }
 
     /// Send an instant P2PK-locked NIP-61 Nutzap (`kind 9321`) to a WaveFunc station.
@@ -2793,42 +2825,98 @@ impl WavefuncCore {
         amount_sats: u64,
         comment: Option<&str>,
     ) -> Result<ActionOutcome> {
-        let info = self
-            .fetch_recipient_nutzap_info(station_pubkey)
-            .await?
-            .ok_or_else(|| {
-                WavefuncError::Wallet(
-                    "Station owner has not published NIP-61 Nutzap info (kind 10019)".to_string(),
-                )
-            })?;
-
-        let recipient_p2pk = info
-            .p2pk_pubkey
-            .as_deref()
-            .filter(|s| !s.is_empty())
-            .unwrap_or(station_pubkey);
-
-        let (mint_url, proof_jsons) = {
+        let owner = self
+            .signer
+            .read()
+            .await
+            .as_ref()
+            .map(ActiveSigner::pubkey)
+            .ok_or_else(|| WavefuncError::AuthRequired("Sign in to send a nutzap.".into()))?;
+        let recipient = PublicKey::from_hex(station_pubkey)?;
+        if !station_address.starts_with(&format!("{STATION_KIND}:{recipient}:")) {
+            return Err(WavefuncError::InvalidStationAddress(
+                station_address.to_string(),
+            ));
+        }
+        let key = PendingNutzap::key(owner, station_address, amount_sats);
+        let payment = {
+            // Serialize preparation: a second tap, a signing cancellation or a lost relay
+            // acknowledgement must retry the already issued proofs, including after restart.
             let mut guard = self.cashu.write().await;
             let mgr = guard
                 .as_mut()
-                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".to_string()))?;
-            mgr.create_p2pk_nutzap_proofs(recipient_p2pk, &info.mints, amount_sats)
-                .await?
+                .ok_or_else(|| WavefuncError::Wallet("Cashu wallet not initialized".into()))?;
+            if let Some(payment) = mgr.pending_nutzap(&key).await? {
+                payment
+            } else {
+                let info = self
+                    .fetch_recipient_nutzap_info(station_pubkey)
+                    .await?
+                    .ok_or_else(|| {
+                        WavefuncError::Wallet(
+                            "No NIP-61 nutzap information for this recipient.".into(),
+                        )
+                    })?;
+                let recipient_p2pk = info
+                    .p2pk_pubkey
+                    .as_deref()
+                    .filter(|s| !s.trim().is_empty())
+                    .ok_or_else(|| {
+                        WavefuncError::Wallet(
+                            "Recipient did not advertise a nutzap P2PK key.".into(),
+                        )
+                    })?;
+                let relays = nutzap_relays(&info)?;
+                if self.signer.read().await.as_ref().map(ActiveSigner::pubkey) != Some(owner) {
+                    return Err(WavefuncError::AuthRequired(
+                        "Account changed before nutzap preparation.".into(),
+                    ));
+                }
+                let (mint, proofs) = mgr
+                    .create_p2pk_nutzap_proofs(recipient_p2pk, &info.mints, amount_sats)
+                    .await?;
+                let unsigned = build_station_nutzap_builder(
+                    station_event_id,
+                    station_pubkey,
+                    station_address,
+                    &mint,
+                    &proofs,
+                    comment,
+                )?
+                .finalize_unsigned(owner);
+                let payment = PendingNutzap { unsigned, relays };
+                mgr.save_pending_nutzap(&key, &payment).await?;
+                payment
+            }
         };
+        self.sign_station_nutzap(payment, station_address, owner)
+            .await
+    }
 
-        let builder = build_station_nutzap_builder(
-            station_event_id,
-            station_pubkey,
-            station_address,
-            &mint_url,
-            &proof_jsons,
-            comment,
-        )?;
+    async fn sign_station_nutzap(
+        &self,
+        payment: PendingNutzap,
+        station_address: &str,
+        owner: PublicKey,
+    ) -> Result<ActionOutcome> {
         let outcome = self
-            .sign_or_prepare(builder, Some(station_address.to_string()))
+            .sign_or_prepare_for(
+                payment.builder(),
+                Some(station_address.to_string()),
+                Some(owner),
+            )
             .await?;
-        self.publish_nip60_rollover_for_mint(&mint_url).await;
+        if let Some(mint) = payment
+            .unsigned
+            .tags
+            .iter()
+            .find_map(|t| match t.as_slice() {
+                [name, value, ..] if name == "u" => Some(value.as_str()),
+                _ => None,
+            })
+        {
+            self.publish_nip60_rollover_for_mint(mint).await;
+        }
         Ok(outcome)
     }
 
@@ -3685,22 +3773,125 @@ impl WavefuncCore {
     }
 }
 
-fn note_write_relays(relay_list: Option<&Event>) -> Vec<RelayUrl> {
-    let mut seen = HashSet::new();
-    let outboxes: Vec<_> = relay_list
+fn nutzap_event_key(event: &Event) -> Result<String> {
+    let address = event
+        .tags
+        .iter()
+        .find_map(|t| match t.as_slice() {
+            [name, value, ..] if name == "a" => Some(value.as_str()),
+            _ => None,
+        })
+        .ok_or_else(|| WavefuncError::InvalidInput("Missing nutzap station address.".into()))?;
+    Ok(PendingNutzap::key(
+        event.pubkey,
+        address,
+        crate::social::extract_nutzap_sats(event),
+    ))
+}
+
+fn nutzap_relays(info: &RecipientNutzapInfo) -> Result<Vec<RelayUrl>> {
+    let relays: Vec<_> = unique_relays(info.relays.iter().filter_map(|r| RelayUrl::parse(r).ok()))
         .into_iter()
-        .flat_map(nip65::extract_relay_list)
-        .filter(|(url, usage)| *usage != Some(RelayMetadata::Read) && seen.insert(url.clone()))
         .take(8)
-        .map(|(url, _)| url)
         .collect();
-    if outboxes.is_empty() {
-        DEFAULT_SOCIAL_RELAYS
-            .iter()
-            .map(|url| RelayUrl::parse(url).expect("valid default relay"))
+    if relays.is_empty() {
+        return Err(WavefuncError::Wallet(
+            "Recipient did not advertise a usable nutzap relay.".into(),
+        ));
+    }
+    Ok(relays)
+}
+
+fn is_publication(kind: Kind) -> bool {
+    matches!(
+        kind.as_u16(),
+        0 | COMMUNITY_POST_KIND
+            | REACTION_KIND
+            | COMMENT_KIND
+            | 1985
+            | NUTZAP_KIND
+            | LISTENING_STATUS_KIND
+            | RELAY_LIST_KIND
+    )
+}
+
+fn tagged_recipients(event: &Event) -> Vec<PublicKey> {
+    let mut seen = HashSet::new();
+    event
+        .tags
+        .iter()
+        .filter_map(|tag| match tag.as_slice() {
+            [key, value, ..] if key == "p" || key == "P" => PublicKey::from_hex(value).ok(),
+            _ => None,
+        })
+        .filter(|key| seen.insert(*key))
+        .take(8)
+        .collect()
+}
+
+fn unique_relays(urls: impl IntoIterator<Item = RelayUrl>) -> Vec<RelayUrl> {
+    let mut seen = HashSet::new();
+    urls.into_iter()
+        .filter(|url| seen.insert(url.clone()))
+        .collect()
+}
+
+fn nip65_relays(list: &Event, mode: RelayMetadata) -> Vec<RelayUrl> {
+    let relays = nip65::extract_relay_list(list)
+        .filter(|(_, usage)| usage.is_none() || *usage == Some(mode))
+        .map(|(url, _)| url);
+    unique_relays(relays).into_iter().take(8).collect()
+}
+
+struct PublicationRelays {
+    writes: Vec<RelayUrl>,
+    inboxes: Vec<RelayUrl>,
+}
+
+impl PublicationRelays {
+    fn receipt_urls(self, app_relay: &str) -> Vec<String> {
+        let app = RelayUrl::parse(app_relay).ok();
+        unique_relays(app.into_iter().chain(self.inboxes).chain(self.writes))
+            .into_iter()
+            .filter(|url| url.as_str().starts_with("wss://"))
+            .map(|url| url.to_string())
             .collect()
-    } else {
-        outboxes
+    }
+
+    fn from_lists(
+        author: PublicKey,
+        recipients: &[PublicKey],
+        lists: impl IntoIterator<Item = Event>,
+    ) -> Self {
+        let mut latest = HashMap::<PublicKey, Event>::new();
+        for event in lists {
+            if event.kind == Kind::RelayList
+                && latest.get(&event.pubkey).is_none_or(|previous| {
+                    event.created_at > previous.created_at
+                        || (event.created_at == previous.created_at && event.id < previous.id)
+                })
+            {
+                latest.insert(event.pubkey, event);
+            }
+        }
+        let author_relays = latest
+            .get(&author)
+            .into_iter()
+            .flat_map(|e| nip65_relays(e, RelayMetadata::Write));
+        let writes = unique_relays(
+            author_relays.chain(
+                DEFAULT_SOCIAL_RELAYS
+                    .iter()
+                    .map(|url| RelayUrl::parse(url).expect("valid default relay")),
+            ),
+        );
+        let inboxes = unique_relays(
+            recipients
+                .iter()
+                .filter_map(|key| latest.get(key))
+                .flat_map(|e| nip65_relays(e, RelayMetadata::Read)),
+        );
+        Self { writes, inboxes }
     }
 }
 
@@ -3791,37 +3982,174 @@ mod song_write_tests {
     }
 
     #[test]
-    fn public_note_uses_only_the_authors_write_relays_or_social_defaults() {
-        let keys = Keys::generate();
-        let build_list = |tags: Vec<Tag>| {
+    fn public_events_combine_author_outboxes_recipient_inboxes_and_public_relays() {
+        let author = Keys::generate();
+        let recipient = Keys::generate();
+        let list = |key: &Keys, url: &str, usage: &str, timestamp: u64| {
             EventBuilder::new(Kind::RelayList, "")
-                .tags(tags)
-                .finalize(&keys)
+                .tag(Tag::parse(["r", url, usage]).unwrap())
+                .custom_created_at(Timestamp::from(timestamp))
+                .finalize(key)
                 .unwrap()
         };
-        let read_tag = Tag::parse(["r", "wss://read.example", "read"]).unwrap();
-        let write_tags = vec![
-            read_tag.clone(),
-            Tag::parse(["r", "wss://write.example", "write"]).unwrap(),
-            Tag::parse(["r", "wss://write.example/"]).unwrap(),
-            Tag::parse(["r", "wss://both.example"]).unwrap(),
-        ];
-        assert_eq!(
-            note_write_relays(Some(&build_list(write_tags))),
+        let current = list(&author, "wss://outbox.example", "write", 2);
+        let targets = PublicationRelays::from_lists(
+            author.public_key(),
+            &[recipient.public_key()],
             [
-                RelayUrl::parse("wss://write.example").unwrap(),
-                RelayUrl::parse("wss://both.example").unwrap()
-            ]
+                current,
+                list(&author, "wss://old.example", "write", 1),
+                list(&recipient, "wss://inbox.example", "read", 3),
+            ],
         );
-        let fallback: Vec<_> = DEFAULT_SOCIAL_RELAYS
-            .iter()
-            .map(|url| RelayUrl::parse(url).unwrap())
-            .collect();
-        assert_eq!(note_write_relays(None), fallback);
         assert_eq!(
-            note_write_relays(Some(&build_list(vec![read_tag]))),
-            fallback
+            targets.writes[0],
+            RelayUrl::parse("wss://outbox.example").unwrap()
         );
+        assert_eq!(targets.writes.len(), 1 + DEFAULT_SOCIAL_RELAYS.len());
+        assert_eq!(
+            targets.inboxes,
+            [RelayUrl::parse("wss://inbox.example").unwrap()]
+        );
+        let receipts = targets.receipt_urls("wss://app.example");
+        assert_eq!(receipts.len(), 3 + DEFAULT_SOCIAL_RELAYS.len());
+        assert!(receipts.contains(&RelayUrl::parse("wss://inbox.example").unwrap().to_string()));
+
+        let parent = Keys::generate();
+        let busy_inbox = EventBuilder::new(Kind::RelayList, "")
+            .tags(
+                (1..=9).map(|i| Tag::parse(["r", &format!("wss://{i}.example"), "read"]).unwrap()),
+            )
+            .finalize(&recipient)
+            .unwrap();
+        let parent_inbox = list(&parent, "wss://parent.example", "read", 1);
+        let thread_relays = PublicationRelays::from_lists(
+            author.public_key(),
+            &[recipient.public_key(), parent.public_key()],
+            [busy_inbox, parent_inbox],
+        );
+        assert_eq!(thread_relays.inboxes.len(), 9);
+        assert!(thread_relays
+            .inboxes
+            .contains(&RelayUrl::parse("wss://parent.example").unwrap()));
+
+        let keys = recipient.public_key().to_hex();
+        let comment = EventBuilder::new(Kind::Custom(COMMENT_KIND), "song")
+            .tags([
+                Tag::parse(["P", &keys]).unwrap(),
+                Tag::parse(["p", &keys]).unwrap(),
+            ])
+            .finalize(&author)
+            .unwrap();
+        assert_eq!(tagged_recipients(&comment), [recipient.public_key()]);
+    }
+
+    #[test]
+    fn public_broadcast_is_limited_to_public_event_kinds() {
+        for kind in [0, 1, 7, 1111, 1985, 9321, 10002, 30315] {
+            assert!(is_publication(Kind::from(kind)));
+        }
+        for kind in [
+            5, 9734, 9735, 30078, 31237, 31337, 7375, 7376, 17375, 10019, 23194, 24242,
+        ] {
+            assert!(!is_publication(Kind::from(kind)));
+        }
+    }
+
+    #[tokio::test]
+    async fn nutzap_retries_reuse_the_prepared_event_and_recipient_relays_across_restart() {
+        let dir =
+            std::env::temp_dir().join(format!("wavefunc-pending-payment-{}", uuid::Uuid::new_v4()));
+        let author = Keys::generate();
+        let recipient = Keys::generate().public_key().to_hex();
+        let address = format!("{STATION_KIND}:{recipient}:station");
+        let pending_key = PendingNutzap::key(author.public_key(), &address, 5);
+        let builder = build_station_nutzap_builder(
+            "",
+            &recipient,
+            &address,
+            "https://mint.example",
+            &[r#"{"amount":5}"#.into()],
+            Some("original comment"),
+        )
+        .unwrap();
+        let unsigned = builder
+            .clone()
+            .custom_created_at(42.into())
+            .finalize_unsigned(author.public_key());
+        let relays = vec![RelayUrl::parse("wss://receiver.example").unwrap()];
+        let payment = PendingNutzap {
+            unsigned,
+            relays: relays.clone(),
+        };
+        let expected = payment.builder().finalize(&author).unwrap();
+        {
+            let wallet =
+                CashuWalletManager::open(dir.to_str().unwrap(), "test", &["invalid".into()])
+                    .await
+                    .unwrap();
+            wallet
+                .save_pending_nutzap(&pending_key, &payment)
+                .await
+                .unwrap();
+        }
+
+        let core = WavefuncCore::new(CoreConfig::default());
+        *core.signer.write().await = Some(ActiveSigner::Amber {
+            pubkey: author.public_key(),
+        });
+        let wallet = CashuWalletManager::open(dir.to_str().unwrap(), "test", &["invalid".into()])
+            .await
+            .unwrap();
+        *core.cashu.write().await = Some(wallet);
+        assert_eq!(
+            core.pending_station_nutzap_amounts(&address).await.unwrap(),
+            [5]
+        );
+        assert!(core
+            .pending_station_nutzap_amounts("other-station")
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(core.retry_station_nutzap(&address, 21).await.is_err());
+        let retry = core
+            .send_station_nutzap("", &recipient, &address, 5, Some("edited"))
+            .await
+            .unwrap();
+        let signed = UnsignedEvent::from_json(retry.unsigned_event_json.unwrap())
+            .unwrap()
+            .finalize(&author)
+            .unwrap();
+        assert_eq!(signed.id, expected.id);
+        let saved = core.retry_station_nutzap(&address, 5).await.unwrap();
+        assert_eq!(
+            UnsignedEvent::from_json(saved.unsigned_event_json.unwrap())
+                .unwrap()
+                .id(),
+            expected.id
+        );
+        assert_eq!(core.nutzap_delivery_relays(&signed).await.unwrap(), relays);
+
+        let altered = EventBuilder::new(signed.kind, "another payment")
+            .tags(signed.tags.clone())
+            .finalize(&author)
+            .unwrap();
+        assert!(core.nutzap_delivery_relays(&altered).await.is_err());
+        let guard = core.cashu.read().await;
+        let wallet = guard.as_ref().unwrap();
+        wallet
+            .confirm_nutzap(&pending_key, altered.id)
+            .await
+            .unwrap();
+        assert!(wallet.pending_nutzap(&pending_key).await.unwrap().is_some());
+        wallet
+            .confirm_nutzap(&pending_key, signed.id)
+            .await
+            .unwrap();
+        assert!(wallet.pending_nutzap(&pending_key).await.unwrap().is_none());
+        drop(guard);
+        drop(core);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[tokio::test]
@@ -3831,16 +4159,23 @@ mod song_write_tests {
         let current = Keys::generate().public_key();
         *core.signer.write().await = Some(ActiveSigner::Amber { pubkey: current });
         let builder = EventBuilder::new(Kind::Custom(SONG_KIND), "");
-        let err = core.sign_or_prepare_for(builder, None, Some(previous)).await.unwrap_err();
+        let err = core
+            .sign_or_prepare_for(builder, None, Some(previous))
+            .await
+            .unwrap_err();
         assert!(matches!(err, WavefuncError::AuthRequired(_)));
     }
 
     #[tokio::test]
     async fn cannot_overwrite_an_unreadable_song() {
         let core = WavefuncCore::new(CoreConfig::default());
-        *core.signer.write().await = Some(ActiveSigner::Amber { pubkey: Keys::generate().public_key() });
-        let err = core.create_song_event("Track", None, None, None, None, None, None, &[])
-            .await.unwrap_err();
+        *core.signer.write().await = Some(ActiveSigner::Amber {
+            pubkey: Keys::generate().public_key(),
+        });
+        let err = core
+            .create_song_event("Track", None, None, None, None, None, None, &[])
+            .await
+            .unwrap_err();
         assert!(matches!(err, WavefuncError::NotConnected(_)));
     }
 }

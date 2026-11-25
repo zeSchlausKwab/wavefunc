@@ -996,6 +996,7 @@ pub async fn refresh_nwc_balance() -> Result<FrbNwcWalletStatus, String> {
 }
 
 pub async fn prepare_station_zap(
+    station_event_id: String,
     station_pubkey: String,
     station_address: String,
     amount_sats: u64,
@@ -1003,6 +1004,7 @@ pub async fn prepare_station_zap(
 ) -> Result<FrbZapInvoiceResult, String> {
     core()
         .prepare_station_zap(
+            &station_event_id,
             &station_pubkey,
             &station_address,
             amount_sats,
@@ -1045,12 +1047,13 @@ pub async fn pay_invoice_nwc(
 }
 
 pub async fn check_station_zap_receipt(
+    station_event_id: String,
     station_address: String,
     bolt11: String,
     since_unix: u64,
 ) -> Result<bool, String> {
     core()
-        .check_station_zap_receipt(&station_address, &bolt11, since_unix)
+        .check_station_zap_receipt(&station_event_id, &station_address, &bolt11, since_unix)
         .await
         .map_err(|e| e.to_string())
 }
@@ -1381,24 +1384,37 @@ pub async fn fetch_recipient_nutzap_info(
         .map_err(|e| e.to_string())
 }
 
+pub async fn pending_station_nutzap_amounts(station_address: String) -> Result<Vec<u64>, String> {
+    core()
+        .pending_station_nutzap_amounts(&station_address)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 pub async fn send_station_nutzap(
     station_event_id: String,
     station_pubkey: String,
     station_address: String,
     amount_sats: u64,
     comment: Option<String>,
+    retry_only: bool,
 ) -> Result<FrbActionOutcome, String> {
-    core()
-        .send_station_nutzap(
-            &station_event_id,
-            &station_pubkey,
-            &station_address,
-            amount_sats,
-            comment.as_deref(),
-        )
-        .await
-        .map(Into::into)
-        .map_err(|e| e.to_string())
+    let result = if retry_only {
+        core()
+            .retry_station_nutzap(&station_address, amount_sats)
+            .await
+    } else {
+        core()
+            .send_station_nutzap(
+                &station_event_id,
+                &station_pubkey,
+                &station_address,
+                amount_sats,
+                comment.as_deref(),
+            )
+            .await
+    };
+    result.map(Into::into).map_err(|e| e.to_string())
 }
 
 pub async fn prepare_youtube_media(

@@ -161,7 +161,7 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
         if (_tagSongstr) 'songstr',
         if (_tagTunestr) 'tunestr',
       ];
-      final outcome = await widget.authViewModel.executeSignedAction(
+      await widget.authViewModel.executeSignedAction(
         (backend) => backend.publishSongShareNote(
           content: text,
           songAddress: widget.song.address,
@@ -170,9 +170,6 @@ class _ShareSongSheetState extends State<ShareSongSheet> {
         ),
         expectedAuthor: _author,
       );
-      if (!outcome.published) {
-        throw StateError('No relay confirmed the note was published.');
-      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

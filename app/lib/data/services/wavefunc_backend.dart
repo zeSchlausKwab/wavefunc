@@ -179,6 +179,7 @@ abstract class WavefuncBackend {
   Future<NwcWalletStatus> refreshNwcBalance();
 
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
@@ -199,6 +200,7 @@ abstract class WavefuncBackend {
   });
 
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
@@ -256,12 +258,15 @@ abstract class WavefuncBackend {
 
   Future<RecipientNutzapInfo?> fetchRecipientNutzapInfo(String pubkeyHex);
 
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress);
+
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   });
 
   // ── Song Search (MusicBrainz), YouTube Search & Blossom Media Forge ───────

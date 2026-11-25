@@ -467,7 +467,8 @@ class RecipientNutzapInfo {
   final List<String> mints;
   final List<String> relays;
 
-  bool get acceptsNutzaps => mints.isNotEmpty;
+  bool get acceptsNutzaps =>
+      (p2pkPubkey?.isNotEmpty ?? false) && mints.isNotEmpty && relays.isNotEmpty;
 }
 
 class MusicBrainzRecording {

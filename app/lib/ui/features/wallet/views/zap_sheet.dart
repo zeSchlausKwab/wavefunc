@@ -70,6 +70,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
 
   RecipientNutzapInfo? _nutzapInfo;
   bool _nutzapInfoLoaded = false;
+  List<int> _pendingNutzapAmounts = const [];
 
   Timer? _receiptTimer;
   int _invoiceIssuedAt = 0;
@@ -80,6 +81,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadNutzapInfo();
+    _loadPendingNutzaps();
   }
 
   @override
@@ -109,6 +111,16 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _loadPendingNutzaps() async {
+    try {
+      final amounts =
+          await widget.authViewModel.pendingStationNutzapAmounts(widget.station.address);
+      if (mounted) setState(() => _pendingNutzapAmounts = amounts);
+    } catch (e) {
+      _setError(e);
+    }
+  }
+
   int get _effectiveSats {
     final raw = _customAmountController.text.trim();
     if (raw.isNotEmpty) {
@@ -124,7 +136,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
   }
 
   static String _normalizeMint(String url) =>
-      url.trim().replaceAll(RegExp(r'/+$'), '').toLowerCase();
+      url.trim().replaceAll(RegExp(r'/+$'), '');
 
   /// Cashu balance on mints the recipient accepts for nutzaps.
   int _compatibleNutzapBalance(CashuWalletStatus cashu) {
@@ -163,6 +175,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
 
   Future<ZapInvoiceResult> _prepareInvoice(int amount) async {
     final inv = await widget.authViewModel.prepareStationZap(
+      stationEventId: widget.station.id,
       stationPubkey: widget.station.pubkey,
       stationAddress: widget.station.address,
       amountSats: amount,
@@ -234,14 +247,17 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
         );
       });
 
-  Future<void> _sendNutzap() => _runBusy('Locking P2PK ecash...', () async {
-        final amount = _effectiveSats;
+  Future<void> _sendNutzap(int amount, {bool retryOnly = false}) async {
+    await _runBusy(
+      retryOnly ? 'Retrying nutzap delivery...' : 'Locking P2PK ecash...',
+      () async {
         final outcome = await widget.authViewModel.sendStationNutzap(
           stationEventId: widget.station.id,
           stationPubkey: widget.station.pubkey,
           stationAddress: widget.station.address,
           amountSats: amount,
           comment: _comment,
+          retryOnly: retryOnly,
         );
         if (!mounted) return;
         _confirm(
@@ -251,7 +267,10 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
             detail: outcome.eventId,
           ),
         );
-      });
+      },
+    );
+    if (mounted) await _loadPendingNutzaps();
+  }
 
   Future<void> _generateQrInvoice() =>
       _runBusy('Fetching invoice...', () async {
@@ -283,6 +302,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
     _checkingReceipt = true;
     try {
       final found = await widget.authViewModel.checkStationZapReceipt(
+        stationEventId: widget.station.id,
         stationAddress: widget.station.address,
         bolt11: bolt11,
         sinceUnix: _invoiceIssuedAt,
@@ -425,7 +445,7 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
   List<Widget> _buildAmountForm(NwcWalletStatus nwc, CashuWalletStatus cashu) {
     final amount = _effectiveSats;
     final nutzapBalance = _compatibleNutzapBalance(cashu);
-    final canNutzap = cashu.initialized &&
+    final canFundNutzap = cashu.initialized &&
         (_nutzapInfo?.acceptsNutzaps ?? false) &&
         nutzapBalance >= amount;
     final canMelt = cashu.initialized && _maxSingleMintBalance(cashu) >= amount;
@@ -437,12 +457,26 @@ class _ZapSheetState extends State<ZapSheet> with WidgetsBindingObserver {
     }
 
     var primaryUsed = false;
-    if (canNutzap) {
+    for (final pendingAmount in _pendingNutzapAmounts) {
+      addAction(
+        SonicPowerButton(
+          label: 'Retry $pendingAmount Sat Nutzap',
+          icon: Icons.refresh,
+          primary: !primaryUsed,
+          compact: primaryUsed,
+          onPressed: _isBusy ? null : () => _sendNutzap(pendingAmount, retryOnly: true),
+        ),
+      );
+      primaryUsed = true;
+    }
+    if (canFundNutzap && !_pendingNutzapAmounts.contains(amount)) {
       addAction(
         SonicPowerButton(
           label: _isBusy ? (_busyLabel ?? 'Working...') : 'Nutzap $amount Sats (Instant)',
           icon: Icons.toll,
-          onPressed: _isBusy ? null : _sendNutzap,
+          primary: !primaryUsed,
+          compact: primaryUsed,
+          onPressed: _isBusy ? null : () => _sendNutzap(amount),
         ),
       );
       primaryUsed = true;

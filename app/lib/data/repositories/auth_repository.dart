@@ -313,8 +313,11 @@ class AuthRepository {
     );
     if (expectedAuthor != null) _requireEventAuthor(signedJson, expectedAuthor);
     final published = await _backend.publishSignedEvent(signedJson);
+    if (!published.published) {
+      throw StateError('No relay confirmed publication.');
+    }
     return ActionOutcome(
-      published: published.published,
+      published: true,
       eventId: published.eventId,
       targetAddress: outcome.targetAddress ?? published.targetAddress,
     );
@@ -357,12 +360,14 @@ class AuthRepository {
   }
 
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
     String? comment,
   }) async {
     final first = await _backend.prepareStationZap(
+      stationEventId: stationEventId,
       stationPubkey: stationPubkey,
       stationAddress: stationAddress,
       amountSats: amountSats,
@@ -405,12 +410,14 @@ class AuthRepository {
   }
 
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
   }) async {
     try {
       return await _backend.checkStationZapReceipt(
+        stationEventId: stationEventId,
         stationAddress: stationAddress,
         bolt11: bolt11,
         sinceUnix: sinceUnix,
@@ -581,6 +588,9 @@ class AuthRepository {
     }
   }
 
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) =>
+      _backend.pendingStationNutzapAmounts(stationAddress);
+
   /// Send a P2PK-locked NIP-61 nutzap; signs via Amber transparently when needed.
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
@@ -588,6 +598,7 @@ class AuthRepository {
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   }) async {
     final outcome = await completeAction(
       (backend) => backend.sendStationNutzap(
@@ -596,6 +607,7 @@ class AuthRepository {
         stationAddress: stationAddress,
         amountSats: amountSats,
         comment: comment,
+        retryOnly: retryOnly,
       ),
     );
     _cashuStatus = await _backend.getCashuStatus();

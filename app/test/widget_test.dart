@@ -312,7 +312,7 @@ class _FakeBackend implements WavefuncBackend {
 
   @override
   Future<ActionOutcome> publishSignedEvent(String signedEventJson) async =>
-      ActionOutcome(published: !rejectShare, eventId: 'evt-signed');
+      ActionOutcome(published: !rejectPublication, eventId: 'evt-signed');
 
   @override
   Future<List<FeaturedList>> fetchUserFavorites() async =>
@@ -426,6 +426,7 @@ class _FakeBackend implements WavefuncBackend {
     String? rootId,
     String? rootPubkey,
   }) async {
+    if (rejectPublication) return unsignedNote;
     _communityPosts.insert(
       0,
       CommunityPost(
@@ -530,6 +531,7 @@ class _FakeBackend implements WavefuncBackend {
 
   @override
   Future<ZapInvoiceResult> prepareStationZap({
+    required String stationEventId,
     required String stationPubkey,
     required String stationAddress,
     required int amountSats,
@@ -600,6 +602,7 @@ class _FakeBackend implements WavefuncBackend {
 
   @override
   Future<bool> checkStationZapReceipt({
+    required String stationEventId,
     required String stationAddress,
     required String bolt11,
     required int sinceUnix,
@@ -718,6 +721,12 @@ class _FakeBackend implements WavefuncBackend {
   ) async =>
       nutzapInfo;
 
+  final List<int> pendingAmounts = [];
+
+  @override
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) async =>
+      [...pendingAmounts];
+
   @override
   Future<ActionOutcome> sendStationNutzap({
     required String stationEventId,
@@ -725,8 +734,13 @@ class _FakeBackend implements WavefuncBackend {
     required String stationAddress,
     required int amountSats,
     String? comment,
+    bool retryOnly = false,
   }) async {
-    cashuBalance -= amountSats;
+    if (retryOnly) {
+      if (!pendingAmounts.remove(amountSats)) throw StateError('No pending payment');
+    } else {
+      cashuBalance -= amountSats;
+    }
     sentNutzaps.add('$stationAddress:$amountSats');
     return ActionOutcome(
       published: true,
@@ -876,7 +890,11 @@ class _FakeBackend implements WavefuncBackend {
   @override
   Future<SignalChartsData> fetchSignalCharts() async => signalChartsData;
 
-  bool rejectShare = false;
+  bool rejectPublication = false;
+  static const unsignedNote = ActionOutcome(
+    published: false,
+    unsignedEventJson: '{"kind":1,"pubkey":"deadbeef"}',
+  );
   final sharedSongNotes = <({
     String content,
     String? songAddress,
@@ -891,12 +909,7 @@ class _FakeBackend implements WavefuncBackend {
     String? audioUrl,
     List<String> hashtags = const ['wavefunc', 'songstr', 'tunestr'],
   }) async {
-    if (rejectShare) {
-      return const ActionOutcome(
-        published: false,
-        unsignedEventJson: '{"kind":1,"pubkey":"deadbeef"}',
-      );
-    }
+    if (rejectPublication) return unsignedNote;
     sharedSongNotes.add((
       content: content,
       songAddress: songAddress,
@@ -1136,6 +1149,28 @@ void main() {
       ],
     ),
   ];
+
+  test('community post requires relay confirmation after external signing', () async {
+    final backend = _FakeBackend(testStations)..rejectPublication = true;
+    final repo = AuthRepository(
+      backend: backend,
+      storage: _InMemoryAuthStorage(),
+      amber: _TestAmberSigner(),
+      preferences: PreferencesService(await SharedPreferences.getInstance()),
+    );
+    await repo.loginWithNsec('nsec1test');
+    final auth = AuthViewModel(authRepository: repo);
+    final community = CommunityViewModel(backend: backend, authViewModel: auth);
+    addTearDown(auth.dispose);
+    addTearDown(community.dispose);
+
+    expect(await community.publishPost(content: 'Testing a post'), isFalse);
+    expect(community.errorMessage, contains('No relay confirmed publication.'));
+
+    backend.rejectPublication = false;
+    expect(await community.publishPost(content: 'Testing a post'), isTrue);
+    expect(community.rootPosts.first.content, 'Testing a post');
+  });
 
   testWidgets(
       'mobile shell: compact featured strip, social bar, zap sheet, favorites & crate',
@@ -1518,6 +1553,7 @@ void main() {
       pubkey: 'pk-1',
       p2pkPubkey: '02abcdef',
       mints: ['https://mint.minibits.cash/Bitcoin/'],
+      relays: ['wss://wallet.example'],
     );
     await h.authVm.initCashuAt('/tmp/wavefunc-test-cashu');
     expect(h.authVm.cashuBalanceSats, 500);
@@ -1545,6 +1581,41 @@ void main() {
     expect(find.text('NUTZAP PUBLISHED (P2PK)'), findsOneWidget);
     expect(h.backend.sentNutzaps, ['31237:pk-1:soma-groove:100']);
     expect(h.authVm.cashuBalanceSats, 400);
+
+    await tester.pumpWidget(const SizedBox());
+    h.discoverVm.dispose();
+    h.authVm.dispose();
+  });
+
+  testWidgets(
+      'zap sheet keeps nutzap delivery available after spending the last sats',
+      (tester) async {
+    final h = await buildZapHarness(tester);
+    h.backend.cashuBalance = 0;
+    await h.authVm.initCashuAt('/tmp/wavefunc-test-cashu');
+    final sheet = MaterialApp(
+      home: Scaffold(
+        body: ZapSheet(
+          station: testStations.first,
+          authViewModel: h.authVm,
+          discoverViewModel: h.discoverVm,
+        ),
+      ),
+    );
+    await tester.pumpWidget(sheet);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('RETRY'), findsNothing);
+    expect(find.text('NUTZAP 100 SATS (INSTANT)'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    h.backend.pendingAmounts.add(21);
+    await tester.pumpWidget(sheet);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('RETRY 21 SAT NUTZAP'));
+    await tester.pumpAndSettle();
+    expect(find.text('ZAP CONFIRMED // 21 SATS'), findsOneWidget);
+    expect(h.backend.sentNutzaps, ['31237:pk-1:soma-groove:21']);
+    expect(h.authVm.cashuBalanceSats, 0);
 
     await tester.pumpWidget(const SizedBox());
     h.discoverVm.dispose();
@@ -1903,16 +1974,16 @@ void main() {
 
     final edited = 'On repeat!\n\n${draft()}';
     await tester.enterText(editor, edited);
-    backend.rejectShare = true;
+    backend.rejectPublication = true;
     await tester.tap(find.text('PUBLISH SHARE NOTE'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('No relay confirmed the note was published.'),
+      find.textContaining('No relay confirmed publication.'),
       findsOneWidget,
     );
     expect(draft(), edited);
     expect(backend.sharedSongNotes, isEmpty);
-    backend.rejectShare = false;
+    backend.rejectPublication = false;
     await tester.tap(find.text('PUBLISH SHARE NOTE'));
     await tester.pumpAndSettle();
     expect(find.byType(ShareSongSheet), findsNothing);
