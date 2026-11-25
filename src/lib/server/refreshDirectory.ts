@@ -46,6 +46,11 @@ export function scheduleDirectoryRefresh(lastCompleted: () => number) {
 }
 
 if (import.meta.main) {
-  const result = await importStations(directoryPath(), exportStations());
-  console.log("Refreshed station directory:", result);
+  // PM2 loads the web entry using require(), including this shared scheduler.
+  importStations(directoryPath(), exportStations()).then(result => {
+    console.log("Refreshed station directory:", result);
+  }).catch(error => {
+    console.error("Station directory export failed", error);
+    process.exitCode = 1;
+  });
 }
