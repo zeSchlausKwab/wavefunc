@@ -20,6 +20,16 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+        env:
+          RELAY_URL: wss://relay.wavefunc.live
+      - run: bunx --no-install playwright-core install --with-deps --only-shell chromium
+      - name: Open the production build in Chromium
+        run: |
+          PORT=3100 NODE_ENV=production bun src/index.tsx &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --fail --silent --output /dev/null --retry 10 --retry-delay 1 --retry-connrefused http://127.0.0.1:3100/apps
+          bun run test:production-web http://127.0.0.1:3100
 
   rust-core:
     runs-on: ubuntu-latest

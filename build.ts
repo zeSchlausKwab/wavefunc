@@ -151,7 +151,9 @@ const result = await Bun.build({
   outdir,
   plugins: [plugin],
   minify: true,
-  splitting: true,
+  // Bun 1.3.11 can wire a lazy Tauri module into index.html instead of the
+  // React entry when splitting an HTML build. Keep the entry self-contained.
+  splitting: false,
   target: "browser",
   // The HTML entrypoint is authored with relative references so Bun can
   // resolve it, but emitted chunks must load from the origin on nested routes.

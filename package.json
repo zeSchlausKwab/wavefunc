@@ -38,6 +38,7 @@
     "native:build:android": "cd app && flutter build apk --release --target-platform android-arm64",
     "native:build:android:aab": "cd app && flutter build appbundle --release",
     "test": "bun test tests",
+    "test:production-web": "node scripts/smoke-production-web.mjs",
     "typecheck": "tsc --noEmit",
     "benchmark:nostr": "bun scripts/benchmark-nostr.ts"
   },
@@ -114,6 +115,7 @@
     "@types/react-dom": "^19.2.4",
     "bun": "1.3.11",
     "fake-indexeddb": "^6.2.6",
+    "playwright-core": "1.63.0",
     "typescript": "5.9.3"
   },
   "packageManager": "bun@1.3.11"
