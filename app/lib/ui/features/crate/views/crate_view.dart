@@ -200,7 +200,9 @@ class _CrateViewState extends State<CrateView> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: SongRecordingCard(
                               recording: rec,
-                              alreadySaved: vm.hasSong(rec.title, rec.artist),
+                              alreadySaved: vm.savedSong(
+                                rec.title, rec.artist, mbid: rec.id,
+                              ) != null,
                               isSaving: vm.isSaving,
                               onSave: () => _saveRecording(rec),
                               onBackupToBlossom: () =>
@@ -537,19 +539,21 @@ class SongRecordingCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: SonicPowerButton(
-                  label: alreadySaved ? 'In Crate' : 'Save to Crate',
-                  icon: alreadySaved ? Icons.check : Icons.bookmark_add_outlined,
-                  primary: false,
-                  compact: true,
-                  onPressed: (isSaving || alreadySaved) ? null : onSave,
+              if (!alreadySaved) ...[
+                Expanded(
+                  child: SonicPowerButton(
+                    label: 'Save to Crate',
+                    icon: Icons.bookmark_add_outlined,
+                    primary: false,
+                    compact: true,
+                    onPressed: isSaving ? null : onSave,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: SonicPowerButton(
-                  label: 'Blossom Backup',
+                  label: alreadySaved ? 'Backup Song' : 'Blossom Backup',
                   icon: Icons.cloud_upload_outlined,
                   compact: true,
                   onPressed: onBackupToBlossom,

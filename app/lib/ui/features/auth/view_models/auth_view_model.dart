@@ -299,9 +299,10 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<ActionOutcome> executeSignedAction(
-    Future<ActionOutcome> Function(WavefuncBackend backend) operation,
-  ) {
-    return _authRepository.completeAction(operation);
+    Future<ActionOutcome> Function(WavefuncBackend backend) operation, {
+    String? expectedAuthor,
+  }) {
+    return _authRepository.completeAction(operation, expectedAuthor: expectedAuthor);
   }
 
   Future<String> signBlossomUploadAuth({

@@ -12,7 +12,6 @@ import {
   searchRecordingsCombined,
   getMusicMetadataStats,
 } from "./tools/musicbrainz.ts";
-import { searchYouTube, prepareDownload, uploadToBlossomWithSignedEvent } from "./tools/ytdlp.ts";
 import { createStationObserverFromEnvironment } from "./observer/service.ts";
 import {
   extractStreamMetadataInputSchema,
@@ -27,20 +26,12 @@ import {
   searchLabelsOutputSchema,
   searchRecordingsCombinedInputSchema,
   searchRecordingsCombinedOutputSchema,
-  searchYouTubeInputSchema,
-  searchYouTubeOutputSchema,
-  prepareDownloadInputSchema,
-  prepareDownloadOutputSchema,
-  uploadToBlossomInputSchema,
-  uploadToBlossomOutputSchema,
 } from "./schemas.ts";
 
 // Configuration
 const SERVER_PRIVATE_KEY =
   process.env.METADATA_SERVER_KEY ||
   "0000000000000000000000000000000000000000000000000000000000000001"; // Dev key
-const BLOSSOM_SERVER =
-  process.env.BLOSSOM_SERVER_URL || "https://blossom.band";
 const RELAYS = [
   process.env.RELAY_URL || "ws://localhost:3334",
   "wss://relay2.contextvm.org/",
@@ -412,117 +403,7 @@ async function main() {
     }
   );
 
-  // 9. Register Tool: Search YouTube
-  mcpServer.registerTool(
-    "search_youtube",
-    {
-      title: "Search YouTube",
-      description:
-        "Search YouTube for videos using yt-dlp. Returns video ID, title, duration, channel, and thumbnail. Use for finding audio sources to attach to songs.",
-      inputSchema: searchYouTubeInputSchema,
-      outputSchema: searchYouTubeOutputSchema,
-    },
-    async ({ query, limit }) => {
-      try {
-        console.log(`🎬 Searching YouTube: ${query} (limit=${limit ?? 5})`);
-        const results = await searchYouTube(query, limit ?? 5);
-        console.log(`✅ Found ${results.length} results`);
-        const output = { results };
-        return {
-          content: [{ type: "text", text: JSON.stringify(output, null, 2) }],
-          structuredContent: output,
-        };
-      } catch (error: any) {
-        console.error(`❌ YouTube search failed: ${error.message}`);
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // 10a. Register Tool: Prepare Download (server-side yt-dlp, returns hash for client to sign)
-  mcpServer.registerTool(
-    "prepare_download",
-    {
-      title: "Prepare Media Download",
-      description:
-        "Downloads a video or audio track via yt-dlp and stores it temporarily. Returns a tempId and SHA-256 hash so the client can sign a BUD-01 upload auth event. Call upload_to_blossom next. Valid for 15 minutes. May take 30–120 seconds.",
-      inputSchema: prepareDownloadInputSchema,
-      outputSchema: prepareDownloadOutputSchema,
-    },
-    async ({ videoId, format }, extra) => {
-      try {
-        const progressToken = extra._meta?.progressToken;
-        let progressCount = 0;
-        const onProgress = async (message: string) => {
-          if (progressToken === undefined) return;
-          try {
-            await extra.sendNotification({
-              method: "notifications/progress",
-              params: { progressToken, progress: ++progressCount, message },
-            } as any);
-          } catch {}
-        };
-
-        const result = await prepareDownload(videoId, format ?? "audio", onProgress);
-        console.log(`✅ Prepared: tempId=${result.tempId}, sha256=${result.sha256}`);
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          structuredContent: { ...result },
-        };
-      } catch (error: any) {
-        console.error(`❌ prepare_download failed: ${error.message}`);
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // 10b. Register Tool: Upload to Blossom with client-signed auth event
-  mcpServer.registerTool(
-    "upload_to_blossom",
-    {
-      title: "Upload to Blossom",
-      description:
-        "Uploads a previously prepared file (from prepare_download) to a Blossom server using a client-signed BUD-01 kind 24242 auth event. The file is attributed to the client's Nostr key.",
-      inputSchema: uploadToBlossomInputSchema,
-      outputSchema: uploadToBlossomOutputSchema,
-    },
-    async ({ tempId, blossomUrl, signedAuthEvent }, extra) => {
-      try {
-        const progressToken = extra._meta?.progressToken;
-        let progressCount = 0;
-        const onProgress = async (message: string) => {
-          if (progressToken === undefined) return;
-          try {
-            await extra.sendNotification({
-              method: "notifications/progress",
-              params: { progressToken, progress: ++progressCount, message },
-            } as any);
-          } catch {}
-        };
-
-        const result = await uploadToBlossomWithSignedEvent(tempId, blossomUrl, signedAuthEvent, onProgress);
-        console.log(`✅ Uploaded: ${result.url} (${result.size} bytes)`);
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          structuredContent: { ...result },
-        };
-      } catch (error: any) {
-        console.error(`❌ upload_to_blossom failed: ${error.message}`);
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: error.message }) }],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // 11. Configure the Nostr Server Transport
+  // Configure the Nostr Server Transport
   const serverTransport = new NostrServerTransport({
     signer,
     relayHandler: relayPool,
@@ -548,9 +429,6 @@ async function main() {
   console.log("   - search_recordings");
   console.log("   - search_recordings_combined (advanced multi-field search)");
   console.log("   - search_labels");
-  console.log("   - search_youtube");
-  console.log("   - prepare_download");
-  console.log("   - upload_to_blossom");
   console.log(`\n🔑 Client should use server pubkey: ${serverPubkey}`);
   console.log("💡 Press Ctrl+C to exit.\n");
 

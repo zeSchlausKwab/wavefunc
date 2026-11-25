@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../domain/models/social.dart';
 import '../services/amber_signer_service.dart';
 import '../services/preferences_service.dart';
@@ -289,8 +291,12 @@ class AuthRepository {
   }
 
   Future<ActionOutcome> completeAction(
-    Future<ActionOutcome> Function(WavefuncBackend backend) operation,
-  ) async {
+    Future<ActionOutcome> Function(WavefuncBackend backend) operation, {
+    String? expectedAuthor,
+  }) async {
+    if (expectedAuthor != null && _session?.pubkey != expectedAuthor) {
+      throw StateError('Account changed during song update.');
+    }
     final outcome = await operation(_backend);
     if (outcome.published) return outcome;
 
@@ -299,11 +305,13 @@ class AuthRepository {
       throw StateError('Signer did not publish or return an unsigned event.');
     }
 
+    if (expectedAuthor != null) _requireEventAuthor(unsignedJson, expectedAuthor);
     final signedJson = await _amber.signEvent(
       unsignedEventJson: unsignedJson,
-      currentUser: _session?.pubkey,
+      currentUser: expectedAuthor ?? _session?.pubkey,
       signerPackage: _session?.amberPackage,
     );
+    if (expectedAuthor != null) _requireEventAuthor(signedJson, expectedAuthor);
     final published = await _backend.publishSignedEvent(signedJson);
     return ActionOutcome(
       published: published.published,
@@ -594,6 +602,12 @@ class AuthRepository {
     return outcome;
   }
 
+  void _requireEventAuthor(String json, String expectedAuthor) {
+    if (_session?.pubkey != expectedAuthor || jsonDecode(json)['pubkey'] != expectedAuthor) {
+      throw StateError('The signer account changed during this action.');
+    }
+  }
+
   /// Sign a BUD-02 Blossom upload auth event (`kind 24242`) without publishing to relays.
   /// Transparently delegates to Android NIP-55 Amber when signed in with Amber.
   Future<String> signBlossomUploadAuth({
@@ -601,22 +615,28 @@ class AuthRepository {
     required String blossomUrl,
     required String format,
   }) async {
+    final session = _session;
+    if (session == null) throw StateError('Sign in to authorize a backup.');
     final res = await _backend.signBlossomUploadAuth(
       sha256: sha256,
       blossomUrl: blossomUrl,
       format: format,
     );
     if (res.signedEventJson != null && res.signedEventJson!.isNotEmpty) {
+      _requireEventAuthor(res.signedEventJson!, session.pubkey);
       return res.signedEventJson!;
     }
     final unsigned = res.unsignedEventJson;
     if (unsigned == null || unsigned.isEmpty) {
       throw StateError('Signer did not return Blossom upload authorization.');
     }
-    return _amber.signEvent(
+    _requireEventAuthor(unsigned, session.pubkey);
+    final signed = await _amber.signEvent(
       unsignedEventJson: unsigned,
-      currentUser: _session?.pubkey,
-      signerPackage: _session?.amberPackage,
+      currentUser: session.pubkey,
+      signerPackage: session.amberPackage,
     );
+    _requireEventAuthor(signed, session.pubkey);
+    return signed;
   }
 }

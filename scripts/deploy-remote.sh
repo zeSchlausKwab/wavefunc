@@ -24,7 +24,7 @@ fi
 echo "✓ Using Bun: $(which bun)"
 echo "✓ Using Go: $(which go)"
 
-# Install Node.js if missing (needed by yt-dlp for JS signature solving with YouTube web clients)
+# PM2 and its log rotation module run on Node.js.
 if ! command -v node >/dev/null 2>&1; then
     echo "📦 Installing Node.js (LTS)..."
     if command -v apt-get >/dev/null 2>&1; then
@@ -36,31 +36,6 @@ if ! command -v node >/dev/null 2>&1; then
 else
     echo "✓ Node.js: $(node --version)"
 fi
-
-# Install ffmpeg if missing (needed by yt-dlp for audio extraction and WebM encoding)
-if ! command -v ffmpeg >/dev/null 2>&1; then
-    echo "📦 Installing ffmpeg..."
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y ffmpeg || echo "⚠️  ffmpeg install failed — run 'sudo apt-get install -y ffmpeg' manually"
-    elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y ffmpeg || echo "⚠️  ffmpeg install failed — run 'sudo yum install -y ffmpeg' manually"
-    else
-        echo "⚠️  Cannot install ffmpeg automatically — install it manually"
-    fi
-else
-    echo "✓ ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
-fi
-
-# Install yt-dlp from the generic release asset.
-# The linux_exe build regressed on the VPS by failing to detect usable JS runtimes,
-# which broke YouTube extraction for videos that need challenge solving.
-YTDLP_BIN="contextvm/bin/yt-dlp"
-echo "📦 Installing/updating yt-dlp..."
-mkdir -p contextvm/bin
-rm -rf "$YTDLP_BIN"
-curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "$YTDLP_BIN"
-chmod +x "$YTDLP_BIN"
-echo "✓ yt-dlp: $("$YTDLP_BIN" --version)"
 
 # Extract deployment archive
 echo "📦 Extracting files..."
@@ -143,7 +118,6 @@ fi
 # Start each service with explicit settings
 # Using Bun interpreter for TypeScript files
 BUN_PATH="$HOME/.bun/bin/bun"
-YTDLP_BIN_ABS="$(pwd)/$YTDLP_BIN"
 
 NODE_ENV=production PORT=3000 pm2 start src/index.tsx \
     --name wavefunc-web \
@@ -168,7 +142,6 @@ pm2 start relay/relay \
 
 NODE_ENV=production \
 RELAY_URL="${CONTEXTVM_RELAY_URL:-ws://127.0.0.1:3334}" \
-YTDLP_PATH="${YTDLP_PATH:-$YTDLP_BIN_ABS}" \
 pm2 start contextvm/server.ts \
     --name wavefunc-contextvm \
     --interpreter "$BUN_PATH" \

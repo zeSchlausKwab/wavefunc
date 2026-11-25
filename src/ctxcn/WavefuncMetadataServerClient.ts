@@ -218,53 +218,6 @@ export interface SearchRecordingsCombinedOutput {
   }[];
 }
 
-export interface SearchYouTubeInput {
-  query: string;
-  limit?: number;
-}
-
-export interface YouTubeResult {
-  videoId: string;
-  url: string;
-  title: string;
-  duration?: number;
-  channel?: string;
-  thumbnailUrl?: string;
-  viewCount?: number;
-  uploadDate?: string;
-}
-
-export interface SearchYouTubeOutput {
-  results: YouTubeResult[];
-}
-
-export type DownloadFormat = "audio" | "360p" | "480p" | "720p";
-
-export interface PrepareDownloadInput {
-  videoId: string;
-  format?: DownloadFormat;
-}
-
-export interface PrepareDownloadOutput {
-  tempId: string;
-  sha256: string;
-  size: number;
-  mimeType: string;
-}
-
-export interface UploadToBlossomInput {
-  tempId: string;
-  blossomUrl: string;
-  signedAuthEvent: string;
-}
-
-export interface DownloadAudioOutput {
-  url: string;
-  sha256: string;
-  size: number;
-  mimeType: string;
-}
-
 export type WavefuncMetadataServer = {
   ExtractStreamMetadata: (url: string, context?: Omit<ExtractStreamMetadataInput, "url">) => Promise<ExtractStreamMetadataOutput>;
   SearchArtists: (query: string, limit?: number) => Promise<SearchArtistsOutput>;
@@ -272,9 +225,6 @@ export type WavefuncMetadataServer = {
   SearchRecordings: (query: string, artist?: string, limit?: number) => Promise<SearchRecordingsOutput>;
   SearchLabels: (query: string, limit?: number) => Promise<SearchLabelsOutput>;
   SearchRecordingsCombined: (recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number) => Promise<SearchRecordingsCombinedOutput>;
-  SearchYouTube: (query: string, limit?: number) => Promise<SearchYouTubeOutput>;
-  PrepareDownload: (videoId: string, format?: DownloadFormat, onprogress?: (p: { progress: number; message?: string }) => void) => Promise<PrepareDownloadOutput>;
-  UploadToBlossom: (tempId: string, blossomUrl: string, signedAuthEvent: string, onprogress?: (p: { progress: number; message?: string }) => void) => Promise<DownloadAudioOutput>;
 };
 
 export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
@@ -328,15 +278,12 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
   private async call<T = unknown>(
     name: string,
     args: Record<string, unknown>,
-    options?: { timeout?: number; onprogress?: (progress: { progress: number; message?: string }) => void }
   ): Promise<T> {
     if (this.closed) throw new Error("Metadata client is closed");
     await this.ready;
     if (this.closed) throw new Error("Metadata client is closed");
     const result = await this.client.callTool(
       { name, arguments: { ...args } },
-      undefined,
-      options ? { timeout: options.timeout, resetTimeoutOnProgress: true, onprogress: options.onprogress } : undefined
     );
     if (result.isError) {
       // Server returns { error: "..." } in content[0].text when isError: true
@@ -429,49 +376,6 @@ export class WavefuncMetadataServerClient implements WavefuncMetadataServer {
     recording?: string, artist?: string, release?: string, isrc?: string, country?: string, date?: string, duration?: number, limit?: number
   ): Promise<SearchRecordingsCombinedOutput> {
     return this.call("search_recordings_combined", { recording, artist, release, isrc, country, date, duration, limit });
-  }
-
-  /**
-   * Search YouTube for videos matching a query. Uses yt-dlp's ytsearch feature.
-   * @param {string} query Search query, e.g. "artist song title"
-   * @param {number} limit [optional] Number of results (default: 5, max: 10)
-   */
-  async SearchYouTube(query: string, limit?: number): Promise<SearchYouTubeOutput> {
-    return this.call("search_youtube", { query, limit });
-  }
-
-  /**
-   * Download and prepare a media file server-side. Returns tempId + sha256
-   * so the client can sign a BUD-01 auth event before uploading.
-   * May take 30–120 seconds.
-   */
-  async PrepareDownload(
-    videoId: string,
-    format: DownloadFormat = "audio",
-    onprogress?: (progress: { progress: number; message?: string }) => void
-  ): Promise<PrepareDownloadOutput> {
-    return this.call(
-      "prepare_download",
-      { videoId, format },
-      { timeout: 10 * 60 * 1000, onprogress }
-    );
-  }
-
-  /**
-   * Upload a previously prepared file to a Blossom server using a client-signed
-   * BUD-01 kind 24242 auth event.
-   */
-  async UploadToBlossom(
-    tempId: string,
-    blossomUrl: string,
-    signedAuthEvent: string,
-    onprogress?: (progress: { progress: number; message?: string }) => void
-  ): Promise<DownloadAudioOutput> {
-    return this.call(
-      "upload_to_blossom",
-      { tempId, blossomUrl, signedAuthEvent },
-      { timeout: 5 * 60 * 1000, onprogress }
-    );
   }
 }
 

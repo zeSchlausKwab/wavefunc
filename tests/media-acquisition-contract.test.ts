@@ -1,36 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("installed-app media acquisition contract", () => {
-  test("shares one responsive media dialog between Crate and now playing", () => {
-    const crate = read("src/routes/crate.tsx");
-    const player = read("src/components/FloatingPlayer.tsx");
-    const dialogPath = join(root, "src/components/SongMediaDialog.tsx");
-
-    expect(existsSync(dialogPath)).toBe(true);
-    if (!existsSync(dialogPath)) return;
-    const dialog = read("src/components/SongMediaDialog.tsx");
-
-    expect(crate).toContain("SongMediaDialog");
-    expect(player).toContain("SongMagicButton");
-    expect(dialog).toContain("mediaAcquisitionAvailability(platform)");
-    expect(dialog).toContain("createInstalledMediaAcquirer()");
-    expect(dialog).toContain("ShareSongDialog");
-    expect(dialog).toContain("forgeAndFavoriteSong");
-    expect(dialog).toContain("addToDefaultList(address)");
-    expect(dialog).toContain("setShareSong(persistedSong)");
-    expect(dialog).toContain("WAITING_FOR_SIGNER_APPROVAL");
-    expect(dialog).toContain('DEFAULT_BLOSSOM_URL = "https://blossom.band"');
-    expect(dialog).toContain("grid-cols-2");
-    expect(dialog).toContain("break-words");
-    expect(dialog).toContain('href="/apps"');
-    expect(crate).not.toContain(".PrepareDownload(");
-    expect(crate).not.toContain(".UploadToBlossom(");
-    expect(crate).not.toContain("VIDEO_FORMATS.map");
+  test("links web backup actions to the apps download page", () => {
+    for (const path of ["src/routes/crate.tsx", "src/components/FloatingPlayer.tsx", "src/components/MusicBrainzSearch.tsx"]) {
+      expect(read(path)).toContain("<BackupAppLink");
+    }
+    expect(read("src/components/BackupAppLink.tsx")).toContain('to="/apps"');
   });
 
   test("implements native desktop yt-dlp and Blossom BUD-02 upload in wavefunc-core", () => {

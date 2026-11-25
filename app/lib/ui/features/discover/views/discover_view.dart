@@ -1043,7 +1043,9 @@ class _SongSearchResultsSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: SongRecordingCard(
               recording: rec,
-              alreadySaved: crateViewModel.hasSong(rec.title, rec.artist),
+              alreadySaved: crateViewModel.savedSong(
+                rec.title, rec.artist, mbid: rec.id,
+              ) != null,
               isSaving: crateViewModel.isSaving,
               onSave: () async {
                 if (!authViewModel.isLoggedIn) {

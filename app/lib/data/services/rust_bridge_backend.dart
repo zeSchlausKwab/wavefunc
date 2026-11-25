@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../domain/models/now_playing.dart';
 import '../../domain/models/social.dart';
@@ -830,11 +832,35 @@ class RustBridgeBackend implements WavefuncBackend {
     required String videoId,
     required String format,
   }) async {
-    final res = await frb.prepareYoutubeMedia(
-      cacheRoot: cacheRoot,
-      videoId: videoId,
-      format: format,
-    );
+    final frb.FrbPreparedMedia res;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final jobId = const Uuid().v4();
+      final directory = Directory('$cacheRoot/media-jobs/$jobId');
+      await directory.create(recursive: true);
+      try {
+        await const MethodChannel('live.wavefunc.app/media')
+            .invokeMethod<void>('prepareDownload', {
+              'videoId': videoId,
+              'format': format,
+              'directory': directory.path,
+            });
+        res = await frb.registerDownloadedMedia(
+          cacheRoot: cacheRoot,
+          jobId: jobId,
+          format: format,
+        );
+      } catch (_) {
+        // After registration the Rust media job owns cleanup.
+        if (await directory.exists()) await directory.delete(recursive: true);
+        rethrow;
+      }
+    } else {
+      res = await frb.prepareYoutubeMedia(
+        cacheRoot: cacheRoot,
+        videoId: videoId,
+        format: format,
+      );
+    }
     return PreparedMedia(
       jobId: res.jobId,
       sha256: res.sha256,

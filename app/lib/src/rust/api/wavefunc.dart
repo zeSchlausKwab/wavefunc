@@ -437,6 +437,16 @@ Future<FrbPreparedMedia> prepareYoutubeMedia({
   format: format,
 );
 
+Future<FrbPreparedMedia> registerDownloadedMedia({
+  required String cacheRoot,
+  required String jobId,
+  required String format,
+}) => RustLib.instance.api.crateApiWavefuncRegisterDownloadedMedia(
+  cacheRoot: cacheRoot,
+  jobId: jobId,
+  format: format,
+);
+
 Future<FrbUploadedMedia> uploadMediaToBlossom({
   required String jobId,
   required String blossomUrl,

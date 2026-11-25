@@ -18,7 +18,7 @@ import { WavefuncMetadataServerClient } from "../src/ctxcn/WavefuncMetadataServe
 import { extractStreamMetadataInputSchema, extractStreamMetadataOutputSchema } from "../contextvm/schemas";
 
 for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
-  test(`ContextVM ${encryptionMode}: tool results, progress and errors over a local relay`, async () => {
+  test(`ContextVM ${encryptionMode}: tool results and errors over a local relay`, async () => {
     const peers = new Map<ServerWebSocket<unknown>, Map<string, Filter[]>>();
     const published: Event[] = [];
     const relay = Bun.serve({
@@ -86,30 +86,6 @@ for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
               structuredContent: { result: [{ id: "test", name: query }] },
             },
     );
-    server.registerTool(
-      "prepare_download",
-      { inputSchema: { videoId: z.string(), format: z.string().optional() } },
-      async (_input, extra) => {
-        if (extra._meta?.progressToken !== undefined)
-          await extra.sendNotification({
-            method: "notifications/progress",
-            params: {
-              progressToken: extra._meta.progressToken,
-              progress: 50,
-              message: "Halfway",
-            },
-          });
-        return {
-          content: [{ type: "text", text: "ready" }],
-          structuredContent: {
-            tempId: "fixture",
-            sha256: "a".repeat(64),
-            size: 100,
-            mimeType: "audio/mpeg",
-          },
-        };
-      },
-    );
     const pool = new ApplesauceRelayPool([url]);
     const transport = new NostrServerTransport({
       signer,
@@ -139,15 +115,6 @@ for (const encryptionMode of [EncryptionMode.DISABLED, EncryptionMode.REQUIRED])
       );
       expect(toolError).toBeInstanceOf(Error);
       expect((toolError as Error).message).toContain("fixture failure");
-      const progress: number[] = [];
-      expect(
-        (
-          await client.PrepareDownload("fixture", "audio", (p) =>
-            progress.push(p.progress),
-          )
-        ).tempId,
-      ).toBe("fixture");
-      expect(progress).toContain(50);
       expect(
         published.some((e) =>
           encryptionMode === EncryptionMode.DISABLED

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { SmallLogo } from "./SmallLogo";
 import { MobileNavigationSidebar } from "./MobileNavigationSidebar";
 import { SongFavoriteButton } from "./SongFavoriteButton";
-import { SongMagicButton } from "./SongMagicButton";
+import { BackupAppLink } from "./BackupAppLink";
 import { useCurrentAccount } from "../lib/nostr/auth";
 import { useStationHealth } from "../lib/nostr/hooks/useStationObservations";
 import { StationHealthBadge } from "./StationHealthBadge";
@@ -437,7 +437,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                   size="md"
                   className="min-h-10 min-w-10 flex-1 hover:bg-surface-variant"
                 />
-                <SongMagicButton
+                <BackupAppLink
                   size="md"
                   className="min-h-10 min-w-10 flex-1 border-t-2 border-on-background/20 hover:bg-surface-variant"
                 />
@@ -585,7 +585,7 @@ export function FloatingPlayer({ searchInput, setSearchInput, onSearch }: Floati
                     {currentMetadata.artist && <span className="opacity-60"> • {currentMetadata.artist}</span>}
                   </p>
                   <SongFavoriteButton size="sm" className="shrink-0" />
-                  <SongMagicButton size="sm" className="shrink-0" />
+                  <BackupAppLink size="sm" className="shrink-0" />
                 </div>
               )}
               {isPlaying && !hasCurrentSong && (

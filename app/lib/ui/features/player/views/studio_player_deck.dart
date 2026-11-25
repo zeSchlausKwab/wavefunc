@@ -8,6 +8,7 @@ import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../crate/view_models/crate_view_model.dart';
 import '../view_models/player_view_model.dart';
+import 'track_crate_button.dart';
 
 /// Full-width docked Constructivist Studio Console Deck (`76px`) for Tablet & Desktop.
 class StudioPlayerDeck extends StatelessWidget {
@@ -32,30 +33,6 @@ class StudioPlayerDeck extends StatelessWidget {
   final ValueChanged<Station> onOpenZap;
   final VoidCallback onRequestLogin;
 
-  Future<void> _saveCurrentTrack(BuildContext context) async {
-    if (!authViewModel.isLoggedIn) {
-      onRequestLogin();
-      return;
-    }
-    final meta = playerViewModel.snapshot.metadata;
-    if (meta == null || !meta.hasTrackInfo) return;
-
-    try {
-      final saved = await crateViewModel.saveNowPlaying(meta);
-      if (context.mounted && saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved "${meta.displaySong}" to Song Crate')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save track: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -71,7 +48,7 @@ class StudioPlayerDeck extends StatelessWidget {
         final isBusy = snapshot.isBusy;
         final meta = snapshot.metadata;
         final activeStream = snapshot.activeStream;
-        final hasTrack = meta?.displayTitle != null;
+        final hasTrack = meta != null && meta.hasTrackInfo;
 
         return Container(
           height: 76,
@@ -200,10 +177,12 @@ class StudioPlayerDeck extends StatelessWidget {
                           ),
                           if (hasTrack) ...[
                             const SizedBox(width: 6),
-                            _DeckSquareButton(
-                              icon: Icons.library_add,
-                              tooltip: 'Save track to Crate',
-                              onTap: () => _saveCurrentTrack(context),
+                            TrackCrateButton(
+                              metadata: meta,
+                              crate: crateViewModel,
+                              auth: authViewModel,
+                              onRequestLogin: onRequestLogin,
+                              iconOnly: true,
                             ),
                           ],
                           const SizedBox(width: 6),

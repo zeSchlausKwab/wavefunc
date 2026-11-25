@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { MusicBrainzSearch } from "@/components/MusicBrainzSearch";
 
 export const Route = createFileRoute("/musicbrainz")({
@@ -28,7 +28,7 @@ function MusicBrainzSearchPage() {
         </div>
 
         <p className="text-[10px] font-black uppercase leading-relaxed tracking-[0.15em] text-on-background/50 sm:text-xs">
-          SEARCH_THE_CATALOG · SAVE_TO_CRATE · FORGE_TO_BLOSSOM ·
+          SEARCH_THE_CATALOG · SAVE_TO_CRATE · BACK_UP_IN_APP ·
           SHARE_TO_NOSTR
         </p>
       </header>
@@ -55,9 +55,9 @@ function MusicBrainzSearchPage() {
         <div className="flex gap-3 p-3">
           <span className="font-headline text-2xl font-black text-primary">03</span>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest">FORGE_+_SHARE</p>
+            <p className="text-[10px] font-black uppercase tracking-widest">BACK_UP_IN_APP</p>
             <p className="mt-1 text-[9px] font-bold uppercase leading-relaxed text-on-background/45">
-              Apps download locally, upload to Blossom, then compose a kind-1 note.
+              <Link to="/apps" className="underline">Get WaveFunc</Link> to back up a song as audio or video on Blossom.
             </p>
           </div>
         </div>

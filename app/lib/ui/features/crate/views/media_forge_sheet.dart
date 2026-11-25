@@ -22,7 +22,7 @@ const List<_BlossomServerOption> _kBlossomServers = [
 ];
 
 /// Constructivist Blossom Media Backup modal (`MEDIA_FORGE`):
-/// searches YouTube via ContextVM, downloads & hashes media, signs a BUD-02
+/// searches YouTube, downloads and hashes media on the device, signs a BUD-02
 /// `kind 24242` auth event, uploads to Blossom, and attaches the URL to the song.
 class MediaForgeSheet extends StatefulWidget {
   const MediaForgeSheet({
@@ -212,7 +212,9 @@ class _MediaForgeSheetState extends State<MediaForgeSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = e is PlatformException && e.message != null
+            ? e.message
+            : e.toString().replaceFirst('Exception: ', '');
         _transferring = false;
       });
     }

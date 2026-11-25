@@ -12,6 +12,7 @@ import '../auth/view_models/auth_view_model.dart';
 import '../crate/view_models/crate_view_model.dart';
 import '../discover/view_models/discover_view_model.dart';
 import '../player/view_models/player_view_model.dart';
+import '../player/views/track_crate_button.dart';
 import '../wallet/views/zap_sheet.dart';
 
 enum InspectorKind { station, nowPlaying, zap }
@@ -780,24 +781,12 @@ class _NowPlayingInspectorBody extends StatelessWidget {
               runSpacing: 8,
               children: [
                 if (meta != null && meta.hasTrackInfo)
-                  SonicPowerButton(
-                    label: 'Save to Crate',
-                    icon: Icons.library_add,
+                  TrackCrateButton(
+                    metadata: meta,
+                    crate: crateViewModel,
+                    auth: authViewModel,
+                    onRequestLogin: onRequestLogin,
                     compact: true,
-                    onPressed: () async {
-                      if (!authViewModel.isLoggedIn) {
-                        onRequestLogin();
-                        return;
-                      }
-                      final saved = await crateViewModel.saveNowPlaying(meta);
-                      if (context.mounted && saved) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Saved "${meta.displaySong}"'),
-                          ),
-                        );
-                      }
-                    },
                   ),
                 SonicPowerButton(
                   label: 'Zap Station',

@@ -19,6 +19,8 @@ import 'package:wavefunc_app/ui/features/auth/view_models/auth_view_model.dart';
 import 'package:wavefunc_app/ui/features/crate/view_models/crate_view_model.dart';
 import 'package:wavefunc_app/ui/features/discover/view_models/discover_view_model.dart';
 import 'package:wavefunc_app/ui/features/player/view_models/player_view_model.dart';
+import 'package:wavefunc_app/ui/features/player/views/track_crate_button.dart';
+import 'package:wavefunc_app/ui/features/crate/views/media_forge_sheet.dart';
 import 'package:wavefunc_app/ui/features/social/view_models/community_view_model.dart';
 import 'package:wavefunc_app/ui/features/wallet/views/zap_sheet.dart';
 
@@ -779,7 +781,7 @@ class _FakeBackend implements WavefuncBackend {
     required String format,
   }) async =>
       const BlossomAuthResult(
-        signedEventJson: '{"id":"auth1","kind":24242,"sig":"sig1"}',
+        signedEventJson: '{"id":"auth1","pubkey":"deadbeef","kind":24242,"sig":"sig1"}',
       );
 
   @override
@@ -959,6 +961,89 @@ class _FakeAudioEngine implements RadioPlaybackEngine {
 
   @override
   Future<void> disposeEngine() => _controller.close();
+}
+
+class _StaleCrateBackend extends _FakeBackend {
+  _StaleCrateBackend() : super([]);
+
+  var failCrateUpdate = true;
+  var createdSongs = 0;
+  String? lastCreatedAlbum;
+  int? lastCreatedDuration;
+  String? lastCreatedReleaseDate;
+  Completer<void>? approval;
+  final signingStarted = Completer<void>();
+  final discardedJobs = <String>[];
+  int uploads = 0;
+
+  @override
+  Future<BlossomAuthResult> signBlossomUploadAuth({
+    required String sha256, required String blossomUrl, required String format,
+  }) async {
+    if (!signingStarted.isCompleted) signingStarted.complete();
+    await approval?.future;
+    return super.signBlossomUploadAuth(sha256: sha256, blossomUrl: blossomUrl, format: format);
+  }
+
+  @override
+  Future<void> discardMediaJob(String jobId) async => discardedJobs.add(jobId);
+
+  @override
+  Future<UploadedMedia> uploadMediaToBlossom({
+    required String jobId, required String blossomUrl, required String signedAuthEventJson,
+  }) {
+    uploads++;
+    return super.uploadMediaToBlossom(jobId: jobId, blossomUrl: blossomUrl,
+        signedAuthEventJson: signedAuthEventJson);
+  }
+
+  @override
+  Future<SongCrate> fetchSongCrate() async => const SongCrate(
+    songs: [
+      SavedSong(
+        id: 'foreign',
+        pubkey: 'someone-else',
+        songId: 'other-id',
+        address: '31337:someone-else:other-id',
+        title: 'Foreign track',
+        album: 'Original album',
+        durationSecs: 150,
+        releaseYear: 2010,
+        artist: 'Artist',
+      ),
+    ],
+  );
+
+  @override
+  Future<ActionOutcome> createSongEvent({
+    required String title,
+    String? artist,
+    String? album,
+    String? mbid,
+    String? releaseId,
+    String? releaseDate,
+    int? durationMs,
+    List<String> genres = const [],
+  }) async {
+    createdSongs++;
+    lastCreatedAlbum = album;
+    lastCreatedDuration = durationMs;
+    lastCreatedReleaseDate = releaseDate;
+    return const ActionOutcome(
+      published: true,
+      eventId: 'track-event',
+      targetAddress: '31337:deadbeef:track:identifier',
+    );
+  }
+
+  @override
+  Future<ActionOutcome> updateSongCrate({
+    required String songAddress,
+    required bool add,
+  }) async {
+    if (failCrateUpdate) throw StateError('Relay rejected crate update');
+    return const ActionOutcome(published: true, eventId: 'crate-event');
+  }
 }
 
 void main() {
@@ -1528,6 +1613,126 @@ void main() {
     crateVm.dispose();
     authVm.dispose();
   });
+
+  test('switching accounts during backup approval discards the job before upload', () async {
+    final backend = _StaleCrateBackend()..approval = Completer<void>();
+    final auth = AuthViewModel(authRepository: AuthRepository(
+      backend: backend, storage: _InMemoryAuthStorage(), amber: AmberSignerService(),
+      preferences: PreferencesService(await SharedPreferences.getInstance()),
+    ), cashuBaseDir: '/tmp/wavefunc-test-player-crate');
+    final crate = CrateViewModel(backend: backend, authViewModel: auth);
+    await auth.loginWithNsec('nsec1test');
+    final pending = crate.backupSongToBlossom(
+      existingSong: const SavedSong(id: 'e', pubkey: 'deadbeef', songId: 'track',
+        address: '31337:deadbeef:track', title: 'Track'),
+      videoId: 'yT0gRc2c2wQ', format: 'audio', blossomUrl: 'https://blossom.band',
+      onProgress: (_, _) {},
+    );
+    await backend.signingStarted.future;
+    await auth.logout();
+    backend.approval!.complete();
+    await expectLater(pending, throwsStateError);
+    expect(backend.uploads, 0);
+    expect(backend.discardedJobs, ['local:job-1']);
+    crate.dispose();
+    auth.dispose();
+  });
+
+  testWidgets(
+    'saved player track opens backup with the published address before relay refresh',
+    (tester) async {
+      final backend = _StaleCrateBackend();
+      final auth = AuthViewModel(
+        authRepository: AuthRepository(
+          backend: backend,
+          storage: _InMemoryAuthStorage(),
+          amber: AmberSignerService(),
+          preferences: PreferencesService(
+            await SharedPreferences.getInstance(),
+          ),
+        ),
+        cashuBaseDir: '/tmp/wavefunc-test-player-crate',
+      );
+      final crate = CrateViewModel(backend: backend, authViewModel: auth);
+      await auth.loginWithNsec('nsec1test');
+      await crate.refresh();
+      const track = NowPlayingMetadata(song: 'Track', artist: 'Artist');
+      final current = ValueNotifier(track);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: Listenable.merge([auth, crate, current]),
+              builder: (_, _) => TrackCrateButton(
+                metadata: current.value,
+                crate: crate,
+                auth: auth,
+                onRequestLogin: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('SAVE TRACK'));
+      await tester.pumpAndSettle();
+      expect(find.text('SAVE TRACK'), findsOneWidget);
+      backend.failCrateUpdate = false;
+      await tester.tap(find.text('SAVE TRACK'));
+      await tester.pumpAndSettle();
+      expect(find.text('BACKUP SONG'), findsOneWidget);
+      current.value = const NowPlayingMetadata(
+        song: 'Track',
+        artist: 'Different artist',
+      );
+      await tester.pump();
+      expect(find.text('SAVE TRACK'), findsOneWidget);
+      current.value = track;
+      await tester.pump();
+      await tester.tap(find.text('BACKUP SONG'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<MediaForgeSheet>(find.byType(MediaForgeSheet))
+            .existingSong
+            ?.address,
+        '31337:deadbeef:track:identifier',
+      );
+      await tester.tap(find.text('BACKUP'));
+      await tester.pumpAndSettle();
+      expect(
+        backend.attachedBlossomUrls.single,
+        startsWith('track:identifier->'),
+      );
+      expect(
+        backend.createdSongs,
+        2,
+      ); // The failed save and the retry, with no new song on backup.
+      await tester.tap(find.text('DONE'));
+      await tester.pumpAndSettle();
+      current.value = const NowPlayingMetadata(song: 'Foreign track', artist: 'Artist');
+      await tester.pump();
+      await tester.tap(find.text('BACKUP SONG'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<MediaForgeSheet>(find.byType(MediaForgeSheet)).existingSong?.address,
+          '31337:someone-else:other-id');
+      await tester.tap(find.text('BACKUP'));
+      await tester.pumpAndSettle();
+      expect(backend.createdSongs, 3);
+      expect(backend.attachedBlossomUrls.last, startsWith('track:identifier->'));
+      expect(backend.lastCreatedAlbum, 'Original album');
+      expect(backend.lastCreatedDuration, 150000);
+      expect(backend.lastCreatedReleaseDate, '2010');
+      await tester.tap(find.text('DONE'));
+      await tester.pumpAndSettle();
+      await auth.logout();
+      await tester.pump();
+      expect(find.text('SAVE TRACK'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      current.dispose();
+      crate.dispose();
+      auth.dispose();
+    },
+  );
 
   testWidgets(
       'song search finds MusicBrainz recordings and backs up audio to Blossom',

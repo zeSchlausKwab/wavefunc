@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -11,15 +12,15 @@ import '../../auth/view_models/auth_view_model.dart';
 /// MVVM ViewModel for the signed-in user's Nostr Song Crate (`kind 31337` + `kind 30078`),
 /// MusicBrainz Song Search, and Blossom Media Backup (`MEDIA_FORGE`).
 class CrateViewModel extends ChangeNotifier {
-  CrateViewModel({
-    required this._backend,
-    required this._authViewModel,
-  });
+  CrateViewModel({required this._backend, required this._authViewModel});
 
   final WavefuncBackend _backend;
   final AuthViewModel _authViewModel;
 
   SongCrate _crate = const SongCrate();
+  String? _crateOwner;
+  int _refreshSequence = 0;
+  final _recentSaves = <String, SavedSong>{};
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
@@ -30,8 +31,15 @@ class CrateViewModel extends ChangeNotifier {
   String? _songSearchError;
   String _lastSongQuery = '';
 
-  SongCrate get crate => _crate;
-  List<SavedSong> get songs => _crate.songs;
+  String? get _owner => _authViewModel.session?.pubkey;
+  SongCrate get crate => _crateOwner == _owner ? _crate : const SongCrate();
+  List<SavedSong> get songs => [
+    ..._recentSaves.values.where((song) => song.pubkey == _owner),
+    ...crate.songs.where(
+      (song) =>
+          song.pubkey != _owner || !_recentSaves.containsKey(song.address),
+    ),
+  ];
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
@@ -41,19 +49,46 @@ class CrateViewModel extends ChangeNotifier {
   String? get songSearchError => _songSearchError;
   String get lastSongQuery => _lastSongQuery;
 
-  bool hasSong(String title, String? artist) {
-    final t = title.trim().toLowerCase();
-    final a = artist?.trim().toLowerCase();
-    return _crate.songs.any(
-      (s) =>
-          s.title.trim().toLowerCase() == t &&
-          (a == null || s.artist?.trim().toLowerCase() == a),
-    );
+  SavedSong? savedSong(
+    String title,
+    String? artist, {
+    String? mbid,
+    bool ownedOnly = false,
+  }) {
+    final pubkey = _owner;
+    if (pubkey == null) return null;
+    String normalize(String? value) => (value ?? '').trim().toLowerCase();
+    final recordingId = normalize(mbid);
+    final matches = songs.where((song) {
+      final otherId = normalize(song.mbid);
+      if (recordingId.isNotEmpty && otherId.isNotEmpty) {
+        return recordingId == otherId;
+      }
+      return normalize(song.title) == normalize(title) &&
+          normalize(song.artist) == normalize(artist);
+    }).toList();
+    final owned = matches.where((song) => song.pubkey == pubkey);
+    SavedSong? preferExact(Iterable<SavedSong> candidates) {
+      if (recordingId.isNotEmpty) {
+        final exact = candidates
+            .where((song) => normalize(song.mbid) == recordingId)
+            .firstOrNull;
+        if (exact != null) return exact;
+      }
+      return candidates.firstOrNull;
+    }
+
+    return preferExact(owned) ?? (ownedOnly ? null : preferExact(matches));
   }
 
   Future<void> refresh() async {
-    if (!_authViewModel.isLoggedIn) {
+    final sequence = ++_refreshSequence;
+    final owner = _owner;
+    if (owner == null) {
       _crate = const SongCrate();
+      _crateOwner = null;
+      _recentSaves.clear();
+      _isLoading = false;
       notifyListeners();
       return;
     }
@@ -61,13 +96,29 @@ class CrateViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      _crate = await _backend.fetchSongCrate();
+      final result = await _backend.fetchSongCrate();
+      if (sequence != _refreshSequence || _owner != owner) return;
+      _crate = result;
+      _crateOwner = owner;
+      for (final song in result.songs.where((song) => song.pubkey == owner)) {
+        _recentSaves.remove(song.address);
+      }
     } catch (e) {
-      _errorMessage = 'Failed to load crate: $e';
+      if (sequence == _refreshSequence && _owner == owner) {
+        _errorMessage = 'Failed to load crate: $e';
+      }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (sequence == _refreshSequence) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _refreshSequence++;
+    super.dispose();
   }
 
   // ── Song Search (MusicBrainz) ─────────────────────────────────────────────
@@ -106,56 +157,21 @@ class CrateViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Publish a `kind 31337` song event from a MusicBrainz recording and add it to the crate.
-  /// Returns the canonical `songId` (`d`-tag) if successful.
-  Future<String?> saveRecording(MusicBrainzRecording rec) async {
-    _isSaving = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      final songOutcome = await _authViewModel.executeSignedAction(
-        (backend) => backend.createSongEvent(
-          title: rec.title,
-          artist: rec.artist,
-          album: rec.release,
-          mbid: rec.id,
-          releaseId: rec.releaseId,
-          releaseDate: rec.releaseDate,
-          durationMs: rec.durationMs,
-          genres: rec.tags,
-        ),
-      );
-      final songAddress = songOutcome.targetAddress;
-      if (songAddress != null && songAddress.isNotEmpty) {
-        await _authViewModel.executeSignedAction(
-          (backend) => backend.updateSongCrate(
-            songAddress: songAddress,
-            add: true,
-          ),
-        );
-      }
-      await refresh();
-      return songAddress?.split(':').last;
-    } catch (e) {
-      _errorMessage = '$e';
-      return null;
-    } finally {
-      _isSaving = false;
-      notifyListeners();
-    }
-  }
+  Future<String?> saveRecording(MusicBrainzRecording rec) => _saveSong(
+    title: rec.title,
+    artist: rec.artist,
+    album: rec.release,
+    mbid: rec.id,
+    releaseId: rec.releaseId,
+    releaseDate: rec.releaseDate,
+    durationMs: rec.durationMs,
+    genres: rec.tags,
+  );
 
-  /// Publish a `kind 31337` song event and add it to the user's `kind 30078` song crate.
   Future<bool> saveNowPlaying(NowPlayingMetadata metadata) async {
     final title = metadata.displaySong;
     if (title == null || title.isEmpty) return false;
-
-    _isSaving = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      final songOutcome = await _authViewModel.executeSignedAction(
-        (backend) => backend.createSongEvent(
+    return await _saveSong(
           title: title,
           artist: metadata.displayArtist,
           album: metadata.album,
@@ -163,22 +179,76 @@ class CrateViewModel extends ChangeNotifier {
           releaseDate: metadata.releaseDate,
           durationMs: metadata.durationMs,
           genres: metadata.genre != null ? [metadata.genre!] : const [],
+        ) !=
+        null;
+  }
+
+  Future<String?> _saveSong({
+    required String title,
+    String? artist,
+    String? album,
+    String? mbid,
+    String? releaseId,
+    String? releaseDate,
+    int? durationMs,
+    List<String> genres = const [],
+  }) async {
+    final existing = savedSong(title, artist, mbid: mbid, ownedOnly: true);
+    if (existing != null) return existing.songId;
+    final owner = _owner;
+    if (owner == null || _isSaving) return null;
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final outcome = await _authViewModel.executeSignedAction(
+        (backend) => backend.createSongEvent(
+          title: title,
+          artist: artist,
+          album: album,
+          mbid: mbid,
+          releaseId: releaseId,
+          releaseDate: releaseDate,
+          durationMs: durationMs,
+          genres: genres,
         ),
+        expectedAuthor: owner,
       );
-      final songAddress = songOutcome.targetAddress;
-      if (songAddress != null && songAddress.isNotEmpty) {
-        await _authViewModel.executeSignedAction(
-          (backend) => backend.updateSongCrate(
-            songAddress: songAddress,
-            add: true,
-          ),
-        );
+      final address = outcome.targetAddress;
+      final prefix = '31337:$owner:';
+      if (!outcome.published ||
+          _owner != owner ||
+          address == null ||
+          !address.startsWith(prefix) ||
+          address.length == prefix.length) {
+        throw StateError('Could not confirm the saved song for this account.');
       }
-      await refresh();
-      return true;
+      final added = await _authViewModel.executeSignedAction(
+        (backend) => backend.updateSongCrate(songAddress: address, add: true),
+        expectedAuthor: owner,
+      );
+      if (!added.published || _owner != owner) {
+        throw StateError('Could not confirm the song was added to your crate.');
+      }
+      final songId = address.substring(prefix.length);
+      // Keep the signed address available until the relay returns the song.
+      _recentSaves[address] = SavedSong(
+        id: outcome.eventId ?? '',
+        pubkey: owner,
+        songId: songId,
+        address: address,
+        title: title,
+        artist: artist,
+        album: album,
+        mbid: mbid,
+        genres: genres,
+        durationSecs: durationMs == null ? null : durationMs ~/ 1000,
+      );
+      unawaited(refresh());
+      return songId;
     } catch (e) {
       _errorMessage = '$e';
-      return false;
+      return null;
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -191,11 +261,11 @@ class CrateViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       await _authViewModel.executeSignedAction(
-        (backend) => backend.updateSongCrate(
-          songAddress: songAddress,
-          add: false,
-        ),
+        (backend) =>
+            backend.updateSongCrate(songAddress: songAddress, add: false),
+        expectedAuthor: _owner,
       );
+      _recentSaves.remove(songAddress);
       await refresh();
       return true;
     } catch (e) {
@@ -208,7 +278,8 @@ class CrateViewModel extends ChangeNotifier {
   }
 
   bool containsAddress(String songAddress) =>
-      _crate.songAddresses.contains(songAddress);
+      crate.songAddresses.contains(songAddress) ||
+      songs.any((s) => s.address == songAddress);
 
   Future<bool> toggleSongAddress(String songAddress) async {
     final exists = containsAddress(songAddress);
@@ -217,11 +288,11 @@ class CrateViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       await _authViewModel.executeSignedAction(
-        (backend) => backend.updateSongCrate(
-          songAddress: songAddress,
-          add: !exists,
-        ),
+        (backend) =>
+            backend.updateSongCrate(songAddress: songAddress, add: !exists),
+        expectedAuthor: _owner,
       );
+      if (exists) _recentSaves.remove(songAddress);
       await refresh();
       return true;
     } catch (e) {
@@ -240,7 +311,7 @@ class CrateViewModel extends ChangeNotifier {
 
   /// Full end-to-end Blossom backup pipeline:
   /// 1. Ensure `kind 31337` song exists in the user's crate.
-  /// 2. Download & hash YouTube media (local `yt-dlp` on desktop, ContextVM fallback on Android).
+  /// 2. Download and hash the selected media on the device.
   /// 3. Sign BUD-02 `kind 24242` upload auth (LocalKey / Bunker / Amber).
   /// 4. Upload to Blossom server.
   /// 5. Attach `["r", blossomUrl]` + `["i", "youtube:<videoId>"]` to `kind 31337` and refresh crate.
@@ -255,28 +326,42 @@ class CrateViewModel extends ChangeNotifier {
     required void Function(String stage, String message) onProgress,
   }) async {
     // 1. Ensure song exists in the user's crate.
-    String? songId = existingSong?.songId;
+    final owner = _owner;
+    if (owner == null) throw StateError('Sign in to back up this song.');
+    final title = existingSong?.title ?? recording?.title ?? fallbackTitle;
+    final artist = existingSong?.artist ?? recording?.artist ?? fallbackArtist;
+    final owned = existingSong?.pubkey == owner
+        ? existingSong
+        : (title == null
+              ? null
+              : savedSong(
+                  title,
+                  artist,
+                  mbid: recording?.id ?? existingSong?.mbid,
+                  ownedOnly: true,
+                ));
+    String? songId = owned?.songId;
     if (songId == null || songId.isEmpty) {
       onProgress('saving', 'Saving song to your crate...');
       if (recording != null) {
         songId = await saveRecording(recording);
-      } else if (fallbackTitle != null && fallbackTitle.trim().isNotEmpty) {
-        final songOutcome = await _authViewModel.executeSignedAction(
-          (backend) => backend.createSongEvent(
-            title: fallbackTitle.trim(),
-            artist: fallbackArtist?.trim(),
-          ),
+      } else if (title != null && title.trim().isNotEmpty) {
+        songId = await _saveSong(
+          title: title.trim(),
+          artist: artist,
+          album: existingSong?.album,
+          mbid: existingSong?.mbid,
+          durationMs: existingSong?.durationSecs == null
+              ? null
+              : existingSong!.durationSecs! * 1000,
+          releaseDate: existingSong?.releaseYear?.toString(),
+          genres: existingSong?.genres ?? const [],
         );
-        final addr = songOutcome.targetAddress;
-        if (addr != null && addr.isNotEmpty) {
-          await _authViewModel.executeSignedAction(
-            (backend) => backend.updateSongCrate(songAddress: addr, add: true),
-          );
-          songId = addr.split(':').last;
-        }
       }
       if (songId == null || songId.isEmpty) {
-        throw StateError('Could not save song metadata before upload.');
+        throw StateError(
+          _errorMessage ?? 'Could not save song metadata before upload.',
+        );
       }
     }
 
@@ -284,8 +369,9 @@ class CrateViewModel extends ChangeNotifier {
     onProgress('downloading', 'Downloading & hashing media...');
     String cacheRoot;
     try {
-      final dir = await getTemporaryDirectory()
-          .timeout(const Duration(seconds: 2));
+      final dir = await getTemporaryDirectory().timeout(
+        const Duration(seconds: 2),
+      );
       cacheRoot = dir.path;
     } catch (_) {
       cacheRoot = Directory.systemTemp.path;
@@ -300,11 +386,14 @@ class CrateViewModel extends ChangeNotifier {
     try {
       // 3. Sign BUD-02 Blossom upload auth event (kind 24242).
       onProgress('authorizing', 'Signing Blossom upload auth (kind 24242)...');
+      if (_owner != owner) throw StateError('Account changed during backup.');
       final signedAuth = await _authViewModel.signBlossomUploadAuth(
         sha256: prepared.sha256,
         blossomUrl: blossomUrl,
         format: format,
       );
+
+      if (_owner != owner) throw StateError('Account changed during backup.');
 
       // 4. Upload to Blossom server.
       final sizeKb = (prepared.size / 1024).round();
@@ -316,6 +405,7 @@ class CrateViewModel extends ChangeNotifier {
       );
 
       // 5. Update `kind 31337` song event with Blossom URL.
+      if (_owner != owner) throw StateError('Account changed during backup.');
       onProgress('attaching', 'Attaching Blossom URL to song event...');
       await _authViewModel.executeSignedAction(
         (backend) => backend.attachSongAudioUrl(
@@ -323,6 +413,7 @@ class CrateViewModel extends ChangeNotifier {
           audioUrl: uploaded.url,
           youtubeId: videoId,
         ),
+        expectedAuthor: owner,
       );
 
       await refresh();

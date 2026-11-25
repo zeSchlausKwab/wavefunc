@@ -28,7 +28,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # deployment artifacts
 deploy.tar.gz
 
-# yt-dlp binary (auto-downloaded at runtime)
+# Legacy server downloader binaries from older checkouts
 contextvm/bin/
 
 # caches

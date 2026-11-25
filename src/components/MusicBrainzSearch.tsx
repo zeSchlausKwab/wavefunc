@@ -12,7 +12,7 @@ import type {
 } from "../types/musicbrainz";
 import { cn } from "@/lib/utils";
 import { SongFavoriteButton } from "./SongFavoriteButton";
-import { SongMagicButton } from "./SongMagicButton";
+import { BackupAppLink } from "./BackupAppLink";
 
 type EntityType = "recordings" | "releases" | "artists" | "labels";
 
@@ -184,8 +184,7 @@ function RecordingCard({ recording }: { recording: RecordingResult }) {
           size="md"
           className="min-h-12 border-0 border-r-2 border-on-background px-3 hover:bg-surface-container-high"
         />
-        <SongMagicButton
-          metadata={metadata}
+        <BackupAppLink
           showLabel
           size="md"
           className="min-h-12 border-0 border-r-2 border-on-background px-3 hover:bg-primary hover:text-primary-foreground"

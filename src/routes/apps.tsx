@@ -83,7 +83,7 @@ function Apps() {
           <div className="h-2 flex-grow bg-on-background" />
         </div>
         <p className="text-xs font-bold uppercase tracking-widest text-on-background/50">
-          ALL_BUILDS_ARE_UNSIGNED — DIRECT_DOWNLOAD_FROM_GITHUB_RELEASES
+          Back up songs as audio or video from your Crate in the Android or desktop app.
         </p>
       </div>
 
@@ -184,6 +184,11 @@ function PlatformCard({ platform, isDetected }: { platform: Platform; isDetected
       <p className="text-[10px] font-bold uppercase tracking-widest text-on-background/50 leading-relaxed">
         {platform.description}
       </p>
+      {platform.id !== "android" && (
+        <p className="text-xs text-on-background/70">
+          For song backups, install yt-dlp, Deno and FFmpeg on this computer.
+        </p>
+      )}
 
       <div className="space-y-2">
         {platform.files.map((file) => (

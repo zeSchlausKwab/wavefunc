@@ -13,7 +13,7 @@ import {
 import { useSongFavorites } from "../lib/hooks/useSongFavorites";
 import { useAppDataTimeline } from "../lib/nostr/hooks/useRelayTimeline";
 import { ShareSongDialog } from "../components/ShareSongDialog";
-import { SongMediaDialog } from "../components/SongMediaDialog";
+import { BackupAppLink } from "../components/BackupAppLink";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/crate")({
@@ -93,7 +93,6 @@ interface SongRowProps {
 function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,17 +184,7 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </button>
       )}
 
-      {/* Save audio or video */}
-      <button
-        onClick={(e) => { e.stopPropagation(); setMediaDialogOpen(true); }}
-        className={cn(
-          "shrink-0 transition-colors",
-          song.audioUrl ? "text-primary/60 hover:text-primary" : "text-on-background/30 hover:text-on-background",
-        )}
-        title={song.audioUrl ? "Save another copy to Blossom" : "Save audio or video to Blossom"}
-      >
-        <span className="material-symbols-outlined text-[16px]">auto_fix_high</span>
-      </button>
+      <BackupAppLink className="shrink-0" />
 
       {/* Share */}
       <button
@@ -254,9 +243,6 @@ function SongRow({ song, sourceList, otherLists, onMove, onRemove }: SongRowProp
         </div>
       )}
     </div>
-    {mediaDialogOpen && (
-      <SongMediaDialog song={song} onClose={() => setMediaDialogOpen(false)} />
-    )}
     {shareOpen && (
       <ShareSongDialog song={song} onClose={() => setShareOpen(false)} />
     )}

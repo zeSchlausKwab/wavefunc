@@ -42,8 +42,6 @@ describe("MusicBrainz recording actions", () => {
 
   test("track action buttons accept explicit metadata without replacing their existing flows", () => {
     const favorite = read("src/components/SongFavoriteButton.tsx");
-    const magic = read("src/components/SongMagicButton.tsx");
-    const mediaDialog = read("src/components/SongMediaDialog.tsx");
     const favorites = read("src/lib/hooks/useSongFavorites.ts");
 
     expect(favorite).toContain("metadata?: SongMetadataInput");
@@ -55,14 +53,6 @@ describe("MusicBrainz recording actions", () => {
     expect(favorite).toContain(': "FAVORITE"');
     expect(favorite).toContain("busy || favoritesLoading");
 
-    expect(magic).toContain("metadata?: SongMetadataInput");
-    expect(magic).toContain("showLabel?: boolean");
-    expect(magic).toContain("metadata ?? storeMetadata");
-    expect(magic).toContain("SongMediaDialog");
-    expect(magic).toContain("metadata={resolvedMetadata}");
-    expect(magic).toContain(">FORGE</span>");
-
-    expect(mediaDialog).toContain("!effectiveBlossomUrl || favoritesLoading");
     expect(favorites).toContain('DEFAULT_LIST_ID = "wavefunc-liked-songs"');
     expect(favorites).toContain("if (isLoading)");
   });

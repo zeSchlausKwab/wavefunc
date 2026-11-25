@@ -567,8 +567,22 @@ impl WavefuncCore {
         builder: EventBuilder,
         target_address: Option<String>,
     ) -> Result<ActionOutcome> {
+        self.sign_or_prepare_for(builder, target_address, None).await
+    }
+
+    async fn sign_or_prepare_for(
+        &self,
+        builder: EventBuilder,
+        target_address: Option<String>,
+        expected_author: Option<PublicKey>,
+    ) -> Result<ActionOutcome> {
         let mode = {
             let guard = self.signer.read().await;
+            if let Some(expected) = expected_author {
+                if guard.as_ref().map(ActiveSigner::pubkey) != Some(expected) {
+                    return Err(WavefuncError::AuthRequired("Account changed during song update.".into()));
+                }
+            }
             match guard.as_ref() {
                 None => {
                     return Err(WavefuncError::AuthRequired(
@@ -598,6 +612,9 @@ impl WavefuncCore {
             }
         };
 
+        if expected_author.is_some_and(|author| signed_event.pubkey != author) {
+            return Err(WavefuncError::AuthRequired("Unexpected song event signer.".into()));
+        }
         self.send_verified_event(&signed_event, target_address).await
     }
 
@@ -1768,6 +1785,18 @@ impl WavefuncCore {
         })
     }
 
+    /// A song write needs a definitive answer from the app's data relay. The
+    /// client pool otherwise treats an individual relay's read error as an empty result.
+    async fn latest_for_song_write(&self, filter: Filter) -> Result<Option<Event>> {
+        let cfg = self.config.read().await.clone();
+        let relay = self.client.relay(cfg.relay_url.as_str()).await?
+            .ok_or(WavefuncError::NotConnected(cfg.relay_url))?;
+        let events = relay.fetch_events(filter)
+            .timeout(Duration::from_secs(cfg.request_timeout_secs))
+            .await?;
+        Ok(events.into_iter().max_by_key(|e| e.created_at))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn create_song_event(
         &self,
@@ -1798,7 +1827,17 @@ impl WavefuncCore {
             genres,
         )?;
         let song_address = format!("{SONG_KIND}:{}:{song_id}", pubkey.to_hex());
-        self.sign_or_prepare(builder, Some(song_address)).await
+        let filter = Filter::new().author(pubkey).kind(Kind::Custom(SONG_KIND))
+            .identifier(&song_id).limit(1);
+        if let Some(existing) = self.latest_for_song_write(filter).await? {
+            return Ok(ActionOutcome {
+                published: true,
+                event_id: Some(existing.id.to_hex()),
+                unsigned_event_json: None,
+                target_address: Some(song_address),
+            });
+        }
+        self.sign_or_prepare_for(builder, Some(song_address), Some(pubkey)).await
     }
 
     pub async fn update_song_crate(
@@ -1813,11 +1852,11 @@ impl WavefuncCore {
                 .map(ActiveSigner::pubkey)
                 .ok_or_else(|| WavefuncError::AuthRequired("Sign in to edit song crate.".into()))?
         };
-        let existing = self
-            .fetch_latest_user_app_list(pubkey, SONG_LIST_LABEL)
-            .await?;
+        let filter = Filter::new().author(pubkey).kind(Kind::Custom(APP_DATA_KIND))
+            .custom_tag(SingleLetterTag::from_char('l').unwrap(), SONG_LIST_LABEL).limit(10);
+        let existing = self.latest_for_song_write(filter).await?;
         let builder = build_song_list_builder(existing.as_ref(), song_address, add)?;
-        self.sign_or_prepare(builder, Some(song_address.to_string()))
+        self.sign_or_prepare_for(builder, Some(song_address.to_string()), Some(pubkey))
             .await
     }
 
@@ -3103,9 +3142,7 @@ impl WavefuncCore {
         Ok(out)
     }
 
-    /// Search YouTube videos **on-device first**:
-    /// - Desktop: local `yt-dlp` → direct on-device YouTube HTTPS → ContextVM fallback
-    /// - Android: direct on-device YouTube HTTPS → ContextVM fallback
+    /// Search on the device. Desktop tries its yt-dlp binary before direct HTTPS search.
     pub async fn search_youtube(
         &self,
         query: &str,
@@ -3125,57 +3162,46 @@ impl WavefuncCore {
             }
         }
 
-        if let Ok(results) =
-            contextvm::search_youtube_web_fallback(&self.http, trimmed, limit).await
-        {
-            if !results.is_empty() {
-                return Ok(results);
-            }
-        }
-
-        let cfg = self.config.read().await.clone();
-        contextvm::search_youtube(
-            &self.client,
-            &self.ephemeral_keys,
-            &cfg.metadata_server_pubkey,
-            trimmed,
-            limit,
-            15,
-        )
-        .await
+        crate::media::search_youtube_web(&self.http, trimmed, limit).await
     }
 
-    /// Download a YouTube video/audio locally via `yt-dlp` when available (desktop),
-    /// or via the WaveFunc ContextVM `prepare_download` service (Android / no local yt-dlp).
+    /// Prepare a desktop download. Android runs its bundled extractor before registering the file.
     pub async fn prepare_youtube_media(
         &self,
         cache_root: &str,
         video_id: &str,
         format: &str,
     ) -> Result<PreparedMedia> {
+        #[cfg(target_os = "android")]
+        {
+            let _ = (cache_root, video_id, format);
+            Err(WavefuncError::InvalidInput(
+                "Use the Android downloader to prepare media on this device.".into(),
+            ))
+        }
         #[cfg(not(target_os = "android"))]
         {
-            if let Ok(mut prepared) = self
+            let mut prepared = self
                 .media
                 .prepare_youtube_media(cache_root, video_id, format)
-                .await
-            {
-                prepared.job_id = format!("local:{}", prepared.job_id);
-                return Ok(prepared);
-            }
+                .await?;
+            prepared.job_id = format!("local:{}", prepared.job_id);
+            Ok(prepared)
         }
+    }
 
-        let _ = cache_root;
-        let cfg = self.config.read().await.clone();
-        contextvm::prepare_download_remote(
-            &self.client,
-            &self.ephemeral_keys,
-            &cfg.metadata_server_pubkey,
-            video_id,
-            format,
-            180,
-        )
-        .await
+    pub async fn register_downloaded_media(
+        &self,
+        cache_root: &str,
+        job_id: &str,
+        format: &str,
+    ) -> Result<PreparedMedia> {
+        let mut prepared = self
+            .media
+            .register_downloaded_media(cache_root, job_id, format)
+            .await?;
+        prepared.job_id = format!("local:{job_id}");
+        Ok(prepared)
     }
 
     /// Sign a BUD-02 Blossom upload authorization event (`kind 24242`) WITHOUT publishing to relays.
@@ -3229,26 +3255,13 @@ impl WavefuncCore {
         }
     }
 
-    /// Upload a prepared media job (`local:<id>` or `remote:<id>`) to a Blossom server.
+    /// Upload a prepared local media job to a Blossom server.
     pub async fn upload_media_to_blossom(
         &self,
         job_id: &str,
         blossom_url: &str,
         signed_auth_event_json: &str,
     ) -> Result<UploadedMedia> {
-        if let Some(remote_id) = job_id.strip_prefix("remote:") {
-            let cfg = self.config.read().await.clone();
-            return contextvm::upload_to_blossom_remote(
-                &self.client,
-                &self.ephemeral_keys,
-                &cfg.metadata_server_pubkey,
-                remote_id,
-                blossom_url,
-                signed_auth_event_json,
-                180,
-            )
-            .await;
-        }
         let local_id = job_id.strip_prefix("local:").unwrap_or(job_id);
         self.media
             .upload_to_blossom(&self.http, local_id, blossom_url, signed_auth_event_json)
@@ -3257,9 +3270,6 @@ impl WavefuncCore {
 
     /// Clean up a prepared media acquisition job directory.
     pub async fn discard_media_job(&self, job_id: &str) -> Result<()> {
-        if job_id.starts_with("remote:") {
-            return Ok(());
-        }
         let local_id = job_id.strip_prefix("local:").unwrap_or(job_id);
         self.media.discard_job(local_id).await
     }
@@ -3286,21 +3296,14 @@ impl WavefuncCore {
             .kind(Kind::Custom(SONG_KIND))
             .identifier(song_id.trim())
             .limit(5);
-        let events = self
-            .client
-            .fetch_events(filter)
-            .timeout(Duration::from_secs(6))
-            .await?;
-        let existing = events
-            .into_iter()
-            .max_by_key(|e| e.created_at)
+        let existing = self.latest_for_song_write(filter).await?
             .ok_or_else(|| {
                 WavefuncError::InvalidInput("Saved song event not found on relay".to_string())
             })?;
 
         let builder = build_song_audio_update_builder(&existing, audio_url, youtube_id)?;
         let address = format!("{SONG_KIND}:{}:{}", pubkey.to_hex(), song_id.trim());
-        self.sign_or_prepare(builder, Some(address)).await
+        self.sign_or_prepare_for(builder, Some(address), Some(pubkey)).await
     }
 
     // ─── Public Profiles, Global Song Signals (kind 31337) & Station Submit ─
@@ -3650,5 +3653,31 @@ mod metadata_escape_tests {
             r"54\-46 Was My Number \(Remix\)"
         );
         assert_eq!(escape_lucene_phrase("AC/DC: Back in Black"), r"AC\/DC\: Back in Black");
+    }
+}
+
+
+#[cfg(test)]
+mod song_write_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn account_switch_during_crate_read_cannot_prepare_for_another_author() {
+        let core = WavefuncCore::new(CoreConfig::default());
+        let previous = Keys::generate().public_key();
+        let current = Keys::generate().public_key();
+        *core.signer.write().await = Some(ActiveSigner::Amber { pubkey: current });
+        let builder = EventBuilder::new(Kind::Custom(SONG_KIND), "");
+        let err = core.sign_or_prepare_for(builder, None, Some(previous)).await.unwrap_err();
+        assert!(matches!(err, WavefuncError::AuthRequired(_)));
+    }
+
+    #[tokio::test]
+    async fn cannot_overwrite_an_unreadable_song() {
+        let core = WavefuncCore::new(CoreConfig::default());
+        *core.signer.write().await = Some(ActiveSigner::Amber { pubkey: Keys::generate().public_key() });
+        let err = core.create_song_event("Track", None, None, None, None, None, None, &[])
+            .await.unwrap_err();
+        assert!(matches!(err, WavefuncError::NotConnected(_)));
     }
 }

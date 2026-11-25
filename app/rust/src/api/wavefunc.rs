@@ -1413,6 +1413,18 @@ pub async fn prepare_youtube_media(
         .map_err(|e| e.to_string())
 }
 
+pub async fn register_downloaded_media(
+    cache_root: String,
+    job_id: String,
+    format: String,
+) -> Result<FrbPreparedMedia, String> {
+    core()
+        .register_downloaded_media(&cache_root, &job_id, &format)
+        .await
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
 pub async fn upload_media_to_blossom(
     job_id: String,
     blossom_url: String,

@@ -6,12 +6,12 @@ const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("MusicBrainz lookup workflow", () => {
-  test("connects catalog recordings to the shared favorite and media forge flows", () => {
+  test("connects catalog recordings to the shared favorite action and app backup link", () => {
     const search = read("src/components/MusicBrainzSearch.tsx");
 
     expect(search).toContain("recordingToSongMetadata(recording)");
     expect(search).toContain("<SongFavoriteButton");
-    expect(search).toContain("<SongMagicButton");
+    expect(search).toContain("<BackupAppLink");
     expect(search).toContain("metadata={metadata}");
     expect(search).toContain("showLabel");
     expect(search).not.toContain("console.log");
@@ -51,7 +51,7 @@ describe("MusicBrainz lookup workflow", () => {
     const search = read("src/components/MusicBrainzSearch.tsx");
 
     expect(route).toContain("SONG_LOOKUP");
-    expect(route).toContain("FORGE_TO_BLOSSOM");
+    expect(route).toContain("BACK_UP_IN_APP");
     expect(search).toContain("border-4 border-on-background");
     expect(search).toContain("min-h-12");
     expect(search).toContain("MORE_FILTERS");

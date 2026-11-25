@@ -9,6 +9,7 @@ import '../../../core/widgets/station_thumbnail.dart';
 import '../../auth/view_models/auth_view_model.dart';
 import '../../crate/view_models/crate_view_model.dart';
 import '../view_models/player_view_model.dart';
+import 'track_crate_button.dart';
 
 /// Full Constructivist "Observation Window" sheet for active playback.
 class ExpandedPlayerSheet extends StatelessWidget {
@@ -43,8 +44,6 @@ class ExpandedPlayerSheet extends StatelessWidget {
         final remaining = snap.sleepTimerRemaining;
         final meta = snap.metadata;
         final hasTrack = meta != null && meta.hasTrackInfo;
-        final alreadyInCrate = hasTrack &&
-            crateViewModel.hasSong(meta.displaySong!, meta.displayArtist);
 
         return Container(
           decoration: const BoxDecoration(
@@ -189,39 +188,14 @@ class ExpandedPlayerSheet extends StatelessWidget {
                         },
                       ),
                       if (hasTrack)
-                        SonicPowerButton(
-                          label: alreadyInCrate
-                              ? 'In Crate'
-                              : (crateViewModel.isSaving
-                                  ? 'Saving...'
-                                  : 'Save Track'),
-                          icon: alreadyInCrate
-                              ? Icons.library_music
-                              : Icons.library_add,
-                          primary: false,
-                          active: alreadyInCrate,
-                          onPressed: crateViewModel.isSaving || alreadyInCrate
-                              ? null
-                              : () async {
-                                  if (!authViewModel.isLoggedIn) {
-                                    Navigator.of(context).pop();
-                                    onRequestLogin();
-                                    return;
-                                  }
-                                  final ok = await crateViewModel
-                                      .saveNowPlaying(meta);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          ok
-                                              ? 'Saved "${meta.displaySong}" to your Crate'
-                                              : 'Save failed: ${crateViewModel.errorMessage}',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                        TrackCrateButton(
+                          metadata: meta,
+                          crate: crateViewModel,
+                          auth: authViewModel,
+                          onRequestLogin: () {
+                            Navigator.of(context).pop();
+                            onRequestLogin();
+                          },
                         ),
                       SonicPowerButton(
                         label: 'Stop',
