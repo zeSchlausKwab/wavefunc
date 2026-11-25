@@ -764,8 +764,10 @@ class RustBridgeBackend implements WavefuncBackend {
   }
 
   @override
-  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) =>
-      frb.pendingStationNutzapAmounts(stationAddress: stationAddress);
+  Future<List<int>> pendingStationNutzapAmounts(String stationAddress) async {
+    final amounts = await frb.pendingStationNutzapAmounts(stationAddress: stationAddress);
+    return amounts.map((amount) => amount.toInt()).toList();
+  }
 
   @override
   Future<ActionOutcome> sendStationNutzap({
