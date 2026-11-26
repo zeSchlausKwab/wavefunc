@@ -41,7 +41,12 @@
     "test:production-web": "node scripts/smoke-production-web.mjs",
     "test:public-directory": "bun scripts/smoke-public-directory.ts",
     "typecheck": "tsc --noEmit",
-    "benchmark:nostr": "bun scripts/benchmark-nostr.ts"
+    "benchmark:nostr": "bun scripts/benchmark-nostr.ts",
+    "tui": "cd tui && go run ./cmd/wf",
+    "tui:dev": "cd tui && go run ./cmd/wf --relay ws://localhost:3334",
+    "tui:test": "cd tui && go test -race ./...",
+    "tui:build": "cd tui && go build -o ../dist/wf ./cmd/wf",
+    "tui:record": "./scripts/record-tui-teaser.sh"
   },
   "dependencies": {
     "@cashu/cashu-ts": "^4.12.0",

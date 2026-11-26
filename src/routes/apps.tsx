@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/apps")({
@@ -6,6 +7,36 @@ export const Route = createFileRoute("/apps")({
 
 const GITHUB_REPO = "zeSchlausKwab/wavefunc";
 const GITHUB_RELEASES = `https://github.com/${GITHUB_REPO}/releases/latest`;
+
+type TerminalInstallMethodId = "posix" | "homebrew" | "windows";
+
+interface TerminalInstallMethod {
+  id: TerminalInstallMethodId;
+  label: string;
+  command: string;
+  note: string;
+}
+
+const TERMINAL_INSTALL_METHODS: TerminalInstallMethod[] = [
+  {
+    id: "posix",
+    label: "MACOS / LINUX",
+    command: "curl -fsSL https://wavefunc.live/install.sh | sh",
+    note: "SINGLE STATIC BINARY (MACOS ARM64/X64 · LINUX X64/ARM64) — USES MPV, FFPLAY, OR VLC FOR AUDIO",
+  },
+  {
+    id: "homebrew",
+    label: "HOMEBREW",
+    command: "brew install zeSchlausKwab/tap/wf",
+    note: "MACOS & LINUXBREW — AUTOMATICALLY INSTALLS MPV SO AUDIO WORKS OUT OF THE BOX",
+  },
+  {
+    id: "windows",
+    label: "WINDOWS",
+    command: "irm https://wavefunc.live/install.ps1 | iex",
+    note: "POWERSHELL ONE-LINER (WINDOWS X64) — VERIFIES SHA-256 & ADDS wf.exe TO USER PATH (WINGET INSTALL MPV FOR AUDIO)",
+  },
+];
 
 interface Platform {
   id: string;
@@ -63,8 +94,29 @@ function detectPlatform(): string | null {
   return null;
 }
 
+function defaultTerminalMethod(platform: string | null): TerminalInstallMethodId {
+  if (platform === "windows") return "windows";
+  if (platform === "macos") return "homebrew";
+  return "posix";
+}
+
 function Apps() {
   const detectedPlatform = detectPlatform();
+  const [terminalMethod, setTerminalMethod] = useState<TerminalInstallMethodId>(() =>
+    defaultTerminalMethod(detectedPlatform),
+  );
+  const [copiedCmd, setCopiedCmd] = useState(false);
+
+  const activeTerminal =
+    TERMINAL_INSTALL_METHODS.find((m) => m.id === terminalMethod) ??
+    TERMINAL_INSTALL_METHODS[0]!;
+
+  const handleCopyInstall = () => {
+    navigator.clipboard?.writeText(activeTerminal.command).then(() => {
+      setCopiedCmd(true);
+      window.setTimeout(() => setCopiedCmd(false), 2000);
+    }).catch(() => {});
+  };
 
   const sorted = [...PLATFORMS].sort((a, b) => {
     if (a.id === detectedPlatform) return -1;
@@ -104,6 +156,97 @@ function Apps() {
             OPEN_APP
           </a>
         </div>
+      </div>
+
+      {/* Terminal TUI banner */}
+      <div className="border-4 border-on-background bg-on-background text-surface shadow-[6px_6px_0px_0px_rgba(182,0,19,1)] p-6 space-y-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="material-symbols-outlined text-3xl text-secondary-fixed-dim">terminal</span>
+          <div className="flex-1 min-w-[200px]">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black uppercase tracking-tight font-headline">
+                TERMINAL_TUI (wf)
+              </span>
+              <span className="bg-primary text-white text-[10px] font-black px-2 py-0.5 uppercase tracking-widest">
+                ONE-LINER
+              </span>
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-surface/70">
+              POCKET_SONIC_MACHINE — MACOS · LINUX · WINDOWS — CROSS-DEVICE NOSTR SYNC
+            </div>
+          </div>
+          <a
+            href={GITHUB_RELEASES}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="border-2 border-surface/40 px-4 py-2 font-black uppercase tracking-tight text-xs hover:bg-surface hover:text-on-background transition-colors"
+          >
+            BINARIES
+          </a>
+        </div>
+
+        {/* Live recorded TUI teaser video */}
+        <div className="border-2 border-secondary-fixed-dim/50 bg-[#0b0a08] overflow-hidden">
+          <video
+            className="w-full aspect-video block"
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls
+            poster="/media/wf-teaser-poster.png"
+          >
+            <source src="/media/wf-teaser.webm" type="video/webm" />
+            <source src="/media/wf-teaser.mp4" type="video/mp4" />
+          </video>
+        </div>
+
+        {/* Platform one-liner tabs */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {TERMINAL_INSTALL_METHODS.map((method) => {
+              const active = method.id === activeTerminal.id;
+              return (
+                <button
+                  key={method.id}
+                  type="button"
+                  onClick={() => {
+                    setTerminalMethod(method.id);
+                    setCopiedCmd(false);
+                  }}
+                  className={`px-3 py-1.5 font-black uppercase tracking-widest text-[10px] border-2 transition-colors cursor-pointer ${
+                    active
+                      ? "bg-secondary-fixed-dim text-on-background border-secondary-fixed-dim"
+                      : "bg-transparent text-surface/70 border-surface/30 hover:border-surface hover:text-surface"
+                  }`}
+                >
+                  {method.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/40 border-2 border-secondary-fixed-dim/60 p-3">
+            <code className="flex-1 font-mono text-xs sm:text-sm text-secondary-fixed-dim break-all select-all">
+              {activeTerminal.command}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopyInstall}
+              className="shrink-0 bg-secondary-fixed-dim text-on-background px-4 py-2 font-black uppercase tracking-tight text-xs hover:bg-primary hover:text-white transition-colors cursor-pointer"
+            >
+              {copiedCmd ? "COPIED" : "COPY"}
+            </button>
+          </div>
+
+          <p className="text-[10px] font-bold uppercase tracking-widest text-surface/65 leading-relaxed">
+            {activeTerminal.note}
+          </p>
+        </div>
+
+        <p className="text-[10px] font-bold uppercase tracking-widest text-surface/55">
+          RUN <code className="text-secondary-fixed-dim">wf</code> FOR THE FULL TUI, <code className="text-secondary-fixed-dim">wf --lucky</code> FOR INSTANT RADIO, OR <code className="text-secondary-fixed-dim">wf play jazz</code> TO JUMP RIGHT IN
+        </p>
       </div>
 
       {/* Platform cards */}

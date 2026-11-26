@@ -209,8 +209,72 @@ jobs:
           draft: true
           files: WaveFunc-*-android-universal.apk
 
+  build-tui:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+
+      - name: Test TUI
+        working-directory: tui
+        run: go vet ./... && go test -race ./...
+
+      - name: Cross-compile wf binaries
+        working-directory: tui
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT::8}"
+
+          build_tar() {
+            local goos="$1" goarch="$2"
+            local stage="dist/stage_${goos}_${goarch}"
+            mkdir -p "$stage"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="$LDFLAGS" -o "${stage}/wf" ./cmd/wf
+            tar -czf "dist/wf_${VERSION}_${goos}_${goarch}.tar.gz" -C "$stage" wf
+            rm -rf "$stage"
+          }
+
+          build_tar darwin arm64
+          build_tar darwin amd64
+          build_tar linux amd64
+          build_tar linux arm64
+
+          mkdir -p dist/stage_windows_amd64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/stage_windows_amd64/wf.exe ./cmd/wf
+          (cd dist/stage_windows_amd64 && zip -q "../wf_${VERSION}_windows_amd64.zip" wf.exe)
+          rm -rf dist/stage_windows_amd64
+
+          (cd dist && sha256sum wf_${VERSION}_* > wf_checksums.txt)
+
+      - name: Upload TUI artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            tui/dist/wf_*.tar.gz
+            tui/dist/wf_*.zip
+            tui/dist/wf_checksums.txt
+
+      - name: Share TUI checksums for Homebrew tap
+        uses: actions/upload-artifact@v4
+        with:
+          name: wf-checksums
+          path: tui/dist/wf_checksums.txt
+          retention-days: 1
+
   publish-release:
-    needs: [create-release, build-macos, build-linux, build-windows, build-android]
+    needs: [create-release, build-macos, build-linux, build-windows, build-android, build-tui]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
@@ -223,3 +287,86 @@ jobs:
               release_id: ${{ needs.create-release.outputs.release_id }},
               draft: false
             });
+
+  update-homebrew:
+    needs: [create-release, build-tui, publish-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download TUI checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: wf-checksums
+          path: checksums
+
+      - name: Update zeSchlausKwab/homebrew-tap Formula/wf.rb
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: zeSchlausKwab/homebrew-tap
+          VERSION: ${{ needs.create-release.outputs.version }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "HOMEBREW_TAP_TOKEN secret not configured; skipping Homebrew tap update."
+            exit 0
+          fi
+
+          sha_for() {
+            awk -v f="$1" '$2 == f { print $1; exit }' checksums/wf_checksums.txt
+          }
+
+          SHA_DARWIN_ARM64="$(sha_for "wf_${VERSION}_darwin_arm64.tar.gz")"
+          SHA_DARWIN_AMD64="$(sha_for "wf_${VERSION}_darwin_amd64.tar.gz")"
+          SHA_LINUX_ARM64="$(sha_for "wf_${VERSION}_linux_arm64.tar.gz")"
+          SHA_LINUX_AMD64="$(sha_for "wf_${VERSION}_linux_amd64.tar.gz")"
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" tap
+          mkdir -p tap/Formula
+
+          cat > tap/Formula/wf.rb << EOF
+          class Wf < Formula
+            desc "WaveFunc Radio terminal UI — decentralized internet radio on Nostr"
+            homepage "https://wavefunc.live"
+            version "${VERSION}"
+            license "MIT"
+
+            depends_on "mpv"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/zeSchlausKwab/wavefunc/releases/download/${TAG}/wf_${VERSION}_darwin_arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/zeSchlausKwab/wavefunc/releases/download/${TAG}/wf_${VERSION}_darwin_amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/zeSchlausKwab/wavefunc/releases/download/${TAG}/wf_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/zeSchlausKwab/wavefunc/releases/download/${TAG}/wf_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "wf"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/wf --version")
+            end
+          end
+          EOF
+
+          cd tap
+          git config user.name "wavefunc-release-bot"
+          git config user.email "release-bot@wavefunc.live"
+          git add Formula/wf.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "wf ${VERSION}"
+            git push origin HEAD
+          fi

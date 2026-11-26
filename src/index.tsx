@@ -25,8 +25,40 @@ const EXPECTED_PUBKEY = APP_PRIVATE_KEY
 // Simple in-memory lock/rate limit for authenticated maintenance endpoints.
 const maintenanceLock = { isRunning: false, lastRun: 0 };
 
+async function servePublicOrDistFile(
+  filename: string,
+  contentType: string,
+): Promise<Response> {
+  for (const dir of ["public", "dist"]) {
+    const candidate = file(join(process.cwd(), dir, filename));
+    if (await candidate.exists()) {
+      return new Response(candidate, {
+        headers: {
+          "Content-Type": contentType,
+          "Cache-Control": "no-cache",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+  }
+  return new Response("Not found", { status: 404 });
+}
+
 // Define route handlers that work in both modes
 const apiRoutes: Record<string, any> = {
+  "/install.sh": {
+    async GET(_req: Request) {
+      return servePublicOrDistFile(
+        "install.sh",
+        "text/x-shellscript; charset=utf-8",
+      );
+    },
+  },
+  "/install.ps1": {
+    async GET(_req: Request) {
+      return servePublicOrDistFile("install.ps1", "text/plain; charset=utf-8");
+    },
+  },
   "/api/station-tracks": { GET: (request: Request) => serveStationTrackHistory(request) },
   "/api/migrate": {
     async POST(req: Request) {
@@ -504,6 +536,17 @@ if (!isProduction) {
           (await servePublicRoute(req, catalog, getShell)) ?? new Response(null, { status: 404 }),
         // Serve static files from public/ directory
         "/images/*": async (req) => {
+          const url = new URL(req.url);
+          const filePath = join(process.cwd(), "public", url.pathname);
+          const staticFile = file(filePath);
+
+          if (await staticFile.exists()) {
+            return new Response(staticFile);
+          }
+
+          return new Response("Not found", { status: 404 });
+        },
+        "/media/*": async (req) => {
           const url = new URL(req.url);
           const filePath = join(process.cwd(), "public", url.pathname);
           const staticFile = file(filePath);
