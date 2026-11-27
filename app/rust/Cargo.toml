@@ -1,6 +1,6 @@
 [package]
 name = "wavefunc_bridge"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 description = "flutter_rust_bridge FFI layer exposing wavefunc-core to Flutter"
 license = "MIT"
