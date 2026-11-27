@@ -36,10 +36,6 @@ function slugify(str: string) {
     .slice(0, 64);
 }
 
-export function isSongEvent(event: NostrEvent): boolean {
-  return event.kind === SONG_KIND;
-}
-
 export function parseSongEvent(event: NostrEvent, relays?: string[]) {
   return getOrComputeCachedValue(event, ParsedSongSymbol, () => {
     const refs = getAddressableReferences(event, relays);

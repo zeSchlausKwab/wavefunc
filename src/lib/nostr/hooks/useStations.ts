@@ -147,24 +147,6 @@ export function useStations(
   return useStationStream(filters);
 }
 
-export function useSearchStations(
-  filter: Omit<Filter, "kinds"> = {},
-  searchQuery: string,
-): UseStationStreamResult {
-  const filters = useMemo(
-    () => [
-      {
-        ...filter,
-        kinds: [STATION_KIND],
-        search: searchQuery,
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(filter), searchQuery],
-  );
-  return useStationStream(filters);
-}
-
 export function useStationsObserver(
   filterWithoutKinds: Omit<Filter, "kinds"> = { limit: 50 },
   clientSideFilters?: StationClientFilters,

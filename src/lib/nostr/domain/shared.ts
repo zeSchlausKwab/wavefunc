@@ -2,7 +2,6 @@ import {
   createReplaceableAddress,
   type NostrEvent,
 } from "applesauce-core/helpers/event";
-import type { EventTemplate } from "../types";
 import {
   getAddressPointerForEvent,
   naddrEncode,
@@ -38,10 +37,6 @@ export function removeTags(
   });
 }
 
-export function upsertSingletonTag(tags: string[][], tag: [string, ...string[]]) {
-  return [...removeTags(tags, tag[0]), tag];
-}
-
 export function getAddressableIdentity(
   event: Pick<NostrEvent, "kind" | "pubkey" | "tags">
 ) {
@@ -59,14 +54,6 @@ export function getAddressableReferences(
   return {
     address,
     naddr: pointer ? naddrEncode(pointer) : undefined,
-  };
-}
-
-export function cloneTemplateFromEvent(event: NostrEvent): EventTemplate {
-  return {
-    kind: event.kind,
-    content: event.content,
-    tags: event.tags.map((tag) => [...tag]),
   };
 }
 

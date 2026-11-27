@@ -182,20 +182,11 @@ export function isActive(state: PlayerState): boolean {
   );
 }
 
-export function isPaused(state: PlayerState): boolean {
-  return state.kind === "paused";
-}
-
-export function isFailed(state: PlayerState): boolean {
-  return state.kind === "failed";
-}
-
 // ─── Compat selectors ──────────────────────────────────────────────────────
 //
-// The rest of the app (RadioCard, StationDetail, AnimatedLogo,
-// useMediaSession) was written against the old flat fields. These
-// selectors derive those flat fields from the new union so callers
-// keep working without edits.
+// The rest of the app (RadioCard, StationDetail, useMediaSession) was
+// written against the old flat fields. These selectors derive those flat
+// fields from the new union so callers keep working without edits.
 
 export function selectCurrentStation(
   state: PlayerState
@@ -250,20 +241,6 @@ export function selectError(state: PlayerState): string | null {
 }
 
 // ─── Time helpers ──────────────────────────────────────────────────────────
-
-export function timeInState(state: PlayerState, now = Date.now()): number {
-  switch (state.kind) {
-    case "playing":
-    case "buffering":
-      return now - state.since;
-    case "loading":
-      return now - state.startedAt;
-    case "reconnecting":
-      return now - state.startedAt;
-    default:
-      return 0;
-  }
-}
 
 export function backoffFor(attempt: number): number {
   const idx = Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1);

@@ -28,10 +28,6 @@ function assertSongAddress(songAddress: string) {
   }
 }
 
-export function isSongListEvent(event: NostrEvent): boolean {
-  return event.kind === WF_SONG_LIST_KIND && getFirstTagValue(event, "l") === SONG_LIST_LABEL;
-}
-
 export function getSongAddresses(event: NostrEvent) {
   return getMatchingTags(event, "a")
     .map((tag) => tag[1])

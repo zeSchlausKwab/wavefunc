@@ -135,23 +135,3 @@ function parseStreamTitle(streamTitle: string): {
     title: trimmed,
   };
 }
-
-/**
- * Batch enrich multiple metadata entries
- * Uses rate limiting to respect MusicBrainz API limits (1 request per second)
- */
-export async function enrichMetadataBatch(
-  items: RawMetadata[]
-): Promise<EnrichedMetadata[]> {
-  const results: EnrichedMetadata[] = [];
-
-  for (const item of items) {
-    const enriched = await enrichMetadata(item);
-    results.push(enriched);
-
-    // Rate limit: MusicBrainz requires 1 request per second
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  return results;
-}

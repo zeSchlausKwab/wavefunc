@@ -90,10 +90,6 @@ function parseStreamTag(tag: string[]): Stream | null {
   }
 }
 
-export function isStationEvent(event: NostrEvent): boolean {
-  return event.kind === STATION_KIND;
-}
-
 export function parseStationEvent(event: NostrEvent, relays?: string[]) {
   // Cache parsed result on the event itself so the same NostrEvent reference
   // yields a stable wrapper object across renders. This keeps React.memo /

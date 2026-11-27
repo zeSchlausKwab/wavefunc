@@ -109,7 +109,3 @@ export const useToastStore = create<ToastStore>((set, get) => ({
 export function showToast(input: ToastInput): string {
   return useToastStore.getState().show(input);
 }
-
-export function dismissToast(id: string): void {
-  useToastStore.getState().dismiss(id);
-}

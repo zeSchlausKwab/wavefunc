@@ -628,11 +628,6 @@ export async function searchRecordingsCombined(
   );
 }
 
-export async function getRecordingDetails(mbid: string): Promise<any> {
-  const url = `${MUSICBRAINZ_API}/recording/${encodeURIComponent(mbid)}?fmt=json&inc=artists+releases+tags`;
-  return withCache(`details:${mbid}`, () => fetchMusicBrainzJson(url));
-}
-
 export function getMusicMetadataStats() {
   return {
     cacheEntries: queryCache.size,

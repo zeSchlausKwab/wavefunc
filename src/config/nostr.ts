@@ -38,10 +38,6 @@ export function getAppDataRelayUrls() {
   return getRelayPolicy().appData;
 }
 
-export function getPublicContentRelayUrls() {
-  return getRelayPolicy().generalRead;
-}
-
 export function getIdentityRelayUrls() {
   return getRelayPolicy().identityRead;
 }
@@ -80,15 +76,6 @@ export function getWriteRelayUrls() {
   return policy.stage === "development"
     ? policy.appData
     : policy.generalWriteFallback;
-}
-
-export function getAppDataSubscriptionOptions<T extends object = Record<string, never>>(
-  extra?: T
-) {
-  return {
-    relayUrls: getAppDataRelayUrls(),
-    ...extra,
-  };
 }
 
 export function addressesToParameterizedFilters(

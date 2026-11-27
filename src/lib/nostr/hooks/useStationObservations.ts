@@ -5,14 +5,11 @@ import { config } from "../../../config/env";
 import {
   parseStationHealthEvent,
   parseStationRankingEvent,
-  parseStationTrackEvent,
   STATION_HEALTH_KIND,
-  STATION_NOW_PLAYING_KIND,
   STATION_RANKING_KIND,
   type StationHealthSummary,
   type StationRankingMetric,
   type StationRankingSnapshot,
-  type StationTrack,
 } from "../domain";
 import { useAppDataTimeline } from "./useRelayTimeline";
 
@@ -75,31 +72,6 @@ export function useStationHealth(stationAddresses: string[]) {
       const health = parseStationHealthEvent(event);
       if (health && !result.has(health.stationAddress)) {
         result.set(health.stationAddress, health);
-      }
-    }
-    return result;
-  }, [events]);
-  return { byAddress, isLoading, error };
-}
-
-export function useCurrentStationTracks(stationAddresses: string[]) {
-  const key = JSON.stringify(stationAddresses);
-  const filters = useMemo(
-    () => observationFilters(STATION_NOW_PLAYING_KIND, stationAddresses),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key],
-  );
-  const { events, isLoading, error } = useAppDataTimeline(
-    filters.length > 0 ? filters : null,
-  );
-  const byAddress = useMemo(() => {
-    const result = new Map<string, StationTrack>();
-    const now = Math.floor(Date.now() / 1000);
-    for (const event of [...events].sort((a, b) => b.created_at - a.created_at)) {
-      if (event.pubkey !== config.metadataServerPubkey) continue;
-      const track = parseStationTrackEvent(event, now);
-      if (track && !result.has(track.stationAddress)) {
-        result.set(track.stationAddress, track);
       }
     }
     return result;
