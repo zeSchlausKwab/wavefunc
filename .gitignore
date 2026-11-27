@@ -39,6 +39,10 @@ contextvm/bin/
 # IntelliJ based IDEs
 .idea
 
+# Local agent / publishing config
+.claude/settings.local.json
+.nsite/
+
 # Finder (MacOS) folder config
 .DS_Store
 
