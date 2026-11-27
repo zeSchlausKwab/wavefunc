@@ -1,6 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { describePublicPage, genericPageMetadata, getPublicMetaTags, type PublicPage } from "../lib/publicPageMetadata";
+import { describePublicPage, genericPageMetadata, getPublicMetaTags, getPublicStructuredData, type PublicPage } from "../lib/publicPageMetadata";
 
 const home = { kind: "home" } as const;
 const apps = { kind: "apps" } as const;
@@ -55,6 +55,22 @@ export function PublicPageHead() {
     } else {
       canonical?.remove();
       head.querySelector('meta[property="og:url"]')?.remove();
+    }
+    const structured = page ? getPublicStructuredData(page) : undefined;
+    const existingJsonLd = head.querySelector<HTMLScriptElement>("#wavefunc-structured-data");
+    if (structured) {
+      const textContent = JSON.stringify(structured);
+      if (existingJsonLd) {
+        if (existingJsonLd.textContent !== textContent) existingJsonLd.textContent = textContent;
+      } else {
+        const script = document.createElement("script");
+        script.type = "application/ld+json";
+        script.id = "wavefunc-structured-data";
+        script.textContent = textContent;
+        head.append(script);
+      }
+    } else {
+      existingJsonLd?.remove();
     }
   }, [page]);
 

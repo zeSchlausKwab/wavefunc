@@ -102,7 +102,7 @@ const databasePath = join(directory, "directory.sqlite");
 await importStations(databasePath, stations);
 // Match the synchronous module loading used by the production PM2 interpreter.
 const server = spawn(process.execPath, ["-e", 'require("./src/index.tsx")'], {
-  env: { ...process.env, NODE_ENV: "production", PORT: "0", PUBLIC_DIRECTORY_DB: databasePath, PUBLIC_CATALOG_RELAY_URL: relay, PUBLIC_CATALOG_PROFILE_RELAYS: relay, PUBLIC_CATALOG_DB: ":memory:" },
+  env: { ...process.env, NODE_ENV: "production", PORT: "0", PUBLIC_DIRECTORY_DB: databasePath, PUBLIC_CATALOG_RELAY_URL: relay, PUBLIC_CATALOG_PROFILE_RELAYS: relay, PUBLIC_CATALOG_DB: ":memory:", PUBLIC_SITEMAP_MIN_GENRE_STATIONS: "1" },
   stdio: ["ignore", "pipe", "inherit"],
 });
 const exit = once(server, "exit");

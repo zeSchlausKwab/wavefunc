@@ -4,10 +4,12 @@ import { parseJsonContent } from "./nostr/domain/shared";
 import { parseStationEvent } from "./nostr/domain/station";
 import { parseFavoritesListEvent } from "./nostr/domain/favorites-list";
 
-import { genrePath, genresPath, type GenreEntry } from "./genres";
+import { genrePath, genresPath, isIndexableGenre, type GenreEntry } from "./genres";
 
 const SITE = "https://wavefunc.live";
 const DEFAULT_IMAGE = SITE + "/images/og-image.png";
+const GITHUB_REPO_URL = "https://github.com/zeSchlausKwab/wavefunc";
+const ZAPSTORE_URL = "https://zapstore.dev/apps/live.wavefunc.app";
 
 export type PublicPage =
   | { kind: "home" }
@@ -64,34 +66,59 @@ function metadata(heading: string, title: string, description: string, path?: st
   return { heading, title, description, image: image ?? DEFAULT_IMAGE, canonical: path ? SITE + path : undefined, indexable: !!path };
 }
 
-export const genericPageMetadata = metadata("WaveFunc Radio", "WaveFunc Radio", "Decentralized internet radio directory and player built on Nostr");
+export const genericPageMetadata = metadata(
+  "WaveFunc Radio",
+  "WaveFunc Radio | Nostr Internet Radio Directory & Live Player",
+  "Stream 40,000+ live internet radio stations on Nostr. Sync favorites, saved songs, comments, and zaps across web, terminal (wf), desktop, and Android.",
+);
 
 export function describePublicPage(page: PublicPage): PublicPageMetadata {
   switch (page.kind) {
     case "home":
-      return metadata("WaveFunc Radio", "WaveFunc Radio | Discover live internet radio", "Explore internet radio stations by genre, listen live, and share your favorite stations on Nostr.", "/");
+      return metadata(
+        "WaveFunc Radio",
+        "WaveFunc Radio | Nostr Internet Radio Directory & Live Player",
+        "Stream 40,000+ live internet radio stations on Nostr. Sync favorites, saved songs, comments, and zaps across web, terminal (wf), desktop, and Android.",
+        "/",
+      );
     case "apps":
-      return metadata("WaveFunc apps", "Download WaveFunc for Android and desktop | WaveFunc Radio", "Listen to internet radio and back up songs from your Crate with WaveFunc on Android, macOS, Windows, or Linux.", "/apps");
+      return metadata(
+        "WaveFunc apps",
+        "Download WaveFunc | Nostr Internet Radio for Terminal, Desktop & Android",
+        "Install WaveFunc Nostr internet radio for Terminal (wf), Android, macOS, Windows, and Linux — sync favorites and back up Crate songs across devices.",
+        "/apps",
+      );
     case "genres": {
       const name = page.query ? `Radio genres matching “${page.query}”` : "Browse radio stations by genre";
       const title = name + (page.page === 1 ? "" : " – Page " + page.page) + " | WaveFunc Radio";
-      return { ...metadata("Radio genres", title, "Find a genre and explore its live radio stations.", genresPath(page.page, page.query)), indexable: !page.query };
+      return {
+        ...metadata(
+          "Radio genres",
+          title,
+          "Browse internet radio genres on Nostr — filter 40,000+ live stations by genre and listen instantly on WaveFunc Radio.",
+          genresPath(page.page, page.query),
+        ),
+        indexable: !page.query,
+      };
     }
     case "genre": {
       const heading = page.genre.name + " radio stations";
       const count = page.genre.count;
-      const description = `Browse the latest ${page.genre.name} listings from a directory of ${count} radio ${count === 1 ? "station" : "stations"} and listen live on WaveFunc.`;
-      return metadata(heading, heading + " | WaveFunc Radio", description, genrePath(page.genre.slug));
+      const description = `Listen to ${page.genre.name} internet radio stations live on Nostr — browse ${count} ${page.genre.name} radio ${count === 1 ? "station" : "stations"} on WaveFunc Radio.`;
+      return {
+        ...metadata(heading, heading + " | WaveFunc Radio", description, genrePath(page.genre.slug)),
+        indexable: isIndexableGenre(page.genre),
+      };
     }
     case "station": {
       const station = parseStationEvent(page.event);
       const name = text(station.name) || "Radio station";
-      return metadata(name, name + " | WaveFunc Radio", text(station.description) || `Listen to ${name} live on WaveFunc Radio.`, publicStationPath(page.event), publicWebUrl(station.thumbnail));
+      return metadata(name, name + " | WaveFunc Radio", text(station.description) || `Listen to ${name} live internet radio on Nostr via WaveFunc Radio.`, publicStationPath(page.event), publicWebUrl(station.thumbnail));
     }
     case "collection": {
       const list = parseFavoritesListEvent(page.event);
       const name = text(list.name) || "Station collection";
-      return metadata(name, name + " | WaveFunc Radio", text(list.description) || `Listen to the stations in ${name} on WaveFunc Radio.`, publicCollectionPath(page.event), publicWebUrl(list.banner) || publicWebUrl(list.image));
+      return metadata(name, name + " | WaveFunc Radio", text(list.description) || `Listen to the Nostr internet radio stations in ${name} on WaveFunc Radio.`, publicCollectionPath(page.event), publicWebUrl(list.banner) || publicWebUrl(list.image));
     }
     case "profile": {
       const profile = page.event ? parseJsonContent<Record<string, unknown>>(page.event.content) : undefined;
@@ -103,6 +130,96 @@ export function describePublicPage(page: PublicPage): PublicPageMetadata {
       return metadata("Radio directory temporarily unavailable", "Temporarily unavailable | WaveFunc Radio", "The radio directory could not load this page. Please try again shortly.");
     case "not-found":
       return metadata("Page not found", "Page not found | WaveFunc Radio", "This page could not be found in the radio directory.");
+  }
+}
+
+export function getPublicStructuredData(page: PublicPage): Record<string, unknown> | undefined {
+  const meta = describePublicPage(page);
+  switch (page.kind) {
+    case "home":
+      return {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            name: "WaveFunc Radio",
+            alternateName: "WaveFunc",
+            url: SITE + "/",
+            description: meta.description,
+            potentialAction: {
+              "@type": "SearchAction",
+              target: SITE + "/?search={search_term_string}",
+              "query-input": "required name=search_term_string",
+            },
+          },
+          {
+            "@type": "SoftwareApplication",
+            name: "WaveFunc Radio",
+            applicationCategory: "MultimediaApplication",
+            operatingSystem: "Web, macOS, Linux, Windows, Android",
+            url: SITE + "/",
+            downloadUrl: SITE + "/apps",
+            image: DEFAULT_IMAGE,
+            description: meta.description,
+            isAccessibleForFree: true,
+            license: "https://opensource.org/licenses/MIT",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+            },
+            sameAs: [GITHUB_REPO_URL, ZAPSTORE_URL],
+          },
+        ],
+      };
+    case "apps":
+      return {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "WaveFunc Radio",
+        alternateName: "wf",
+        applicationCategory: "MultimediaApplication",
+        operatingSystem: "macOS, Linux, Windows, Android, Web",
+        url: SITE + "/apps",
+        downloadUrl: SITE + "/apps",
+        image: DEFAULT_IMAGE,
+        description: meta.description,
+        isAccessibleForFree: true,
+        license: "https://opensource.org/licenses/MIT",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        sameAs: [GITHUB_REPO_URL, ZAPSTORE_URL],
+      };
+    case "station": {
+      const station = parseStationEvent(page.event);
+      const name = text(station.name) || "Radio station";
+      const website = publicWebUrl(station.website);
+      const image = publicWebUrl(station.thumbnail);
+      const data: Record<string, unknown> = {
+        "@context": "https://schema.org",
+        "@type": "RadioStation",
+        name,
+        url: meta.canonical,
+        description: meta.description,
+      };
+      if (image) data.image = image;
+      if (website) data.sameAs = website;
+      return data;
+    }
+    case "genre":
+      if (!meta.indexable) return undefined;
+      return {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: meta.heading,
+        url: meta.canonical,
+        description: meta.description,
+      };
+    default:
+      return undefined;
   }
 }
 

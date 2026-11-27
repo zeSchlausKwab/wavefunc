@@ -2,6 +2,20 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
 export const RECENT_STATION_LIMIT = 50;
+export const SITEMAP_MIN_GENRE_STATIONS = 5;
+
+export const POPULAR_HOME_GENRES: ReadonlyArray<Pick<GenreEntry, "slug" | "name">> = [
+  { slug: "jazz", name: "Jazz" },
+  { slug: "rock", name: "Rock" },
+  { slug: "electronic", name: "Electronic" },
+  { slug: "ambient", name: "Ambient" },
+  { slug: "classical", name: "Classical" },
+  { slug: "dance", name: "Dance" },
+  { slug: "folk", name: "Folk" },
+  { slug: "punk", name: "Punk" },
+  { slug: "hip~2dhop", name: "Hip-Hop" },
+  { slug: "news", name: "News" },
+];
 
 export interface GenreEntry {
   slug: string;
@@ -11,6 +25,27 @@ export interface GenreEntry {
 
 function cleanLabel(label: string) {
   return label.trim().replace(/\s+/gu, " ").normalize("NFC");
+}
+
+/** Catch low-value Radio Browser tags (FM/AM frequencies, bitrates, bare numbers, URLs)
+ * so they remain browsable for listeners without polluting sitemaps or search indexing. */
+export function isNoiseGenreLabel(label: string): boolean {
+  const clean = cleanLabel(label).toLowerCase();
+  if (clean.length < 2 || clean.length > 48) return true;
+  if (!/\p{L}/u.test(clean)) return true;
+  if (/https?:\/\/|www\.|\.(?:com|org|net|fm|live|tv|io|ru|de|fr|es|uk|br|pl)\b/i.test(clean)) return true;
+  if (/^\d+\s*(?:k|kb|kbps|hz|khz|mbps)$/i.test(clean)) return true;
+  if (/^(?:mp3|aac|aac\+|ogg|flac|opus|wma|m3u|hls|icecast|shoutcast|stereo|mono)$/i.test(clean)) return true;
+  if (/^\d{2,4}(?:[.,_]\d{1,2})?\s*(?:fm|am|mhz|khz)$/i.test(clean)) return true;
+  if (/^\d{2,3}[.,_]\d\s+/i.test(clean)) return true;
+  return false;
+}
+
+export function isIndexableGenre(
+  entry: Pick<GenreEntry, "name" | "count">,
+  minStations = SITEMAP_MIN_GENRE_STATIONS,
+): boolean {
+  return entry.count >= minStations && !isNoiseGenreLabel(entry.name);
 }
 
 export function genreDisplayName(label: string): string {

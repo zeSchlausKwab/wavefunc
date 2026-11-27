@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { validateEvent, type NostrEvent } from "nostr-tools/pure";
-import { GENRE_INDEX_PAGE_SIZE, RECENT_STATION_LIMIT, genreDisplayName, genrePath, genreSlug, type GenreEntry } from "../genres";
+import { GENRE_INDEX_PAGE_SIZE, RECENT_STATION_LIMIT, SITEMAP_MIN_GENRE_STATIONS, genreDisplayName, genrePath, genreSlug, isIndexableGenre, type GenreEntry } from "../genres";
 import { publicStationPointer } from "../publicPageMetadata";
 import type { CatalogResult } from "./publicCatalog";
 import { sitemapBucket, type SitemapBucketCount, type SitemapKind } from "./sitemaps";
@@ -84,8 +84,11 @@ export async function importStations(path: string, events: AsyncIterable<NostrEv
   }
 }
 
-export function openDirectoryIndex(path: string) {
+export function openDirectoryIndex(path: string, options: { minSitemapGenreStations?: number } = {}) {
   const db = connect(path);
+  const envMin = Number.parseInt(process.env.PUBLIC_SITEMAP_MIN_GENRE_STATIONS ?? "", 10);
+  const minSitemapGenreStations = options.minSitemapGenreStations ??
+    (Number.isFinite(envMin) && envMin >= 1 ? envMin : SITEMAP_MIN_GENRE_STATIONS);
   const timestamp = db.query<{ completed: number }, []>("SELECT completed FROM snapshot WHERE id = 1");
   const completed = () => timestamp.get()?.completed ?? 0;
   const genreCount = db.query<{total: number}, [string]>("SELECT count(*) AS total FROM genres WHERE instr(search_text, ?) > 0");
@@ -102,13 +105,16 @@ export function openDirectoryIndex(path: string) {
   const unavailable = { status: "unavailable" } as const;
   const missing = { status: "missing" } as const;
   const found = <T>(value: T) => ({ status: "found", value }) as const;
-  const buckets = db.query<SitemapBucketCount, []>(`
-    SELECT 'stations' AS kind, bucket, count(*) AS count FROM stations GROUP BY bucket
-    UNION ALL SELECT 'genres' AS kind, bucket, count(*) AS count FROM genres GROUP BY bucket
-    ORDER BY kind, bucket
+  const stationBuckets = db.query<SitemapBucketCount, []>(`
+    SELECT 'stations' AS kind, bucket, count(*) AS count FROM stations GROUP BY bucket ORDER BY bucket
+  `);
+  const candidateGenres = db.query<{ slug: string; name: string; count: number; bucket: number }, [number]>(`
+    SELECT slug, name, count, bucket FROM genres WHERE count >= ? ORDER BY bucket, slug
+  `);
+  const bucketCandidateGenres = db.query<{ slug: string; name: string; count: number }, [number, number]>(`
+    SELECT slug, name, count FROM genres WHERE bucket = ? AND count >= ? ORDER BY slug
   `);
   const stationPaths = db.query<{address: string}, [number, number, number]>("SELECT address FROM stations WHERE bucket = ? ORDER BY address LIMIT ? OFFSET ?");
-  const genrePaths = db.query<{slug: string}, [number, number, number]>("SELECT slug FROM genres WHERE bucket = ? ORDER BY slug LIMIT ? OFFSET ?");
   return {
     completed,
     close: () => db.close(),
@@ -140,12 +146,28 @@ export function openDirectoryIndex(path: string) {
       })();
     },
     async sitemapBuckets(): Promise<CatalogResult<SitemapBucketCount[]>> {
-      return completed() ? found(buckets.all()) : unavailable;
+      if (!completed()) return unavailable;
+      const genreCounts = new Map<number, number>();
+      for (const row of candidateGenres.all(minSitemapGenreStations)) {
+        if (!isIndexableGenre(row, minSitemapGenreStations)) continue;
+        genreCounts.set(row.bucket, (genreCounts.get(row.bucket) ?? 0) + 1);
+      }
+      const genreBuckets: SitemapBucketCount[] = Array.from(genreCounts, ([bucket, count]): SitemapBucketCount => ({
+        kind: "genres",
+        bucket,
+        count,
+      })).sort((a, b) => a.bucket - b.bucket);
+      return found([...genreBuckets, ...stationBuckets.all()]);
     },
     async sitemapPaths(kind: SitemapKind, bucket: number, offset: number, limit: number): Promise<CatalogResult<string[]>> {
       if (!completed()) return unavailable;
-      const paths = kind === "stations" ? stationPaths.all(bucket, limit, offset).map(row => "/station/" + row.address)
-        : genrePaths.all(bucket, limit, offset).map(row => genrePath(row.slug));
+      const paths = kind === "stations"
+        ? stationPaths.all(bucket, limit, offset).map(row => "/station/" + row.address)
+        : bucketCandidateGenres
+            .all(bucket, minSitemapGenreStations)
+            .filter(row => isIndexableGenre(row, minSitemapGenreStations))
+            .slice(offset, offset + limit)
+            .map(row => genrePath(row.slug));
       return paths.length ? found(paths) : missing;
     },
   };

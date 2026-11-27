@@ -1,7 +1,7 @@
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { GENRE_INDEX_PAGE_SIZE, genrePath, genresPath, stationGenres } from "../genres";
+import { GENRE_INDEX_PAGE_SIZE, POPULAR_HOME_GENRES, genrePath, genresPath, stationGenres } from "../genres";
 import { parseStationEvent } from "../nostr/domain/station";
-import { describePublicPage, getPublicMetaTags, publicStationPath, publicWebUrl, type PublicPage } from "../publicPageMetadata";
+import { describePublicPage, getPublicMetaTags, getPublicStructuredData, publicStationPath, publicWebUrl, type PublicPage } from "../publicPageMetadata";
 
 export type { PublicPage } from "../publicPageMetadata";
 
@@ -56,8 +56,26 @@ function pageDetails(page: PublicPage): string {
       }).join("");
       return `<ul>${list}</ul>`;
     }
+    case "home": {
+      const genreLinks = POPULAR_HOME_GENRES.map(
+        genre => `<li><a href="${escape(genrePath(genre.slug))}">${escape(genre.name)} radio</a></li>`,
+      ).join("");
+      return `<section class="space-y-3">
+        <h2>Decentralized Nostr internet radio</h2>
+        <p>WaveFunc Radio is an open-source Nostr internet radio directory and live player indexing 40,000+ stations as addressable Nostr events (kind 31237). Start listening in your browser with no account required, or sign in with Nostr to sync favorite station lists, saved Song Crate tracks, comments, and Lightning or Cashu zaps across web, the <code>wf</code> terminal UI, desktop, and Android.</p>
+        <h3>Popular radio genres</h3>
+        <ul>${genreLinks}</ul>
+        <p><a href="/browse/genres">Browse all radio genres</a> · <a href="/apps">Download WaveFunc for Terminal (wf), Android, macOS, Windows, or Linux</a> · <a href="https://github.com/zeSchlausKwab/wavefunc">Open-source on GitHub</a></p>
+      </section>`;
+    }
     case "apps":
-      return '<p><a href="https://zapstore.dev/apps/live.wavefunc.app">Get WaveFunc for Android on Zapstore</a></p><p><a href="https://github.com/zeSchlausKwab/wavefunc/releases/latest">Download WaveFunc for Android, macOS, Windows or Linux from GitHub</a></p>';
+      return `<section class="space-y-3">
+        <h2>Terminal UI (wf)</h2>
+        <p>Install the single-binary Go terminal UI for macOS, Linux, or Windows with live ICY track metadata and cross-device Nostr sync via Homebrew (<code>brew install zeSchlausKwab/tap/wf</code>), POSIX shell (<code>curl -fsSL https://wavefunc.live/install.sh | sh</code>), or PowerShell (<code>irm https://wavefunc.live/install.ps1 | iex</code>).</p>
+        <h2>Android &amp; Desktop apps</h2>
+        <p><a href="https://zapstore.dev/apps/live.wavefunc.app">Get WaveFunc for Android on Zapstore</a></p>
+        <p><a href="https://github.com/zeSchlausKwab/wavefunc/releases/latest">Download WaveFunc for Android, macOS, Windows or Linux from GitHub</a></p>
+      </section>`;
     default:
       return "";
   }
@@ -71,11 +89,20 @@ function pageEvents(page: PublicPage): NostrEvent[] {
   return [];
 }
 
+function serializeJsonForHtml(data: unknown): string {
+  return JSON.stringify(data).replace(/[<>&\u2028\u2029]/g, char => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0"));
+}
+
 /** Script raw text doesn't decode HTML entities. Use JSON escapes to preserve signed bytes. */
 function eventData(page: PublicPage): string {
   const data = page.kind === "genres" || page.kind === "genre" ? page : { events: pageEvents(page) };
-  const json = JSON.stringify(data).replace(/[<>&\u2028\u2029]/g, char => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0"));
-  return `<script type="application/json" id="wavefunc-public-data" data-kind="${page.kind}">${json}</script>`;
+  return `<script type="application/json" id="wavefunc-public-data" data-kind="${page.kind}">${serializeJsonForHtml(data)}</script>`;
+}
+
+function structuredDataScript(page: PublicPage): string {
+  const data = getPublicStructuredData(page);
+  if (!data) return "";
+  return `<script type="application/ld+json" id="wavefunc-structured-data">${serializeJsonForHtml(data)}</script>`;
 }
 
 /** Decorate the built app shell for the first HTTP response, regardless of user agent. */
@@ -87,7 +114,8 @@ export function renderPublicPage(shell: string, page: PublicPage): string {
     `<title>${escape(metadata.title)}</title>`,
     ...tags.map(({ attribute, key, content }) => `<meta ${attribute}="${key}" content="${escape(content)}">`),
     metadata.canonical ? `<link rel="canonical" href="${escape(metadata.canonical)}">` : "",
-  ].join("\n");
+    structuredDataScript(page),
+  ].filter(Boolean).join("\n");
   const main = `<main class="mx-auto max-w-5xl space-y-6 p-6">
     <h1 class="font-headline text-3xl font-black">${escape(metadata.heading)}</h1>
     <p>${escape(metadata.description)}</p>
@@ -97,6 +125,7 @@ export function renderPublicPage(shell: string, page: PublicPage): string {
   return new HTMLRewriter()
     .on("head > title", { element(el) { el.remove(); } })
     .on('head > link[rel="canonical"]', { element(el) { el.remove(); } })
+    .on("#wavefunc-structured-data", { element(el) { el.remove(); } })
     .on("head > meta", { element(el) {
       const key = el.getAttribute("property") ?? el.getAttribute("name");
       if (key && managed.has(key)) el.remove();

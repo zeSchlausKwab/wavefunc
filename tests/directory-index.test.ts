@@ -45,3 +45,37 @@ test("a complete export replaces membership and removals atomically; ties and ol
     rmSync(folder, { recursive: true });
   }
 });
+
+test("genre sitemaps exclude noise tags and thin low-count genres while keeping real genres", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "wavefunc-index-seo-"));
+  const path = join(folder, "index.sqlite");
+  const index = openDirectoryIndex(path);
+  const key = generateSecretKey();
+  const makeStation = (d: string, genres: string[]) => finalizeEvent({
+    kind: 31237,
+    content: "",
+    created_at: 100,
+    tags: [["d", d], ...genres.map(g => ["c", g, "genre"])],
+  }, key);
+  const events = [
+    ...Array.from({ length: 6 }, (_, i) => makeStation("jazz-" + i, ["Jazz", "100.1 fm", "192kbps", "860"])),
+    makeStation("solo", ["Tiny One-Off Genre"]),
+  ];
+  try {
+    await importStations(path, events);
+    const buckets = await index.sitemapBuckets();
+    expect(buckets.status).toBe("found");
+    if (buckets.status !== "found") return;
+    const genreBuckets = buckets.value.filter(b => b.kind === "genres");
+    expect(genreBuckets).toHaveLength(1);
+    expect(genreBuckets[0]?.count).toBe(1);
+    const paths = await index.sitemapPaths("genres", genreBuckets[0]!.bucket, 0, 50);
+    expect(paths).toEqual({ status: "found", value: ["/genre/jazz"] });
+    // Noise & thin genres remain directly accessible by slug for users
+    expect((await index.genre("192kbps", 1)).status).toBe("found");
+    expect((await index.genre("tiny-one~2doff-genre", 1)).status).toBe("found");
+  } finally {
+    index.close();
+    rmSync(folder, { recursive: true });
+  }
+});

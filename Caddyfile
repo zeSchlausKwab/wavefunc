@@ -1,6 +1,11 @@
 # WaveFunc Production Configuration
 # Caddy automatically provisions and renews SSL certificates
 
+# Redirect www to canonical apex host
+www.wavefunc.live {
+    redir https://wavefunc.live{uri} permanent
+}
+
 # Main web application
 wavefunc.live {
     reverse_proxy 127.0.0.1:3000

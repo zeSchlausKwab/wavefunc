@@ -63,6 +63,9 @@ export async function servePublicRoute(req: Request, catalog: RouteCatalog, getS
   if (!json && page.kind === "genre" && url.searchParams.has("page")) {
     return new Response(null, { status: 308, headers: { Location: genrePath(page.genre.slug) } });
   }
+  if (!json && page.kind === "genres" && page.page === 1 && !page.query && url.searchParams.has("page")) {
+    return new Response(null, { status: 308, headers: { Location: "/browse/genres" } });
+  }
   const status = page.kind === "not-found" ? 404 : page.kind === "unavailable" ? 503 : 200;
   if (status === 503) headers.set("Retry-After", "60");
   if (json) headers.set("X-Robots-Tag", "noindex");

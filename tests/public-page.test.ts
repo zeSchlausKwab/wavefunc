@@ -47,17 +47,37 @@ describe("public HTML and share previews", () => {
   });
 
   test("genre and static pages contain ordinary crawlable links", () => {
-    const genre = renderPublicPage(shell, { kind: "genre", genre: { name: "Rock", slug: "rock", count: 1 }, page: 1, events: [station] });
+    const genre = renderPublicPage(shell, { kind: "genre", genre: { name: "Rock", slug: "rock", count: 12 }, page: 1, events: [station] });
     expect(genre).toContain('href="' + stationPath + '"');
     expect(genre).toContain('rel="canonical" href="https://wavefunc.live/genre/rock"');
+    expect(genre).not.toContain('name="robots" content="noindex"');
+    expect(genre).toContain('"@type":"CollectionPage"');
     expect(bootstrap(genre).events[0]?.id).toBe(station.id);
+
+    const noisyGenre = renderPublicPage(shell, { kind: "genre", genre: { name: "100.1 FM", slug: "100~2e1-fm", count: 42 }, page: 1, events: [station] });
+    expect(noisyGenre).toContain('name="robots" content="noindex"');
+    expect(noisyGenre).not.toContain('id="wavefunc-structured-data"');
+
+    const thinGenre = renderPublicPage(shell, { kind: "genre", genre: { name: "Obscure Tag", slug: "obscure-tag", count: 2 }, page: 1, events: [station] });
+    expect(thinGenre).toContain('name="robots" content="noindex"');
+
     const home = renderPublicPage(shell, { kind: "home" });
+    expect(home).toContain("<title>WaveFunc Radio | Nostr Internet Radio Directory &amp; Live Player</title>");
     expect(home).toContain('href="/browse/genres"');
     expect(home).toContain('href="/apps"');
+    expect(home).toContain('href="/genre/jazz"');
+    expect(home).toContain('type="application/ld+json" id="wavefunc-structured-data"');
+    expect(home).toContain('"@type":"WebSite"');
+    expect(home).toContain('"@type":"SoftwareApplication"');
+    expect(home).toContain("https://github.com/zeSchlausKwab/wavefunc");
+
     const apps = renderPublicPage(shell, { kind: "apps" });
+    expect(apps).toContain("Nostr Internet Radio");
+    expect(apps).toContain("brew install zeSchlausKwab/tap/wf");
     expect(apps).toContain('href="https://zapstore.dev/apps/live.wavefunc.app"');
     expect(apps).toContain('href="https://github.com/zeSchlausKwab/wavefunc/releases/latest"');
     expect(apps).toContain('name="twitter:image" content="' + fallback + '"');
+    expect(apps).toContain('"@type":"SoftwareApplication"');
   });
 
   test("every genre has a directory link and a single canonical station list", () => {

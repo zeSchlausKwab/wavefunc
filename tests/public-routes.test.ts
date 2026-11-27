@@ -27,4 +27,14 @@ describe("public directory HTTP responses", () => {
     expect(response?.headers.get("content-type")).toMatch(/text\/html/);
     expect(response?.body).toBeNull();
   });
+
+  test("unfiltered /browse/genres?page=1 redirects permanently to canonical /browse/genres", async () => {
+    const genreCatalog = {
+      ...catalog,
+      genres: async () => ({ status: "found" as const, value: { genres: [], total: 0, page: 1, query: "" } }),
+    };
+    const response = await servePublicRoute(new Request("http://localhost/browse/genres?page=1"), genreCatalog, shell);
+    expect(response?.status).toBe(308);
+    expect(response?.headers.get("location")).toBe("/browse/genres");
+  });
 });
