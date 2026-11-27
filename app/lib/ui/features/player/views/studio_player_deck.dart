@@ -211,9 +211,15 @@ class StudioPlayerDeck extends StatelessWidget {
                     GestureDetector(
                       onTap: station == null
                           ? null
-                          : () => isPlaying
-                              ? playerViewModel.pause()
-                              : playerViewModel.resume(),
+                          : () {
+                              if (isPlaying || isBusy) {
+                                playerViewModel.pause();
+                              } else if (snapshot.phase == PlayerPhase.failed) {
+                                playerViewModel.retry();
+                              } else {
+                                playerViewModel.resume();
+                              }
+                            },
                       child: Container(
                         width: 46,
                         height: 46,

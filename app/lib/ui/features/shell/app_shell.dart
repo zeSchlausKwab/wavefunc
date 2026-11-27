@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -51,7 +53,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   static const double _tabletBreakpoint = 720;
   static const double _desktopBreakpoint = 1180;
 
@@ -69,10 +71,19 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.authViewModel.addListener(_maybeShowFirstRunOnboarding);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowFirstRunOnboarding();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.playerViewModel.handleAppResumed();
+      unawaited(widget.discoverViewModel.handleAppResumed());
+    }
   }
 
   void _maybeShowFirstRunOnboarding() {
@@ -95,6 +106,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.authViewModel.removeListener(_maybeShowFirstRunOnboarding);
     _searchFocusNode.dispose();
     super.dispose();

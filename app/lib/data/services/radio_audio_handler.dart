@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../domain/models/now_playing.dart';
@@ -28,41 +31,113 @@ abstract class RadioPlaybackEngine {
   Future<void> disposeEngine();
 }
 
+/// Platform bridge to `AndroidPlaybackKeepAlive` (`WakeLock` + `WifiLock` +
+/// runtime `POST_NOTIFICATIONS` on Android 13+). No-op outside Android or in
+/// unit tests without platform bindings.
+class PlaybackKeepAliveBridge {
+  const PlaybackKeepAliveBridge();
+
+  static const _channel = MethodChannel('live.wavefunc.app/playback_keepalive');
+
+  Future<void> setActive(bool active) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod<void>('setActive', {'active': active});
+    } catch (_) {
+      // Safe no-op in headless/test environments.
+    }
+  }
+
+  Future<void> requestNotificationPermission() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod<bool>(
+        'requestNotificationPermission',
+        {'force': false},
+      );
+    } catch (_) {
+      // Safe no-op in headless/test environments.
+    }
+  }
+}
+
 /// Native background radio playback handler powered by `audio_service` + `just_audio`.
 ///
 /// Handles:
 /// - ExoPlayer (Android) / AVPlayer (iOS/macOS) live MP3, AAC, OGG, and HLS streams
-/// - Automatic mirror fallback across `station.streams` on stream failure
-/// - Live ICY `StreamTitle` parsing into `NowPlayingMetadata` + OS notification updates
+/// - Persistent Android foreground `mediaPlayback` service + WakeLock + WifiLock
+/// - Bluetooth AVRCP / Pixel media notification updates with unique per-track IDs
+/// - Automatic mirror fallback & exponential-backoff reconnect on stream drops
+/// - Live ICY `StreamTitle` parsing + ContextVM enrichment synced to OS MediaSession
 /// - Audio focus + becoming-noisy handling via `audio_session`
 /// - Sleep timer and volume/mute persistence
 class RadioAudioHandler extends BaseAudioHandler
     with QueueHandler
     implements RadioPlaybackEngine {
-  RadioAudioHandler({AudioPlayer? player})
-      : _player = player ??
+  RadioAudioHandler({
+    AudioPlayer? player,
+    this._keepAlive = const PlaybackKeepAliveBridge(),
+    bool bindAudioSession = true,
+    this._setUrlTimeout = const Duration(seconds: 15),
+  }) : _player = player ??
             AudioPlayer(
-              userAgent: 'WaveFunc Radio Native/0.2.0',
+              userAgent: 'WaveFunc Radio Native/0.2.5',
+              handleInterruptions: false,
+              useProxyForRequestHeaders: kIsWeb || !Platform.isAndroid,
             ) {
     _bindPlayerStreams();
+    if (bindAudioSession) {
+      unawaited(_bindAudioSession());
+    }
   }
 
+  static const _reconnectDelays = <Duration>[
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+    Duration(seconds: 8),
+    Duration(seconds: 15),
+    Duration(seconds: 25),
+  ];
+
   final AudioPlayer _player;
+  final PlaybackKeepAliveBridge _keepAlive;
+  final Duration _setUrlTimeout;
   final _snapshotController = StreamController<PlayerSnapshot>.broadcast();
   PlayerSnapshot _snapshot = const PlayerSnapshot();
 
   StreamSubscription<PlaybackEvent>? _playbackEventSub;
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<IcyMetadata?>? _icySub;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
+  StreamSubscription<void>? _becomingNoisySub;
+  AudioSession? _audioSession;
+
   Timer? _sleepTimer;
   Timer? _sleepTicker;
+  Timer? _reconnectTimer;
+  Timer? _mediaStateSyncTimer;
+
   int _generation = 0;
+  int _trackRevision = 0;
+  int _reconnectAttempt = 0;
+  String? _lastOsMediaFingerprint;
+  bool _shouldBePlaying = false;
+  bool _resumeAfterInterruption = false;
+  bool _isDucked = false;
 
   @override
   Stream<PlayerSnapshot> get snapshotStream => _snapshotController.stream;
 
   @override
   PlayerSnapshot get currentSnapshot => _snapshot;
+
+  bool get _isLiveRadio {
+    final station = _snapshot.station;
+    if (station == null) return false;
+    if (station.description == 'Blossom Audio Backup') return false;
+    final dur = _player.duration;
+    return dur == null || dur == Duration.zero;
+  }
 
   static Future<RadioAudioHandler> initAudioService() async {
     final session = await AudioSession.instance;
@@ -73,10 +148,73 @@ class RadioAudioHandler extends BaseAudioHandler
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'live.wavefunc.app.channel.audio',
         androidNotificationChannelName: 'WaveFunc Radio Playback',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidNotificationChannelDescription:
+            'Live internet radio playback controls and now playing info',
+        androidNotificationIcon: 'drawable/ic_stat_wavefunc',
+        // Keep the foreground service alive across pauses, buffering, and
+        // transient audio-focus interruptions (e.g. navigation prompts) so
+        // Android Doze never freezes the process or blocks resuming playback.
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
+        androidNotificationClickStartsActivity: true,
+        androidResumeOnClick: true,
       ),
     );
+  }
+
+  Future<void> _bindAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      _audioSession = session;
+      await session.configure(const AudioSessionConfiguration.music());
+
+      _becomingNoisySub = session.becomingNoisyEventStream.listen((_) {
+        if (_shouldBePlaying || _snapshot.isPlaying || _snapshot.isBusy) {
+          unawaited(pause());
+        }
+      });
+
+      _interruptionSub = session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              if (!_isDucked && !_snapshot.isMuted) {
+                _isDucked = true;
+                unawaited(_player.setVolume((_snapshot.volume * 0.25).clamp(0.0, 1.0)));
+              }
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              final active = _shouldBePlaying || _snapshot.isPlaying || _snapshot.isBusy;
+              if (active) {
+                _resumeAfterInterruption = event.type == AudioInterruptionType.pause;
+                unawaited(_pauseInternal(clearResumeAfterInterruption: false));
+              }
+              break;
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              if (_isDucked) {
+                _isDucked = false;
+                unawaited(_player.setVolume(_snapshot.isMuted ? 0.0 : _snapshot.volume));
+              }
+              break;
+            case AudioInterruptionType.pause:
+              if (_resumeAfterInterruption) {
+                _resumeAfterInterruption = false;
+                unawaited(resume());
+              }
+              break;
+            case AudioInterruptionType.unknown:
+              _resumeAfterInterruption = false;
+              break;
+          }
+        }
+      });
+    } catch (_) {
+      // Safe fallback in unit tests or platforms without audio_session.
+    }
   }
 
   void _emit(PlayerSnapshot next) {
@@ -84,6 +222,11 @@ class RadioAudioHandler extends BaseAudioHandler
     if (!_snapshotController.isClosed) {
       _snapshotController.add(next);
     }
+  }
+
+  void _syncKeepAlive() {
+    final active = _shouldBePlaying || _snapshot.isPlaying || _snapshot.isBusy;
+    unawaited(_keepAlive.setActive(active));
   }
 
   void _bindPlayerStreams() {
@@ -95,8 +238,25 @@ class RadioAudioHandler extends BaseAudioHandler
     );
 
     _playerStateSub = _player.playerStateStream.listen((state) {
-      if (_snapshot.station == null) return;
+      final station = _snapshot.station;
+      if (station == null) return;
+
+      // Live internet radio streams never "complete" cleanly — reaching
+      // `completed` means the TCP/upstream socket dropped (e.g. tunnel,
+      // Wi-Fi/5G switch, or background timeout). Auto-reconnect instead of
+      // stalling in a broken paused state.
+      if (state.processingState == ProcessingState.completed &&
+          _shouldBePlaying &&
+          _isLiveRadio) {
+        _scheduleReconnect('Stream connection ended — reconnecting...');
+        return;
+      }
+
       final phase = _mapProcessingState(state);
+      if (phase == PlayerPhase.playing) {
+        _reconnectAttempt = 0;
+        _cancelReconnectTimer();
+      }
       if (phase != _snapshot.phase) {
         _emit(
           _snapshot.copyWith(
@@ -104,6 +264,8 @@ class RadioAudioHandler extends BaseAudioHandler
             clearError: phase == PlayerPhase.playing,
           ),
         );
+        _broadcastCurrentPlaybackState();
+        _syncKeepAlive();
       }
     });
 
@@ -125,13 +287,18 @@ class RadioAudioHandler extends BaseAudioHandler
   PlayerPhase _mapProcessingState(PlayerState state) {
     switch (state.processingState) {
       case ProcessingState.idle:
+        if (_snapshot.phase == PlayerPhase.reconnecting) {
+          return PlayerPhase.reconnecting;
+        }
         return _snapshot.phase == PlayerPhase.failed
             ? PlayerPhase.failed
             : PlayerPhase.idle;
       case ProcessingState.loading:
         return PlayerPhase.loading;
       case ProcessingState.buffering:
-        return PlayerPhase.buffering;
+        return _snapshot.phase == PlayerPhase.reconnecting
+            ? PlayerPhase.reconnecting
+            : PlayerPhase.buffering;
       case ProcessingState.ready:
         return state.playing ? PlayerPhase.playing : PlayerPhase.paused;
       case ProcessingState.completed:
@@ -140,49 +307,177 @@ class RadioAudioHandler extends BaseAudioHandler
   }
 
   void _broadcastMediaSessionState(PlaybackEvent event) {
-    final playing = _player.playing;
+    _broadcastCurrentPlaybackState();
+  }
+
+  void _broadcastCurrentPlaybackState({bool forcePlayingState = false}) {
+    final station = _snapshot.station;
+    if (station == null) {
+      playbackState.add(
+        PlaybackState(
+          controls: const [],
+          systemActions: const {},
+          processingState: AudioProcessingState.idle,
+          playing: false,
+        ),
+      );
+      return;
+    }
+
+    final isReconnecting = _snapshot.phase == PlayerPhase.reconnecting;
+    final isLoading = _snapshot.phase == PlayerPhase.loading;
+    final isFailed = _snapshot.phase == PlayerPhase.failed;
+
+    final bool playing;
+    final AudioProcessingState processingState;
+
+    if (isReconnecting) {
+      playing = true;
+      processingState = AudioProcessingState.buffering;
+    } else if (isLoading) {
+      playing = true;
+      processingState = AudioProcessingState.loading;
+    } else if (isFailed) {
+      playing = false;
+      processingState = AudioProcessingState.error;
+    } else if (forcePlayingState) {
+      playing = _shouldBePlaying;
+      processingState = _shouldBePlaying
+          ? AudioProcessingState.ready
+          : AudioProcessingState.ready;
+    } else {
+      playing = _player.playing;
+      processingState = const {
+        ProcessingState.idle: AudioProcessingState.ready,
+        ProcessingState.loading: AudioProcessingState.loading,
+        ProcessingState.buffering: AudioProcessingState.buffering,
+        ProcessingState.ready: AudioProcessingState.ready,
+        ProcessingState.completed: AudioProcessingState.ready,
+      }[_player.processingState]!;
+    }
+
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.stop,
         ],
+        systemActions: const {
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.playPause,
+          MediaAction.stop,
+        },
         androidCompactActionIndices: const [0, 1],
-        processingState: const {
-          ProcessingState.idle: AudioProcessingState.idle,
-          ProcessingState.loading: AudioProcessingState.loading,
-          ProcessingState.buffering: AudioProcessingState.buffering,
-          ProcessingState.ready: AudioProcessingState.ready,
-          ProcessingState.completed: AudioProcessingState.completed,
-        }[_player.processingState]!,
+        processingState: processingState,
         playing: playing,
+        queueIndex: queue.value.isNotEmpty ? 0 : null,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
-        speed: _player.speed,
+        speed: playing ? _player.speed : 0.0,
+        errorMessage: isFailed ? _snapshot.errorMessage : null,
       ),
     );
   }
 
-  void _updateOsMediaItem(Station station, NowPlayingMetadata? metadata) {
+  /// Builds an OS `MediaItem` with a unique per-track ID (`station#revision`).
+  ///
+  /// Android Bluetooth AVRCP (car head units) keys track-change notifications
+  /// (`EVENT_TRACK_CHANGED`) on `METADATA_KEY_MEDIA_ID` + `MediaMetadata` +
+  /// `PlaybackState` updates. Changing the ID whenever the displayed track
+  /// changes forces car stereos and Pixel media controls to refresh immediately.
+  @visibleForTesting
+  MediaItem buildOsMediaItem(
+    Station station,
+    NowPlayingMetadata? metadata, {
+    required int revision,
+  }) {
     final artUri = station.thumbnail != null &&
             station.thumbnail!.trim().startsWith('http')
         ? Uri.tryParse(station.thumbnail!.trim())
         : null;
 
-    mediaItem.add(
-      MediaItem(
-        id: station.address,
-        title: metadata?.displaySong ?? station.name,
-        artist: metadata?.displayArtist ?? station.subtitle,
-        album: station.name,
-        artUri: artUri,
-      ),
+    final songTitle = metadata?.displaySong ?? station.name;
+    final artistLine = metadata?.displayArtist ??
+        (metadata?.displaySong != null ? station.name : station.subtitle);
+    final albumLine = (metadata?.album?.trim().isNotEmpty ?? false)
+        ? metadata!.album!.trim()
+        : station.name;
+
+    return MediaItem(
+      id: '${station.address}#$revision',
+      title: songTitle,
+      artist: artistLine,
+      album: albumLine,
+      displayTitle: songTitle,
+      displaySubtitle: artistLine,
+      displayDescription: station.name,
+      artUri: artUri,
+      duration: metadata?.durationMs != null && metadata!.durationMs! > 0
+          ? Duration(milliseconds: metadata.durationMs!)
+          : null,
+      extras: <String, dynamic>{
+        'stationAddress': station.address,
+        'stationName': station.name,
+        'trackRevision': revision,
+      },
     );
+  }
+
+  void _updateOsMediaItem(
+    Station station,
+    NowPlayingMetadata? metadata, {
+    bool force = false,
+  }) {
+    final songTitle = metadata?.displaySong ?? station.name;
+    final artistLine = metadata?.displayArtist ??
+        (metadata?.displaySong != null ? station.name : station.subtitle);
+    final albumLine = (metadata?.album?.trim().isNotEmpty ?? false)
+        ? metadata!.album!.trim()
+        : station.name;
+    final artStr = station.thumbnail?.trim() ?? '';
+
+    final fingerprint =
+        '${station.address}|$songTitle|$artistLine|$albumLine|$artStr';
+    if (!force && fingerprint == _lastOsMediaFingerprint) {
+      return;
+    }
+    _lastOsMediaFingerprint = fingerprint;
+    _trackRevision++;
+
+    final rev = _trackRevision;
+    final item = buildOsMediaItem(
+      station,
+      metadata,
+      revision: rev,
+    );
+    queue.add(<MediaItem>[item]);
+    mediaItem.add(item);
+    // Re-broadcast PlaybackState immediately and once more after AudioService's
+    // background setMetadata thread completes so PLAYBACK_STATE_EXTRAS_KEY_MEDIA_ID
+    // and Bluetooth AVRCP pick up the new track ID reliably.
+    _broadcastCurrentPlaybackState();
+    _mediaStateSyncTimer?.cancel();
+    _mediaStateSyncTimer = Timer(const Duration(milliseconds: 180), () {
+      if (_trackRevision == rev && _snapshot.station?.address == station.address) {
+        _broadcastCurrentPlaybackState();
+      }
+    });
+  }
+
+  void _cancelReconnectTimer() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
   }
 
   @override
   Future<void> playStation(Station station, {int streamIndex = 0}) async {
+    _cancelReconnectTimer();
+    _resumeAfterInterruption = false;
+    _isDucked = false;
+
     if (station.streams.isEmpty) {
+      _shouldBePlaying = false;
       _emit(
         _snapshot.copyWith(
           station: station,
@@ -190,32 +485,52 @@ class RadioAudioHandler extends BaseAudioHandler
           errorMessage: 'Station has no playable streams.',
         ),
       );
+      _broadcastCurrentPlaybackState();
+      _syncKeepAlive();
       return;
     }
 
+    unawaited(_keepAlive.requestNotificationPermission());
+
     final safeIndex = streamIndex.clamp(0, station.streams.length - 1);
     final gen = ++_generation;
+    _reconnectAttempt = 0;
+    _shouldBePlaying = true;
+    _syncKeepAlive();
 
-    await _attemptStream(station, safeIndex, gen);
+    await _attemptStream(station, safeIndex, gen, clearMetadata: true);
   }
 
   Future<void> _attemptStream(
     Station station,
     int streamIndex,
-    int gen,
-  ) async {
+    int gen, {
+    required bool clearMetadata,
+  }) async {
     final stream = station.streams[streamIndex];
     _emit(
       _snapshot.copyWith(
         station: station,
         activeStream: stream,
         streamIndex: streamIndex,
-        phase: PlayerPhase.loading,
-        clearMetadata: true,
+        phase: _reconnectAttempt > 0
+            ? PlayerPhase.reconnecting
+            : PlayerPhase.loading,
+        clearMetadata: clearMetadata,
         clearError: true,
       ),
     );
-    _updateOsMediaItem(station, null);
+    _updateOsMediaItem(
+      station,
+      clearMetadata ? null : _snapshot.metadata,
+      force: clearMetadata,
+    );
+    _broadcastCurrentPlaybackState();
+    _syncKeepAlive();
+
+    try {
+      await _audioSession?.setActive(true);
+    } catch (_) {}
 
     try {
       String playbackUrl = stream.url;
@@ -227,16 +542,32 @@ class RadioAudioHandler extends BaseAudioHandler
         }
       }
       if (gen != _generation) return;
-      await _player.setUrl(
-        playbackUrl,
-        headers: const {'Icy-MetaData': '1'},
-      );
+
+      await _player
+          .setUrl(
+            playbackUrl,
+            headers: const {'Icy-MetaData': '1'},
+          )
+          .timeout(_setUrlTimeout);
+
       if (gen != _generation) return;
-      await _player.setVolume(_snapshot.isMuted ? 0.0 : _snapshot.volume);
-      unawaited(_player.play());
+      final targetVol = _snapshot.isMuted
+          ? 0.0
+          : (_isDucked ? (_snapshot.volume * 0.25).clamp(0.0, 1.0) : _snapshot.volume);
+      await _player.setVolume(targetVol);
+      if (gen != _generation) return;
+
+      unawaited(
+        _player.play().catchError((Object error) {
+          if (gen == _generation) {
+            _handleStreamError(error);
+          }
+        }),
+      );
+      _broadcastCurrentPlaybackState();
     } catch (error) {
       if (gen != _generation) return;
-      // Automatic mirror fallback across remaining streams before failing.
+      // Automatic mirror fallback across remaining streams before backoff retry.
       final nextIndex = streamIndex + 1;
       if (nextIndex < station.streams.length) {
         _emit(
@@ -245,33 +576,96 @@ class RadioAudioHandler extends BaseAudioHandler
             errorMessage: 'Switching to fallback stream...',
           ),
         );
-        await _attemptStream(station, nextIndex, gen);
+        _broadcastCurrentPlaybackState();
+        await _attemptStream(
+          station,
+          nextIndex,
+          gen,
+          clearMetadata: clearMetadata,
+        );
         return;
       }
+
+      if (_shouldBePlaying &&
+          _isLiveRadio &&
+          _reconnectAttempt < _reconnectDelays.length) {
+        _scheduleReconnect('Signal interrupted — reconnecting...');
+        return;
+      }
+
+      _shouldBePlaying = false;
       _emit(
         _snapshot.copyWith(
           phase: PlayerPhase.failed,
           errorMessage: 'Unable to tune stream: ${_shortenError(error)}',
         ),
       );
+      _broadcastCurrentPlaybackState();
+      _syncKeepAlive();
     }
+  }
+
+  void _scheduleReconnect(String reason) {
+    final station = _snapshot.station;
+    if (station == null || !_shouldBePlaying) return;
+    if (_reconnectAttempt >= _reconnectDelays.length) {
+      _shouldBePlaying = false;
+      _emit(
+        _snapshot.copyWith(
+          phase: PlayerPhase.failed,
+          errorMessage: 'Stream interrupted — tap Retry to reconnect.',
+        ),
+      );
+      _broadcastCurrentPlaybackState();
+      _syncKeepAlive();
+      return;
+    }
+
+    final delay = _reconnectDelays[_reconnectAttempt];
+    _reconnectAttempt++;
+    final gen = _generation;
+
+    _cancelReconnectTimer();
+    _emit(
+      _snapshot.copyWith(
+        phase: PlayerPhase.reconnecting,
+        errorMessage: reason,
+      ),
+    );
+    _broadcastCurrentPlaybackState();
+    _syncKeepAlive();
+
+    _reconnectTimer = Timer(delay, () {
+      if (gen != _generation || !_shouldBePlaying) return;
+      final current = _snapshot.station;
+      if (current == null || current.streams.isEmpty) return;
+      final idx = _snapshot.streamIndex.clamp(0, current.streams.length - 1);
+      unawaited(_attemptStream(current, idx, gen, clearMetadata: false));
+    });
   }
 
   void _handleStreamError(Object error) {
     final station = _snapshot.station;
-    if (station == null) return;
+    if (station == null || !_shouldBePlaying) return;
     final nextIndex = _snapshot.streamIndex + 1;
     if (nextIndex < station.streams.length) {
       final gen = _generation;
-      unawaited(_attemptStream(station, nextIndex, gen));
+      unawaited(_attemptStream(station, nextIndex, gen, clearMetadata: false));
       return;
     }
+    if (_isLiveRadio && _reconnectAttempt < _reconnectDelays.length) {
+      _scheduleReconnect('Stream interrupted — reconnecting...');
+      return;
+    }
+    _shouldBePlaying = false;
     _emit(
       _snapshot.copyWith(
         phase: PlayerPhase.failed,
         errorMessage: 'Stream interrupted: ${_shortenError(error)}',
       ),
     );
+    _broadcastCurrentPlaybackState();
+    _syncKeepAlive();
   }
 
   String _shortenError(Object error) {
@@ -291,12 +685,42 @@ class RadioAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> resume() async {
-    if (_snapshot.station == null) return;
-    if (_snapshot.phase == PlayerPhase.failed) {
-      await retry();
+    final station = _snapshot.station;
+    if (station == null) return;
+    _cancelReconnectTimer();
+    _resumeAfterInterruption = false;
+
+    // Live radio TCP sockets go stale after pause, Doze, or EOF. Always re-tune
+    // live stations (or any failed/idle/completed/stuck player) cleanly so the
+    // Play button never hangs on a dead socket.
+    final needsRetune = _isLiveRadio ||
+        _snapshot.phase == PlayerPhase.failed ||
+        _snapshot.phase == PlayerPhase.idle ||
+        _snapshot.phase == PlayerPhase.loading ||
+        _snapshot.phase == PlayerPhase.reconnecting ||
+        _player.processingState == ProcessingState.idle ||
+        _player.processingState == ProcessingState.completed;
+
+    if (needsRetune) {
+      final idx = _snapshot.streamIndex.clamp(
+        0,
+        station.streams.isEmpty ? 0 : station.streams.length - 1,
+      );
+      await playStation(station, streamIndex: idx);
       return;
     }
-    await _player.play();
+
+    _shouldBePlaying = true;
+    _syncKeepAlive();
+    try {
+      await _audioSession?.setActive(true);
+    } catch (_) {}
+    unawaited(
+      _player.play().catchError((Object error) {
+        _handleStreamError(error);
+      }),
+    );
+    _broadcastCurrentPlaybackState(forcePlayingState: true);
   }
 
   void _resetNativeSpectrum() {
@@ -307,12 +731,32 @@ class RadioAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> pause() async {
-    await _player.pause();
+  Future<void> pause() => _pauseInternal(clearResumeAfterInterruption: true);
+
+  Future<void> _pauseInternal({
+    required bool clearResumeAfterInterruption,
+  }) async {
+    _generation++;
+    _shouldBePlaying = false;
+    _cancelReconnectTimer();
+    if (clearResumeAfterInterruption) {
+      _resumeAfterInterruption = false;
+    }
+    _isDucked = false;
+    try {
+      await _player.pause();
+    } catch (_) {}
     _resetNativeSpectrum();
     if (_snapshot.station != null) {
-      _emit(_snapshot.copyWith(phase: PlayerPhase.paused));
+      _emit(
+        _snapshot.copyWith(
+          phase: PlayerPhase.paused,
+          clearError: true,
+        ),
+      );
     }
+    _broadcastCurrentPlaybackState(forcePlayingState: true);
+    _syncKeepAlive();
   }
 
   @override
@@ -321,8 +765,21 @@ class RadioAudioHandler extends BaseAudioHandler
   @override
   Future<void> stopPlayback() async {
     _generation++;
+    _shouldBePlaying = false;
+    _resumeAfterInterruption = false;
+    _isDucked = false;
+    _reconnectAttempt = 0;
+    _lastOsMediaFingerprint = null;
+    _mediaStateSyncTimer?.cancel();
+    _mediaStateSyncTimer = null;
+    _cancelReconnectTimer();
     setSleepTimer(null);
-    await _player.stop();
+    try {
+      await _player.stop();
+    } catch (_) {}
+    try {
+      await _audioSession?.setActive(false);
+    } catch (_) {}
     _resetNativeSpectrum();
     _emit(
       _snapshot.copyWith(
@@ -333,7 +790,26 @@ class RadioAudioHandler extends BaseAudioHandler
         clearError: true,
       ),
     );
+    queue.add(const <MediaItem>[]);
+    mediaItem.add(null);
+    _broadcastCurrentPlaybackState();
+    _syncKeepAlive();
     await super.stop();
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    // Keep playing seamlessly in the background foreground service when the
+    // user swipes WaveFunc away from Android Recents while listening.
+    if (_shouldBePlaying || _snapshot.isPlaying || _snapshot.isBusy) {
+      return;
+    }
+    await stopPlayback();
+  }
+
+  @override
+  Future<void> onNotificationDeleted() async {
+    await stopPlayback();
   }
 
   @override
@@ -346,6 +822,7 @@ class RadioAudioHandler extends BaseAudioHandler
   @override
   Future<void> setVolume(double volume) async {
     final clamped = volume.clamp(0.0, 1.0);
+    _isDucked = false;
     await _player.setVolume(clamped);
     _emit(
       _snapshot.copyWith(
@@ -358,6 +835,7 @@ class RadioAudioHandler extends BaseAudioHandler
   @override
   Future<void> toggleMute() async {
     final nextMuted = !_snapshot.isMuted;
+    _isDucked = false;
     await _player.setVolume(nextMuted ? 0.0 : _snapshot.volume);
     _emit(_snapshot.copyWith(isMuted: nextMuted));
   }
@@ -398,8 +876,14 @@ class RadioAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> disposeEngine() async {
+    _shouldBePlaying = false;
+    _mediaStateSyncTimer?.cancel();
+    _cancelReconnectTimer();
     _sleepTimer?.cancel();
     _sleepTicker?.cancel();
+    await _keepAlive.setActive(false);
+    await _interruptionSub?.cancel();
+    await _becomingNoisySub?.cancel();
     await _playbackEventSub?.cancel();
     await _playerStateSub?.cancel();
     await _icySub?.cancel();

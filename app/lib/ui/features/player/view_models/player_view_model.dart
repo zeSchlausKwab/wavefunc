@@ -33,6 +33,7 @@ class PlayerViewModel extends ChangeNotifier {
   Timer? _metadataPollTimer;
   Timer? _nip38RefreshTimer;
   String? _sessionId;
+  int _pollToken = 0;
   bool _nip38Active = false;
   String? _lastNip38Fingerprint;
 
@@ -181,8 +182,25 @@ class PlayerViewModel extends ChangeNotifier {
 
   void setSleepTimer(Duration? duration) => _engine.setSleepTimer(duration);
 
+  /// Called when the app returns to foreground (e.g. after swiping away and
+  /// reopening from the Pixel media notification or launcher) so UI state and
+  /// metadata polling stay strictly synced with the background audio handler.
+  void handleAppResumed() {
+    final latest = _engine.currentSnapshot;
+    _snapshot = latest;
+    notifyListeners();
+    if (latest.isPlaying) {
+      if (_metadataPollTimer == null || !_metadataPollTimer!.isActive) {
+        _startMetadataPolling();
+      } else {
+        unawaited(_pollMetadataOnce());
+      }
+    }
+  }
+
   void _startMetadataPolling() {
     _stopMetadataPolling();
+    _pollToken++;
     unawaited(_pollMetadataOnce());
     _metadataPollTimer = Timer.periodic(
       const Duration(seconds: 20),
@@ -191,6 +209,7 @@ class PlayerViewModel extends ChangeNotifier {
   }
 
   void _stopMetadataPolling() {
+    _pollToken++;
     _metadataPollTimer?.cancel();
     _metadataPollTimer = null;
   }
@@ -199,6 +218,7 @@ class PlayerViewModel extends ChangeNotifier {
     final station = _snapshot.station;
     final stream = _snapshot.activeStream;
     if (station == null || stream == null || !_snapshot.isPlaying) return;
+    final token = _pollToken;
 
     try {
       final enriched = await _repository.extractStreamMetadata(
@@ -206,10 +226,12 @@ class PlayerViewModel extends ChangeNotifier {
         stationAddress: station.address,
         sessionId: _sessionId,
       );
+      if (token != _pollToken) return;
       if (enriched != null &&
           enriched.hasTrackInfo &&
           _snapshot.station?.address == station.address &&
-          _snapshot.activeStream?.url == stream.url && _snapshot.isPlaying) {
+          _snapshot.activeStream?.url == stream.url &&
+          _snapshot.isPlaying) {
         _engine.updateEnrichedMetadata(enriched);
       }
     } catch (_) {

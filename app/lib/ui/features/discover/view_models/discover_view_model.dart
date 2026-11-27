@@ -134,8 +134,31 @@ class DiscoverViewModel extends ChangeNotifier {
     }
   }
 
+  /// Reconnects and restores stations when returning from background sleep or
+  /// Recents swipe-away if the catalog is missing or had a transient error.
+  Future<void> handleAppResumed() async {
+    if (_isLoading) return;
+    if (_allStations.isEmpty || _errorMessage != null) {
+      await initialize();
+      return;
+    }
+    if (!hasActiveFilters && _displayedStations.isEmpty) {
+      _displayedStations = _recentStations;
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadCatalog() async {
     final stations = await _repository.loadStations(limit: 250);
+    // Never wipe an already-populated station directory if a transient
+    // background/resume relay request comes back empty.
+    if (stations.isEmpty && _allStations.isNotEmpty) {
+      _relayStatus = _repository.relayStatus;
+      if (!hasActiveFilters && _displayedStations.isEmpty) {
+        _displayedStations = _recentStations;
+      }
+      return;
+    }
     _allStations = stations;
     _recentStations = stations.take(recentStationLimit).toList();
     _genrePreviews = {
@@ -146,9 +169,12 @@ class DiscoverViewModel extends ChangeNotifier {
     _relayStatus = _repository.relayStatus;
 
     try {
-      _featuredLists = await _repository.loadFeaturedLists();
+      final fetchedLists = await _repository.loadFeaturedLists();
+      if (fetchedLists.isNotEmpty || _featuredLists.isEmpty) {
+        _featuredLists = fetchedLists;
+      }
     } catch (_) {
-      _featuredLists = const [];
+      // Preserve previously loaded featured lists on transient relay errors.
     }
 
     if (hasActiveFilters) {

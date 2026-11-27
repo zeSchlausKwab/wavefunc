@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Central broadcast signal dot -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,10.2A1.8,1.8 0,1 0,12 13.8A1.8,1.8 0,1 0,12 10.2Z" />
+    <!-- Inner radio waves -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.46,8.46a5,5 0,0 0,0 7.08l1.27,-1.27a3.2,3.2 0,0 1,0 -4.54zM15.54,8.46l-1.27,1.27a3.2,3.2 0,0 1,0 4.54l1.27,1.27a5,5 0,0 0,0 -7.08z" />
+    <!-- Outer radio waves -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5.64,5.64a9,9 0,0 0,0 12.72l1.27,-1.27a7.2,7.2 0,0 1,0 -10.18zM18.36,5.64l-1.27,1.27a7.2,7.2 0,0 1,0 10.18l1.27,1.27a9,9 0,0 0,0 -12.72z" />
+</vector>

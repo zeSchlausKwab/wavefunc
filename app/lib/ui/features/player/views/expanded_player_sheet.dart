@@ -174,11 +174,13 @@ class ExpandedPlayerSheet extends StatelessWidget {
                     runSpacing: 10,
                     children: [
                       SonicPowerButton(
-                        label: snap.isPlaying ? 'Pause' : 'Transmit',
-                        icon: snap.isPlaying ? Icons.pause : Icons.play_arrow,
-                        active: snap.isPlaying,
+                        label: (snap.isPlaying || snap.isBusy) ? 'Pause' : 'Transmit',
+                        icon: (snap.isPlaying || snap.isBusy)
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        active: snap.isPlaying || snap.isBusy,
                         onPressed: () {
-                          if (snap.isPlaying) {
+                          if (snap.isPlaying || snap.isBusy) {
                             playerViewModel.pause();
                           } else if (snap.phase == PlayerPhase.failed) {
                             playerViewModel.retry();

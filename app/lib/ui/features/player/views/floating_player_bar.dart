@@ -139,7 +139,7 @@ class FloatingPlayerBar extends StatelessWidget {
                                 : SonicColors.onSignal,
                             loading: snap.isBusy,
                             onTap: () {
-                              if (snap.isPlaying) {
+                              if (snap.isPlaying || snap.isBusy) {
                                 playerViewModel.pause();
                               } else if (snap.phase == PlayerPhase.failed) {
                                 playerViewModel.retry();

@@ -3,6 +3,7 @@ package live.wavefunc.wavefunc_app
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -26,9 +27,26 @@ class MainActivity : AudioServiceActivity() {
     private var pendingRequestCode: Int = 0
     private var pendingUnsignedEventJson: String? = null
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        AndroidPlaybackKeepAlive.attachActivity(this)
+        AndroidPlaybackKeepAlive.ensureNotificationPermission(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AndroidPlaybackKeepAlive.attachActivity(this)
+    }
+
+    override fun onDestroy() {
+        AndroidPlaybackKeepAlive.detachActivity(this)
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         registerMediaDownloader(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        AndroidPlaybackKeepAlive.register(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AMBER_CHANNEL)
             .setMethodCallHandler { call, result ->
