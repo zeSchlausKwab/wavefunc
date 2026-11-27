@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -340,6 +341,22 @@ void main() {
       expect(handler.currentSnapshot.station, isNull);
 
       await handler.disposeEngine();
+    },
+  );
+
+  test(
+    'Android R8 keep.xml preserves audio_service and status bar notification drawables',
+    () {
+      final keepFile = File('android/app/src/main/res/raw/keep.xml');
+      final statIconFile = File(
+        'android/app/src/main/res/drawable/ic_stat_wavefunc.xml',
+      );
+      expect(keepFile.existsSync(), isTrue);
+      expect(statIconFile.existsSync(), isTrue);
+
+      final keepXml = keepFile.readAsStringSync();
+      expect(keepXml, contains('@drawable/audio_service_*'));
+      expect(keepXml, contains('@drawable/ic_stat_wavefunc'));
     },
   );
 }

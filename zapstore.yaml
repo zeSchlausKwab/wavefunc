@@ -1,8 +1,28 @@
+name: WaveFunc Radio
 repository: https://github.com/zeSchlausKwab/wavefunc
 pubkey: npub1yy8nrdspnadwz0yetjxc874yrgff7y5ksshycvcn4w9y4wcf6x3qdqlqpp
-description: A Nostr-based internet radio directory and player with full-text search capabilities.
-summary: Internet Radio on nostr
+summary: Decentralized internet radio player on Nostr — 40,000+ live stations
+description: >-
+  WaveFunc Radio is a decentralized internet radio directory and player built on
+  Nostr. Browse and search 40,000+ live radio stations across genres, languages,
+  and countries, stream with live ICY track metadata and a 16-band audio
+  spectrogram, keep listening in the background with lock-screen and Bluetooth
+  controls, and sync your favorites, saved tracks, curated lists, reactions, and
+  comments over Nostr relays.
 license: MIT
 website: https://wavefunc.live
+icon: ./app/assets/icons/app_icon.png
+tags:
+  - radio
+  - music
+  - audio
+  - streaming
+  - nostr
+  - internet-radio
+images:
+  - ./docs/screenshots/zapstore/01-discover.png
+  - ./docs/screenshots/zapstore/02-player.png
+  - ./docs/screenshots/zapstore/03-browse.png
+  - ./docs/screenshots/zapstore/04-feed.png
 metadata_sources:
-    - github
+  - github

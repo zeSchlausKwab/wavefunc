@@ -199,6 +199,16 @@ jobs:
         run: |
           flutter pub get
           flutter build apk --release
+      - name: Verify audio_service & notification drawables survived R8 shrinking
+        run: |
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort | tail -n1)"
+          RESOURCES="$("$AAPT2" dump resources app/build/app/outputs/flutter-apk/app-release.apk)"
+          for res in drawable/ic_stat_wavefunc drawable/audio_service_play_arrow drawable/audio_service_pause drawable/audio_service_stop; do
+            if ! grep -q "$res" <<<"$RESOURCES"; then
+              echo "ERROR: Missing R8-shrunk resource $res in app-release.apk" >&2
+              exit 1
+            fi
+          done
       - name: Rename release APK
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
